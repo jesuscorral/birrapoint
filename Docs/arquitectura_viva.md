@@ -1,68 +1,87 @@
-# Arquitectura Viva — BirraPoint
+# Living Architecture — BirraPoint
 
-> Documento vivo: refleja el **estado actual real** del sistema. Se actualiza obligatoriamente al
-> cierre de cada tarea del backlog (ver CLAUDE.md §Implementation workflow, paso 6). Las
-> decisiones con trade-offs se registran en `Docs/adrs/`; el diseño aprobado vive en
-> `specs/001-birrapoint-mvp/`.
+> Living document: it reflects the **actual current state** of the system, and MUST be updated
+> at the close of every backlog task (see CLAUDE.md §Implementation workflow, step 6).
+> Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
+> `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Última actualización:** 2026-07-07 · tras T001–T006 (Fase 1 Setup, PR #2)
+**Last updated:** 2026-07-07 · after T001–T006 (Phase 1 Setup, PR #2)
 
-## Estado global
+## Global status
 
-Fase 1 (Setup) completada salvo T007. Existe el esqueleto completo de ambos stacks y la
-orquestación local; **no hay todavía lógica de negocio, dominio, autenticación ni endpoints de
-API** (empiezan en Fase 2, T008–T020).
+Phase 1 (Setup) is complete except T007. The full skeleton of both stacks and the local
+orchestration exist; **there is no business logic, domain model, authentication, or business
+API endpoint yet** (those start in Phase 2, T008–T020).
 
-## Topología local (.NET Aspire — `dotnet run --project backend/src/BirraPoint.AppHost`)
+## Local topology (.NET Aspire — `dotnet run --project backend/src/BirraPoint.AppHost`)
 
-| Recurso | Implementación | Endpoint local | Notas |
+| Resource | Implementation | Local endpoint | Notes |
 |---|---|---|---|
-| `postgres` / db `db` | contenedor `postgres:16`, volumen persistente | puerto dinámico | connection string inyectada a la API como `ConnectionStrings__db` |
-| `keycloak` | contenedor `quay.io/keycloak/keycloak:26.2` vía `AddContainer` (ADR-0001) | http://localhost:8081 | realm `birrapoint` auto-importado desde `infra/keycloak/` |
-| `mailpit` | CommunityToolkit MailPit | SMTP y UI en puertos dinámicos | sumidero de correo local |
-| `api` | proyecto `BirraPoint.Api` | puerto dinámico | recibe env: `Keycloak__Authority`, `Keycloak__AdminClientId/Secret` (placeholder dev), `Smtp__Host/Port` |
-| `frontend` | `npm start` (ng serve) vía `AddNpmApp` | http://localhost:4200 | espera a `api` |
+| `postgres` / database `db` | `postgres:16` container, persistent data volume, persistent lifetime | dynamic port | connection string injected into the API as `ConnectionStrings__db` |
+| `keycloak` | `quay.io/keycloak/keycloak:26.2` container via `AddContainer` (ADR-0001) | http://localhost:8081 | realm `birrapoint` auto-imported from `infra/keycloak/` (roles `ORGANIZER`/`JUDGE`, seeded organizer, PKCE SPA client, admin service-account client with `manage-users`); bootstrap/realm credentials are local-dev placeholders (FR-046) |
+| `mailpit` | CommunityToolkit MailPit integration | dynamic SMTP + UI ports | local mail sink for invitations/results |
+| `api` | `BirraPoint.Api` project | dynamic port | receives env: `Keycloak__Authority` (realm URL), `Keycloak__AdminClientId/Secret` (dev placeholder), `Smtp__Host/Port` (from the Mailpit endpoint); waits for the database |
+| `frontend` | `npm start` (ng serve) via `AddNpmApp` | http://localhost:4200 (non-proxied) | matches the SPA client redirect URIs; waits for the API |
 
-## Backend (`backend/`)
+## Backend (`backend/`, .NET 10 / C# 14)
 
-- **Proyectos**: `BirraPoint.Api` (monolito modular, esqueleto `Domain/ Common/ Features/
-  Realtime/` vacío), `BirraPoint.AppHost`, `BirraPoint.ServiceDefaults` (OpenTelemetry, health
-  checks, resilience), tests `BirraPoint.Api.UnitTests` y `BirraPoint.Api.IntegrationTests`.
-- **Endpoints HTTP actuales**: solo infraestructura — `/health` y `/alive` (expuestos únicamente
-  en Development por `MapDefaultEndpoints`). Ningún endpoint de negocio todavía; el primero será
-  `GET /api/v1/styles` (T017).
-- **Paquetes clave**: MediatR 12.5.0 (pineado — no subir a 13+), FluentValidation 12.1.1,
-  Npgsql.EntityFrameworkCore.PostgreSQL 10.0.2, ClosedXML 0.105.0, QuestPDF 2026.7.0
-  (requiere `Settings.License = Community` al arrancar — pendiente para el slice Dispatch),
+- **Projects** (`BirraPoint.sln`): `BirraPoint.Api` (modular monolith; empty vertical-slice
+  skeleton `Domain/ Common/ Features/ Realtime/`), `BirraPoint.AppHost` (Aspire SDK 13.4.6),
+  `BirraPoint.ServiceDefaults`, tests `BirraPoint.Api.UnitTests` and
+  `BirraPoint.Api.IntegrationTests`.
+- **`BirraPoint.Api`**: Minimal API bootstrap only — `AddServiceDefaults()` +
+  `MapDefaultEndpoints()`. **Current HTTP surface**: infrastructure only — `/health` (all
+  checks) and `/alive` (checks tagged `live`), both mapped **in Development only** (stock
+  ServiceDefaults guard; ACA probes will need a scoped exposure decision in Phase 16).
+- **`BirraPoint.ServiceDefaults`**: OpenTelemetry (ASP.NET Core, HttpClient and runtime
+  instrumentation; OTLP exporter switched by `OTEL_EXPORTER_OTLP_ENDPOINT`), default health
+  checks (`self`/`live`), HttpClient resilience handler + service discovery.
+- **Key packages** (pinned in the csproj): MediatR **12.5.0** (never upgrade to 13+ — license,
+  R-03), FluentValidation 12.1.1, Npgsql.EntityFrameworkCore.PostgreSQL 10.0.2 (EF Core
+  10.0.4), ClosedXML 0.105.0, QuestPDF 2026.7.0 (requires
+  `QuestPDF.Settings.License = LicenseType.Community` at startup — pending, Dispatch slice),
   MailKit 4.17.0.
+- **Test harnesses**: xUnit in both test projects; the integration project additionally carries
+  Testcontainers.PostgreSql 4.13.0 + Microsoft.AspNetCore.Mvc.Testing. Currently smoke tests
+  only — the real `WebApplicationFactory` + Testcontainers harness arrives with T018 (which
+  must also add `public partial class Program;` to the API).
 
-## Frontend (`frontend/`)
+## Frontend (`frontend/`, Angular 20)
 
-- Angular 20 standalone + Signals, PWA (`@angular/pwa`), Tailwind CSS v4 (plugin PostCSS,
-  `.postcssrc.json`), zone.js (decisión zoneless pendiente — ver revisión PR #2).
-- Estructura FSD: `src/app/core/` `features/` `shared/` (vacías, con `.gitkeep`).
-- Dependencias fijadas a la línea compatible con Angular 20: `@angular/cdk@20`,
-  `keycloak-angular@20`; además `keycloak-js@26`, `dexie@4`, `@microsoft/signalr@10`.
-- Componente raíz: shell mínimo accesible (h1 + `router-outlet`), sin rutas definidas aún.
+- Standalone components + Signals; PWA via `@angular/pwa` (`ngsw-worker.js` registered
+  `registerWhenStable:30000`, enabled outside dev mode); Tailwind CSS v4 through the PostCSS
+  plugin (`.postcssrc.json`); zone-based change detection for now (**zoneless under evaluation
+  — ADR-0003**).
+- **Feature-Sliced Design skeleton**: `src/app/core/`, `src/app/features/`, `src/app/shared/`
+  (empty, `.gitkeep`). Root component is a minimal accessible shell (h1 + `router-outlet`);
+  no routes defined yet.
+- **Dependencies**: Angular-lockstep packages pinned to the 20.x line (`@angular/cdk@^20.2`,
+  `keycloak-angular@^20.1` — ADR-0002); independent: `keycloak-js@^26.2`, `dexie@^4.4`,
+  `@microsoft/signalr@^10`, `tailwindcss@^4.3`.
+- **Bundle** (production build): initial total ~230.7 kB raw / ~64.8 kB transfer — within the
+  ≤ 500 kB gzip budget (Principle IX); `zone.js` polyfills account for ~34.6 kB raw of it.
 
-## Testing y gates
+## Testing & quality gates
 
-| Suite | Comando | Estado |
+| Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | smoke tests (el harness real de integración con Testcontainers llega en T018) |
-| Frontend unit | `cd frontend && npx jest` | jest-preset-angular; Karma eliminado |
-| E2E + a11y | `cd frontend && npx playwright test -c e2e` | smoke + gate axe WCAG 2.1 A/AA (solo chromium; webkit pendiente antes de las suites offline) |
-| Lint/format | `ng lint`, `prettier`, `dotnet format --verify-no-changes` | limpios |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green (smoke tests; real harness in T018) |
+| Frontend unit | `cd frontend && npx jest` | green — jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
+| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | green — smoke spec + `e2e/a11y` axe-core WCAG 2.1 A/AA gate (SC-009); **chromium only** — a webkit/mobile-Safari project is pending before the offline suites |
+| Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), Prettier, `dotnet format --verify-no-changes` (backend/.editorconfig) | clean |
 
-## Flujos de datos
+## Data flows
 
-Ninguno implementado todavía. Contratos objetivo en `specs/001-birrapoint-mvp/contracts/`
-(REST `/api/v1`, hub SignalR `CompetitionHub`, fichero de import `.xlsx`).
+None implemented yet. Target contracts live in `specs/001-birrapoint-mvp/contracts/`
+(REST `/api/v1`, SignalR `CompetitionHub`, `.xlsx` import file).
 
-## Deuda registrada / pendientes inmediatos
+## Recorded debt / immediate next steps
 
-- T007: volcar comandos reales a CLAUDE.md y cerrar Fase 1.
-- Decidir zoneless change detection antes de la Fase 3 de frontend (revisión PR #2).
-- Endurecer smoke de integración (arrancar `PostgreSqlContainer`) — se cubrirá en T018.
-- `WaitFor` sobre Keycloak listo cuando se cablee auth (T011, ADR-0001).
-- `Aspire.Hosting.NodeJs` en tren de versiones antiguo (9.5.2); alinear cuando exista 13.x.
+- **T007**: mirror the now-real commands into CLAUDE.md and close Phase 1.
+- **ADR-0003**: decide zoneless change detection before Phase 3 frontend work.
+- Harden the integration smoke test to actually start a `PostgreSqlContainer` (lands with T018).
+- `WaitFor` a *ready* Keycloak once auth is wired (T011; ADR-0001 mitigation).
+- `Aspire.Hosting.NodeJs` is on the old version train (9.5.2); align when a 13.x ships.
+- Add a webkit Playwright project before writing the offline E2E suites (iOS Safari is the
+  constrained target for the offline engine, R-08).
+- `/health`//`/alive` exposure strategy for ACA probes (Phase 16).

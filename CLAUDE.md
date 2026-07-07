@@ -65,7 +65,9 @@ be skipped:
    (e.g. `0004-uso-de-redis-para-cache.md`, format per `Docs/adrs/template.md`);
    (b) **Living documentation**: update `Docs/arquitectura_viva.md` so it faithfully reflects
    the current system state — new endpoints, components, data flows. Both ship in the same
-   change as the implementation (Principle X).
+   change as the implementation (Principle X). **All documentation (ADRs, living doc, any new
+   docs) is always written in English**; only the legacy product definition under `Docs/`
+   remains in Spanish.
 
 ## Commands
 
