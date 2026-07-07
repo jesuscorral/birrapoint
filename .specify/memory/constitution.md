@@ -21,9 +21,9 @@ Templates:
   - .specify/templates/tasks-template.md ✅ compatible
   - Docs/01-Definicion-Tecnologica.md ✅ updated (§5 Infraestructura rewritten to match)
   - CLAUDE.md ✅ compatible (no orchestration references)
-  - specs/001-birrapoint-mvp/plan.md, research.md, tasks.md, quickstart.md ⚠ pending —
-    infra sections still describe docker-compose (plan §structure, research R-06 note only,
-    tasks T005/T007, quickstart environment-up); propagate before /speckit-implement.
+  - specs/001-birrapoint-mvp/plan.md, research.md, tasks.md, quickstart.md ✅ updated 2026-07-07
+    (plan structure/context, research R-16–R-19, tasks T005 + new Phase 16 T095–T099,
+    quickstart Aspire/azd commands).
 Follow-up TODOs: none
 Previous report (v1.1.0, 2026-07-06): backend stack .NET 8/9 → .NET 10 (LTS).
 Previous report (v1.0.0, 2026-07-06): initial ratification of Core Principles I–X,
