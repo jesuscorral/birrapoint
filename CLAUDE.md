@@ -43,6 +43,22 @@ Supporting: `/speckit-analyze` (cross-artifact consistency), `/speckit-checklist
   (`specs/001-birrapoint-mvp/`).
 - `.specify/extensions.yml` runs `speckit.agent-context.update` after specify and plan steps.
 
+## Implementation workflow (per task — mandatory)
+
+Every `/speckit-implement` execution for a pending task follows these steps in order; none may
+be skipped:
+
+1. **Branch** — create and switch to `feature/<task-id>` (e.g. `feature/T002`) off `main`.
+2. **Technical plan (tollgate)** — output the exact files to create/modify, the architectural
+   approach (vertical slice, MediatR, standalone components…), and the testing strategy. Then
+   **stop**: write no code until the user explicitly replies "Approved, proceed".
+3. **Implement with TDD** — tests first, verified failing (Principle III), then implementation;
+   validate locally (`dotnet build`, `dotnet test`, frontend build/tests).
+4. **Commit & PR** — semantic commit, push the branch, open a PR against `main` (`gh` CLI).
+5. **Automated review** — run the `senior-code-reviewer` agent
+   (`.claude/agents/senior-code-reviewer.md`) on the PR diff and submit its review to the PR:
+   approve or request changes with specific, actionable inline comments.
+
 ## Commands
 
 Defined in `quickstart.md`; they become real when Phase 1 (T001–T007) lands — verify then and
@@ -177,6 +193,7 @@ are rejected.
 
 ## Git
 
-- Work on feature branches (current: `001-birrapoint-mvp`); small, reviewable commits.
+- Per-task branches `feature/<task-id>` off `main`; PRs target `main` (see Implementation
+  workflow); small, reviewable commits.
 - Commit spec artifacts together with the implementation they describe.
 - Never force-push or skip hooks (`--no-verify`).

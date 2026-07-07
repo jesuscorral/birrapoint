@@ -1,0 +1,41 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+[Ll]og/
+[Ll]ogs/
+artifacts/
+TestResults/
+*.binlog
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+coverage/
+*.log
+npm-debug.log*
+
+# Playwright
+playwright-report/
+test-results/
+blob-report/
+
+# Environment & secrets (Principle VII — secrets never enter the repo)
+.env
+.env.*
+*.pfx
+*.key
+appsettings.*.Local.json
+
+# Azure Developer CLI
+.azure/
+
+# IDE / OS
+.vs/
+.idea/
+*.swp
+*.tmp
+.DS_Store
+Thumbs.db

@@ -31,7 +31,7 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 **Purpose**: Repos, toolchains, and local environment (.NET 10 / Angular 20 / Aspire per constitution v1.2.0)
 
-- [ ] T001 Create backend solution: `backend/BirraPoint.sln`, project `backend/src/BirraPoint.Api/BirraPoint.Api.csproj` (net10.0) with folder skeleton `Domain/`, `Common/`, `Features/`, `Realtime/`, and packages MediatR 12.5.x, FluentValidation, EF Core + Npgsql, ClosedXML, QuestPDF, MailKit
+- [X] T001 Create backend solution: `backend/BirraPoint.sln`, project `backend/src/BirraPoint.Api/BirraPoint.Api.csproj` (net10.0) with folder skeleton `Domain/`, `Common/`, `Features/`, `Realtime/`, and packages MediatR 12.5.x, FluentValidation, EF Core + Npgsql, ClosedXML, QuestPDF, MailKit
 - [ ] T002 [P] Create test projects `backend/tests/BirraPoint.Api.UnitTests/` and `backend/tests/BirraPoint.Api.IntegrationTests/` (xUnit; integration adds Testcontainers.PostgreSql + Microsoft.AspNetCore.Mvc.Testing), wired into `backend/BirraPoint.sln`
 - [ ] T003 [P] Scaffold Angular 20 standalone workspace in `frontend/` with `@angular/pwa`, Tailwind CSS, `@angular/cdk`, `keycloak-angular`/`keycloak-js`, `dexie`, `@microsoft/signalr` in `frontend/package.json`; FSD skeleton `src/app/core|features|shared`
 - [ ] T004 [P] Configure Jest via jest-preset-angular in `frontend/jest.config.ts` and Playwright + `@axe-core/playwright` in `frontend/e2e/playwright.config.ts`
