@@ -7,7 +7,8 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "jest",
-    "e2e": "playwright test -c e2e"
+    "e2e": "playwright test -c e2e",
+    "lint": "ng lint"
   },
   "prettier": {
     "printWidth": 100,
@@ -47,11 +48,14 @@
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.3.2",
     "@types/jest": "^30.0.0",
+    "angular-eslint": "21.0.1",
+    "eslint": "^9.39.1",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
     "jest-preset-angular": "^17.0.0",
     "postcss": "^8.5.16",
     "tailwindcss": "^4.3.2",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "typescript-eslint": "8.46.4"
   }
 }

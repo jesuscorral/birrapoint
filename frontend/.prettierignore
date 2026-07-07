@@ -1,0 +1,9 @@
+dist/
+coverage/
+.angular/
+test-results/
+playwright-report/
+out-tsc/
+node_modules/
+package-lock.json
+ngsw-config.json
