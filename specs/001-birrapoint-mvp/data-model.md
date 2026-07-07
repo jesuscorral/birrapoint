@@ -19,8 +19,8 @@ All PKs are `Guid` (v7/sequential). All entities carry `CreatedAt`/`UpdatedAt` (
 | Description | string(2000)? | optional |
 | LogoUrl | string(500)? | optional |
 | EntryLimit | int? | optional, > 0 |
-| StartRegistration | DateOnly? | optional 
-| EndRegistration | DateOnly? | optional |
+| StartRegistration | DateOnly? | optional |
+| EndRegistration | DateOnly? | optional; `>= StartRegistration` when both set (DB check constraint) |
 | State | enum `CompetitionState` | `Draft` \| `Active` \| `InEvaluation` \| `Finalized` |
 | CreatedByUserId | string | Keycloak subject of the organizer |
 
@@ -161,7 +161,8 @@ collaborator of any `TableSample` entry at this table — checked transactionall
                                   from TastingTable.State = Closed)
 ```
 
-Submission with no >7 divergence goes directly to `Confirmed`. Judge mutation rules:
+Terminology: the spec's "held as provisional" state is `PendingConsensus` here and in the API
+contract. Submission with no >7 divergence goes directly to `Confirmed`. Judge mutation rules:
 - `INSERT`: only own evaluation, own open table, competition `InEvaluation`, sample is the next
   in sequence (FR-022).
 - `UPDATE`: only while an open `DiscrepancyAlert` covers this evaluation's (table, entry) and the

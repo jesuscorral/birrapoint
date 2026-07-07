@@ -18,7 +18,7 @@ Conventions: `404` for resources outside the caller's scope (never reveal existe
 
 | Method & Path | Role | Description |
 |---|---|---|
-| `POST /competitions` | ORGANIZER | Create draft. Body: `{ name, venue, startDate, endDate, description?, logoUrl?, entryLimit?, registrationDeadline? }` → `201` `{ id, state: "Draft", … }`. `400` on missing required field / endDate < startDate. |
+| `POST /competitions` | ORGANIZER | Create draft. Body: `{ name, venue, startDate, endDate, description?, logoUrl?, entryLimit?, registrationStart?, registrationEnd? }` → `201` `{ id, state: "Draft", … }`. `400` on missing required field / endDate < startDate / registrationEnd < registrationStart. |
 | `GET /competitions` | ORGANIZER | Own competitions summary list. |
 | `GET /competitions/{id}` | ORGANIZER | Full detail. |
 | `PUT /competitions/{id}` | ORGANIZER | Update wizard data. Allowed in `Draft`/`Active` only → else `409 invalid-state-transition`. |
@@ -39,6 +39,7 @@ Conventions: `404` for resources outside the caller's scope (never reveal existe
 |---|---|---|
 | `POST /competitions/{id}/judges` | ORGANIZER | Body: `{ emails: [string] }`. Creates missing profiles, provisions Keycloak users, queues invitations. → `201` `{ created: [...], skipped: [{ email, reason: "duplicate-in-list" \| "already-registered" }] }` (FR-014/FR-015). |
 | `GET /competitions/{id}/judges` | ORGANIZER | Profiles + invitation delivery status. |
+| `PUT /competitions/{id}/judges/{judgeId}` | ORGANIZER | Correct a judge's email before first login (edge case: bounced invitation). Body: `{ email }`. Re-validates uniqueness (FR-015), re-runs COI matching and BOS flagging against the new address (FR-017/FR-018), updates the Keycloak account. `409 judge-already-active` once the judge has authenticated. |
 | `POST /competitions/{id}/judges/{judgeId}/invitation` | ORGANIZER | Re-send invitation (edge case: bounced email after correction). |
 
 ## Tables (organizer)
@@ -98,6 +99,7 @@ built exclusively from the blind projection (`JudgeSampleDto`) — see data-mode
 | `evaluations-incomplete` | 409 | FR-033 close precondition |
 | `discrepancy-open` | 409 | FR-032 close precondition |
 | `tables-still-open` | 409 | FR-036 finalize precondition |
+| `judge-already-active` | 409 | judge email correction after first login |
 
 Breaking changes to any of the above require a spec amendment and a `/api/v2` decision
 (Constitution Principle VI).

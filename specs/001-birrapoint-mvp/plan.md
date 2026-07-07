@@ -65,7 +65,7 @@ start and cloud provision/deploy (FR-044/FR-045); health checks + telemetry on e
 (FR-048); in-environment PostgreSQL requires scheduled backup/export + documented restore (FR-047).
 
 **Scale/Scope**: Single live event design center: ~500 entries, ~100 judges, ~25 tables;
-12 user stories, 42 functional requirements; multi-competition data model from day one.
+12 user stories, 48 functional requirements; multi-competition data model from day one.
 
 ## Constitution Check
 

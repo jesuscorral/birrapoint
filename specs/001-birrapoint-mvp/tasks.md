@@ -53,7 +53,7 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 - [ ] T009 Create `AppDbContext` + entity configurations (unique indexes incl. `(JudgeId, BeerEntryId)`, computed `Evaluation.Total` column, `EndDate >= StartDate` check, partial unique index for open DiscrepancyAlert) in `backend/src/BirraPoint.Api/Common/Persistence/`, generate initial EF migration
 - [ ] T010 [P] Add BJCP 2021 style catalog JSON at `backend/src/BirraPoint.Api/Features/Catalog/Data/bjcp-2021.json` and seed it via EF migration (R-12)
 - [ ] T011 JWT bearer auth against Keycloak, deny-by-default fallback policy, `ORGANIZER`/`JUDGE` role policies, and `CurrentUser` claims accessor (sub/email/roles) in `backend/src/BirraPoint.Api/Common/Auth/`
-- [ ] T012 [P] ProblemDetails middleware + exception mapping with the 13 stable `urn:birrapoint:*` type URNs from contracts/rest-api.md §Error catalog in `backend/src/BirraPoint.Api/Common/Errors/`
+- [ ] T012 [P] ProblemDetails middleware + exception mapping with the 14 stable `urn:birrapoint:*` type URNs from contracts/rest-api.md §Error catalog in `backend/src/BirraPoint.Api/Common/Errors/`
 - [ ] T013 [P] MediatR registration + FluentValidation `ValidationBehavior` pipeline in `backend/src/BirraPoint.Api/Common/Behaviors/`
 - [ ] T014 [P] `AuditWriter` service (action, entity, actor, before/after jsonb) in `backend/src/BirraPoint.Api/Common/Audit/`
 - [ ] T015 `CompetitionHub` with guarded group joins (`JoinCompetitionAsOrganizer` → role+ownership, `JoinTable` → active membership) per contracts/signalr-hub.md in `backend/src/BirraPoint.Api/Realtime/CompetitionHub.cs`; emit-after-commit event dispatcher in `Realtime/EventPublisher.cs`
@@ -141,14 +141,14 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 ### Tests for User Story 4 (MANDATORY — write first, must fail) ⚠️
 
 - [ ] T038 [P] [US4] Unit tests: bulk registration dedup (in-list + already-registered with reasons), email validation in `backend/tests/BirraPoint.Api.UnitTests/Judges/`
-- [ ] T039 [P] [US4] Contract tests: `POST /competitions/{id}/judges` created/skipped semantics, `GET` delivery statuses, resend invitation in `backend/tests/BirraPoint.Api.IntegrationTests/Judges/JudgesApiTests.cs`
+- [ ] T039 [P] [US4] Contract tests: `POST /competitions/{id}/judges` created/skipped semantics, `GET` delivery statuses, resend invitation, email correction (`PUT .../judges/{judgeId}` incl. `409 judge-already-active` and COI/BOS re-run) in `backend/tests/BirraPoint.Api.IntegrationTests/Judges/JudgesApiTests.cs`
 
 ### Implementation for User Story 4
 
 - [ ] T040 [US4] Keycloak Admin API client (create user, temp password, `UPDATE_PASSWORD` required action, idempotent on existing user) in `backend/src/BirraPoint.Api/Common/Keycloak/KeycloakAdminClient.cs`
 - [ ] T041 [US4] MailKit SMTP sender + invitation template; `SendInvitation` DispatchJob handler updating `Invitation` status/attempts/lastError in `backend/src/BirraPoint.Api/Common/Email/` and `Features/Judges/SendInvitationHandler.cs`
-- [ ] T042 [US4] Slices RegisterJudges (bulk), GetJudges, ResendInvitation + endpoints in `backend/src/BirraPoint.Api/Features/Judges/`
-- [ ] T043 [US4] Frontend judge-management: paste list, created/skipped report, delivery status, resend in `frontend/src/app/features/judge-management/`
+- [ ] T042 [US4] Slices RegisterJudges (bulk), GetJudges, ResendInvitation, UpdateJudgeEmail (pre-first-login correction: uniqueness, COI/BOS re-run, Keycloak update) + endpoints in `backend/src/BirraPoint.Api/Features/Judges/`
+- [ ] T043 [US4] Frontend judge-management: paste list, created/skipped report, delivery status, edit email (with resend) in `frontend/src/app/features/judge-management/`
 - [ ] T044 [US4] E2E scenario 4 (assert invitation visible in Mailpit API) in `frontend/e2e/us4-judges.spec.ts`
 
 **Checkpoint**: Judges provisioned end to end; forced password change from US1 applies to them
@@ -213,7 +213,7 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 - [ ] T058 [US7] Slice SubmitEvaluation: preconditions, idempotent create, `EvaluationCompleted` emit (organizer group), discrepancy detection hook point (activated in US11) in `backend/src/BirraPoint.Api/Features/Evaluations/SubmitEvaluation.cs`
 - [ ] T059 [US7] Frontend evaluation sheet: five capped numeric sections + comment fields with live remaining-length, auto-computed read-only total, submit gating in `frontend/src/app/features/evaluation-sheet/`
-- [ ] T060 [US7] Frontend offline engine: draft persistence (≤300 ms after change), offline badge ("Offline mode — data protected locally"), outbox enqueue on submit, `SyncService` replay per R-08 in `frontend/src/app/core/offline/sync.service.ts`
+- [ ] T060 [US7] Frontend offline engine: draft persistence (≤300 ms after change), offline badge ("Offline mode — data protected locally"), outbox enqueue on submit, `SyncService` replay per R-08, and an explicit warning when local storage is unavailable/full (spec edge case — never fail silently) in `frontend/src/app/core/offline/sync.service.ts`
 - [ ] T061 [US7] E2E scenario 7: fill offline (Playwright `setOffline`), reload → draft intact, reconnect → exactly one server evaluation in `frontend/e2e/us7-offline.spec.ts`
 
 **Checkpoint**: 🎯 Core judging loop (US1+US6+US7) demonstrable end to end
@@ -330,9 +330,9 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 ## Phase 15: Polish & Cross-Cutting Concerns
 
 - [ ] T089 [P] Accessibility sweep: axe-core suite over every judge-facing and organizer route, fix violations to WCAG 2.1 AA (SC-009) in `frontend/e2e/a11y.spec.ts`
-- [ ] T090 [P] Performance verification: k6 script for API budgets (reads p95 <200 ms, writes <500 ms) in `infra/perf/api-budgets.js`; assert dashboard ≤1 s and draft-save ≤300 ms timings already covered in E2E
+- [ ] T090 [P] Performance verification: k6 script for API budgets (reads p95 <200 ms, writes <500 ms) in `infra/perf/api-budgets.js`; assert dashboard ≤1 s and draft-save ≤300 ms timings already covered in E2E; SC-006 scale check — generated 500-row import fixture with 20% style errors resolved and consolidated in one session in `frontend/e2e/us3-import-scale.spec.ts`
 - [ ] T091 [P] Frontend budgets: enforce 500 KB gzip initial bundle in `frontend/angular.json` budgets + Lighthouse PWA/TTI check (<3 s on 4G profile)
-- [ ] T092 Run all 12 quickstart.md scenarios end to end; fix any docs drift in `specs/001-birrapoint-mvp/quickstart.md` (Principle X)
+- [ ] T092 Run all 12 quickstart.md scenarios end to end; fix any docs drift in `specs/001-birrapoint-mvp/quickstart.md` (Principle X); manual usability gate for SC-010 — at least 5 first-time judges complete an evaluation sheet unaided in under 10 minutes
 - [ ] T093 [P] Documentation completion: final commands/structure in `CLAUDE.md`, project overview + setup in `README.md`
 - [ ] T094 Security pass: verify deny-by-default on every endpoint vs contracts/rest-api.md role matrix, secrets only via env vars, no sensitive data in logs/AuditLog payloads
 

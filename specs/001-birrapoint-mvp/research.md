@@ -8,6 +8,11 @@ Alternatives considered.
 ## R-01: .NET version — 10 (LTS)
 
 - **Decision**: .NET 10 with C# 14.
+- **Rationale**: Current LTS, supported to 2028-11; .NET 9 (STS) is already out of support and
+  .NET 8 (LTS) reaches end of support 2026-11 — too close to launch. Ratified in constitution
+  v1.1.0.
+- **Alternatives considered**: .NET 8 (LTS but EOL 2026-11); .NET 9 (out of support as of
+  2026-05).
 
 ## R-02: Angular version — 20.x
 
