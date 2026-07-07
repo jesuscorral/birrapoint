@@ -1,96 +1,182 @@
 # Project Instructions
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) when working in this repository.
 
-## Development Methodology
-This project uses Spec-Driven Development.
+## Project
 
-The source of truth is:
-1. `.specify/memory/constitution.md`
-2. `specs/**/spec.md`
-3. `specs/**/plan.md`
-4. `specs/**/tasks.md`
-5. Tests and acceptance criteria
+BirraPoint is a PWA for running beer competitions with blind tastings (catas a ciegas): organizer
+provisioning (competition wizard with drafts, `.xlsx` entry import validated against the BJCP 2021
+catalog, bulk judge invitations, tasting tables with conflict-of-interest protection), an
+offline-first judge evaluation flow with a shared fixed tasting order and BJCP score caps,
+discrepancy consensus, a real-time organizer dashboard, and immutable closing with automated
+PDF/ZIP/email dispatch. Best of Show and tie-breaks are out of scope (only the `NotValidForBos`
+flag is recorded).
 
-Do no implement new functionaly unless there is an approved spec, plan and task list.
+**Status: greenfield — no application code exists yet.** All design artifacts for the MVP are
+complete and approved; implementation starts at `tasks.md` Phase 1 (Setup, T001–T007). `Docs/`
+holds the original product definition (in Spanish); the English spec supersedes it.
 
-## Workflow 
+## Source of truth (in priority order)
 
-For every new Feature:
-1. Create or update the specification
-2. Clarify ambiguos requirements.
-3. Create a technical plan.
-4. Generate tasks.
-5. Review tasks before implementation.
-6. Implement task by task.
-7. Run tests and quality checks.
-8. Update docs if behavior changes.
+1. `.specify/memory/constitution.md` — v1.2.0, ten principles. Supersedes everything, including
+   this file. Stack deviations require a constitution amendment, not a per-feature choice.
+2. `specs/001-birrapoint-mvp/spec.md` — user stories US1–US12, FR-001–FR-048, clarifications,
+   edge cases, success criteria SC-001–SC-011.
+3. `specs/001-birrapoint-mvp/plan.md` — technical approach, project structure, constitution gate.
+4. `specs/001-birrapoint-mvp/tasks.md` — 16 phases, dependency-ordered, grouped by user story.
+5. Supporting design: `research.md` (decisions R-01–R-19 with rationale), `data-model.md`
+   (entities, state machines, indexes, Dexie stores), `contracts/` (`rest-api.md`,
+   `signalr-hub.md`, `import-file.md`), `quickstart.md` (validation scenarios 1–12, one per story).
 
-## Coding Standards
-- Prefer small, reviewable changes.
-- Keep business login sperated from UI and infrastructure.
-- Add tests before alongside implementation.
-- Do not introduce unnecessary dependencies.
-- Explain trade-offs for architecture decisions.
-- Do not silently change product requirements.
+Never implement functionality without an approved spec, plan, and task. Requirement changes
+discovered mid-implementation flow back into the spec first — never silently overridden in code.
 
-## Architecture
-This project is a Modular Monolith with Vertical Slice Architecture and Domain-Drive Design.
-The system must be organized by business modules, not by generic technical layers.
-Correct:
-```text
-src/modules/bookings/
-src/modules/payments/
-src/modules/users/
-src/shared/kernel
+## Spec Kit workflow
+
+Feature work goes through these skills in order: `/speckit-constitution` → `/speckit-specify` →
+`/speckit-clarify` → `/speckit-plan` → `/speckit-tasks` → task review → `/speckit-implement`.
+Supporting: `/speckit-analyze` (cross-artifact consistency), `/speckit-checklist`,
+`/speckit-converge` (diff codebase vs. spec, append remaining tasks), `/speckit-taskstoissues`.
+
+- Helper scripts are **PowerShell only**: `.specify/scripts/powershell/`. Feature numbering is
+  sequential. `.specify/feature.json` points downstream commands at the active feature
+  (`specs/001-birrapoint-mvp/`).
+- `.specify/extensions.yml` runs `speckit.agent-context.update` after specify and plan steps.
+
+## Commands
+
+Defined in `quickstart.md`; they become real when Phase 1 (T001–T007) lands — verify then and
+remove this note (task T007).
+
+```bash
+# Full local topology, one command: PostgreSQL 16, Keycloak (realm auto-import), Mailpit,
+# API (EF migrations + BJCP seed on startup in Development), Angular frontend
+dotnet run --project backend/src/BirraPoint.AppHost
+# API https://localhost:7443 (OpenAPI at /openapi) · PWA http://localhost:4200 · Mailpit :8025
+
+dotnet test backend/tests/BirraPoint.Api.UnitTests            # handlers + validators
+dotnet test backend/tests/BirraPoint.Api.IntegrationTests     # contract tests; needs Docker (Testcontainers)
+dotnet test <project> --filter "FullyQualifiedName~SubmitEvaluation"   # single test
+
+cd frontend && npm ci && npm start     # frontend-only iteration
+cd frontend && npx jest                # unit
+cd frontend && npx playwright test     # E2E incl. offline simulation and e2e/a11y (axe) suites
+
+azd up   # cloud deploy (Bicep → ACR → Azure Container Apps) — only on explicit user request
 ```
 
-Incorrect:
+## Repository layout (per plan.md — binding)
+
 ```text
-src/controllers
-src/services
-src/repositories
-src/models
+backend/src/BirraPoint.AppHost/         # Aspire orchestration (local topology + azd model)
+backend/src/BirraPoint.ServiceDefaults/ # OpenTelemetry, health checks, resilience
+backend/src/BirraPoint.Api/             # single deployable modular monolith
+├── Domain/        # shared kernel: entities, enums, invariants (see data-model.md)
+├── Common/        # cross-cutting: auth, persistence, errors, MediatR behaviors, audit, job queue
+├── Features/      # ONE vertical slice per capability: Competitions, Catalog, Import, Judges,
+│                  #   Tables, TastingOrder, Evaluations, Monitoring, Dispatch
+└── Realtime/      # CompetitionHub + emit-after-commit event publisher
+backend/tests/     # BirraPoint.Api.UnitTests + BirraPoint.Api.IntegrationTests
+frontend/src/app/  # Feature-Sliced Design: core/ (auth, api, realtime, offline), features/, shared/
+frontend/e2e/      # Playwright suites
+infra/             # bicep/, backup/ (pg_dump job + RESTORE.md), keycloak/birrapoint-realm.json
+azure.yaml         # azd project definition
 ```
-## Testing 
-Before considering work complete, run:
-- Unit tests
-- Integration tests when appiclabe
-- Lint/types checks
-- Build command
 
-If a test cannot be run, explain why and what was verified instead.
+Organize by business capability, never by technical layer (no `controllers/`, `services/`,
+`repositories/` folders).
 
-## Security
-- Never commit secrets
-- Use environment variables for credentials
-- Validate inputs at API boundaries
-- Avoid logging sensitive data.
+## Backend conventions
+
+- A slice = request + handler + FluentValidation validator + endpoint mapping, together under
+  `Features/<Capability>/`. Slices never touch another slice's internals — cross-slice interaction
+  only via MediatR messages or shared contracts. Keep the shared kernel (`Domain/`, `Common/`)
+  deliberately small.
+- **MediatR stays pinned to 12.x** — 13+ moved to a commercial license (R-03). Validation runs in
+  the MediatR pipeline (`ValidationBehavior`), before any handler logic.
+- Errors: RFC 7807 ProblemDetails everywhere, with the stable `urn:birrapoint:*` type URNs from
+  `contracts/rest-api.md` §Error catalog (14 entries — closed list; new ones require a contract
+  amendment). `400` validation, `409` domain/state conflicts, `404` for resources outside the
+  caller's scope (never reveal existence).
+- SignalR: single `CompetitionHub`, **server → client only** — all mutations via REST. Groups
+  `competition:{id}:organizers` (role + ownership guarded) and `table:{tableId}` (membership
+  guarded). Events emit **after** the owning transaction commits and are notifications, not the
+  source of truth (clients re-fetch on reconnect).
+- Background work: DB-persisted `DispatchJob` queue + hosted `BackgroundService` (R-06 — no
+  Hangfire, no broker). Jobs are idempotent and resume on startup.
+- Judge provisioning goes through the Keycloak Admin REST API (temporary password + required
+  action `UPDATE_PASSWORD`); invitation/result emails are sent app-side via MailKit for
+  per-recipient status and retry (R-10).
+
+## Frontend conventions
+
+- Angular 20 standalone components + Signals, Feature-Sliced Design. Cross-cutting infrastructure
+  in `core/`, business screens in `features/<capability>/`, primitives in `shared/`.
+- Offline engine (R-08): Dexie stores `drafts` (persist ≤ 300 ms after each change) and `outbox`
+  (submitted-but-unsynced). Replay on `window online`, app start, and after each submit; do NOT
+  use the Background Sync API (unsupported on iOS Safari). IndexedDB is never the source of truth.
+- Auth: `keycloak-angular` + `keycloak-js`, Authorization Code + PKCE; realm roles map to
+  `/organizer/**` and `/judge/**` route guards. Forced password change happens inside the
+  Keycloak-hosted flow — the app never sees tokens until required actions complete.
+
+## Non-negotiable invariants
+
+1. **Blind anonymity (BR-01/FR-019)** — judge-facing DTOs and SignalR payloads **physically lack
+   entrant fields** (no beer name, participant, brewery, origin). Judges see blind code + style
+   only. Contract tests assert field absence. This is a security invariant, not a UI rule.
+2. **TDD (Principle III)** — tests written first, verified failing, then implementation. Test
+   tasks precede implementation tasks in `tasks.md`; never reorder or skip them.
+3. **Competition state machine (FR-006)** — `Draft → Active → InEvaluation → Finalized`,
+   forward-only, skip-free, organizer-only; per-state capability gates in `data-model.md`.
+4. **Idempotent sync (FR-029/R-07)** — unique index `(JudgeId, BeerEntryId)`; deterministic
+   `X-Idempotency-Key: {competitionId}:{tableId}:{judgeId}:{entryId}`; replay returns `200` with
+   the stored evaluation. Never UPSERT (would violate locked-on-submit).
+5. **Immutability** — sheets lock on submit (reopened only via an open discrepancy involving that
+   judge); after table close, judge mutations are rejected including late offline syncs (FR-034);
+   only organizer corrections are allowed, always audit-logged (FR-035).
+6. **Scoring rules** — section caps Aroma 12 / Appearance 3 / Flavor 20 / Mouthfeel 5 / Overall 10;
+   total is computed (≤ 50), never editable; comments ≥ 20 chars per section; totals > 7 points
+   apart on one sample → provisional + discrepancy alert, blocks table close (FR-031/FR-032).
+   Evaluation requires: state `InEvaluation`, order fixed, strictly sequential samples (FR-022).
+7. **Security (Principle VII)** — identity is Keycloak-only (no custom login/password/token code);
+   deny-by-default `RequireAuthorization()` fallback + `ORGANIZER`/`JUDGE` role policies per
+   endpoint; validate all input at the API boundary; EF Core parameterized queries only; secrets
+   via environment variables, never in the repo; never log sensitive data.
+8. **Accessibility (Principle VIII)** — WCAG 2.1 AA on all judge-facing flows; every drag & drop
+   has a keyboard-accessible equivalent; axe-core Playwright checks are a merge gate.
+9. **Performance budgets (Principle IX)** — API p95: reads < 200 ms, writes < 500 ms; realtime
+   propagation (order fix, dashboard) < 1 s; draft save < 300 ms; initial JS bundle ≤ 500 KB
+   gzipped; PWA interactive < 3 s on 4G.
+10. **Contract-first (Principle VI)** — endpoints and hub events exist in `contracts/` before
+    implementation; breaking a contract requires a spec amendment and versioning decision.
+
+## Approved stack (pinned — constitution + research)
+
+- **Backend**: .NET 10 LTS / C# 14, ASP.NET Core Minimal APIs, MediatR 12.5.x, FluentValidation,
+  EF Core + Npgsql (PostgreSQL 16, code-first migrations), SignalR, ClosedXML (xlsx), QuestPDF
+  Community (PDF), MailKit (SMTP), .NET Aspire AppHost + ServiceDefaults.
+- **Frontend**: Angular 20 (standalone + Signals), `@angular/pwa`, Dexie.js, Tailwind CSS,
+  `@angular/cdk/drag-drop`, `keycloak-angular`/`keycloak-js`, `@microsoft/signalr`.
+- **Testing**: xUnit; `WebApplicationFactory` + Testcontainers (real PostgreSQL — no EF InMemory);
+  Jest via `jest-preset-angular` (not Karma); Playwright + `@axe-core/playwright`.
+- **Identity/Infra**: Keycloak 25+ (OIDC, roles `ORGANIZER`/`JUDGE`); multi-stage Docker images
+  (no baked secrets); Bicep + `azd` → Azure Container Apps; Mailpit locally.
+
+Any dependency beyond this list must be justified in the plan (Principle V); micro-dependencies
+are rejected.
+
+## Definition of Done (every task/story)
+
+- Tests written first and passing: unit, integration/contract, and the story's E2E scenario from
+  `quickstart.md`; lint/format and build green for both stacks.
+- Accessibility checks pass; performance budget respected.
+- Documentation updated in the same change (Principle X): contracts for endpoint changes,
+  `quickstart.md` for setup changes, `Docs/` for product-behavior changes, this file when
+  commands or structure change.
+- If a check cannot run, say why and what was verified instead.
 
 ## Git
-- work on feature branches
-- Use small commits
-- Commit generated spec artifacts together with the implementation
 
-## Project Status
-
-**Greenfield — no application code exists yet.** The repository contains only planning documents (`Docs/`) and GitHub Spec Kit scaffolding (`.specify/`, `.claude/skills/`, `.github/prompts/`). There are no build, lint, or test commands until the first code is scaffolded; add them here when that happens.
-
-BirraPoint is a planned PWA for managing beer competitions and blind tastings (catas a ciegas), with offline support and real-time monitoring. The planning docs in `Docs/` are written in Spanish.
-
-## Spec-Driven Workflow (Spec Kit)
-
-Development follows the Spec Kit workflow (v0.12.4, Claude integration). Feature work goes through these skills, in order:
-
-1. `/speckit-constitution` — maintain project principles (`.specify/memory/constitution.md`, ratified — currently v1.1.0, stack pinned to Angular 17+/.NET 10 LTS)
-2. `/speckit-specify` — create a feature spec from a natural-language description
-3. `/speckit-clarify` — resolve underspecified areas in the spec
-4. `/speckit-plan` — generate the implementation plan and design artifacts
-5. `/speckit-tasks` — generate a dependency-ordered `tasks.md`
-6. `/speckit-implement` — execute the tasks
-
-Supporting skills: `/speckit-analyze` (cross-artifact consistency check), `/speckit-checklist`, `/speckit-converge` (diff codebase vs. spec and append remaining tasks), `/speckit-taskstoissues` (GitHub issues).
-
-- Helper scripts are **PowerShell only**: `.specify/scripts/powershell/` (`create-new-feature.ps1`, `setup-plan.ps1`, `setup-tasks.ps1`, `check-prerequisites.ps1`). Feature numbering is sequential.
-- `.specify/extensions.yml` defines an `agent-context` hook that runs `speckit.agent-context.update` after specify and plan steps.
-- Active feature: `specs/001-birrapoint-mvp/` (spec + clarifications, plan, research, data-model, contracts/, quickstart; tasks pending). `.specify/feature.json` points downstream commands at it.
+- Work on feature branches (current: `001-birrapoint-mvp`); small, reviewable commits.
+- Commit spec artifacts together with the implementation they describe.
+- Never force-push or skip hooks (`--no-verify`).
