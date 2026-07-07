@@ -8,7 +8,9 @@
     "watch": "ng build --watch --configuration development",
     "test": "jest",
     "e2e": "playwright test -c e2e",
-    "lint": "ng lint"
+    "lint": "ng lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "prettier": {
     "printWidth": 100,
@@ -54,6 +56,7 @@
     "jest-environment-jsdom": "^30.4.1",
     "jest-preset-angular": "^17.0.0",
     "postcss": "^8.5.16",
+    "prettier": "^3.9.4",
     "tailwindcss": "^4.3.2",
     "typescript": "~5.9.2",
     "typescript-eslint": "8.46.4"
