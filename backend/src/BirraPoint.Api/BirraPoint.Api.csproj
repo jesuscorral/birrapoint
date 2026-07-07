@@ -15,4 +15,8 @@
     <PackageReference Include="QuestPDF" Version="2026.7.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\BirraPoint.ServiceDefaults\BirraPoint.ServiceDefaults.csproj" />
+  </ItemGroup>
+
 </Project>

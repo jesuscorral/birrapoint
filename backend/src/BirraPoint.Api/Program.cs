@@ -1,6 +1,11 @@
 var builder = WebApplication.CreateBuilder(args);
+
+// OpenTelemetry, health checks, service discovery, resilience (FR-048).
+builder.AddServiceDefaults();
+
 var app = builder.Build();
 
-app.MapGet("/", () => "Hello World!");
+// /health and /alive endpoints (Development only by default).
+app.MapDefaultEndpoints();
 
 app.Run();

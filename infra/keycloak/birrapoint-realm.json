@@ -1,0 +1,72 @@
+{
+  "realm": "birrapoint",
+  "enabled": true,
+  "displayName": "BirraPoint",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "sslRequired": "external",
+  "roles": {
+    "realm": [
+      { "name": "ORGANIZER", "description": "Competition organizer" },
+      { "name": "JUDGE", "description": "Tasting judge" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "birrapoint-spa",
+      "name": "BirraPoint PWA (public, Authorization Code + PKCE)",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "rootUrl": "http://localhost:4200",
+      "baseUrl": "http://localhost:4200",
+      "redirectUris": ["http://localhost:4200/*"],
+      "webOrigins": ["http://localhost:4200"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:4200/*"
+      },
+      "fullScopeAllowed": true
+    },
+    {
+      "clientId": "birrapoint-api-admin",
+      "name": "BirraPoint API service account for judge provisioning (secret below is a LOCAL-DEV placeholder; production injects it at deploy time, FR-046)",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "secret": "dev-only-secret-change-me"
+    }
+  ],
+  "users": [
+    {
+      "username": "organizer",
+      "email": "organizer@birrapoint.local",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Seed",
+      "lastName": "Organizer",
+      "credentials": [
+        { "type": "password", "value": "organizer", "temporary": false }
+      ],
+      "realmRoles": ["ORGANIZER"]
+    },
+    {
+      "username": "service-account-birrapoint-api-admin",
+      "enabled": true,
+      "serviceAccountClientId": "birrapoint-api-admin",
+      "clientRoles": {
+        "realm-management": ["manage-users", "view-users"]
+      }
+    }
+  ]
+}
