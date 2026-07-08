@@ -49,8 +49,8 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T008 Create shared-kernel entities and enums from data-model.md in `backend/src/BirraPoint.Api/Domain/` (Competition, BjcpStyle, Participant, BeerEntry, EntryCollaborator, Judge, Invitation, TastingTable, TableJudge, TableSample, Evaluation, DiscrepancyAlert, DispatchJob, AuditLog + state enums)
-- [ ] T009 Create `AppDbContext` + entity configurations (unique indexes incl. `(JudgeId, BeerEntryId)`, computed `Evaluation.Total` column, `EndDate >= StartDate` check, partial unique index for open DiscrepancyAlert) in `backend/src/BirraPoint.Api/Common/Persistence/`, generate initial EF migration
+- [X] T008 Create shared-kernel entities and enums from data-model.md in `backend/src/BirraPoint.Api/Domain/` (Competition, BjcpStyle, Participant, BeerEntry, EntryCollaborator, Judge, Invitation, TastingTable, TableJudge, TableSample, Evaluation, DiscrepancyAlert, DispatchJob, AuditLog + state enums)
+- [X] T009 Create `AppDbContext` + entity configurations (unique indexes incl. `(JudgeId, BeerEntryId)`, computed `Evaluation.Total` column, `EndDate >= StartDate` check, partial unique index for open DiscrepancyAlert) in `backend/src/BirraPoint.Api/Common/Persistence/`, generate initial EF migration
 - [ ] T010 [P] Add BJCP 2021 style catalog JSON at `backend/src/BirraPoint.Api/Features/Catalog/Data/bjcp-2021.json` and seed it via EF migration (R-12)
 - [ ] T011 JWT bearer auth against Keycloak, deny-by-default fallback policy, `ORGANIZER`/`JUDGE` role policies, and `CurrentUser` claims accessor (sub/email/roles) in `backend/src/BirraPoint.Api/Common/Auth/`
 - [ ] T012 [P] ProblemDetails middleware + exception mapping with the 14 stable `urn:birrapoint:*` type URNs from contracts/rest-api.md §Error catalog in `backend/src/BirraPoint.Api/Common/Errors/`
