@@ -56,8 +56,18 @@ be skipped:
    validate locally (`dotnet build`, `dotnet test`, frontend build/tests).
 4. **Commit & PR** — semantic commit, push the branch, open a PR against `main` (`gh` CLI).
 5. **Automated review** — run the `senior-code-reviewer` agent
-   (`.claude/agents/senior-code-reviewer.md`) on the PR diff and submit its review to the PR:
-   approve or request changes with specific, actionable inline comments.
+   (`.claude/agents/senior-code-reviewer.md`) on the PR diff and post its findings to the PR as
+   an informational comment. The agent never approves/requests-changes its own session's PR
+   (two-party review); a human decides on approval and merge.
+6. **Documentation phase (mandatory before closing any task)** —
+   (a) **ADR evaluation**: if the task involved a significant technical decision (framework
+   change, design pattern, core library, DB schema), add a sequential ADR in `Docs/adrs/`
+   (e.g. `0004-uso-de-redis-para-cache.md`, format per `Docs/adrs/template.md`);
+   (b) **Living documentation**: update `Docs/arquitectura_viva.md` so it faithfully reflects
+   the current system state — new endpoints, components, data flows. Both ship in the same
+   change as the implementation (Principle X). **All documentation (ADRs, living doc, any new
+   docs) is always written in English**; only the legacy product definition under `Docs/`
+   remains in Spanish.
 
 ## Commands
 
@@ -188,7 +198,8 @@ are rejected.
 - Accessibility checks pass; performance budget respected.
 - Documentation updated in the same change (Principle X): contracts for endpoint changes,
   `quickstart.md` for setup changes, `Docs/` for product-behavior changes, this file when
-  commands or structure change.
+  commands or structure change; ADR in `Docs/adrs/` when a significant technical decision was
+  made, and `Docs/arquitectura_viva.md` refreshed to the current system state (workflow step 6).
 - If a check cannot run, say why and what was verified instead.
 
 ## Git
