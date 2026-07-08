@@ -11,7 +11,7 @@ into `CLAUDE.md` (Principle X).
 
 - Docker Desktop (container runtime for the Aspire-managed PostgreSQL 16, Keycloak 25+, Mailpit)
 - .NET 10 SDK
-- Node.js 20+ / npm 10+
+- Node.js 24+ / npm 10+ (Jest loads `jest.config.ts` via Node's native TS type stripping — no ts-node)
 - Azure Developer CLI (`azd`) — cloud deployment only
 
 ## Environment up
@@ -84,7 +84,8 @@ Each scenario maps to a spec user story (US) and must pass before that story is 
 
 - All endpoints exercised by contract tests asserting status codes, ProblemDetails `type` URNs,
   and — for judge-facing payloads — the **absence** of entrant fields (BR-01 structural test).
-- `npm run e2e -- a11y` runs axe-core on every judge-facing route (WCAG 2.1 AA, SC-009).
+- `npm run e2e -- a11y` runs axe-core on every judge-facing route as it lands (WCAG 2.1 AA,
+  SC-009); today the suite covers the placeholder app shell only.
 - Performance spot-checks: dashboard latency (scenario 9) and draft-save timing (scenario 7)
   asserted in E2E; API p95 budgets verified with a k6/`dotnet-counters` pass before release.
 - Operations: health endpoints + OpenTelemetry visible for every service in the Aspire dashboard

@@ -74,7 +74,8 @@ be skipped:
 ## Commands
 
 Verified against the running system at Phase 1 close (T007); keep in sync with `quickstart.md`
-(Principle X). Prerequisites: Docker Desktop running, .NET 10 SDK, Node.js 20+.
+(Principle X). Prerequisites: Docker Desktop running, .NET 10 SDK, Node.js 24+ (Jest loads
+`jest.config.ts` via Node's native TS type stripping — no ts-node; verified on 24.18).
 
 ```bash
 # Full local topology, one command (FR-044): PostgreSQL 16, Keycloak 26 (realm auto-import),

@@ -85,4 +85,8 @@ None implemented yet. Target contracts live in `specs/001-birrapoint-mvp/contrac
 - `Aspire.Hosting.NodeJs` is on the old version train (9.5.2); align when a 13.x ships.
 - Add a webkit Playwright project before writing the offline E2E suites (iOS Safari is the
   constrained target for the offline engine, R-08).
+- No `.gitattributes` in the repo: Prettier `endOfLine: "auto"` (T007) keeps `format:check`
+  green on both CRLF (Windows autocrlf) and LF checkouts, but a contributor with
+  `core.autocrlf=false` on Windows could still commit CRLF blobs unnoticed. Durable fix:
+  `* text=auto eol=lf` + Prettier `endOfLine: "lf"` as its own follow-up task (PR #3 review).
 - `/health`//`/alive` exposure strategy for ACA probes (Phase 16).
