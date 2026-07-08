@@ -11,7 +11,7 @@ into `CLAUDE.md` (Principle X).
 
 - Docker Desktop (container runtime for the Aspire-managed PostgreSQL 16, Keycloak 25+, Mailpit)
 - .NET 10 SDK
-- Node.js 20+ / npm 10+
+- Node.js 24+ / npm 10+ (Jest loads `jest.config.ts` via Node's native TS type stripping — no ts-node)
 - Azure Developer CLI (`azd`) — cloud deployment only
 
 ## Environment up
@@ -20,10 +20,12 @@ into `CLAUDE.md` (Principle X).
 # Full local topology with one command (FR-044): .NET Aspire AppHost starts PostgreSQL,
 # Keycloak (birrapoint realm auto-imported: roles ORGANIZER/JUDGE, seeded organizer),
 # Mailpit (SMTP sink), the backend API (EF migrations incl. BJCP 2021 seed applied on
-# startup in Development) and the Angular frontend.
+# startup in Development — lands with T009/T010) and the Angular frontend.
 dotnet run --project backend/src/BirraPoint.AppHost
-# Aspire dashboard (resources, logs, traces, health): URL printed on startup
-# API: https://localhost:7443 — OpenAPI at /openapi · PWA: http://localhost:4200
+# Aspire dashboard (resources, logs, traces, health): https://localhost:17202, login URL
+# printed on startup
+# API: http://localhost:5121 · https://localhost:7075 (OpenAPI arrives with the first
+# business endpoints) · PWA: http://localhost:4200 · Keycloak: http://localhost:8081
 
 # Frontend-only iteration (optional, API already running):
 cd frontend && npm ci && npm start
@@ -56,7 +58,7 @@ dotnet test backend/tests/BirraPoint.Api.UnitTests --filter "FullyQualifiedName~
 
 # Frontend unit / E2E (incl. offline + axe accessibility suites)
 cd frontend && npx jest
-cd frontend && npx playwright test
+cd frontend && npm run e2e   # = playwright test -c e2e (config lives in e2e/)
 ```
 
 ## End-to-end validation scenarios
@@ -82,7 +84,8 @@ Each scenario maps to a spec user story (US) and must pass before that story is 
 
 - All endpoints exercised by contract tests asserting status codes, ProblemDetails `type` URNs,
   and — for judge-facing payloads — the **absence** of entrant fields (BR-01 structural test).
-- `npx playwright test e2e/a11y` runs axe-core on every judge-facing route (WCAG 2.1 AA, SC-009).
+- `npm run e2e -- a11y` runs axe-core on every judge-facing route as it lands (WCAG 2.1 AA,
+  SC-009); today the suite covers the placeholder app shell only.
 - Performance spot-checks: dashboard latency (scenario 9) and draft-save timing (scenario 7)
   asserted in E2E; API p95 budgets verified with a k6/`dotnet-counters` pass before release.
 - Operations: health endpoints + OpenTelemetry visible for every service in the Aspire dashboard
