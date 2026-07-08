@@ -12,9 +12,11 @@ discrepancy consensus, a real-time organizer dashboard, and immutable closing wi
 PDF/ZIP/email dispatch. Best of Show and tie-breaks are out of scope (only the `NotValidForBos`
 flag is recorded).
 
-**Status: greenfield — no application code exists yet.** All design artifacts for the MVP are
-complete and approved; implementation starts at `tasks.md` Phase 1 (Setup, T001–T007). `Docs/`
-holds the original product definition (in Spanish); the English spec supersedes it.
+**Status: Phase 1 (Setup, T001–T007) complete.** Both stack skeletons, the test harnesses, and
+the one-command Aspire local topology exist and run; there is no domain model, authentication,
+or business endpoint yet — implementation continues at `tasks.md` Phase 2 (Foundational,
+T008–T020). `Docs/arquitectura_viva.md` tracks the actual current system state. `Docs/` holds
+the original product definition (in Spanish); the English spec supersedes it.
 
 ## Source of truth (in priority order)
 
@@ -71,24 +73,33 @@ be skipped:
 
 ## Commands
 
-Defined in `quickstart.md`; they become real when Phase 1 (T001–T007) lands — verify then and
-remove this note (task T007).
+Verified against the running system at Phase 1 close (T007); keep in sync with `quickstart.md`
+(Principle X). Prerequisites: Docker Desktop running, .NET 10 SDK, Node.js 20+.
 
 ```bash
-# Full local topology, one command: PostgreSQL 16, Keycloak (realm auto-import), Mailpit,
-# API (EF migrations + BJCP seed on startup in Development), Angular frontend
+# Full local topology, one command (FR-044): PostgreSQL 16, Keycloak 26 (realm auto-import),
+# Mailpit, API, Angular frontend. EF migrations + BJCP seed arrive with T009/T010.
 dotnet run --project backend/src/BirraPoint.AppHost
-# API https://localhost:7443 (OpenAPI at /openapi) · PWA http://localhost:4200 · Mailpit :8025
+# Aspire dashboard https://localhost:17202 (login URL printed on startup)
+# API http://localhost:5121 · https://localhost:7075 — HTTP surface today: /health + /alive only
+#   (Development-only; OpenAPI arrives with the first business endpoints)
+# PWA http://localhost:4200 · Keycloak http://localhost:8081 (realm `birrapoint`)
+# Mailpit UI: dynamic port — open it from the Aspire dashboard
 
+dotnet build backend/BirraPoint.sln
 dotnet test backend/tests/BirraPoint.Api.UnitTests            # handlers + validators
 dotnet test backend/tests/BirraPoint.Api.IntegrationTests     # contract tests; needs Docker (Testcontainers)
 dotnet test <project> --filter "FullyQualifiedName~SubmitEvaluation"   # single test
+dotnet format backend/BirraPoint.sln --verify-no-changes      # backend format gate
 
-cd frontend && npm ci && npm start     # frontend-only iteration
-cd frontend && npx jest                # unit
-cd frontend && npx playwright test     # E2E incl. offline simulation and e2e/a11y (axe) suites
+cd frontend && npm ci && npm start     # frontend-only iteration (ng serve on :4200)
+cd frontend && npx jest                # unit (jest-preset-angular)
+cd frontend && npm run e2e             # Playwright E2E incl. e2e/a11y (axe) suite — config in e2e/,
+                                       #   so plain `npx playwright test` does NOT work
+cd frontend && npx ng lint             # angular-eslint
+cd frontend && npm run format:check    # Prettier gate (`npm run format` to fix)
 
-azd up   # cloud deploy (Bicep → ACR → Azure Container Apps) — only on explicit user request
+azd up   # cloud deploy — NOT yet real: azure.yaml + infra/bicep/ land in Phase 16
 ```
 
 ## Repository layout (per plan.md — binding)

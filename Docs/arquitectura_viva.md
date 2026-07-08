@@ -5,13 +5,15 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-07 · after T001–T006 (Phase 1 Setup, PR #2)
+**Last updated:** 2026-07-08 · after T007 (Phase 1 Setup complete)
 
 ## Global status
 
-Phase 1 (Setup) is complete except T007. The full skeleton of both stacks and the local
-orchestration exist; **there is no business logic, domain model, authentication, or business
-API endpoint yet** (those start in Phase 2, T008–T020).
+Phase 1 (Setup, T001–T007) is **complete**: the full skeleton of both stacks and the local
+orchestration exist and were verified end-to-end at Phase close (topology up, all test/lint/
+format gates green, endpoints recorded in CLAUDE.md §Commands). **There is no business logic,
+domain model, authentication, or business API endpoint yet** (those start in Phase 2,
+T008–T020).
 
 ## Local topology (.NET Aspire — `dotnet run --project backend/src/BirraPoint.AppHost`)
 
@@ -20,7 +22,7 @@ API endpoint yet** (those start in Phase 2, T008–T020).
 | `postgres` / database `db` | `postgres:16` container, persistent data volume, persistent lifetime | dynamic port | connection string injected into the API as `ConnectionStrings__db` |
 | `keycloak` | `quay.io/keycloak/keycloak:26.2` container via `AddContainer` (ADR-0001) | http://localhost:8081 | realm `birrapoint` auto-imported from `infra/keycloak/` (roles `ORGANIZER`/`JUDGE`, seeded organizer, PKCE SPA client, admin service-account client with `manage-users`); bootstrap/realm credentials are local-dev placeholders (FR-046) |
 | `mailpit` | CommunityToolkit MailPit integration | dynamic SMTP + UI ports | local mail sink for invitations/results |
-| `api` | `BirraPoint.Api` project | dynamic port | receives env: `Keycloak__Authority` (realm URL), `Keycloak__AdminClientId/Secret` (dev placeholder), `Smtp__Host/Port` (from the Mailpit endpoint); waits for the database |
+| `api` | `BirraPoint.Api` project | http://localhost:5121 · https://localhost:7075 (launchSettings) | receives env: `Keycloak__Authority` (realm URL), `Keycloak__AdminClientId/Secret` (dev placeholder), `Smtp__Host/Port` (from the Mailpit endpoint); waits for the database |
 | `frontend` | `npm start` (ng serve) via `AddNpmApp` | http://localhost:4200 (non-proxied) | matches the SPA client redirect URIs; waits for the API |
 
 ## Backend (`backend/`, .NET 10 / C# 14)
@@ -68,7 +70,7 @@ API endpoint yet** (those start in Phase 2, T008–T020).
 | Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green (smoke tests; real harness in T018) |
 | Frontend unit | `cd frontend && npx jest` | green — jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
 | E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | green — smoke spec + `e2e/a11y` axe-core WCAG 2.1 A/AA gate (SC-009); **chromium only** — a webkit/mobile-Safari project is pending before the offline suites |
-| Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), Prettier, `dotnet format --verify-no-changes` (backend/.editorconfig) | clean |
+| Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
 ## Data flows
 
@@ -77,7 +79,6 @@ None implemented yet. Target contracts live in `specs/001-birrapoint-mvp/contrac
 
 ## Recorded debt / immediate next steps
 
-- **T007**: mirror the now-real commands into CLAUDE.md and close Phase 1.
 - **ADR-0003**: decide zoneless change detection before Phase 3 frontend work.
 - Harden the integration smoke test to actually start a `PostgreSqlContainer` (lands with T018).
 - `WaitFor` a *ready* Keycloak once auth is wired (T011; ADR-0001 mitigation).

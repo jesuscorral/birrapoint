@@ -37,7 +37,7 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 - [X] T004 [P] Configure Jest via jest-preset-angular in `frontend/jest.config.ts` and Playwright + `@axe-core/playwright` in `frontend/e2e/playwright.config.ts`
 - [X] T005 [P] Create Aspire orchestration: `backend/src/BirraPoint.AppHost/` (PostgreSQL 16, Keycloak with realm import, Mailpit, the API project, frontend as npm resource) and `backend/src/BirraPoint.ServiceDefaults/` (OpenTelemetry, health checks, resilience), both wired into `backend/BirraPoint.sln`; author `infra/keycloak/birrapoint-realm.json` (realm `birrapoint`, roles `ORGANIZER`/`JUDGE`, seeded organizer user, backend admin service-account client with `manage-users`, SPA public client with PKCE)
 - [X] T006 [P] Configure linting/formatting: `backend/.editorconfig` (dotnet format clean) and `frontend/eslint.config.js` + Prettier
-- [ ] T007 Update `CLAUDE.md` Project Status section with the real build/run/test commands from quickstart.md (Constitution Principle X)
+- [X] T007 Update `CLAUDE.md` Project Status section with the real build/run/test commands from quickstart.md (Constitution Principle X)
 
 **Checkpoint**: `dotnet run --project backend/src/BirraPoint.AppHost` starts the full local topology (FR-044); empty API and blank Angular app build and run
 
