@@ -23,4 +23,8 @@
     <ProjectReference Include="..\BirraPoint.ServiceDefaults\BirraPoint.ServiceDefaults.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Features/Catalog/Data/bjcp-2021.json" />
+  </ItemGroup>
+
 </Project>

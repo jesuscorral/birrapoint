@@ -9,7 +9,7 @@ public sealed class BeerEntryConfiguration : IEntityTypeConfiguration<BeerEntry>
     public void Configure(EntityTypeBuilder<BeerEntry> builder)
     {
         builder.Property(e => e.BeerName).HasMaxLength(200);
-        builder.Property(e => e.StyleCode).HasMaxLength(5);
+        builder.Property(e => e.StyleCode).HasMaxLength(20);
         builder.Property(e => e.BlindCode).HasMaxLength(10);
 
         builder.HasIndex(e => new { e.CompetitionId, e.BlindCode }).IsUnique();

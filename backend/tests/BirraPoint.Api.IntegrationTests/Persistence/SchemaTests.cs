@@ -197,6 +197,7 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
             Name = "American IPA",
             CategoryNumber = "21",
             CategoryName = "IPA",
+            DescriptionJson = "{}",
         };
 
         var participant = new Participant
