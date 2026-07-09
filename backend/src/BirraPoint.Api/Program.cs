@@ -1,5 +1,9 @@
+using BirraPoint.Api.Common.Auth;
+using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,7 +14,32 @@ builder.AddServiceDefaults();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("db")));
 
+// JWT bearer against Keycloak, deny-by-default fallback policy, ORGANIZER/JUDGE role policies (T011).
+builder.Services.AddKeycloakAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
+
+// ProblemDetails + exception-handler chain for the 14 urn:birrapoint:* error types (T012).
+builder.Services.AddProblemDetailsErrorHandling();
+
 var app = builder.Build();
+
+// Tracked gap (senior review, PR #6): no audience mapper exists yet on the Keycloak realm's API
+// resource, so JWT audience validation is disabled — must close before the first protected
+// endpoint (T017). Reads the actual configured value rather than assuming it, so this warning
+// self-corrects the moment the gap is closed.
+var jwtOptions = app.Services.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
+    .Get(JwtBearerDefaults.AuthenticationScheme);
+if (!jwtOptions.TokenValidationParameters.ValidateAudience)
+{
+    app.Logger.LogWarning(
+        "JWT bearer audience validation is disabled (ValidateAudience=false) — see " +
+        "Common/Auth/AuthenticationExtensions.cs. Must be closed before any endpoint is protected in production.");
+}
+
+// Must run first so it wraps every downstream middleware/endpoint.
+app.UseExceptionHandler();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 // /health and /alive endpoints (Development only by default).
 app.MapDefaultEndpoints();
