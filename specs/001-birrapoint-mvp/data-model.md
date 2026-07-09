@@ -41,7 +41,7 @@ Draft ──► Active ──► InEvaluation ──► Finalized
 
 | Field | Type | Constraints |
 |-------|------|-------------|
-| Code | string(5) | PK, e.g. `21A` |
+| Code | string(20) | PK, e.g. `21A`; widened from string(5) — categories with no official BJCP letter subcode (Historical Beer, Appendix B local styles, named Specialty-IPA variants) use slug-style codes up to 17 chars (e.g. `27-KentuckyCommon`) |
 | Name | string(100) | required, e.g. `American IPA` |
 | CategoryNumber | string(3) | required, e.g. `21` |
 | CategoryName | string(100) | required, e.g. `IPA` |
@@ -93,7 +93,7 @@ local styles (X1–X5, e.g. `Italian Grape Ale`, `Catharina Sour`, `New Zealand 
 | CompetitionId | Guid | FK → Competition |
 | ParticipantId | Guid | FK → Participant |
 | BeerName | string(200) | required — **never serialized into judge-facing DTOs** |
-| StyleCode | string(5) | FK → BjcpStyle |
+| StyleCode | string(20) | FK → BjcpStyle |
 | BlindCode | string(10) | system-generated at consolidation; **unique (CompetitionId, BlindCode)** |
 | NotValidForBos | bool | default false; set per FR-018 |
 

@@ -5,15 +5,16 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-08 · after T008–T009 (Phase 2 Foundational, in progress)
+**Last updated:** 2026-07-09 · after T010 (Phase 2 Foundational, in progress)
 
 ## Global status
 
 Phase 1 (Setup, T001–T007) is **complete**. Phase 2 (Foundational) has landed the domain model
-and persistence layer (T008–T009): 14 entities + 7 enums, `AppDbContext` with the InitialCreate
-migration, applying on startup in Development — verified against a real Aspire-provisioned
-PostgreSQL (all tables present, `/health` green). **There is still no authentication, MediatR
-pipeline, realtime hub, or business API endpoint** (T011–T020 remain in Phase 2).
+and persistence layer (T008–T009) plus the full BJCP 2021 style catalog (T010): 14 entities + 7
+enums, `AppDbContext` with the InitialCreate + AddBjcpStyleCatalogDetails migrations, applying on
+startup in Development — verified against a real Aspire-provisioned PostgreSQL (all tables
+present, catalog seeded, `/health` green). **There is still no authentication, MediatR pipeline,
+realtime hub, or business API endpoint** (T011–T020 remain in Phase 2).
 
 ## Local topology (.NET Aspire — `dotnet run --project backend/src/BirraPoint.AppHost`)
 
@@ -36,22 +37,43 @@ pipeline, realtime hub, or business API endpoint** (T011–T020 remain in Phase 
   run on startup **in Development only**. **Current HTTP surface**: infrastructure only —
   `/health` (all checks) and `/alive` (checks tagged `live`), both mapped in Development only
   (stock ServiceDefaults guard; ACA probes will need a scoped exposure decision in Phase 16).
-- **`Domain/`** (T008): 14 entities and 7 enums per `data-model.md` — `Competition`,
-  `BjcpStyle`, `Participant`, `BeerEntry`, `EntryCollaborator`, `Judge`, `Invitation`,
-  `TastingTable`, `TableJudge`, `TableSample`, `Evaluation`, `DiscrepancyAlert`, `DispatchJob`,
-  `AuditLog`; `CompetitionState`, `TableState`, `EvaluationStatus`, `InvitationStatus`,
-  `DiscrepancyStatus`, `DispatchJobType`, `DispatchJobStatus`. POCOs only — no business logic;
-  `Entity`/`ITimestamped` provide the Guid v7 PK and `CreatedAt`/`UpdatedAt` contract.
-- **`Common/Persistence/`** (T009): `AppDbContext` (one `IEntityTypeConfiguration<T>` per
-  entity under `Configurations/`), stamping `CreatedAt`/`UpdatedAt` centrally in
-  `SaveChanges(Async)`; `DesignTimeDbContextFactory` for `dotnet ef` tooling; `Migrations/`
-  holds the committed `InitialCreate` migration. Encodes every constraint named in
-  `data-model.md`: unique `(JudgeId, BeerEntryId)` (idempotency backstop, FR-029), `Evaluation.
-  Total` as a **stored computed column** (never client-writable, FR-024), `EndDate >=
-  StartDate` + registration-window check constraints on `Competition`, partial unique index on
-  `DiscrepancyAlert` (`WHERE "Status" = 'Open'`), unique `(BeerEntryId)` on `TableSample` (an
-  entry sits at one table), unique `(TastingTableId, SequenceOrder)`. State/status enums are
-  stored as strings (ADR-0004), not the EF default int.
+- **`Domain/`** (T008, expanded T010): 14 entities and 7 enums per `data-model.md` —
+  `Competition`, `BjcpStyle`, `Participant`, `BeerEntry`, `EntryCollaborator`, `Judge`,
+  `Invitation`, `TastingTable`, `TableJudge`, `TableSample`, `Evaluation`, `DiscrepancyAlert`,
+  `DispatchJob`, `AuditLog`; `CompetitionState`, `TableState`, `EvaluationStatus`,
+  `InvitationStatus`, `DiscrepancyStatus`, `DispatchJobType`, `DispatchJobStatus`. POCOs only —
+  no business logic; `Entity`/`ITimestamped` provide the Guid v7 PK and `CreatedAt`/`UpdatedAt`
+  contract. `BjcpStyle` (T010, FR-049) carries vital statistics (`OGLow/OGHigh`, `FGLow/FGHigh`,
+  `IBULow/IBUHigh`, `SRMLow/SRMHigh`, `ABVLow/ABVHigh`, all nullable) plus `DescriptionJson`
+  (jsonb: overall impression, aroma, appearance, flavor, mouthfeel, comments, history,
+  characteristic ingredients, style comparison, entry instructions, commercial examples, tags) —
+  not just the original code/name/category import-matching fields.
+- **`Common/Persistence/`** (T009, expanded T010): `AppDbContext` (one
+  `IEntityTypeConfiguration<T>` per entity under `Configurations/`), stamping
+  `CreatedAt`/`UpdatedAt` centrally in `SaveChanges(Async)`; `DesignTimeDbContextFactory` for
+  `dotnet ef` tooling; `Migrations/` holds `InitialCreate` and `AddBjcpStyleCatalogDetails`.
+  Encodes every constraint named in `data-model.md`: unique `(JudgeId, BeerEntryId)` (idempotency
+  backstop, FR-029), `Evaluation.Total` as a **stored computed column** (never client-writable,
+  FR-024), `EndDate >= StartDate` + registration-window check constraints on `Competition`,
+  partial unique index on `DiscrepancyAlert` (`WHERE "Status" = 'Open'`), unique `(BeerEntryId)`
+  on `TableSample` (an entry sits at one table), unique `(TastingTableId, SequenceOrder)`.
+  State/status enums are stored as strings (ADR-0004), not the EF default int.
+  `BjcpStyle.Code`/`BeerEntry.StyleCode` are `varchar(20)` (widened from the originally-planned 5
+  — synthetic slug codes for styles without an official BJCP letter subcode run up to 17 chars).
+- **`Features/Catalog/Data/`** (T010): `bjcp-2021.json` only — the full BJCP 2021 catalog, 125
+  entries (categories 1–34 + Appendix B local styles X1–X5), marked `EmbeddedResource` in the
+  csproj so it ships inside the compiled assembly (available identically in dev, CI/Testcontainers,
+  and containers, regardless of working directory). Pure data, no code, in this folder.
+- **`Common/Persistence/Seeding/`** (T010): `BjcpStyleCatalogLoader` reads the embedded JSON via
+  `Assembly.GetManifestResourceStream`; `BjcpStyleSeedRecord`/`VitalStatisticsSeed`/
+  `StyleDescriptionSeed` are the deserialization DTOs; also exposes `ComputeContentHash()`
+  (SHA-256 of the raw resource bytes), pinned by a unit test so an in-place edit to the JSON after
+  the seed migration ships fails fast instead of silently diverging across environments. This
+  lives in `Common/Persistence/`, not `Features/Catalog/`, because the seed migration (shared
+  kernel) must never depend on a feature slice. The `AddBjcpStyleCatalogDetails` migration's
+  `Up()` calls the loader and seeds all 125 rows via `migrationBuilder.InsertData` (ADR-0005) —
+  the JSON file is the only place the catalog content itself lives; the migration never
+  hardcodes it.
 - **`BirraPoint.ServiceDefaults`**: OpenTelemetry (ASP.NET Core, HttpClient and runtime
   instrumentation; OTLP exporter switched by `OTEL_EXPORTER_OTLP_ENDPOINT`), default health
   checks (`self`/`live`), HttpClient resilience handler + service discovery.
@@ -85,7 +107,7 @@ pipeline, realtime hub, or business API endpoint** (T011–T020 remain in Phase 
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — unit smoke test; integration adds 6 schema tests (T009) against a real Testcontainers PostgreSQL; HTTP-level harness in T018 |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 5 unit tests (smoke + T010 `BjcpStyleSeedDataTests`, DB-free catalog-shape guard); 12 integration tests against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010, `BjcpStyleSeedTests` — row count, vital stats, synthetic-code entries, jsonb validity); HTTP-level harness in T018 |
 | Frontend unit | `cd frontend && npx jest` | green — jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
 | E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | green — smoke spec + `e2e/a11y` axe-core WCAG 2.1 A/AA gate (SC-009); **chromium only** — a webkit/mobile-Safari project is pending before the offline suites |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
