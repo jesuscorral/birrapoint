@@ -5,19 +5,19 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-09 · after T011–T012 (Phase 2 Foundational, in progress)
+**Last updated:** 2026-07-09 · after T013–T014 (Phase 2 Foundational, in progress)
 
 ## Global status
 
 Phase 1 (Setup, T001–T007) is **complete**. Phase 2 (Foundational) has landed the domain model
 and persistence layer (T008–T009), the full BJCP 2021 style catalog (T010), Keycloak JWT bearer
-auth with a deny-by-default fallback policy (T011), and the ProblemDetails exception-handler
-chain for the 14-entry error catalog (T012). Verified against a real Aspire-provisioned
-PostgreSQL + Keycloak (all tables present, catalog seeded, app boots with the auth pipeline
-wired in, `/health`/`/alive` still anonymous and green). **There is still no MediatR pipeline,
-realtime hub, or business API endpoint** to actually exercise the auth/error-handling
-infrastructure end-to-end over HTTP — that starts with T017 (first slice) and T018 (the
-`WebApplicationFactory` + test-JWT-issuer harness); T013–T020 remain in Phase 2.
+auth with a deny-by-default fallback policy (T011), the ProblemDetails exception-handler chain
+for the 14-entry error catalog (T012), the MediatR + FluentValidation pipeline (T013), and the
+audit trail writer (T014). Verified against a real Aspire-provisioned PostgreSQL + Keycloak (all
+tables present, catalog seeded, app boots with the full pipeline wired in, `/health`/`/alive`
+still anonymous and green). **There is still no realtime hub or business API endpoint** to
+actually exercise this infrastructure end-to-end over HTTP — that starts with T017 (first slice)
+and T018 (the `WebApplicationFactory` + test-JWT-issuer harness); T015–T020 remain in Phase 2.
 
 ## Local topology (.NET Aspire — `dotnet run --project backend/src/BirraPoint.AppHost`)
 
@@ -62,6 +62,19 @@ infrastructure end-to-end over HTTP — that starts with T017 (first slice) and 
   compiler-checked enum for the 14 closed-catalog entries from contracts/rest-api.md §Error
   catalog; `DomainErrorCatalog` holds their urn/status/title. No slice throws `DomainException`
   yet (first business slice is T017).
+- **`Common/Behaviors/`** (T013): `AddMediatRWithValidation` registers MediatR handlers,
+  auto-discovers FluentValidation validators (`AddValidatorsFromAssembly` —
+  `FluentValidation.DependencyInjectionExtensions` package, separate from core `FluentValidation`),
+  and adds `ValidationBehavior<,>` as an open pipeline behavior. `ValidationBehavior` runs every
+  `IValidator<TRequest>` for the request and throws FluentValidation's `ValidationException` on
+  any failure (no-op if none are registered) — T012's `ValidationExceptionHandler` maps that
+  straight to a `400 urn:birrapoint:validation`. No slice/validator exists yet (first is T025+).
+- **`Common/Audit/`** (T014): `IAuditWriter`/`AuditWriter.Record(action, entityType, entityId,
+  before?, after?)` — synchronous, no I/O: reads the actor from `ICurrentUser.Sub` (T011) and
+  stages an `AuditLog` row via `AppDbContext.AuditLogs.Add(...)`. Deliberately does **not** call
+  `SaveChangesAsync` itself, so the audit entry commits atomically together with whatever
+  business change the caller's own handler persists, in the same transaction. `DataJson` is
+  `{ "before": ..., "after": ... }`.
 - **`Domain/`** (T008, expanded T010): 14 entities and 7 enums per `data-model.md` —
   `Competition`, `BjcpStyle`, `Participant`, `BeerEntry`, `EntryCollaborator`, `Judge`,
   `Invitation`, `TastingTable`, `TableJudge`, `TableSample`, `Evaluation`, `DiscrepancyAlert`,
@@ -103,12 +116,13 @@ infrastructure end-to-end over HTTP — that starts with T017 (first slice) and 
   instrumentation; OTLP exporter switched by `OTEL_EXPORTER_OTLP_ENDPOINT`), default health
   checks (`self`/`live`), HttpClient resilience handler + service discovery.
 - **Key packages** (pinned in the csproj): MediatR **12.5.0** (never upgrade to 13+ — license,
-  R-03), FluentValidation 12.1.1, Npgsql.EntityFrameworkCore.PostgreSQL 10.0.2 +
-  Microsoft.EntityFrameworkCore.Design 10.0.4 (build-time only, T009),
-  Microsoft.AspNetCore.Authentication.JwtBearer 10.0.9 (T011 — ships as a separate NuGet package,
-  not part of the ASP.NET Core shared framework), ClosedXML 0.105.0, QuestPDF 2026.7.0 (requires
-  `QuestPDF.Settings.License = LicenseType.Community` at startup — pending, Dispatch slice),
-  MailKit 4.17.0.
+  R-03), FluentValidation 12.1.1 + FluentValidation.DependencyInjectionExtensions 12.1.1 (T013 —
+  a separate package from core FluentValidation; only supplies `AddValidatorsFromAssembly` etc.),
+  Npgsql.EntityFrameworkCore.PostgreSQL 10.0.2 + Microsoft.EntityFrameworkCore.Design 10.0.4
+  (build-time only, T009), Microsoft.AspNetCore.Authentication.JwtBearer 10.0.9 (T011 — ships as a
+  separate NuGet package, not part of the ASP.NET Core shared framework), ClosedXML 0.105.0,
+  QuestPDF 2026.7.0 (requires `QuestPDF.Settings.License = LicenseType.Community` at startup —
+  pending, Dispatch slice), MailKit 4.17.0.
 - **Test harnesses**: xUnit in both test projects; the integration project additionally carries
   Testcontainers.PostgreSql 4.13.0 + Microsoft.AspNetCore.Mvc.Testing. `Persistence/
   SchemaTests.cs` (T009) spins up a real `postgres:16` Testcontainer, applies the migration,
@@ -137,7 +151,7 @@ infrastructure end-to-end over HTTP — that starts with T017 (first slice) and 
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 25 unit tests: smoke + T010 `BjcpStyleSeedDataTests` (5, DB-free catalog-shape guard) + T011 `Common/Auth` (13: claims transformation, `CurrentUser`, DI-wiring smoke) + T012 `Common/Errors` (6: exception-handler mapping/security); 12 integration tests against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010); HTTP-level harness in T018 |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 31 unit tests: smoke + T010 `BjcpStyleSeedDataTests` (5, DB-free catalog-shape guard) + T011 `Common/Auth` (13: claims transformation, `CurrentUser`, DI-wiring smoke) + T012 `Common/Errors` (6: exception-handler mapping/security) + T013 `Common/Behaviors` (6: `ValidationBehavior` isolation + MediatR DI-wiring end-to-end); 15 integration tests against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3: atomic staging, null-before, no-save-no-persist); HTTP-level harness in T018 |
 | Frontend unit | `cd frontend && npx jest` | green — jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
 | E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | green — smoke spec + `e2e/a11y` axe-core WCAG 2.1 A/AA gate (SC-009); **chromium only** — a webkit/mobile-Safari project is pending before the offline suites |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |

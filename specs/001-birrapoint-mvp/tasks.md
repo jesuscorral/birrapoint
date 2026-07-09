@@ -54,8 +54,8 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 - [X] T010 [P] Add the **full** BJCP 2021 style catalog JSON (categories 1–34 + Appendix B local styles X1–X5; per-style vital statistics and complete guide description per data-model.md §BjcpStyle.DescriptionJson, FR-049) at `backend/src/BirraPoint.Api/Features/Catalog/Data/bjcp-2021.json` and seed it via EF migration (R-12)
 - [X] T011 JWT bearer auth against Keycloak, deny-by-default fallback policy, `ORGANIZER`/`JUDGE` role policies, and `CurrentUser` claims accessor (sub/email/roles) in `backend/src/BirraPoint.Api/Common/Auth/`
 - [X] T012 [P] ProblemDetails middleware + exception mapping with the 14 stable `urn:birrapoint:*` type URNs from contracts/rest-api.md §Error catalog in `backend/src/BirraPoint.Api/Common/Errors/`
-- [ ] T013 [P] MediatR registration + FluentValidation `ValidationBehavior` pipeline in `backend/src/BirraPoint.Api/Common/Behaviors/`
-- [ ] T014 [P] `AuditWriter` service (action, entity, actor, before/after jsonb) in `backend/src/BirraPoint.Api/Common/Audit/`
+- [X] T013 [P] MediatR registration + FluentValidation `ValidationBehavior` pipeline in `backend/src/BirraPoint.Api/Common/Behaviors/`
+- [X] T014 [P] `AuditWriter` service (action, entity, actor, before/after jsonb) in `backend/src/BirraPoint.Api/Common/Audit/`
 - [ ] T015 `CompetitionHub` with guarded group joins (`JoinCompetitionAsOrganizer` → role+ownership, `JoinTable` → active membership) per contracts/signalr-hub.md in `backend/src/BirraPoint.Api/Realtime/CompetitionHub.cs`; emit-after-commit event dispatcher in `Realtime/EventPublisher.cs`
 - [ ] T016 `DispatchJob` queue service + hosted `DispatchWorker` (Channels wake-up, startup resume, retry/backoff per R-06) in `backend/src/BirraPoint.Api/Common/Jobs/`
 - [ ] T017 First slice proving the pipeline: `GET /api/v1/styles` in `backend/src/BirraPoint.Api/Features/Catalog/GetStyles.cs`

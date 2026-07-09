@@ -1,4 +1,6 @@
+using BirraPoint.Api.Common.Audit;
 using BirraPoint.Api.Common.Auth;
+using BirraPoint.Api.Common.Behaviors;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -19,6 +21,12 @@ builder.Services.AddKeycloakAuthentication(builder.Configuration, builder.Enviro
 
 // ProblemDetails + exception-handler chain for the 14 urn:birrapoint:* error types (T012).
 builder.Services.AddProblemDetailsErrorHandling();
+
+// MediatR + FluentValidation ValidationBehavior pipeline (T013).
+builder.Services.AddMediatRWithValidation(typeof(Program).Assembly);
+
+// Immutable audit trail writer (T014).
+builder.Services.AddScoped<IAuditWriter, AuditWriter>();
 
 var app = builder.Build();
 
