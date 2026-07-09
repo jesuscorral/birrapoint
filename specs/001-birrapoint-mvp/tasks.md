@@ -51,7 +51,7 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 - [X] T008 Create shared-kernel entities and enums from data-model.md in `backend/src/BirraPoint.Api/Domain/` (Competition, BjcpStyle, Participant, BeerEntry, EntryCollaborator, Judge, Invitation, TastingTable, TableJudge, TableSample, Evaluation, DiscrepancyAlert, DispatchJob, AuditLog + state enums)
 - [X] T009 Create `AppDbContext` + entity configurations (unique indexes incl. `(JudgeId, BeerEntryId)`, computed `Evaluation.Total` column, `EndDate >= StartDate` check, partial unique index for open DiscrepancyAlert) in `backend/src/BirraPoint.Api/Common/Persistence/`, generate initial EF migration
-- [ ] T010 [P] Add BJCP 2021 style catalog JSON at `backend/src/BirraPoint.Api/Features/Catalog/Data/bjcp-2021.json` and seed it via EF migration (R-12)
+- [ ] T010 [P] Add the **full** BJCP 2021 style catalog JSON (categories 1–34 + Appendix B local styles X1–X5; per-style vital statistics and complete guide description per data-model.md §BjcpStyle.DescriptionJson, FR-049) at `backend/src/BirraPoint.Api/Features/Catalog/Data/bjcp-2021.json` and seed it via EF migration (R-12)
 - [ ] T011 JWT bearer auth against Keycloak, deny-by-default fallback policy, `ORGANIZER`/`JUDGE` role policies, and `CurrentUser` claims accessor (sub/email/roles) in `backend/src/BirraPoint.Api/Common/Auth/`
 - [ ] T012 [P] ProblemDetails middleware + exception mapping with the 14 stable `urn:birrapoint:*` type URNs from contracts/rest-api.md §Error catalog in `backend/src/BirraPoint.Api/Common/Errors/`
 - [ ] T013 [P] MediatR registration + FluentValidation `ValidationBehavior` pipeline in `backend/src/BirraPoint.Api/Common/Behaviors/`
@@ -208,12 +208,15 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 - [ ] T055 [P] [US7] Unit tests: SubmitEvaluation validator (caps 12/3/20/5/10, comments ≥20), preconditions (state, order fixed, next-in-sequence), locked-on-submit rule in `backend/tests/BirraPoint.Api.UnitTests/Evaluations/SubmitEvaluationTests.cs`
 - [ ] T056 [P] [US7] Contract tests: `201` submit, idempotent replay `200` with stored result (`X-Idempotency-Key`), `409` order-not-fixed / out-of-sequence / invalid-state / evaluation-locked in `backend/tests/BirraPoint.Api.IntegrationTests/Evaluations/SubmitEvaluationApiTests.cs`
 - [ ] T057 [P] [US7] Jest unit tests: draft store writes ≤300 ms debounce contract, outbox replay (online event, app start, backoff, dedupe on replay-200) in `frontend/src/app/core/offline/sync.service.spec.ts`
+- [ ] T057B [P] [US7] Contract test: `GET /styles/{code}` shape (vital statistics + description sections), `404` for unknown code in `backend/tests/BirraPoint.Api.IntegrationTests/Catalog/GetStyleDetailTests.cs` (FR-049)
 
 ### Implementation for User Story 7
 
 - [ ] T058 [US7] Slice SubmitEvaluation: preconditions, idempotent create, `EvaluationCompleted` emit (organizer group), discrepancy detection hook point (activated in US11) in `backend/src/BirraPoint.Api/Features/Evaluations/SubmitEvaluation.cs`
 - [ ] T059 [US7] Frontend evaluation sheet: five capped numeric sections + comment fields with live remaining-length, auto-computed read-only total, submit gating in `frontend/src/app/features/evaluation-sheet/`
+- [ ] T059B [US7] Slice GetStyleDetail (`GET /styles/{code}`, projects `BjcpStyle.DescriptionJson` + vital statistics) + endpoint in `backend/src/BirraPoint.Api/Features/Catalog/GetStyleDetail.cs` (FR-049)
 - [ ] T060 [US7] Frontend offline engine: draft persistence (≤300 ms after change), offline badge ("Offline mode — data protected locally"), outbox enqueue on submit, `SyncService` replay per R-08, and an explicit warning when local storage is unavailable/full (spec edge case — never fail silently) in `frontend/src/app/core/offline/sync.service.ts`
+- [ ] T060B [US7] Frontend style reference panel: collapsible read-only panel in the evaluation sheet showing the declared style's guide description (fetched via `GetStyleDetail`, cached for offline use), keyboard-accessible toggle (WCAG, Principle VIII) in `frontend/src/app/features/evaluation-sheet/style-reference/` (FR-049)
 - [ ] T061 [US7] E2E scenario 7: fill offline (Playwright `setOffline`), reload → draft intact, reconnect → exactly one server evaluation in `frontend/e2e/us7-offline.spec.ts`
 
 **Checkpoint**: 🎯 Core judging loop (US1+US6+US7) demonstrable end to end
