@@ -1,5 +1,5 @@
 using System.Text.Json;
-using BirraPoint.Api.Features.Catalog.Data;
+using BirraPoint.Api.Common.Persistence.Seeding;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -182,6 +182,13 @@ public partial class AddBjcpStyleCatalogDetails : Migration
     /// embedded bjcp-2021.json resource — the JSON file stays the single source of truth
     /// (T010, R-12); this migration never hardcodes catalog data.
     /// </summary>
+    /// <remarks>
+    /// This only runs once per database (EF tracks it as applied). Editing bjcp-2021.json after
+    /// this migration has shipped does NOT retroactively update already-migrated databases — a
+    /// content correction needs its own follow-up migration (e.g. UpdateBjcpStyleCatalogDetails),
+    /// not a silent edit here. <see cref="BjcpStyleCatalogLoader.ComputeContentHash"/> is pinned
+    /// by a unit test specifically so an in-place edit fails fast instead of drifting silently.
+    /// </remarks>
     private static void SeedCatalog(MigrationBuilder migrationBuilder)
     {
         var styles = BjcpStyleCatalogLoader.Load();

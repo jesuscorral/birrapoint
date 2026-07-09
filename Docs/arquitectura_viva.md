@@ -60,15 +60,20 @@ realtime hub, or business API endpoint** (T011–T020 remain in Phase 2).
   State/status enums are stored as strings (ADR-0004), not the EF default int.
   `BjcpStyle.Code`/`BeerEntry.StyleCode` are `varchar(20)` (widened from the originally-planned 5
   — synthetic slug codes for styles without an official BJCP letter subcode run up to 17 chars).
-- **`Features/Catalog/Data/`** (T010): `bjcp-2021.json` — the full BJCP 2021 catalog, 125
+- **`Features/Catalog/Data/`** (T010): `bjcp-2021.json` only — the full BJCP 2021 catalog, 125
   entries (categories 1–34 + Appendix B local styles X1–X5), marked `EmbeddedResource` in the
   csproj so it ships inside the compiled assembly (available identically in dev, CI/Testcontainers,
-  and containers, regardless of working directory). `BjcpStyleCatalogLoader` reads it via
+  and containers, regardless of working directory). Pure data, no code, in this folder.
+- **`Common/Persistence/Seeding/`** (T010): `BjcpStyleCatalogLoader` reads the embedded JSON via
   `Assembly.GetManifestResourceStream`; `BjcpStyleSeedRecord`/`VitalStatisticsSeed`/
-  `StyleDescriptionSeed` are the deserialization DTOs. The `AddBjcpStyleCatalogDetails`
-  migration's `Up()` calls the loader and seeds all 125 rows via `migrationBuilder.InsertData`
-  (ADR-0005) — the JSON file is the only place the catalog content itself lives; the migration
-  never hardcodes it.
+  `StyleDescriptionSeed` are the deserialization DTOs; also exposes `ComputeContentHash()`
+  (SHA-256 of the raw resource bytes), pinned by a unit test so an in-place edit to the JSON after
+  the seed migration ships fails fast instead of silently diverging across environments. This
+  lives in `Common/Persistence/`, not `Features/Catalog/`, because the seed migration (shared
+  kernel) must never depend on a feature slice. The `AddBjcpStyleCatalogDetails` migration's
+  `Up()` calls the loader and seeds all 125 rows via `migrationBuilder.InsertData` (ADR-0005) —
+  the JSON file is the only place the catalog content itself lives; the migration never
+  hardcodes it.
 - **`BirraPoint.ServiceDefaults`**: OpenTelemetry (ASP.NET Core, HttpClient and runtime
   instrumentation; OTLP exporter switched by `OTEL_EXPORTER_OTLP_ENDPOINT`), default health
   checks (`self`/`live`), HttpClient resilience handler + service discovery.

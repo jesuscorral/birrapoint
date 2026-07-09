@@ -26,9 +26,14 @@ Spanish guide text). Two ways to get it into a migration were considered:
 
 - Mark `bjcp-2021.json` as an `EmbeddedResource` in `BirraPoint.Api.csproj` so it ships inside the
   compiled assembly and is available identically regardless of working directory (`dotnet run`,
-  Testcontainers-hosted integration tests, or a published container image).
-- `Features/Catalog/Data/BjcpStyleCatalogLoader.cs` reads the embedded resource and deserializes
-  it into `BjcpStyleSeedRecord` DTOs; this loader is shared by the seed migration and by a
+  Testcontainers-hosted integration tests, or a published container image). The JSON file itself
+  stays at `Features/Catalog/Data/bjcp-2021.json` (task-specified path); it is pure data, not code.
+- `Common/Persistence/Seeding/BjcpStyleCatalogLoader.cs` reads the embedded resource and
+  deserializes it into `BjcpStyleSeedRecord` DTOs. The loader and DTOs live in
+  `Common/Persistence/Seeding/`, not under `Features/Catalog/`: the seed migration is part of the
+  shared persistence kernel, and the shared kernel must never depend on a feature slice (an
+  earlier draft placed them under `Features/Catalog/Data/`, which inverted that direction — a
+  senior-review finding fixed before merge). The loader is shared by the seed migration and by a
   DB-free unit test (`BjcpStyleSeedDataTests`) that validates the JSON's shape independently of
   any database.
 - The `AddBjcpStyleCatalogDetails` migration's `Up()` calls the loader and passes the parsed rows
@@ -47,6 +52,16 @@ Spanish guide text). Two ways to get it into a migration were considered:
   historical migrations: if `BjcpStyleSeedRecord`'s shape changes later, the already-applied
   `AddBjcpStyleCatalogDetails` migration would break on a fresh database unless the DTO change is
   itself paired with a new migration (same caveat as any schema change to seeded reference data).
+- Because `Up()` reads the JSON at migration-apply time rather than baking values into the
+  migration source, editing `bjcp-2021.json` after this migration has shipped would NOT
+  retroactively update already-migrated databases — two environments could silently end up with
+  different catalog content despite reporting the same applied-migrations history. This is
+  guarded, not just documented: `BjcpStyleCatalogLoader.ComputeContentHash()` computes a SHA-256
+  of the raw embedded bytes, and `BjcpStyleSeedDataTests` pins that hash to the value this
+  migration seeded from. Editing the JSON breaks that test immediately, forcing a deliberate
+  choice: revert the edit, or ship a new follow-up migration (e.g.
+  `UpdateBjcpStyleCatalogDetails`) that updates the existing rows and updates the pinned hash in
+  the same change.
 - `Code`/`BeerEntry.StyleCode` were widened from `string(5)` to `string(20)` (data-model.md
   amendment) to accommodate synthetic slug codes for styles with no official BJCP letter subcode
   (Historical Beer, Appendix B, named Specialty-IPA variants).

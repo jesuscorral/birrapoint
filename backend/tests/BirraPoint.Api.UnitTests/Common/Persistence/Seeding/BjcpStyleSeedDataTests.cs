@@ -1,6 +1,6 @@
-using BirraPoint.Api.Features.Catalog.Data;
+using BirraPoint.Api.Common.Persistence.Seeding;
 
-namespace BirraPoint.Api.UnitTests.Features.Catalog;
+namespace BirraPoint.Api.UnitTests.Common.Persistence.Seeding;
 
 /// <summary>
 /// DB-free guard on the embedded BJCP 2021 catalog resource itself (T010): catches
@@ -57,5 +57,20 @@ public sealed class BjcpStyleSeedDataTests
         Assert.Equal("21", americanIpa.CategoryNumber);
         Assert.NotNull(americanIpa.VitalStatistics.OgLow);
         Assert.NotNull(americanIpa.VitalStatistics.AbvHigh);
+    }
+
+    /// <summary>
+    /// Pins the embedded resource's content hash to the value AddBjcpStyleCatalogDetails seeded
+    /// its 125 rows from. If this fails, bjcp-2021.json was edited after that migration shipped:
+    /// already-migrated databases will NOT pick up the change automatically. Either revert the
+    /// edit, or ship a new follow-up migration that updates the existing rows and update this
+    /// pinned hash in the same change.
+    /// </summary>
+    [Fact]
+    public void Embedded_catalog_content_hash_matches_the_value_seeded_by_AddBjcpStyleCatalogDetails()
+    {
+        var hash = BjcpStyleCatalogLoader.ComputeContentHash();
+
+        Assert.Equal("C9146DC76CECBBA40DC587A5E5CDD2278E38ACED873CF16B191B425BE5405A8C", hash);
     }
 }
