@@ -21,8 +21,11 @@ public sealed class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidat
             return await next(cancellationToken);
         }
 
-        var context = new ValidationContext<TRequest>(request);
-        var results = await Task.WhenAll(validators.Select(validator => validator.ValidateAsync(context, cancellationToken)));
+        // Each validator gets its own ValidationContext: FluentValidation's rule engine
+        // accumulates failures onto the context it's given, so sharing one instance across
+        // validators run in parallel double-counts every failure.
+        var results = await Task.WhenAll(
+            validators.Select(validator => validator.ValidateAsync(new ValidationContext<TRequest>(request), cancellationToken)));
         var failures = results.SelectMany(result => result.Errors).Where(failure => failure is not null).ToList();
 
         if (failures.Count != 0)

@@ -28,6 +28,19 @@ public sealed class ValidationBehaviorTests
             Task.FromResult(new ValidationResult([new ValidationFailure("Name", "Also always fails.")]));
     }
 
+    // Real AbstractValidator subclasses using the normal RuleFor DSL (not an overridden
+    // ValidateAsync) — these are what actually reproduce a shared-ValidationContext bug, since
+    // FluentValidation's rule engine accumulates failures onto the context it's given.
+    private sealed class MinimumLengthValidator : AbstractValidator<TestRequest>
+    {
+        public MinimumLengthValidator() => RuleFor(r => r.Name).MinimumLength(5).WithMessage("Too short.");
+    }
+
+    private sealed class NoSpacesValidator : AbstractValidator<TestRequest>
+    {
+        public NoSpacesValidator() => RuleFor(r => r.Name).Must(n => !n.Contains(' ')).WithMessage("No spaces allowed.");
+    }
+
     [Fact]
     public async Task Calls_next_when_no_validators_are_registered_for_the_request()
     {
@@ -81,6 +94,25 @@ public sealed class ValidationBehaviorTests
 
         var exception = await Assert.ThrowsAsync<ValidationException>(
             () => behavior.Handle(new TestRequest(""), _ => Task.FromResult("handled"), CancellationToken.None));
+
+        Assert.Equal(2, exception.Errors.Count());
+    }
+
+    [Fact]
+    public async Task Does_not_double_count_failures_from_real_validators_run_in_parallel()
+    {
+        // " " (a single space) fails both real validators: too short (length 1 < 5) and contains
+        // a space. Each validator must see its own ValidationContext — sharing one across the
+        // Task.WhenAll causes FluentValidation's rule engine to accumulate onto the same failure
+        // list, doubling the count.
+        var behavior = new ValidationBehavior<TestRequest, string>(
+        [
+            new MinimumLengthValidator(),
+            new NoSpacesValidator(),
+        ]);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(
+            () => behavior.Handle(new TestRequest(" "), _ => Task.FromResult("handled"), CancellationToken.None));
 
         Assert.Equal(2, exception.Errors.Count());
     }
