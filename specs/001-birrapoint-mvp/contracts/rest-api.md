@@ -12,7 +12,8 @@ Conventions: `404` for resources outside the caller's scope (never reveal existe
 
 | Method & Path | Role | Description |
 |---|---|---|
-| `GET /styles` | any authenticated | BJCP 2021 catalog. `200` → `[{ code, name, categoryNumber, categoryName }]` |
+| `GET /styles` | any authenticated | BJCP 2021 catalog, lightweight (import matching / searchable picker). `200` → `[{ code, name, categoryNumber, categoryName }]` |
+| `GET /styles/{code}` | any authenticated | Full BJCP 2021 style detail incl. vital statistics and guide description, for the judge-facing evaluation-sheet reference panel (FR-049). `200` → `{ code, name, categoryNumber, categoryName, vitalStatistics: { ogLow, ogHigh, fgLow, fgHigh, ibuLow, ibuHigh, srmLow, srmHigh, abvLow, abvHigh }, description: { overallImpression, aroma, appearance, flavor, mouthfeel, comments, history, characteristicIngredients, styleComparison, entryInstructions, commercialExamples: [], tags: [] } }`. `404` if code not in catalog. |
 
 ## Competitions
 

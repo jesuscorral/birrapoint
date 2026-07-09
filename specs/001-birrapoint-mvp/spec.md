@@ -169,6 +169,7 @@ connectivity, and verify exactly one evaluation reaches the server.
 3. **Given** the judge typing or changing focus, **Then** the draft is persisted locally within 300 ms of each change.
 4. **Given** lost connectivity, **Then** a discreet badge shows "Offline mode — data protected locally" and the judge can keep working normally.
 5. **Given** connectivity returns, **Then** pending evaluations sync in the background with no user action, **and** retries after network failures never produce duplicate evaluations — at most one evaluation exists per judge and sample.
+6. **Given** an open evaluation sheet, **When** the judge opens the style reference panel, **Then** it shows the BJCP 2021 description (overall impression, aroma, appearance, flavor, mouthfeel, vital statistics) for the sample's declared style, read-only, without leaving the evaluation flow, and remains available offline since it was cached with the app shell.
 
 ---
 
@@ -376,10 +377,14 @@ rejected.
 - **FR-047**: The production database MUST run as a container inside the same environment boundary, with persistent storage that survives container restarts and redeployments, a scheduled automated backup/export, and a documented restore procedure.
 - **FR-048**: Every service MUST expose health-check endpoints and emit standardized telemetry (logs, metrics, traces) in both local and cloud environments.
 
+**Style Reference (US7)**
+
+- **FR-049**: The BJCP 2021 style catalog MUST carry, per style, the full guide description (overall impression, aroma, appearance, flavor, mouthfeel, comments, history, characteristic ingredients, style comparison, vital statistics OG/FG/IBU/SRM/ABV, commercial examples, tags) in addition to code/name/category, and the judge-facing evaluation sheet MUST expose it as an in-app, read-only reference panel for the sample's declared style — available offline, since style data is preloaded read-only master data with no entrant fields (no BR-01 concern).
+
 ### Key Entities
 
 - **Competition**: root event record; required: name, venue/location, start date, end date; optional wizard data (description, logo, entry limit, registration window start/end); lifecycle state (`Draft`, `Active`, `In Evaluation`, `Finalized`) with per-state capability gates (FR-006).
-- **Style (BJCP 2021 Catalog)**: read-only master data; official code, name, category. Preloaded; target of import matching.
+- **Style (BJCP 2021 Catalog)**: read-only master data; official code, name, category, plus the full guide description (overall impression, aroma, appearance, flavor, mouthfeel, comments, history, characteristic ingredients, style comparison, vital statistics, commercial examples, tags). Preloaded; target of import matching (FR-010/FR-012) and judge-facing style reference during evaluation (FR-049).
 - **Beer Entry (Sample)**: a registered beer; participant (owner), optional collaborators, style, blind code, "Not valid for BOS" flag. Judge-facing views expose only blind code + style.
 - **Participant (Brewer)**: entrant identity and contact email; owner of entries; recipient of result PDFs. Never visible to judges.
 - **Judge**: platform user with judge role; profile created passively from email; may also be a participant (drives conflict-of-interest rules).

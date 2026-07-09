@@ -37,7 +37,7 @@ Draft ──► Active ──► InEvaluation ──► Finalized
 | InEvaluation | Sheets unlock (subject to fixed order); imports & wizard edits rejected (409) |
 | Finalized | Everything read-only; dispatch pipeline runs. Requires all tables `Closed` |
 
-### BjcpStyle *(read-only seed, FR-012)*
+### BjcpStyle *(read-only seed, FR-012/FR-049)*
 
 | Field | Type | Constraints |
 |-------|------|-------------|
@@ -45,6 +45,36 @@ Draft ──► Active ──► InEvaluation ──► Finalized
 | Name | string(100) | required, e.g. `American IPA` |
 | CategoryNumber | string(3) | required, e.g. `21` |
 | CategoryName | string(100) | required, e.g. `IPA` |
+| OGLow / OGHigh | decimal(4,3)? | optional — some Specialty styles have no fixed range |
+| FGLow / FGHigh | decimal(4,3)? | optional |
+| IBULow / IBUHigh | int? | optional |
+| SRMLow / SRMHigh | decimal(5,1)? | optional |
+| ABVLow / ABVHigh | decimal(4,1)? | optional |
+| DescriptionJson | jsonb | required; BJCP 2021 guide text — see shape below (FR-049) |
+
+`DescriptionJson` shape (all string fields hold the Spanish guide text verbatim; `entryInstructions`
+is null for styles without an "Instrucciones para la inscripción" section):
+
+```json
+{
+  "overallImpression": "string",
+  "aroma": "string",
+  "appearance": "string",
+  "flavor": "string",
+  "mouthfeel": "string",
+  "comments": "string",
+  "history": "string",
+  "characteristicIngredients": "string",
+  "styleComparison": "string",
+  "entryInstructions": "string | null",
+  "commercialExamples": ["string", "..."],
+  "tags": ["string", "..."]
+}
+```
+
+Sourced from the official BJCP 2021 Style Guidelines (Spanish translation); seeded from
+`Features/Catalog/Data/bjcp-2021.json` (T010). Covers categories 1–34 plus the BJCP Appendix B
+local styles (X1–X5, e.g. `Italian Grape Ale`, `Catharina Sour`, `New Zealand Pilsner`).
 
 ### Participant *(brewer — never exposed to judges)*
 
