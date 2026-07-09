@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace BirraPoint.Api.Common.Errors;
 
 /// <summary>Maps a <see cref="DomainException"/> to its catalogued ProblemDetails shape.</summary>
-public sealed class DomainExceptionHandler : IExceptionHandler
+public sealed class DomainExceptionHandler(IProblemDetailsService problemDetailsService) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
@@ -30,7 +30,14 @@ public sealed class DomainExceptionHandler : IExceptionHandler
         }
 
         httpContext.Response.StatusCode = status;
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
-        return true;
+
+        // Writes application/problem+json (RFC 7807, contracts/rest-api.md) via the registered
+        // IProblemDetailsService, instead of a plain application/json WriteAsJsonAsync.
+        return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+        {
+            HttpContext = httpContext,
+            ProblemDetails = problemDetails,
+            Exception = domainException,
+        });
     }
 }

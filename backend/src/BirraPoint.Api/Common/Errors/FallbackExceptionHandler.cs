@@ -9,7 +9,8 @@ namespace BirraPoint.Api.Common.Errors;
 /// returns a generic 500 — never the exception message or stack trace (Principle VII: never leak
 /// internals to the client).
 /// </summary>
-public sealed class FallbackExceptionHandler(ILogger<FallbackExceptionHandler> logger) : IExceptionHandler
+public sealed class FallbackExceptionHandler(ILogger<FallbackExceptionHandler> logger, IProblemDetailsService problemDetailsService)
+    : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
@@ -22,7 +23,14 @@ public sealed class FallbackExceptionHandler(ILogger<FallbackExceptionHandler> l
         };
 
         httpContext.Response.StatusCode = problemDetails.Status.Value;
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
-        return true;
+
+        // Exception is passed through for diagnostics (e.g. Development-only enrichment); the
+        // default writer never serializes it into the response body, so nothing leaks (Principle VII).
+        return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+        {
+            HttpContext = httpContext,
+            ProblemDetails = problemDetails,
+            Exception = exception,
+        });
     }
 }

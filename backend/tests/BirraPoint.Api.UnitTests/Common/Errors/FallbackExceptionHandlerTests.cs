@@ -7,7 +7,8 @@ namespace BirraPoint.Api.UnitTests.Common.Errors;
 
 public sealed class FallbackExceptionHandlerTests
 {
-    private readonly FallbackExceptionHandler _handler = new(NullLogger<FallbackExceptionHandler>.Instance);
+    private readonly FallbackExceptionHandler _handler =
+        new(NullLogger<FallbackExceptionHandler>.Instance, ProblemDetailsServiceTestFactory.Create());
 
     [Fact]
     public async Task Writes_a_generic_500_without_leaking_exception_details()
@@ -19,6 +20,7 @@ public sealed class FallbackExceptionHandlerTests
 
         Assert.True(handled);
         Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
+        Assert.StartsWith("application/problem+json", context.Response.ContentType);
 
         context.Response.Body.Seek(0, SeekOrigin.Begin);
         var raw = await new StreamReader(context.Response.Body).ReadToEndAsync();

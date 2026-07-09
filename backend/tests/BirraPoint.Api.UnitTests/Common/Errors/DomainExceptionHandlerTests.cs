@@ -6,7 +6,7 @@ namespace BirraPoint.Api.UnitTests.Common.Errors;
 
 public sealed class DomainExceptionHandlerTests
 {
-    private readonly DomainExceptionHandler _handler = new();
+    private readonly DomainExceptionHandler _handler = new(ProblemDetailsServiceTestFactory.Create());
 
     [Fact]
     public async Task Writes_the_catalog_urn_status_and_extensions_for_a_domain_exception()
@@ -20,6 +20,7 @@ public sealed class DomainExceptionHandlerTests
 
         Assert.True(handled);
         Assert.Equal(StatusCodes.Status409Conflict, context.Response.StatusCode);
+        Assert.StartsWith("application/problem+json", context.Response.ContentType);
 
         var body = await ReadBodyAsync(context);
         Assert.Equal("urn:birrapoint:conflict-of-interest", body.GetProperty("type").GetString());

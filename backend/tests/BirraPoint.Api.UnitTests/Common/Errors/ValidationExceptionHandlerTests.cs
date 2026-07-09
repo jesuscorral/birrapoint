@@ -8,7 +8,7 @@ namespace BirraPoint.Api.UnitTests.Common.Errors;
 
 public sealed class ValidationExceptionHandlerTests
 {
-    private readonly ValidationExceptionHandler _handler = new();
+    private readonly ValidationExceptionHandler _handler = new(ProblemDetailsServiceTestFactory.Create());
 
     [Fact]
     public async Task Writes_a_400_with_the_validation_urn_and_a_field_error_map()
@@ -25,6 +25,7 @@ public sealed class ValidationExceptionHandlerTests
 
         Assert.True(handled);
         Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        Assert.StartsWith("application/problem+json", context.Response.ContentType);
 
         var body = await ReadBodyAsync(context);
         Assert.Equal("urn:birrapoint:validation", body.GetProperty("type").GetString());
