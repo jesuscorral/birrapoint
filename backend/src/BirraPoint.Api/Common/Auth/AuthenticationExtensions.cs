@@ -33,6 +33,24 @@ public static class AuthenticationExtensions
                 // carry no audience this API can pin to; issuer + signature validation (via
                 // Authority) is the trust boundary for now — revisit if/when a dedicated API
                 // resource + audience mapper is added to the realm.
+                options.Events = new JwtBearerEvents
+                {
+                    // Browser WebSocket handshakes can't set an Authorization header, so
+                    // CompetitionHub's clients authenticate via ?access_token= on the handshake
+                    // (contracts/signalr-hub.md, standard SignalR-JWT pattern). Scoped to the hub
+                    // path only — every other endpoint still requires the Authorization header.
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+                        if (!string.IsNullOrEmpty(accessToken) &&
+                            context.HttpContext.Request.Path.StartsWithSegments("/hubs/competition"))
+                        {
+                            context.Token = accessToken;
+                        }
+
+                        return Task.CompletedTask;
+                    },
+                };
             });
 
         services.AddAuthorizationBuilder()
