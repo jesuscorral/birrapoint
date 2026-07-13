@@ -3,6 +3,7 @@ using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Behaviors;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Realtime;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -28,6 +29,10 @@ builder.Services.AddMediatRWithValidation(typeof(Program).Assembly);
 // Immutable audit trail writer (T014).
 builder.Services.AddScoped<IAuditWriter, AuditWriter>();
 
+// CompetitionHub + emit-after-commit event dispatcher (T015).
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IEventPublisher, EventPublisher>();
+
 var app = builder.Build();
 
 // Tracked gap (senior review, PR #6): no audience mapper exists yet on the Keycloak realm's API
@@ -51,6 +56,9 @@ app.UseAuthorization();
 
 // /health and /alive endpoints (Development only by default).
 app.MapDefaultEndpoints();
+
+// CompetitionHub: server → client notifications only (T015).
+app.MapHub<CompetitionHub>("/hubs/competition");
 
 // EF migrations apply on startup in Development only (T009); production migrates at deploy time.
 if (app.Environment.IsDevelopment())

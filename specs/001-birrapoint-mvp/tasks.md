@@ -56,7 +56,7 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 - [X] T012 [P] ProblemDetails middleware + exception mapping with the 14 stable `urn:birrapoint:*` type URNs from contracts/rest-api.md §Error catalog in `backend/src/BirraPoint.Api/Common/Errors/`
 - [X] T013 [P] MediatR registration + FluentValidation `ValidationBehavior` pipeline in `backend/src/BirraPoint.Api/Common/Behaviors/`
 - [X] T014 [P] `AuditWriter` service (action, entity, actor, before/after jsonb) in `backend/src/BirraPoint.Api/Common/Audit/`
-- [ ] T015 `CompetitionHub` with guarded group joins (`JoinCompetitionAsOrganizer` → role+ownership, `JoinTable` → active membership) per contracts/signalr-hub.md in `backend/src/BirraPoint.Api/Realtime/CompetitionHub.cs`; emit-after-commit event dispatcher in `Realtime/EventPublisher.cs`
+- [X] T015 `CompetitionHub` with guarded group joins (`JoinCompetitionAsOrganizer` → role+ownership, `JoinTable` → active membership) per contracts/signalr-hub.md in `backend/src/BirraPoint.Api/Realtime/CompetitionHub.cs`; emit-after-commit event dispatcher in `Realtime/EventPublisher.cs`
 - [ ] T016 `DispatchJob` queue service + hosted `DispatchWorker` (Channels wake-up, startup resume, retry/backoff per R-06) in `backend/src/BirraPoint.Api/Common/Jobs/`
 - [ ] T017 First slice proving the pipeline: `GET /api/v1/styles` in `backend/src/BirraPoint.Api/Features/Catalog/GetStyles.cs`
 - [ ] T018 Integration-test harness: `WebApplicationFactory` + Testcontainers PostgreSQL + configurable test JWT issuer in `backend/tests/BirraPoint.Api.IntegrationTests/TestHost/`; first contract test `Catalog/GetStylesTests.cs` (auth required, payload shape)
