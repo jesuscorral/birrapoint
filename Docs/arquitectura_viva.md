@@ -5,19 +5,20 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-09 · after T013–T014 (Phase 2 Foundational, in progress)
+**Last updated:** 2026-07-13 · after T015 (Phase 2 Foundational, in progress)
 
 ## Global status
 
 Phase 1 (Setup, T001–T007) is **complete**. Phase 2 (Foundational) has landed the domain model
 and persistence layer (T008–T009), the full BJCP 2021 style catalog (T010), Keycloak JWT bearer
 auth with a deny-by-default fallback policy (T011), the ProblemDetails exception-handler chain
-for the 14-entry error catalog (T012), the MediatR + FluentValidation pipeline (T013), and the
-audit trail writer (T014). Verified against a real Aspire-provisioned PostgreSQL + Keycloak (all
+for the 14-entry error catalog (T012), the MediatR + FluentValidation pipeline (T013), the
+audit trail writer (T014), and the `CompetitionHub` realtime skeleton + emit-after-commit
+dispatcher (T015). Verified against a real Aspire-provisioned PostgreSQL + Keycloak (all
 tables present, catalog seeded, app boots with the full pipeline wired in, `/health`/`/alive`
-still anonymous and green). **There is still no realtime hub or business API endpoint** to
-actually exercise this infrastructure end-to-end over HTTP — that starts with T017 (first slice)
-and T018 (the `WebApplicationFactory` + test-JWT-issuer harness); T015–T020 remain in Phase 2.
+still anonymous and green). **There is still no business API endpoint** to actually exercise this
+infrastructure end-to-end over HTTP — that starts with T017 (first slice) and T018 (the
+`WebApplicationFactory` + test-JWT-issuer harness); T016–T020 remain in Phase 2.
 
 ## Local topology (.NET Aspire — `dotnet run --project backend/src/BirraPoint.AppHost`)
 
@@ -53,7 +54,10 @@ and T018 (the `WebApplicationFactory` + test-JWT-issuer harness); T015–T020 re
   `ClaimTypes.Role` claims so `[Authorize(Roles=...)]`/`IsInRole` work; it is idempotent since
   ASP.NET Core may invoke a claims transformation more than once per request.
   `ICurrentUser`/`CurrentUser` expose `Sub`/`Email`/`Roles` for the authenticated caller via
-  `IHttpContextAccessor`.
+  `IHttpContextAccessor`. Since T015, `AddKeycloakAuthentication` also wires
+  `JwtBearerEvents.OnMessageReceived` to read the token from `?access_token=` on the
+  `/hubs/competition` path only (browser WebSocket handshakes can't set an `Authorization` header)
+  — every other endpoint is unaffected and still requires the header (ADR-0006).
 - **`Common/Errors/`** (T012): ProblemDetails via the .NET `IExceptionHandler` chain (tried in
   registration order): `DomainExceptionHandler` (maps `DomainException` to its catalogued urn),
   `ValidationExceptionHandler` (maps FluentValidation's `ValidationException` to `400` +
@@ -112,6 +116,21 @@ and T018 (the `WebApplicationFactory` + test-JWT-issuer harness); T015–T020 re
   `Up()` calls the loader and seeds all 125 rows via `migrationBuilder.InsertData` (ADR-0005) —
   the JSON file is the only place the catalog content itself lives; the migration never
   hardcodes it.
+- **`Realtime/`** (T015): `CompetitionHub` (`/hubs/competition`, `[Authorize]`) — server → client
+  only, per contracts/signalr-hub.md. `JoinCompetitionAsOrganizer` guards on `ORGANIZER` role +
+  `Competition.CreatedByUserId` ownership; `JoinTable` guards on an active (`RemovedAt == null`)
+  `TableJudge` row, matched via `Judge.KeycloakUserId` or, as a bootstrap fallback before T023's
+  resolver has run, `Judge.Email`; both throw `HubException` on failure (hub-only error channel,
+  not the REST `urn:birrapoint:*` catalog). Reads identity from `Context.User`
+  (`HubCallerContext`), not `ICurrentUser` — see ADR-0006 for why. `CompetitionGroups` holds the
+  two fixed group-name formats (`competition:{id}:organizers`, `table:{tableId}`) shared by the
+  hub and by `IEventPublisher`/`EventPublisher`, the generic emit-after-commit dispatcher every
+  later story's handler will call after its own `SaveChangesAsync` succeeds.
+  `CompetitionEvents` holds the 7 catalogued event-name constants (none emitted yet — the first
+  emitter is US2's `ChangeCompetitionState`, T028). **Known gap**: the DB-backed authorization
+  checks above have no integration/contract test yet — T018's Testcontainers harness lands after
+  this task, and EF Core's InMemory provider is not an accepted substitute; tracked with a comment
+  in `CompetitionHub.cs`.
 - **`BirraPoint.ServiceDefaults`**: OpenTelemetry (ASP.NET Core, HttpClient and runtime
   instrumentation; OTLP exporter switched by `OTEL_EXPORTER_OTLP_ENDPOINT`), default health
   checks (`self`/`live`), HttpClient resilience handler + service discovery.
@@ -129,8 +148,12 @@ and T018 (the `WebApplicationFactory` + test-JWT-issuer harness); T015–T020 re
   and asserts the constraints above end-to-end. T011/T012 are unit-tested only (no business
   endpoint exists yet to exercise over HTTP): claims-transformation/`CurrentUser`/DI-wiring tests
   under `UnitTests/Common/Auth/`, exception-handler tests against a bare `DefaultHttpContext`
-  under `UnitTests/Common/Errors/`. The `WebApplicationFactory` HTTP-level harness still arrives
-  with T018 (which must also add `public partial class Program;` to the API).
+  under `UnitTests/Common/Errors/`. T015's `Realtime/` tests are hand-rolled fakes (no mocking
+  library in this repo) implementing `IHubContext`/`IHubClients`/`IClientProxy` directly — same
+  "real/fake collaborator over mock" style as the T011 auth tests. The `WebApplicationFactory`
+  HTTP-level harness still arrives with T018 (which must also add `public partial class Program;`
+  to the API), and is also where `CompetitionHub`'s DB-backed join-authorization gets its first
+  integration coverage.
 
 ## Frontend (`frontend/`, Angular 20)
 
@@ -151,22 +174,26 @@ and T018 (the `WebApplicationFactory` + test-JWT-issuer harness); T015–T020 re
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 31 unit tests: smoke + T010 `BjcpStyleSeedDataTests` (5, DB-free catalog-shape guard) + T011 `Common/Auth` (13: claims transformation, `CurrentUser`, DI-wiring smoke) + T012 `Common/Errors` (6: exception-handler mapping/security) + T013 `Common/Behaviors` (6: `ValidationBehavior` isolation + MediatR DI-wiring end-to-end); 15 integration tests against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3: atomic staging, null-before, no-save-no-persist); HTTP-level harness in T018 |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 36 unit tests: smoke + T010 `BjcpStyleSeedDataTests` (5, DB-free catalog-shape guard) + T011 `Common/Auth` (13: claims transformation, `CurrentUser`, DI-wiring smoke) + T012 `Common/Errors` (6: exception-handler mapping/security) + T013 `Common/Behaviors` (7: `ValidationBehavior` isolation + MediatR DI-wiring end-to-end) + T015 `Realtime` (4: `CompetitionGroups` formatting, `EventPublisher` group/event/payload routing via hand-rolled `IHubContext` fakes); 15 integration tests against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3: atomic staging, null-before, no-save-no-persist); HTTP-level harness in T018 |
 | Frontend unit | `cd frontend && npx jest` | green — jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
 | E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | green — smoke spec + `e2e/a11y` axe-core WCAG 2.1 A/AA gate (SC-009); **chromium only** — a webkit/mobile-Safari project is pending before the offline suites |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
 ## Data flows
 
-No HTTP endpoints yet. The database now holds the full domain schema (T008–T009); target
-contracts live in `specs/001-birrapoint-mvp/contracts/` (REST `/api/v1`, SignalR
-`CompetitionHub`, `.xlsx` import file) and the first slice proving the pipeline
-(`GET /api/v1/styles`) lands with T017.
+No REST endpoints yet — the first slice proving the pipeline (`GET /api/v1/styles`) lands with
+T017. `CompetitionHub` (T015) is mapped at `/hubs/competition` and accepts authenticated group
+joins, but no story emits an event over it yet (`CompetitionEvents`' constants are all unused
+until US2's `ChangeCompetitionState`, T028, becomes the first emitter). The database holds the
+full domain schema (T008–T009); target contracts live in `specs/001-birrapoint-mvp/contracts/`
+(REST `/api/v1`, SignalR `CompetitionHub`, `.xlsx` import file).
 
 ## Recorded debt / immediate next steps
 
 - **ADR-0003**: decide zoneless change detection before Phase 3 frontend work.
 - **ADR-0004**: domain state/status enums are stored as strings in PostgreSQL (T009).
+- **ADR-0006**: `CompetitionHub`'s DB-backed join-authorization (ownership/membership checks) has
+  no integration/contract test yet — close this once T018's Testcontainers harness lands.
 - `WaitFor` a *ready* Keycloak once auth is wired (T011; ADR-0001 mitigation).
 - `Aspire.Hosting.NodeJs` is on the old version train (9.5.2); align when a 13.x ships.
 - Add a webkit Playwright project before writing the offline E2E suites (iOS Safari is the
