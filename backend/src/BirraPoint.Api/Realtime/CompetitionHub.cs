@@ -43,15 +43,23 @@ public sealed class CompetitionHub(AppDbContext db) : Hub
     public async Task JoinTable(Guid tableId)
     {
         var user = Context.User ?? throw new HubException("Not authorized to join this table.");
-        var sub = user.FindFirst("sub")?.Value;
+        var sub = user.FindFirst("sub")?.Value
+            ?? throw new HubException("Not authorized to join this table.");
         var email = user.FindFirst("email")?.Value;
 
         // KeycloakUserId is only backfilled once JudgeResolver (T023, US1) runs on a REST call; a
-        // judge whose first authenticated action is opening this socket falls back to email match.
+        // judge whose first authenticated action is opening this socket falls back to email
+        // match. sub is required non-null above so `KeycloakUserId == sub` can never degrade to
+        // an `IS NULL` check that would match any not-yet-backfilled judge on the table; email is
+        // guarded the same way so a null claim can't do the same on the fallback clause. The
+        // realm disables self-registration (infra/keycloak/birrapoint-realm.json,
+        // registrationAllowed: false), so judge emails are always admin-provisioned, not
+        // attacker-chosen.
         var isActiveMember = await db.TableJudges
             .Where(tableJudge => tableJudge.TastingTableId == tableId && tableJudge.RemovedAt == null)
             .Join(db.Judges, tableJudge => tableJudge.JudgeId, judge => judge.Id, (_, judge) => judge)
-            .AnyAsync(judge => judge.KeycloakUserId == sub || (judge.KeycloakUserId == null && judge.Email == email));
+            .AnyAsync(judge =>
+                judge.KeycloakUserId == sub || (judge.KeycloakUserId == null && email != null && judge.Email == email));
         if (!isActiveMember)
         {
             throw new HubException("Not authorized to join this table.");
