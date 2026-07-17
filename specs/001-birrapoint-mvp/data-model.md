@@ -222,7 +222,8 @@ points from any other submitted total (spec edge case: ≥3 judges).
 | PayloadJson | jsonb | e.g. `{ "participantId": … }` |
 | Status | enum | `Pending` \| `Running` \| `Completed` \| `Failed` |
 | Attempts | int | retry with backoff; `Failed` after max attempts, retryable via API (FR-041) |
-| LastError | string? | |
+| LastError | string? | truncated to 2000 chars |
+| NextAttemptAt | DateTimeOffset? | null until a failed attempt schedules a backoff-delayed retry (ADR-0008); a `Pending` job is dispatch-eligible only once this has passed or is null; indexed together with `Status` |
 
 ### AuditLog
 

@@ -15,4 +15,8 @@ public class DispatchJob : Entity
     public int Attempts { get; set; }
 
     public string? LastError { get; set; }
+
+    /// <summary>Null until a failed attempt schedules a backoff-delayed retry (ADR-0008); a
+    /// Pending job is eligible for dispatch only once this has passed (or is null).</summary>
+    public DateTimeOffset? NextAttemptAt { get; set; }
 }

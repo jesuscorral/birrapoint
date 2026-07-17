@@ -1,7 +1,10 @@
+using System.Text.Json.Serialization;
+using System.Threading.Channels;
 using BirraPoint.Api.Common.Audit;
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Behaviors;
 using BirraPoint.Api.Common.Errors;
+using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Realtime;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -29,9 +32,20 @@ builder.Services.AddMediatRWithValidation(typeof(Program).Assembly);
 // Immutable audit trail writer (T014).
 builder.Services.AddScoped<IAuditWriter, AuditWriter>();
 
-// CompetitionHub + emit-after-commit event dispatcher (T015).
-builder.Services.AddSignalR();
+// CompetitionHub + emit-after-commit event dispatcher (T015). Enum payload fields (e.g.
+// DispatchProgress's `status`) serialize as their name, not the default int, matching the
+// string-enum convention already used for the domain in the database (ADR-0004) and the wire
+// examples in contracts/rest-api.md; T017's first REST slice should configure the equivalent for
+// HTTP responses so both transports agree on the same wire format.
+builder.Services.AddSignalR()
+    .AddJsonProtocol(options => options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddSingleton<IEventPublisher, EventPublisher>();
+
+// DispatchJob queue + hosted worker (T016/R-06): Channel<Guid> wakes the worker immediately on
+// enqueue; the worker's own periodic safety-net poll covers any missed signal.
+builder.Services.AddSingleton(Channel.CreateUnbounded<Guid>());
+builder.Services.AddScoped<IDispatchJobQueue, DispatchJobQueue>();
+builder.Services.AddHostedService<DispatchWorker>();
 
 var app = builder.Build();
 

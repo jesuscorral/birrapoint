@@ -5,7 +5,7 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-13 · after T015 (Phase 2 Foundational, in progress)
+**Last updated:** 2026-07-17 · after T016 (Phase 2 Foundational, in progress)
 
 ## Global status
 
@@ -13,12 +13,13 @@ Phase 1 (Setup, T001–T007) is **complete**. Phase 2 (Foundational) has landed 
 and persistence layer (T008–T009), the full BJCP 2021 style catalog (T010), Keycloak JWT bearer
 auth with a deny-by-default fallback policy (T011), the ProblemDetails exception-handler chain
 for the 14-entry error catalog (T012), the MediatR + FluentValidation pipeline (T013), the
-audit trail writer (T014), and the `CompetitionHub` realtime skeleton + emit-after-commit
-dispatcher (T015). Verified against a real Aspire-provisioned PostgreSQL + Keycloak (all
-tables present, catalog seeded, app boots with the full pipeline wired in, `/health`/`/alive`
-still anonymous and green). **There is still no business API endpoint** to actually exercise this
-infrastructure end-to-end over HTTP — that starts with T017 (first slice) and T018 (the
-`WebApplicationFactory` + test-JWT-issuer harness); T016–T020 remain in Phase 2.
+audit trail writer (T014), the `CompetitionHub` realtime skeleton + emit-after-commit
+dispatcher (T015), and the `DispatchJob` queue + hosted `DispatchWorker` (T016). Verified against
+a real Aspire-provisioned PostgreSQL + Keycloak (all tables present, catalog seeded, app boots
+with the full pipeline wired in, `/health`/`/alive` still anonymous and green). **There is still
+no business API endpoint** to actually exercise this infrastructure end-to-end over HTTP — that
+starts with T017 (first slice) and T018 (the `WebApplicationFactory` + test-JWT-issuer harness);
+T017–T020 remain in Phase 2.
 
 ## Local topology (.NET Aspire — `dotnet run --project backend/src/BirraPoint.AppHost`)
 
@@ -126,11 +127,42 @@ infrastructure end-to-end over HTTP — that starts with T017 (first slice) and 
   two fixed group-name formats (`competition:{id}:organizers`, `table:{tableId}`) shared by the
   hub and by `IEventPublisher`/`EventPublisher`, the generic emit-after-commit dispatcher every
   later story's handler will call after its own `SaveChangesAsync` succeeds.
-  `CompetitionEvents` holds the 7 catalogued event-name constants (none emitted yet — the first
-  emitter is US2's `ChangeCompetitionState`, T028). **Known gap**: the DB-backed authorization
-  checks above have no integration/contract test yet — T018's Testcontainers harness lands after
-  this task, and EF Core's InMemory provider is not an accepted substitute; tracked with a comment
-  in `CompetitionHub.cs`.
+  `CompetitionEvents` holds the 7 catalogued event-name constants; `DispatchWorker` (T016) is the
+  first actual emitter (`DispatchProgress`), though no job is ever enqueued yet in practice — no
+  slice calls `IDispatchJobQueue.EnqueueAsync` until T041/T075. The first story-driven emitter is
+  still US2's `ChangeCompetitionState` (T028). **Known gap**: the DB-backed authorization checks
+  above have no integration/contract test yet — T018's Testcontainers harness lands after this
+  task, and EF Core's InMemory provider is not an accepted substitute; tracked with a comment in
+  `CompetitionHub.cs`.
+- **`Common/Jobs/`** (T016, R-06): `DispatchJobQueue.EnqueueAsync` inserts a `Pending`
+  `DispatchJob` row and wakes `DispatchWorker` via a shared singleton `Channel<Guid>` — no separate
+  signal abstraction, the BCL channel is the wake-up mechanism directly. `DispatchWorker` (hosted
+  `BackgroundService`) resume-sweeps on startup: any job still `Running` means the process crashed
+  mid-handler, so it's counted as a failed attempt (not a free reset) and run through the same
+  `DispatchRetryPolicy` as any other failure — capped exponential backoff (1s/2s/4s/.../60s cap),
+  `MaxAttempts = 5` (not specified by the spec; an engineering choice, documented inline), `Failed`
+  after that stays retryable via the API (FR-041, not built yet). The backoff is enforced, not just
+  computed: a failed job's `NextAttemptAt` (ADR-0008) is set on retry, and the dispatch sweep only
+  picks up `Pending` jobs whose `NextAttemptAt` has passed — otherwise any wake source (a new
+  enqueue, the 30s safety-net poll, another job's own retry signal) would re-run it immediately.
+  Every worker cycle runs inside a resilience boundary (`RunGuardedAsync`): a transient DB/publish
+  fault is logged and backed off rather than escaping `ExecuteAsync`, which would otherwise stop
+  the whole host under .NET's default `BackgroundServiceExceptionBehavior.StopHost`. The
+  `DispatchProgress` publish is isolated from the outcome-determining try/catch (a notification
+  failure must never revert an already-completed job), and terminal `Completed`/`Failed` writes
+  use `CancellationToken.None` so an in-flight outcome survives shutdown instead of being
+  misdiagnosed as a crash on next startup. `ILogger<DispatchWorker>` logs full exceptions;
+  `LastError` itself stays a concise, truncated (2000 char) message for the organizer-facing
+  surface. Jobs dispatch to whichever `IDispatchJobHandler` is registered for their
+  `DispatchJobType`; **none are registered yet** — the first are T041 (`SendInvitation`) and T075
+  (`GeneratePdfs`/`BundleZip`/`SendResultEmail`), so a job would currently fail immediately with
+  "no handler registered" if one were ever enqueued. `AddSignalR().AddJsonProtocol(...)` adds a
+  `JsonStringEnumConverter`, so `DispatchProgress`'s `status`/`jobType` (and every future event's
+  enum fields) serialize as their name, not the `System.Text.Json` default int (ADR-0007) —
+  mirrors the DB-level string-enum convention (ADR-0004). **Known gap**: same pattern as
+  `Realtime/` — `DispatchJobQueue`'s insert and `DispatchWorker`'s DB-backed sweep/dispatch loop
+  have no integration test yet (T018); only
+  `DispatchRetryPolicy` (pure) is unit-tested now.
 - **`BirraPoint.ServiceDefaults`**: OpenTelemetry (ASP.NET Core, HttpClient and runtime
   instrumentation; OTLP exporter switched by `OTEL_EXPORTER_OTLP_ENDPOINT`), default health
   checks (`self`/`live`), HttpClient resilience handler + service discovery.
@@ -150,10 +182,12 @@ infrastructure end-to-end over HTTP — that starts with T017 (first slice) and 
   under `UnitTests/Common/Auth/`, exception-handler tests against a bare `DefaultHttpContext`
   under `UnitTests/Common/Errors/`. T015's `Realtime/` tests are hand-rolled fakes (no mocking
   library in this repo) implementing `IHubContext`/`IHubClients`/`IClientProxy` directly — same
-  "real/fake collaborator over mock" style as the T011 auth tests. The `WebApplicationFactory`
-  HTTP-level harness still arrives with T018 (which must also add `public partial class Program;`
-  to the API), and is also where `CompetitionHub`'s DB-backed join-authorization gets its first
-  integration coverage.
+  "real/fake collaborator over mock" style as the T011 auth tests. T016's `Common/Jobs/` tests
+  cover only `DispatchRetryPolicy` (pure math) — `DispatchJobQueue`/`DispatchWorker` are DB-backed
+  and wait on T018 for the same reason `CompetitionHub`'s authorization checks do. The
+  `WebApplicationFactory` HTTP-level harness still arrives with T018 (which must also add
+  `public partial class Program;` to the API), and is also where both of those gaps get their
+  first integration coverage.
 
 ## Frontend (`frontend/`, Angular 20)
 
@@ -174,7 +208,7 @@ infrastructure end-to-end over HTTP — that starts with T017 (first slice) and 
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 36 unit tests: smoke + T010 `BjcpStyleSeedDataTests` (5, DB-free catalog-shape guard) + T011 `Common/Auth` (13: claims transformation, `CurrentUser`, DI-wiring smoke) + T012 `Common/Errors` (6: exception-handler mapping/security) + T013 `Common/Behaviors` (7: `ValidationBehavior` isolation + MediatR DI-wiring end-to-end) + T015 `Realtime` (4: `CompetitionGroups` formatting, `EventPublisher` group/event/payload routing via hand-rolled `IHubContext` fakes); 15 integration tests against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3: atomic staging, null-before, no-save-no-persist); HTTP-level harness in T018 |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 46 unit tests: smoke + T010 `BjcpStyleSeedDataTests` (5, DB-free catalog-shape guard) + T011 `Common/Auth` (13: claims transformation, `CurrentUser`, DI-wiring smoke) + T012 `Common/Errors` (6: exception-handler mapping/security) + T013 `Common/Behaviors` (7: `ValidationBehavior` isolation + MediatR DI-wiring end-to-end) + T015 `Realtime` (4: `CompetitionGroups` formatting, `EventPublisher` group/event/payload routing via hand-rolled `IHubContext` fakes) + T016 `Common/Jobs` (10: `DispatchRetryPolicy` — max-attempts cutoff, backoff doubling, backoff cap); 15 integration tests against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3: atomic staging, null-before, no-save-no-persist); HTTP-level harness in T018 |
 | Frontend unit | `cd frontend && npx jest` | green — jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
 | E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | green — smoke spec + `e2e/a11y` axe-core WCAG 2.1 A/AA gate (SC-009); **chromium only** — a webkit/mobile-Safari project is pending before the offline suites |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
@@ -183,10 +217,11 @@ infrastructure end-to-end over HTTP — that starts with T017 (first slice) and 
 
 No REST endpoints yet — the first slice proving the pipeline (`GET /api/v1/styles`) lands with
 T017. `CompetitionHub` (T015) is mapped at `/hubs/competition` and accepts authenticated group
-joins, but no story emits an event over it yet (`CompetitionEvents`' constants are all unused
-until US2's `ChangeCompetitionState`, T028, becomes the first emitter). The database holds the
-full domain schema (T008–T009); target contracts live in `specs/001-birrapoint-mvp/contracts/`
-(REST `/api/v1`, SignalR `CompetitionHub`, `.xlsx` import file).
+joins; `DispatchWorker` (T016) is running and would emit `DispatchProgress` on any job status
+change, but no story enqueues a `DispatchJob` yet, so in practice nothing flows over the hub until
+US2's `ChangeCompetitionState` (T028) becomes the first real emitter. The database holds the full
+domain schema (T008–T009); target contracts live in `specs/001-birrapoint-mvp/contracts/` (REST
+`/api/v1`, SignalR `CompetitionHub`, `.xlsx` import file).
 
 ## Recorded debt / immediate next steps
 
@@ -194,6 +229,11 @@ full domain schema (T008–T009); target contracts live in `specs/001-birrapoint
 - **ADR-0004**: domain state/status enums are stored as strings in PostgreSQL (T009).
 - **ADR-0006**: `CompetitionHub`'s DB-backed join-authorization (ownership/membership checks) has
   no integration/contract test yet — close this once T018's Testcontainers harness lands.
+- Same gap as ADR-0006, different task: `DispatchJobQueue`/`DispatchWorker`'s DB-backed enqueue and
+  resume/dispatch loop (T016) have no integration test yet either — same T018 dependency.
+- **ADR-0007**: T017 (first REST slice) should add a `JsonStringEnumConverter` to
+  `ConfigureHttpJsonOptions`/Minimal API JSON options so REST responses match the enum-as-string
+  wire format ADR-0007 already established for SignalR events.
 - `WaitFor` a *ready* Keycloak once auth is wired (T011; ADR-0001 mitigation).
 - `Aspire.Hosting.NodeJs` is on the old version train (9.5.2); align when a 13.x ships.
 - Add a webkit Playwright project before writing the offline E2E suites (iOS Safari is the
