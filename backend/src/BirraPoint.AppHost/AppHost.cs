@@ -29,6 +29,7 @@ var api = builder.AddProject<Projects.BirraPoint_Api>("api")
     .WaitFor(db)
     .WithEnvironment("Keycloak__Authority",
         ReferenceExpression.Create($"{keycloakHttp.Property(EndpointProperty.Url)}/realms/birrapoint"))
+    .WithEnvironment("Keycloak__ApiAudience", "birrapoint-api")
     .WithEnvironment("Keycloak__AdminClientId", "birrapoint-api-admin")
     .WithEnvironment("Keycloak__AdminClientSecret", "dev-only-secret-change-me")
     .WithEnvironment("Smtp__Host", ReferenceExpression.Create($"{smtp.Property(EndpointProperty.Host)}"))

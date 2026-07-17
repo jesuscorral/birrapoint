@@ -5,7 +5,7 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-17 · after T016 (Phase 2 Foundational, in progress)
+**Last updated:** 2026-07-17 · after T017 (Phase 2 Foundational, in progress)
 
 ## Global status
 
@@ -14,12 +14,13 @@ and persistence layer (T008–T009), the full BJCP 2021 style catalog (T010), Ke
 auth with a deny-by-default fallback policy (T011), the ProblemDetails exception-handler chain
 for the 14-entry error catalog (T012), the MediatR + FluentValidation pipeline (T013), the
 audit trail writer (T014), the `CompetitionHub` realtime skeleton + emit-after-commit
-dispatcher (T015), and the `DispatchJob` queue + hosted `DispatchWorker` (T016). Verified against
-a real Aspire-provisioned PostgreSQL + Keycloak (all tables present, catalog seeded, app boots
-with the full pipeline wired in, `/health`/`/alive` still anonymous and green). **There is still
-no business API endpoint** to actually exercise this infrastructure end-to-end over HTTP — that
-starts with T017 (first slice) and T018 (the `WebApplicationFactory` + test-JWT-issuer harness);
-T017–T020 remain in Phase 2.
+dispatcher (T015), the `DispatchJob` queue + hosted `DispatchWorker` (T016), and the first REST
+slice, `GET /api/v1/styles` (T017), which also closed the JWT audience-validation gap tracked
+since T011 (ADR-0009) and brought OpenAPI online at `/openapi/v1.json`. Verified against a real
+Aspire-provisioned PostgreSQL + Keycloak (all tables present, catalog seeded, app boots with the
+full pipeline wired in, `/health`/`/alive` still anonymous and green). T018 (the
+`WebApplicationFactory` + test-JWT-issuer harness and this endpoint's first contract test) and
+T019–T020 (frontend core auth/services) remain in Phase 2.
 
 ## Local topology (.NET Aspire — `dotnet run --project backend/src/BirraPoint.AppHost`)
 
@@ -41,15 +42,18 @@ T017–T020 remain in Phase 2.
   `AddDbContext<AppDbContext>` wired to the `db` connection string and `Database.MigrateAsync()`
   run on startup **in Development only**. Pipeline order (T011/T012):
   `UseExceptionHandler()` → `UseAuthentication()` → `UseAuthorization()` → endpoint mapping.
-  **Current HTTP surface**: infrastructure only — `/health` (all checks) and `/alive` (checks
-  tagged `live`), both mapped in Development only (stock ServiceDefaults guard; ACA probes will
-  need a scoped exposure decision in Phase 16) and explicitly `.AllowAnonymous()` since T011's
-  deny-by-default fallback policy would otherwise block unauthenticated container/Aspire probes.
-- **`Common/Auth/`** (T011): `AddKeycloakAuthentication` wires JWT bearer (`Authority` from
-  `Keycloak:Authority` config, `MapInboundClaims = false` to keep Keycloak's raw claim names,
-  `RequireHttpsMetadata` off only in Development, `ValidateAudience = false` — the realm's
-  `birrapoint-spa` client has no audience mapper configured yet, so issuer + signature validation
-  via `Authority` is the trust boundary for now) plus a deny-by-default fallback authorization
+  **Current HTTP surface**: `/health` (all checks) and `/alive` (checks tagged `live`), both
+  mapped in Development only (stock ServiceDefaults guard; ACA probes will need a scoped exposure
+  decision in Phase 16) and explicitly `.AllowAnonymous()` since T011's deny-by-default fallback
+  policy would otherwise block unauthenticated container/Aspire probes; `/openapi/v1.json` (T017,
+  `AddOpenApi()`/`MapOpenApi()`); and the first business endpoint, `GET /api/v1/styles` (T017,
+  any authenticated caller per the fallback policy).
+- **`Common/Auth/`** (T011, audience validation closed T017/ADR-0009): `AddKeycloakAuthentication`
+  wires JWT bearer (`Authority` from `Keycloak:Authority` config, `MapInboundClaims = false` to
+  keep Keycloak's raw claim names, `RequireHttpsMetadata` off only in Development,
+  `ValidateAudience = true` with `ValidAudience` from `Keycloak:ApiAudience` — the realm's
+  `birrapoint-spa` client now carries an `oidc-audience-mapper` protocol mapper stamping
+  `birrapoint-api` onto every access token) plus a deny-by-default fallback authorization
   policy and `ORGANIZER`/`JUDGE` role policies. `KeycloakRolesClaimsTransformation`
   (`IClaimsTransformation`) maps Keycloak's nested `realm_access.roles` claim into individual
   `ClaimTypes.Role` claims so `[Authorize(Roles=...)]`/`IsInRole` work; it is idempotent since
@@ -66,7 +70,7 @@ T017–T020 remain in Phase 2.
   that never includes the exception message or type — Principle VII). `DomainErrorType` is a
   compiler-checked enum for the 14 closed-catalog entries from contracts/rest-api.md §Error
   catalog; `DomainErrorCatalog` holds their urn/status/title. No slice throws `DomainException`
-  yet (first business slice is T017).
+  yet — T017's `GetStyles` has no error path (contract defines only `200`).
 - **`Common/Behaviors/`** (T013): `AddMediatRWithValidation` registers MediatR handlers,
   auto-discovers FluentValidation validators (`AddValidatorsFromAssembly` —
   `FluentValidation.DependencyInjectionExtensions` package, separate from core `FluentValidation`),
@@ -117,6 +121,13 @@ T017–T020 remain in Phase 2.
   `Up()` calls the loader and seeds all 125 rows via `migrationBuilder.InsertData` (ADR-0005) —
   the JSON file is the only place the catalog content itself lives; the migration never
   hardcodes it.
+- **`Features/Catalog/`** (T017, first REST slice): `GetStyles.cs` holds the whole vertical slice
+  in one file per the backend convention — `GetStylesQuery` (no parameters, so no
+  FluentValidation validator), `GetStylesQueryHandler` (projects `AppDbContext.BjcpStyles`,
+  ordered by `CategoryNumber` then `Code`, straight to `StyleSummaryDto`), and
+  `MapCatalogEndpoints` mapping `GET /api/v1/styles`. No explicit role policy — "any
+  authenticated" per contracts/rest-api.md is already satisfied by the deny-by-default fallback
+  policy. `GetStyleDetail` (`GET /styles/{code}`) lands later with T059B/FR-049.
 - **`Realtime/`** (T015): `CompetitionHub` (`/hubs/competition`, `[Authorize]`) — server → client
   only, per contracts/signalr-hub.md. `JoinCompetitionAsOrganizer` guards on `ORGANIZER` role +
   `Competition.CreatedByUserId` ownership; `JoinTable` guards on an active (`RemovedAt == null`)
@@ -173,7 +184,9 @@ T017–T020 remain in Phase 2.
   (build-time only, T009), Microsoft.AspNetCore.Authentication.JwtBearer 10.0.9 (T011 — ships as a
   separate NuGet package, not part of the ASP.NET Core shared framework), ClosedXML 0.105.0,
   QuestPDF 2026.7.0 (requires `QuestPDF.Settings.License = LicenseType.Community` at startup —
-  pending, Dispatch slice), MailKit 4.17.0.
+  pending, Dispatch slice), MailKit 4.17.0, Microsoft.AspNetCore.OpenApi 10.0.10 (T017) with an
+  explicit direct reference on Microsoft.OpenApi 2.11.0 (transitive default 2.0.0 carries a known
+  high-severity advisory, GHSA-v5pm-xwqc-g5wc).
 - **Test harnesses**: xUnit in both test projects; the integration project additionally carries
   Testcontainers.PostgreSql 4.13.0 + Microsoft.AspNetCore.Mvc.Testing. `Persistence/
   SchemaTests.cs` (T009) spins up a real `postgres:16` Testcontainer, applies the migration,
@@ -215,13 +228,16 @@ T017–T020 remain in Phase 2.
 
 ## Data flows
 
-No REST endpoints yet — the first slice proving the pipeline (`GET /api/v1/styles`) lands with
-T017. `CompetitionHub` (T015) is mapped at `/hubs/competition` and accepts authenticated group
-joins; `DispatchWorker` (T016) is running and would emit `DispatchProgress` on any job status
-change, but no story enqueues a `DispatchJob` yet, so in practice nothing flows over the hub until
-US2's `ChangeCompetitionState` (T028) becomes the first real emitter. The database holds the full
-domain schema (T008–T009); target contracts live in `specs/001-birrapoint-mvp/contracts/` (REST
-`/api/v1`, SignalR `CompetitionHub`, `.xlsx` import file).
+`GET /api/v1/styles` (T017) is the first live REST endpoint: any authenticated caller (JWT bearer,
+audience `birrapoint-api`) → `GetStylesQuery` via MediatR → `GetStylesQueryHandler` reads
+`AppDbContext.BjcpStyles` → `200` with the lightweight `[{ code, name, categoryNumber,
+categoryName }]` catalog projection. `CompetitionHub` (T015) is mapped at `/hubs/competition` and
+accepts authenticated group joins; `DispatchWorker` (T016) is running and would emit
+`DispatchProgress` on any job status change, but no story enqueues a `DispatchJob` yet, so in
+practice nothing flows over the hub until US2's `ChangeCompetitionState` (T028) becomes the first
+real emitter. The database holds the full domain schema (T008–T009); target contracts live in
+`specs/001-birrapoint-mvp/contracts/` (REST `/api/v1`, SignalR `CompetitionHub`, `.xlsx` import
+file).
 
 ## Recorded debt / immediate next steps
 
@@ -231,9 +247,10 @@ domain schema (T008–T009); target contracts live in `specs/001-birrapoint-mvp/
   no integration/contract test yet — close this once T018's Testcontainers harness lands.
 - Same gap as ADR-0006, different task: `DispatchJobQueue`/`DispatchWorker`'s DB-backed enqueue and
   resume/dispatch loop (T016) have no integration test yet either — same T018 dependency.
-- **ADR-0007**: T017 (first REST slice) should add a `JsonStringEnumConverter` to
-  `ConfigureHttpJsonOptions`/Minimal API JSON options so REST responses match the enum-as-string
-  wire format ADR-0007 already established for SignalR events.
+- T017's `GetStyles` slice has no contract test either yet — same T018 dependency, and it's the
+  one T018 explicitly targets first (`Catalog/GetStylesTests.cs`).
+- Production/`azd` deployment (T096) must set `Keycloak__ApiAudience` consistently with whatever
+  audience value the production realm's mapper stamps (ADR-0009).
 - `WaitFor` a *ready* Keycloak once auth is wired (T011; ADR-0001 mitigation).
 - `Aspire.Hosting.NodeJs` is on the old version train (9.5.2); align when a 13.x ships.
 - Add a webkit Playwright project before writing the offline E2E suites (iOS Safari is the

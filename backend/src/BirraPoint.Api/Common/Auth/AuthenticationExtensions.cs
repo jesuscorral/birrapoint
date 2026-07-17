@@ -28,11 +28,10 @@ public static class AuthenticationExtensions
                 // Keep Keycloak's raw claim names (sub, email, realm_access) instead of the legacy
                 // XML/SOAP claim-type remapping JwtBearer applies by default.
                 options.MapInboundClaims = false;
-                options.TokenValidationParameters.ValidateAudience = false;
-                // No audience mapper is configured on the birrapoint-spa client yet, so tokens
-                // carry no audience this API can pin to; issuer + signature validation (via
-                // Authority) is the trust boundary for now — revisit if/when a dedicated API
-                // resource + audience mapper is added to the realm.
+                // birrapoint-spa carries an oidc-audience-mapper protocol mapper (infra/keycloak/
+                // birrapoint-realm.json) stamping this value onto every access token (ADR-0009).
+                options.TokenValidationParameters.ValidateAudience = true;
+                options.TokenValidationParameters.ValidAudience = configuration["Keycloak:ApiAudience"];
                 options.Events = new JwtBearerEvents
                 {
                     // Browser WebSocket handshakes can't set an Authorization header, so

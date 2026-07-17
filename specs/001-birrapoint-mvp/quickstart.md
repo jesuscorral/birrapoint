@@ -24,8 +24,8 @@ into `CLAUDE.md` (Principle X).
 dotnet run --project backend/src/BirraPoint.AppHost
 # Aspire dashboard (resources, logs, traces, health): https://localhost:17202, login URL
 # printed on startup
-# API: http://localhost:5121 · https://localhost:7075 (OpenAPI arrives with the first
-# business endpoints) · PWA: http://localhost:4200 · Keycloak: http://localhost:8081
+# API: http://localhost:5121 · https://localhost:7075 (OpenAPI at /openapi/v1.json; first
+# business endpoint GET /api/v1/styles, T017) · PWA: http://localhost:4200 · Keycloak: http://localhost:8081
 
 # Frontend-only iteration (optional, API already running):
 cd frontend && npm ci && npm start
