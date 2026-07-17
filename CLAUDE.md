@@ -82,8 +82,8 @@ Verified against the running system at Phase 1 close (T007); keep in sync with `
 # Mailpit, API, Angular frontend. EF migrations + BJCP seed arrive with T009/T010.
 dotnet run --project backend/src/BirraPoint.AppHost
 # Aspire dashboard https://localhost:17202 (login URL printed on startup)
-# API http://localhost:5121 · https://localhost:7075 — HTTP surface today: /health + /alive only
-#   (Development-only; OpenAPI arrives with the first business endpoints)
+# API http://localhost:5121 · https://localhost:7075 — HTTP surface today: /health + /alive
+#   (Development-only), /openapi/v1.json, and GET /api/v1/styles (T017, any authenticated caller)
 # PWA http://localhost:4200 · Keycloak http://localhost:8081 (realm `birrapoint`)
 # Mailpit UI: dynamic port — open it from the Aspire dashboard
 
