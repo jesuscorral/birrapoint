@@ -123,11 +123,14 @@ T019–T020 (frontend core auth/services) remain in Phase 2.
   hardcodes it.
 - **`Features/Catalog/`** (T017, first REST slice): `GetStyles.cs` holds the whole vertical slice
   in one file per the backend convention — `GetStylesQuery` (no parameters, so no
-  FluentValidation validator), `GetStylesQueryHandler` (projects `AppDbContext.BjcpStyles`,
-  ordered by `CategoryNumber` then `Code`, straight to `StyleSummaryDto`), and
-  `MapCatalogEndpoints` mapping `GET /api/v1/styles`. No explicit role policy — "any
-  authenticated" per contracts/rest-api.md is already satisfied by the deny-by-default fallback
-  policy. `GetStyleDetail` (`GET /styles/{code}`) lands later with T059B/FR-049.
+  FluentValidation validator), `GetStylesQueryHandler` (projects `AppDbContext.BjcpStyles` to
+  `StyleSummaryDto`, then sorts client-side by category number then `Code`; `CategoryNumber` is a
+  varchar — Appendix B local styles use `"X"` — so a plain SQL `OrderBy` would sort
+  lexicographically, `"1", "10".."19", "2", "20"...`, instead of by actual category order, per
+  senior-code-reviewer T017 review), and `MapCatalogEndpoints` mapping `GET /api/v1/styles`. No
+  explicit role policy — "any authenticated" per contracts/rest-api.md is already satisfied by
+  the deny-by-default fallback policy. `GetStyleDetail` (`GET /styles/{code}`) lands later with
+  T059B/FR-049.
 - **`Realtime/`** (T015): `CompetitionHub` (`/hubs/competition`, `[Authorize]`) — server → client
   only, per contracts/signalr-hub.md. `JoinCompetitionAsOrganizer` guards on `ORGANIZER` role +
   `Competition.CreatedByUserId` ownership; `JoinTable` guards on an active (`RemovedAt == null`)

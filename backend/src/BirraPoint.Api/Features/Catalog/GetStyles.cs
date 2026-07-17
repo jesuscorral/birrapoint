@@ -14,11 +14,18 @@ public sealed class GetStylesQueryHandler(AppDbContext dbContext)
 {
     public async Task<IReadOnlyList<StyleSummaryDto>> Handle(GetStylesQuery request, CancellationToken cancellationToken)
     {
-        return await dbContext.BjcpStyles
-            .OrderBy(style => style.CategoryNumber)
-            .ThenBy(style => style.Code)
+        var styles = await dbContext.BjcpStyles
             .Select(style => new StyleSummaryDto(style.Code, style.Name, style.CategoryNumber, style.CategoryName))
             .ToListAsync(cancellationToken);
+
+        // CategoryNumber is a varchar (Appendix B local styles use "X"), so a numeric-aware sort
+        // has to happen client-side in .NET — a plain OrderBy would sort it lexicographically
+        // ("1", "10".."19", "2", "20", ...) instead of by actual category number.
+        return styles
+            .OrderBy(style => int.TryParse(style.CategoryNumber, out var number) ? number : int.MaxValue)
+            .ThenBy(style => style.CategoryNumber, StringComparer.Ordinal)
+            .ThenBy(style => style.Code, StringComparer.Ordinal)
+            .ToList();
     }
 }
 

@@ -26,11 +26,12 @@ builder.Services.AddKeycloakAuthentication(builder.Configuration, builder.Enviro
 // ProblemDetails + exception-handler chain for the 14 urn:birrapoint:* error types (T012).
 builder.Services.AddProblemDetailsErrorHandling();
 
-// OpenAPI document, served at /openapi/v1.json (T017 — arrives with the first business endpoint).
+// OpenAPI document, served at /openapi/v1.json in Development (T017 — arrives with the first
+// business endpoint).
 builder.Services.AddOpenApi();
 
 // Enum fields in HTTP JSON responses serialize as their name, matching the SignalR wire format
-// configured below and the string-enum convention already used for the domain (ADR-0004).
+// configured below (ADR-0007).
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
@@ -65,7 +66,11 @@ app.UseAuthorization();
 // /health and /alive endpoints (Development only by default).
 app.MapDefaultEndpoints();
 
-app.MapOpenApi();
+// OpenAPI document (T017), gated to Development like the health endpoints above.
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
 
 // CompetitionHub: server → client notifications only (T015).
 app.MapHub<CompetitionHub>("/hubs/competition");
