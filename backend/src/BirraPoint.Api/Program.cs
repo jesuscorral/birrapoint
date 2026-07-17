@@ -5,6 +5,7 @@ using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Behaviors;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Jobs;
+using BirraPoint.Api.Common.OpenApi;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Realtime;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -47,6 +48,9 @@ builder.Services.AddSingleton(Channel.CreateUnbounded<Guid>());
 builder.Services.AddScoped<IDispatchJobQueue, DispatchJobQueue>();
 builder.Services.AddHostedService<DispatchWorker>();
 
+// OpenAPI document + Swagger UI for interactive endpoint calls (Principle VI).
+builder.Services.AddBirraPointOpenApi();
+
 var app = builder.Build();
 
 // Tracked gap (senior review, PR #6): no audience mapper exists yet on the Keycloak realm's API
@@ -70,6 +74,9 @@ app.UseAuthorization();
 
 // /health and /alive endpoints (Development only by default).
 app.MapDefaultEndpoints();
+
+// /openapi/v1.json + /swagger UI (Development only).
+app.MapBirraPointOpenApi();
 
 // CompetitionHub: server → client notifications only (T015).
 app.MapHub<CompetitionHub>("/hubs/competition");

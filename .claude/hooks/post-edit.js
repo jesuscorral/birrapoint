@@ -11,11 +11,11 @@ process.stdin.on('end', () => {
   const run = (cmd) => { try { execSync(cmd, { stdio: 'pipe', timeout: 45000 }); return null; }
     catch (e) { return ((e.stdout || '') + '\n' + (e.stderr || '')).toString().trim(); } };
   if (file.endsWith('.cs')) {
-    run(`dotnet format --include "${file}" --no-restore`); // best-effort format
-  } else if (/\.(ts|html|scss|css|json)$/.test(file)) {
-    run(`npx prettier --write "${file}"`);
+    run(`dotnet format backend/BirraPoint.sln --include "${file}" --no-restore`); // best-effort format
+  } else if (/\.(ts|html|scss|css|json)$/.test(file) && file.includes('frontend')) {
+    run(`npx prettier --write "${file}"`); // config discovered from frontend/package.json
     if (file.endsWith('.ts') && !file.endsWith('.spec.ts')) {
-      const lintErr = run(`npx eslint "${file}"`);
+      const lintErr = run(`npx eslint "${file}" --config frontend/eslint.config.js`);
       if (lintErr) { console.error(`ESLint issues in ${file}:\n${lintErr}\nFix these before continuing.`); process.exit(2); }
     }
   }

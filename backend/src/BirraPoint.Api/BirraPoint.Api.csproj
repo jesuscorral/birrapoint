@@ -11,6 +11,11 @@
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
+    <!-- Pinned above the transitive Microsoft.AspNetCore.OpenApi 10.0.9 default (2.0.0), which
+         carries a stack-overflow DoS on circular schema refs (GHSA-v5pm-xwqc-g5wc / CVE-2026-49451),
+         fixed from 2.7.5 onward; stays on the 2.x major to match AspNetCore.OpenApi's expected API. -->
+    <PackageReference Include="Microsoft.OpenApi" Version="2.10.0" />
     <PackageReference Include="MailKit" Version="4.17.0" />
     <PackageReference Include="MediatR" Version="12.5.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4">
@@ -19,6 +24,7 @@
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
     <PackageReference Include="QuestPDF" Version="2026.7.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.2.3" />
   </ItemGroup>
 
   <ItemGroup>

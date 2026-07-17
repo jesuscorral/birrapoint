@@ -11,6 +11,7 @@
       "Bash(npm ci:*)",
       "Bash(npm install:*)",
       "Bash(npx ng:*)",
+      "Bash(npx jest:*)",
       "Bash(npx playwright:*)",
       "Bash(npx prettier:*)",
       "Bash(npx eslint:*)",
@@ -38,13 +39,20 @@
         "hooks": [
           { "type": "command", "command": "node .claude/hooks/guard.js" }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "node .claude/hooks/branch-guard.js" }
+        ]
       }
     ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
-          { "type": "command", "command": "node .claude/hooks/post-edit.js", "timeout": 60 }
+          { "type": "command", "command": "node .claude/hooks/post-edit.js", "timeout": 60 },
+          { "type": "command", "command": "node .claude/hooks/anonymity-guard.js", "timeout": 15 }
         ]
       }
     ],
