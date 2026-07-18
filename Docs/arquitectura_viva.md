@@ -5,7 +5,7 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-18 · after T018 (Phase 2 Foundational, in progress)
+**Last updated:** 2026-07-18 · after T019 (Phase 2 Foundational, in progress)
 
 ## Global status
 
@@ -18,9 +18,12 @@ dispatcher (T015), the `DispatchJob` queue + hosted `DispatchWorker` (T016), the
 slice, `GET /api/v1/styles` (T017), which also closed the JWT audience-validation gap tracked
 since T011 (ADR-0009) and brought OpenAPI online at `/openapi/v1.json`, and the
 `WebApplicationFactory` + Testcontainers + test-JWT-issuer HTTP harness with `GetStyles`' first
-contract test (T018). Verified against a real Aspire-provisioned PostgreSQL + Keycloak (all
-tables present, catalog seeded, app boots with the full pipeline wired in, `/health`/`/alive`
-still anonymous and green). T019–T020 (frontend core auth/services) remain in Phase 2.
+contract test (T018), and the frontend's Keycloak auth core — PKCE login, role guards, bearer
+interceptor, two guarded route shells (T019). Verified against a real Aspire-provisioned
+PostgreSQL + Keycloak (all tables present, catalog seeded, app boots with the full pipeline
+wired in, `/health`/`/alive` still anonymous and green; frontend verified in a real browser
+against the same stack — see Frontend §Auth core below). T020 (frontend API/realtime/offline
+core) remains in Phase 2.
 
 ## Local topology (.NET Aspire — `dotnet run --project backend/src/BirraPoint.AppHost`)
 
@@ -228,21 +231,61 @@ still anonymous and green). T019–T020 (frontend core auth/services) remain in 
   `registerWhenStable:30000`, enabled outside dev mode); Tailwind CSS v4 through the PostCSS
   plugin (`.postcssrc.json`); zone-based change detection for now (**zoneless under evaluation
   — ADR-0003**).
-- **Feature-Sliced Design skeleton**: `src/app/core/`, `src/app/features/`, `src/app/shared/`
-  (empty, `.gitkeep`). Root component is a minimal accessible shell (h1 + `router-outlet`);
-  no routes defined yet.
+- **Feature-Sliced Design skeleton**: `src/app/core/` now holds `auth/` (T019, below);
+  `src/app/features/`, `src/app/shared/` still empty (`.gitkeep`). Root component is a minimal
+  accessible shell (h1 + `router-outlet`).
 - **Dependencies**: Angular-lockstep packages pinned to the 20.x line (`@angular/cdk@^20.2`,
   `keycloak-angular@^20.1` — ADR-0002); independent: `keycloak-js@^26.2`, `dexie@^4.4`,
   `@microsoft/signalr@^10`, `tailwindcss@^4.3`.
-- **Bundle** (production build): initial total ~230.7 kB raw / ~64.8 kB transfer — within the
-  ≤ 500 kB gzip budget (Principle IX); `zone.js` polyfills account for ~34.6 kB raw of it.
+- **Bundle** (production build): initial total ~288.1 kB raw / ~79.9 kB transfer — within the
+  ≤ 500 kB gzip budget (Principle IX); grew from T019's Keycloak/HTTP-client wiring (previously
+  ~230.7 kB raw / ~64.8 kB transfer at T007).
+- **`src/environments/environment.ts`** (T019): local-dev-only config — `keycloak: { url, realm:
+  'birrapoint', clientId: 'birrapoint-spa' }` (matches `infra/keycloak/birrapoint-realm.json`)
+  and `apiBaseUrl`, both the fixed Aspire local ports (CLAUDE.md §Commands). No dev/prod split or
+  build `fileReplacements` yet — real per-environment values and any build-time swap arrive with
+  Phase 16 (Bicep/nginx).
+- **`core/auth/`** (T019): the Keycloak auth core, built on the modern `keycloak-angular` v19+
+  API (`provideKeycloak`/`createAuthGuard`/`includeBearerTokenInterceptor`) — the older
+  `KeycloakService`/class-guard/`KeycloakBearerInterceptor` APIs are deprecated and unused.
+  - `keycloak.providers.ts`: `provideAppKeycloak()` — `initOptions: { onLoad: 'login-required',
+    pkceMethod: 'S256' }`. `login-required` blocks the entire app pre-render until authenticated,
+    which is how FR-001 ("redirect unauthenticated users... before showing any content") is
+    satisfied — there's no public/anonymous section of this PWA, so no separate route-level auth
+    guard was needed on top of it. `features: [withAutoRefreshToken()]` gives silent token
+    refresh driven by user activity (R-11). **Library quirk worked around here**:
+    `keycloak-angular@20.1.0`'s `AutoRefreshTokenService` and `UserActivityService` are plain
+    `@Injectable()` with no `providedIn: 'root'`, so `withAutoRefreshToken`'s
+    `inject(AutoRefreshTokenService)` throws `NG0201` unless both are also passed through
+    `provideKeycloak`'s own `providers` array — done here. Caught only by a real browser check
+    (Jest/jsdom never instantiates the Keycloak adapter far enough to hit it); re-check on any
+    future `keycloak-angular` upgrade.
+  - `auth-interceptor.providers.ts`: `provideAuthBearerInterceptor()` — the app's first
+    `provideHttpClient()` registration, wired to the official `includeBearerTokenInterceptor`
+    (no hand-rolled token code, Principle VII) scoped via `INCLUDE_BEARER_TOKEN_INTERCEPTOR_CONFIG`
+    to a regex-escaped `environment.apiBaseUrl` only — the token is never attached to third-party
+    requests.
+  - `role.guard.ts`: `organizerGuard`/`judgeGuard` (`CanActivateFn` via `createAuthGuard`), each
+    wrapping a directly-unit-testable predicate (`isOrganizerAllowed`/`isJudgeAllowed`) that
+    checks `authData.grantedRoles.realmRoles`. Since `login-required` already guarantees
+    authentication before any guard runs, these only branch on role; a mismatch redirects to
+    root (`inject(Router).parseUrl('/')`) — root itself is intentionally unmapped for now, T024
+    wires the real post-login redirect-by-role there.
+  - `auth-placeholder.component.ts`: temporary render target for both guarded routes, reading
+    `route.data['label']` — replaced by T024's real dashboard/tables landing pages.
+  - `app.routes.ts` maps `/organizer` (→ `organizerGuard`) and `/judge` (→ `judgeGuard`) to the
+    placeholder; `app.config.ts` wires `provideAppKeycloak()` + `provideAuthBearerInterceptor()`.
+  - Verified in a real browser against the full Aspire stack: unauthenticated visit to `/` →
+    Keycloak-hosted login (PKCE `code_challenge_method=S256` visible on the request) → seeded
+    `organizer` login → `/organizer` renders the placeholder → `/judge` (same organizer session,
+    no JUDGE role) redirects back to `/`, all with a clean console after the provider fix above.
 
 ## Testing & quality gates
 
 | Suite | Command | Current state |
 |---|---|---|
 | Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 46 unit tests: smoke + T010 `BjcpStyleSeedDataTests` (5, DB-free catalog-shape guard) + T011 `Common/Auth` (13: claims transformation, `CurrentUser`, DI-wiring smoke) + T012 `Common/Errors` (6: exception-handler mapping/security) + T013 `Common/Behaviors` (7: `ValidationBehavior` isolation + MediatR DI-wiring end-to-end) + T015 `Realtime` (4: `CompetitionGroups` formatting, `EventPublisher` group/event/payload routing via hand-rolled `IHubContext` fakes) + T016 `Common/Jobs` (10: `DispatchRetryPolicy` — max-attempts cutoff, backoff doubling, backoff cap); 17 integration tests against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3: atomic staging, null-before, no-save-no-persist) + T018 `Catalog/GetStylesTests` (2: 401 unauthenticated, 200 full catalog/shape/order via the new `WebApplicationFactory` + Testcontainers + test-JWT-issuer harness) |
-| Frontend unit | `cd frontend && npx jest` | green — jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
+| Frontend unit | `cd frontend && npx jest` | green — 11 tests: smoke (2) + T019 `core/auth` (9: role-guard predicates via `TestBed.runInInjectionContext`, bearer-interceptor URL-pattern scoping, Keycloak config shape, placeholder component route-data rendering). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13). `jest.config.ts` widens `transformIgnorePatterns` beyond the preset default to also transform `keycloak-js` — it ships ESM (`"type": "module"`) from a plain `.js` file with no CJS entry, which the preset's default `.mjs$`-only allowance doesn't cover |
 | E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | green — smoke spec + `e2e/a11y` axe-core WCAG 2.1 A/AA gate (SC-009); **chromium only** — a webkit/mobile-Safari project is pending before the offline suites |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
@@ -257,7 +300,11 @@ accepts authenticated group joins; `DispatchWorker` (T016) is running and would 
 practice nothing flows over the hub until US2's `ChangeCompetitionState` (T028) becomes the first
 real emitter. The database holds the full domain schema (T008–T009); target contracts live in
 `specs/001-birrapoint-mvp/contracts/` (REST `/api/v1`, SignalR `CompetitionHub`, `.xlsx` import
-file).
+file). Frontend-side (T019): any route load triggers Keycloak's `login-required` flow first
+(PKCE redirect to the realm's hosted login if no session); once authenticated, `/organizer` and
+`/judge` each check the caller's realm role before rendering their (placeholder) shell, and every
+outgoing `HttpClient` request to `apiBaseUrl` gets the access token attached automatically. No
+frontend code calls the backend yet — that arrives with T020's API client.
 
 ## Recorded debt / immediate next steps
 
