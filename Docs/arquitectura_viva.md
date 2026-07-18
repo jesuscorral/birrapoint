@@ -5,25 +5,28 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-18 · after T019 (Phase 2 Foundational, in progress)
+**Last updated:** 2026-07-18 · after T020 — **Phase 2 (Foundational) complete**
 
 ## Global status
 
-Phase 1 (Setup, T001–T007) is **complete**. Phase 2 (Foundational) has landed the domain model
-and persistence layer (T008–T009), the full BJCP 2021 style catalog (T010), Keycloak JWT bearer
-auth with a deny-by-default fallback policy (T011), the ProblemDetails exception-handler chain
-for the 14-entry error catalog (T012), the MediatR + FluentValidation pipeline (T013), the
-audit trail writer (T014), the `CompetitionHub` realtime skeleton + emit-after-commit
-dispatcher (T015), the `DispatchJob` queue + hosted `DispatchWorker` (T016), the first REST
-slice, `GET /api/v1/styles` (T017), which also closed the JWT audience-validation gap tracked
-since T011 (ADR-0009) and brought OpenAPI online at `/openapi/v1.json`, and the
-`WebApplicationFactory` + Testcontainers + test-JWT-issuer HTTP harness with `GetStyles`' first
-contract test (T018), and the frontend's Keycloak auth core — PKCE login, role guards, bearer
-interceptor, two guarded route shells (T019). Verified against a real Aspire-provisioned
-PostgreSQL + Keycloak (all tables present, catalog seeded, app boots with the full pipeline
-wired in, `/health`/`/alive` still anonymous and green; frontend verified in a real browser
-against the same stack — see Frontend §Auth core below). T020 (frontend API/realtime/offline
-core) remains in Phase 2.
+Phase 1 (Setup, T001–T007) is **complete**. Phase 2 (Foundational, T008–T020) is now also
+**complete**: the domain model and persistence layer (T008–T009), the full BJCP 2021 style
+catalog (T010), Keycloak JWT bearer auth with a deny-by-default fallback policy (T011), the
+ProblemDetails exception-handler chain for the 14-entry error catalog (T012), the MediatR +
+FluentValidation pipeline (T013), the audit trail writer (T014), the `CompetitionHub` realtime
+skeleton + emit-after-commit dispatcher (T015), the `DispatchJob` queue + hosted `DispatchWorker`
+(T016), the first REST slice, `GET /api/v1/styles` (T017), which also closed the JWT
+audience-validation gap tracked since T011 (ADR-0009) and brought OpenAPI online at
+`/openapi/v1.json`, the `WebApplicationFactory` + Testcontainers + test-JWT-issuer HTTP harness
+with `GetStyles`' first contract test (T018), the frontend's Keycloak auth core — PKCE login,
+role guards, bearer interceptor, two guarded route shells (T019), and the frontend's remaining
+core services — typed `ApiClient`, `CompetitionHubService`, and the Dexie `drafts`/`outbox`
+database (T020), plus a dev-only CORS policy so the browser can call the API cross-origin at all
+(T020 addendum — see Backend below). Verified against a real Aspire-provisioned PostgreSQL +
+Keycloak (all tables present, catalog seeded, app boots with the full pipeline wired in,
+`/health`/`/alive` still anonymous and green; frontend verified in a real browser against the
+same stack, including a live cross-origin fetch proving CORS). Phase 3 (User Story 1, T021+)
+starts the first vertical slices.
 
 ## Local topology (.NET Aspire — `dotnet run --project backend/src/BirraPoint.AppHost`)
 
@@ -43,8 +46,15 @@ core) remains in Phase 2.
   `BirraPoint.Api.IntegrationTests`.
 - **`BirraPoint.Api`**: `AddServiceDefaults()` + `MapDefaultEndpoints()`, plus (T009)
   `AddDbContext<AppDbContext>` wired to the `db` connection string and `Database.MigrateAsync()`
-  run on startup **in Development only**. Pipeline order (T011/T012):
-  `UseExceptionHandler()` → `UseAuthentication()` → `UseAuthorization()` → endpoint mapping.
+  run on startup **in Development only**. Pipeline order (T011/T012/T020):
+  `UseExceptionHandler()` → `UseCors()` (Development only) → `UseAuthentication()` →
+  `UseAuthorization()` → endpoint mapping. **CORS** (T020): a default policy allowing only
+  `http://localhost:4200` (`AllowAnyHeader`/`AllowAnyMethod`, no `AllowCredentials` — auth is
+  bearer-token via header or SignalR's `?access_token=`, never cookies), registered and applied
+  in Development only; production topology (same-origin behind ACA ingress, or a real allowed
+  origin) is a Phase 16 decision. Added alongside the frontend's `ApiClient`/`CompetitionHubService`
+  because nothing had called the API cross-origin from a browser before T020 — verified with a
+  live `fetch` from `localhost:4200` to `localhost:5121` in T020's browser check.
   **Current HTTP surface**: `/health` (all checks) and `/alive` (checks tagged `live`), both
   mapped in Development only (stock ServiceDefaults guard; ACA probes will need a scoped exposure
   decision in Phase 16) and explicitly `.AllowAnonymous()` since T011's deny-by-default fallback
@@ -231,15 +241,19 @@ core) remains in Phase 2.
   `registerWhenStable:30000`, enabled outside dev mode); Tailwind CSS v4 through the PostCSS
   plugin (`.postcssrc.json`); zone-based change detection for now (**zoneless under evaluation
   — ADR-0003**).
-- **Feature-Sliced Design skeleton**: `src/app/core/` now holds `auth/` (T019, below);
-  `src/app/features/`, `src/app/shared/` still empty (`.gitkeep`). Root component is a minimal
-  accessible shell (h1 + `router-outlet`).
+- **Feature-Sliced Design skeleton**: `src/app/core/` now holds `auth/` (T019), `api/`,
+  `realtime/`, `offline/` (T020, below); `src/app/features/`, `src/app/shared/` still empty
+  (`.gitkeep`). Root component is a minimal accessible shell (h1 + `router-outlet`).
 - **Dependencies**: Angular-lockstep packages pinned to the 20.x line (`@angular/cdk@^20.2`,
   `keycloak-angular@^20.1` — ADR-0002); independent: `keycloak-js@^26.2`, `dexie@^4.4`,
-  `@microsoft/signalr@^10`, `tailwindcss@^4.3`.
-- **Bundle** (production build): initial total ~288.1 kB raw / ~79.9 kB transfer — within the
-  ≤ 500 kB gzip budget (Principle IX); grew from T019's Keycloak/HTTP-client wiring (previously
-  ~230.7 kB raw / ~64.8 kB transfer at T007).
+  `@microsoft/signalr@^10`, `tailwindcss@^4.3`. Dev-only (T020): `fake-indexeddb@^6.2` — jsdom has
+  no IndexedDB implementation, so testing real Dexie CRUD under Jest needs it (Dexie's own
+  recommended test companion); same category as Testcontainers on the backend, never shipped.
+- **Bundle** (production build): initial total ~288.2 kB raw / ~79.8 kB transfer — within the
+  ≤ 500 kB gzip budget (Principle IX); essentially unchanged since T019 (~288.1 kB / ~79.9 kB):
+  T020's `ApiClient`/`CompetitionHubService`/`db.ts` are `providedIn: 'root'` but nothing injects
+  them yet, so tree-shaking drops them entirely from the initial chunk. They'll show up in the
+  budget once a feature slice actually consumes them.
 - **`src/environments/environment.ts`** (T019): local-dev-only config — `keycloak: { url, realm:
   'birrapoint', clientId: 'birrapoint-spa' }` (matches `infra/keycloak/birrapoint-realm.json`)
   and `apiBaseUrl`, both the fixed Aspire local ports (CLAUDE.md §Commands). No dev/prod split or
@@ -269,23 +283,71 @@ core) remains in Phase 2.
     wrapping a directly-unit-testable predicate (`isOrganizerAllowed`/`isJudgeAllowed`) that
     checks `authData.grantedRoles.realmRoles`. Since `login-required` already guarantees
     authentication before any guard runs, these only branch on role; a mismatch redirects to
-    root (`inject(Router).parseUrl('/')`) — root itself is intentionally unmapped for now, T024
-    wires the real post-login redirect-by-role there.
-  - `auth-placeholder.component.ts`: temporary render target for both guarded routes, reading
+    root (`inject(Router).parseUrl('/')`).
+  - `auth-placeholder.component.ts`: temporary render target for all three routes below, reading
     `route.data['label']` — replaced by T024's real dashboard/tables landing pages.
-  - `app.routes.ts` maps `/organizer` (→ `organizerGuard`) and `/judge` (→ `judgeGuard`) to the
-    placeholder; `app.config.ts` wires `provideAppKeycloak()` + `provideAuthBearerInterceptor()`.
+  - `app.routes.ts` maps `/organizer` (→ `organizerGuard`), `/judge` (→ `judgeGuard`), and `''`
+    (labelled "Home", plus a `**` → `''` wildcard) all to the placeholder. Root started out
+    unmapped in T019 but that left both a role-mismatch redirect and the default post-login
+    destination on a bare `<h1>BirraPoint</h1>` with no route matched — fixed in the T019 review
+    pass, before T024's real by-role landing exists. `app.config.ts` wires `provideAppKeycloak()`
+    + `provideAuthBearerInterceptor()`.
   - Verified in a real browser against the full Aspire stack: unauthenticated visit to `/` →
     Keycloak-hosted login (PKCE `code_challenge_method=S256` visible on the request) → seeded
     `organizer` login → `/organizer` renders the placeholder → `/judge` (same organizer session,
-    no JUDGE role) redirects back to `/`, all with a clean console after the provider fix above.
+    no JUDGE role) redirects to `/` and renders the "Home" placeholder (not blank) → clean console
+    throughout.
+- **`core/api/`** (T020): the typed HTTP client + ProblemDetails→UI error mapping.
+  - `problem-details.model.ts`: `ProblemDetails`/`ValidationProblemDetails` interfaces plus
+    `BIRRAPOINT_ERROR_URNS` — the 14 `urn:birrapoint:*` values from contracts/rest-api.md §Error
+    catalog as a `const` array (single source of truth; `BirraPointErrorUrn` is derived from it,
+    and `isBirraPointErrorUrn()` checks membership at runtime), mirroring the backend's
+    `DomainErrorType` enum/`DomainErrorCatalog` pairing.
+  - `api-error.ts`: `ApiError` (status/title/urn/detail/errors/extensions) + `toApiError(status,
+    body)`. Never throws regardless of input shape: a recognized birrapoint urn maps to a
+    structured error (validation's `errors` field map, a domain conflict's extension fields like
+    `conflicts`/`fixedBy`); an unrecognized urn — confirmed the framework's own default auth
+    challenge/forbid responses are ProblemDetails too, via `services.AddProblemDetails()`, just
+    without a birrapoint `type` — falls back to a generic error built from whatever `title`/
+    `detail` exist; a non-JSON or empty body (network failure, `status 0`) falls back to a fully
+    generic error.
+  - `api-client.service.ts`: `ApiClient`, `providedIn: 'root'` — `get/post/put/delete<T>(path,
+    …)` against `${environment.apiBaseUrl}/api/v1${path}`, catching `HttpErrorResponse` and
+    rethrowing `ApiError` via the mapper above. No per-endpoint methods — nothing consumes this
+    yet; those land with the feature slice that first needs them.
+- **`core/realtime/`** (T020): the `CompetitionHub` client.
+  - `competition-hub.events.ts`: TS payload interfaces for the 8 server→client events +
+    `CompetitionHubServerEvents` (name → payload map), mirrored from contracts/signalr-hub.md.
+    Where the judge-group and organizer-group variants of the same event differ (`TableClosed`,
+    `JudgeRemoved`), the richer organizer shape is typed with the extra fields optional.
+  - `competition-hub.service.ts`: `CompetitionHubService`, `providedIn: 'root'`. Connects to
+    `${apiBaseUrl}/hubs/competition` with `accessTokenFactory: () => keycloak.token` (the live
+    `Keycloak` instance is itself injectable — `provideKeycloak` registers `{ provide: Keycloak,
+    useValue: keycloak }`, confirmed in the shipped bundle) and `.withAutomaticReconnect()`.
+    `joinCompetitionAsOrganizer`/`joinTable`/`leaveTable`/`leaveCompetition` invoke the matching
+    hub method and track membership in two `Set`s; `onreconnected` replays every currently-tracked
+    group — "clients re-join their groups on `onreconnected`" per the contract. Generic typed
+    `on<K extends keyof CompetitionHubServerEvents>(event): Observable<…>`. Re-fetching state
+    after a reconnect (events are notifications, not the source of truth) is each feature's job,
+    not this service's. The real `HubConnectionBuilder` chain sits behind an injectable
+    `COMPETITION_HUB_CONNECTION_FACTORY` token so tests substitute a hand-rolled fake
+    `HubConnection` — same "real/fake collaborator over mock" convention as the backend's
+    T011/T015 tests, not a mocking library.
+- **`core/offline/db.ts`** (T020): `BirraPointDb extends Dexie`, `version(1).stores({ drafts:
+  'beerEntryId', outbox: 'idempotencyKey, tastingTableId' })` (data-model.md §Client-side stores).
+  `DraftRow`/`OutboxRow` mirror the evaluation POST body shape (`scores`/`comments` sub-objects,
+  contracts/rest-api.md) plus bookkeeping (`updatedAt` for drafts; `attempts`/`lastAttemptAt`/
+  `lastError` on outbox rows for R-08's backoff). `tastingTableId` is a secondary index on
+  `outbox`, not just embedded in the key string, because T087 needs "outbox items for this table"
+  lookups when a judge is removed. This is the database only — the replay engine (`SyncService`,
+  window-online/app-start/post-submit replay, exponential backoff) is T060, not built yet.
 
 ## Testing & quality gates
 
 | Suite | Command | Current state |
 |---|---|---|
 | Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 46 unit tests: smoke + T010 `BjcpStyleSeedDataTests` (5, DB-free catalog-shape guard) + T011 `Common/Auth` (13: claims transformation, `CurrentUser`, DI-wiring smoke) + T012 `Common/Errors` (6: exception-handler mapping/security) + T013 `Common/Behaviors` (7: `ValidationBehavior` isolation + MediatR DI-wiring end-to-end) + T015 `Realtime` (4: `CompetitionGroups` formatting, `EventPublisher` group/event/payload routing via hand-rolled `IHubContext` fakes) + T016 `Common/Jobs` (10: `DispatchRetryPolicy` — max-attempts cutoff, backoff doubling, backoff cap); 17 integration tests against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3: atomic staging, null-before, no-save-no-persist) + T018 `Catalog/GetStylesTests` (2: 401 unauthenticated, 200 full catalog/shape/order via the new `WebApplicationFactory` + Testcontainers + test-JWT-issuer harness) |
-| Frontend unit | `cd frontend && npx jest` | green — 11 tests: smoke (2) + T019 `core/auth` (9: role-guard predicates via `TestBed.runInInjectionContext`, bearer-interceptor URL-pattern scoping, Keycloak config shape, placeholder component route-data rendering). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13). `jest.config.ts` widens `transformIgnorePatterns` beyond the preset default to also transform `keycloak-js` — it ships ESM (`"type": "module"`) from a plain `.js` file with no CJS entry, which the preset's default `.mjs$`-only allowance doesn't cover |
+| Frontend unit | `cd frontend && npx jest` | green — 28 tests: smoke (2) + T019 `core/auth` (10: role-guard predicates via `TestBed.runInInjectionContext`, bearer-interceptor URL-pattern scoping incl. look-alike-prefix rejection, Keycloak config shape, placeholder component route-data rendering) + T020 `core/api` (8: `toApiError` mapping incl. unrecognized-urn and unparseable-body fallbacks, `ApiClient` URL-building/error-rethrow via `provideHttpClientTesting`) + T020 `core/realtime` (5: connection lifecycle, group join/leave, rejoin-on-reconnect, typed event subscription — all against a hand-rolled fake `HubConnection`) + T020 `core/offline` (3: Dexie schema key paths, draft/outbox CRUD round-trip via `fake-indexeddb`). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13). `jest.config.ts` widens `transformIgnorePatterns` beyond the preset default to also transform `keycloak-js` (ESM from a plain `.js`, no CJS entry); `setup-jest.ts` polyfills `structuredClone` (missing from jest-environment-jsdom's sandboxed global scope) via Node's own `node:v8` serialize/deserialize, needed by `fake-indexeddb` |
 | E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | green — smoke spec + `e2e/a11y` axe-core WCAG 2.1 A/AA gate (SC-009); **chromium only** — a webkit/mobile-Safari project is pending before the offline suites |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
@@ -303,8 +365,10 @@ real emitter. The database holds the full domain schema (T008–T009); target co
 file). Frontend-side (T019): any route load triggers Keycloak's `login-required` flow first
 (PKCE redirect to the realm's hosted login if no session); once authenticated, `/organizer` and
 `/judge` each check the caller's realm role before rendering their (placeholder) shell, and every
-outgoing `HttpClient` request to `apiBaseUrl` gets the access token attached automatically. No
-frontend code calls the backend yet — that arrives with T020's API client.
+outgoing `HttpClient` request to `apiBaseUrl` gets the access token attached automatically. T020
+adds the plumbing to actually call the backend (`ApiClient`, `CompetitionHubService`) and cache
+work locally (`db.ts`), plus the CORS policy that makes a cross-origin browser call possible at
+all — but no feature slice wires any of it to a component yet; that starts with Phase 3 (T021+).
 
 ## Recorded debt / immediate next steps
 

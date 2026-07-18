@@ -55,10 +55,28 @@ builder.Services.AddSingleton(Channel.CreateUnbounded<Guid>());
 builder.Services.AddScoped<IDispatchJobQueue, DispatchJobQueue>();
 builder.Services.AddHostedService<DispatchWorker>();
 
+// The Angular dev server runs on a different origin (:4200) than the API (:5121/:7075) — the
+// browser needs this to call REST/hub endpoints directly (T020). Development only; production
+// topology (same-origin behind ACA ingress or otherwise) is a Phase 16 decision. No
+// AllowCredentials: auth is bearer-token (header or SignalR's ?access_token=), never cookies.
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddCors(options =>
+        options.AddDefaultPolicy(policy => policy
+            .WithOrigins("http://localhost:4200")
+            .AllowAnyHeader()
+            .AllowAnyMethod()));
+}
+
 var app = builder.Build();
 
 // Must run first so it wraps every downstream middleware/endpoint.
 app.UseExceptionHandler();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();
