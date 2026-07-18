@@ -12,8 +12,12 @@ const path = require('path');
 // cwd set there — ESLint's flat-config discovery searches from cwd, not from the target file.
 function findLocalBin(startDir, binName) {
   const exe = process.platform === 'win32' ? `${binName}.cmd` : binName;
+  // No numeric depth cap: the parent === dir check below already bounds the walk at the
+  // filesystem root, and a fixed cap (previously 6) stops short of this repo's own FSD nesting
+  // (frontend/src/app/features/<capability>/<component>/... is 6-7 levels below frontend/,
+  // where node_modules lives) — silently falling back to the broken global npx (T019 review).
   let dir = startDir;
-  for (let i = 0; i < 6; i++) {
+  for (;;) {
     const candidate = path.join(dir, 'node_modules', '.bin', exe);
     if (fs.existsSync(candidate)) return { bin: candidate, cwd: dir };
     const parent = path.dirname(dir);

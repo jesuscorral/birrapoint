@@ -21,4 +21,12 @@ describe('provideAuthBearerInterceptor', () => {
 
     expect(condition.urlPattern.test('https://evil.example.com/steal')).toBe(false);
   });
+
+  it('never matches a look-alike prefix of the API base URL', () => {
+    const [condition] = TestBed.inject(INCLUDE_BEARER_TOKEN_INTERCEPTOR_CONFIG);
+
+    expect(condition.urlPattern.test(`${environment.apiBaseUrl}.evil.com/steal`)).toBe(false);
+    expect(condition.urlPattern.test(`${environment.apiBaseUrl}@evil.com/steal`)).toBe(false);
+    expect(condition.urlPattern.test(`${environment.apiBaseUrl}0/steal`)).toBe(false);
+  });
 });
