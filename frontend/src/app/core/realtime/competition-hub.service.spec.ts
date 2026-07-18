@@ -11,6 +11,7 @@ import {
 function createFakeConnection() {
   const handlers = new Map<string, (...args: unknown[]) => void>();
   let reconnectedCallback: (() => void) | undefined;
+  let closeCallback: (() => void) | undefined;
 
   const fake = {
     state: HubConnectionState.Disconnected,
@@ -31,10 +32,13 @@ function createFakeConnection() {
       reconnectedCallback = callback;
     }),
     onreconnecting: jest.fn(),
-    onclose: jest.fn(),
+    onclose: jest.fn((callback: () => void) => {
+      closeCallback = callback;
+    }),
     // Test helpers, not part of the real HubConnection surface.
     __emit: (method: string, payload: unknown) => handlers.get(method)?.(payload),
     __triggerReconnected: () => reconnectedCallback?.(),
+    __triggerClose: () => closeCallback?.(),
   };
 
   return fake;
@@ -112,5 +116,42 @@ describe('CompetitionHubService', () => {
 
   it('joining a group before start() throws', async () => {
     await expect(service.joinTable('table-1')).rejects.toThrow();
+  });
+
+  it('a failed start() clears the connection so a retry rebuilds instead of wedging', async () => {
+    fakeConnection.start.mockRejectedValueOnce(new Error('handshake failed'));
+    await expect(service.start()).rejects.toThrow('handshake failed');
+
+    await service.start();
+    expect(fakeConnection.start).toHaveBeenCalledTimes(2);
+    expect(service.state()).toBe(HubConnectionState.Connected);
+  });
+
+  it('onclose (automatic reconnect exhausted) clears the connection so a later start() rebuilds', async () => {
+    await service.start();
+    fakeConnection.__triggerClose();
+    expect(service.state()).toBe(HubConnectionState.Disconnected);
+
+    await service.start();
+    expect(fakeConnection.start).toHaveBeenCalledTimes(2);
+  });
+
+  it('one rejoin failing on reconnect does not prevent the others or throw unhandled', async () => {
+    await service.start();
+    await service.joinTable('table-1');
+    await service.joinTable('table-2');
+    fakeConnection.invoke.mockClear();
+    fakeConnection.invoke.mockImplementation((method: string, id: string) =>
+      method === 'JoinTable' && id === 'table-1'
+        ? Promise.reject(new Error('table-closed'))
+        : Promise.resolve(undefined),
+    );
+
+    fakeConnection.__triggerReconnected();
+    await Promise.resolve();
+    await Promise.resolve(); // flush Promise.allSettled over the rejected + resolved invokes
+
+    expect(fakeConnection.invoke).toHaveBeenCalledWith('JoinTable', 'table-1');
+    expect(fakeConnection.invoke).toHaveBeenCalledWith('JoinTable', 'table-2');
   });
 });

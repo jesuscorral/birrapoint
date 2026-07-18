@@ -54,7 +54,12 @@ const STANDARD_PROBLEM_DETAILS_KEYS = new Set([
 ]);
 
 function extractExtensions(body: ProblemDetails): Record<string, unknown> {
-  const extensions: Record<string, unknown> = {};
+  // Object.create(null), not {}: JSON.parse('{"__proto__": ...}') produces a genuine own
+  // property named "__proto__" (CreateDataProperty semantics), and assigning that key into a
+  // normal {} object triggers Object.prototype's __proto__ accessor setter instead of storing a
+  // property — a null-prototype object has no such accessor, so the assignment below is always a
+  // plain own-property write (T020 review).
+  const extensions: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
   for (const [key, value] of Object.entries(body)) {
     if (!STANDARD_PROBLEM_DETAILS_KEYS.has(key)) {
       extensions[key] = value;

@@ -25,6 +25,11 @@ export const COMPETITION_HUB_CONNECTION_FACTORY = new InjectionToken<HubConnecti
         new HubConnectionBuilder()
           .withUrl(`${environment.apiBaseUrl}/hubs/competition`, {
             accessTokenFactory: () => keycloak.token ?? '',
+            // @microsoft/signalr defaults withCredentials to true, which requires the backend's
+            // CORS policy to set AllowCredentials — it doesn't (auth here is bearer-token via
+            // ?access_token=, never cookies), so the negotiate request and any long-polling/SSE
+            // fallback would fail the browser's CORS check without this (T020 review).
+            withCredentials: false,
           })
           .withAutomaticReconnect()
           .build();
@@ -56,14 +61,25 @@ export class CompetitionHubService {
 
     const connection = this.connectionFactory();
     connection.onreconnecting(() => this.state.set(HubConnectionState.Reconnecting));
-    connection.onclose(() => this.state.set(HubConnectionState.Disconnected));
+    connection.onclose(() => {
+      // Fires when withAutomaticReconnect() gives up (retries exhausted) or stop() was called —
+      // either way the connection is dead. Clear it so a later start() rebuilds instead of
+      // silently no-op'ing forever (T020 review).
+      this.connection = null;
+      this.state.set(HubConnectionState.Disconnected);
+    });
     connection.onreconnected(() => {
       this.state.set(HubConnectionState.Connected);
       void this.rejoinTrackedGroups(connection);
     });
 
     this.connection = connection;
-    await connection.start();
+    try {
+      await connection.start();
+    } catch (error) {
+      this.connection = null;
+      throw error;
+    }
     this.state.set(HubConnectionState.Connected);
   }
 
@@ -107,7 +123,10 @@ export class CompetitionHubService {
   }
 
   private async rejoinTrackedGroups(connection: HubConnection): Promise<void> {
-    await Promise.all([
+    // allSettled, not all: one rejoin failing (e.g. a removed judge, lost ownership) must not
+    // abort the rest, and this is a fire-and-forget call from onreconnected — an unhandled
+    // rejection here would otherwise escape it (T020 review).
+    await Promise.allSettled([
       ...[...this.joinedCompetitions].map((id) =>
         connection.invoke('JoinCompetitionAsOrganizer', id),
       ),

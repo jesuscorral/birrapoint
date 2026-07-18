@@ -52,4 +52,29 @@ describe('toApiError', () => {
     expect(error.status).toBe(0);
     expect(error.title).toBeTruthy();
   });
+
+  it('never throws on adversarial body shapes (array, non-string fields, nested objects)', () => {
+    expect(() => toApiError(500, [])).not.toThrow();
+    expect(() => toApiError(500, { type: 123, title: {}, detail: [] })).not.toThrow();
+    expect(() => toApiError(500, { nested: { deeply: { value: 1 } } })).not.toThrow();
+
+    const arrayBody = toApiError(500, []);
+    expect(arrayBody.urn).toBeNull();
+    expect(arrayBody.title).toBeTruthy();
+
+    const nonStringFields = toApiError(500, { type: 123, title: {}, detail: [] });
+    expect(nonStringFields.urn).toBeNull();
+    expect(nonStringFields.title).toBeTruthy();
+    expect(nonStringFields.detail).toBeUndefined();
+  });
+
+  it('does not let a __proto__ key in the body pollute the extensions object prototype', () => {
+    const body = JSON.parse(
+      '{"type": "urn:birrapoint:table-closed", "__proto__": {"polluted": true}}',
+    );
+    const error = toApiError(409, body);
+
+    expect(({} as Record<string, unknown>)['polluted']).toBeUndefined();
+    expect(Object.getPrototypeOf(error.extensions)).toBeNull();
+  });
 });
