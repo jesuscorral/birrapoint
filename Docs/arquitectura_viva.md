@@ -44,6 +44,10 @@ starts the first vertical slices.
   `Common/Persistence/` now populated, `Features/ Realtime/` still empty), `BirraPoint.AppHost`
   (Aspire SDK 13.4.6), `BirraPoint.ServiceDefaults`, tests `BirraPoint.Api.UnitTests` and
   `BirraPoint.Api.IntegrationTests`.
+- **NuGet Central Package Management** (`backend/Directory.Packages.props`): all package versions
+  live there (`ManagePackageVersionsCentrally`), csprojs carry version-less `PackageReference`s;
+  the shared `$(BirraPointTargetFramework)` property (currently `net10.0`) defined in the same
+  file is the single place to bump the target framework.
 - **`BirraPoint.Api`**: `AddServiceDefaults()` + `MapDefaultEndpoints()`, plus (T009)
   `AddDbContext<AppDbContext>` wired to the `db` connection string and `Database.MigrateAsync()`
   run on startup **in Development only**. Pipeline order (T011/T012/T020):
@@ -59,8 +63,10 @@ starts the first vertical slices.
   mapped in Development only (stock ServiceDefaults guard; ACA probes will need a scoped exposure
   decision in Phase 16) and explicitly `.AllowAnonymous()` since T011's deny-by-default fallback
   policy would otherwise block unauthenticated container/Aspire probes; `/openapi/v1.json` (T017,
-  `AddOpenApi()`/`MapOpenApi()`); and the first business endpoint, `GET /api/v1/styles` (T017,
-  any authenticated caller per the fallback policy).
+  `AddOpenApi()`/`MapOpenApi()`) with Swagger UI on top at `/swagger`
+  (`Swashbuckle.AspNetCore.SwaggerUI` — UI middleware only, document generation stays with the
+  built-in generator; Development only, like the document); and the first business endpoint,
+  `GET /api/v1/styles` (T017, any authenticated caller per the fallback policy).
 - **`Common/Auth/`** (T011, audience validation closed T017/ADR-0009): `AddKeycloakAuthentication`
   wires JWT bearer (`Authority` from `Keycloak:Authority` config, `MapInboundClaims = false` to
   keep Keycloak's raw claim names, `RequireHttpsMetadata` off only in Development,

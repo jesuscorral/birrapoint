@@ -84,10 +84,13 @@ app.UseAuthorization();
 // /health and /alive endpoints (Development only by default).
 app.MapDefaultEndpoints();
 
-// OpenAPI document (T017), gated to Development like the health endpoints above.
+// OpenAPI document (T017), gated to Development like the health endpoints above, plus the
+// Swagger UI on top of it at /swagger (Swashbuckle UI middleware only — document generation
+// stays with the built-in Microsoft.AspNetCore.OpenApi).
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "BirraPoint API v1"));
 }
 
 // CompetitionHub: server → client notifications only (T015).
