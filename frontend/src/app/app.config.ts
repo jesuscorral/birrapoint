@@ -8,6 +8,8 @@ import { provideRouter } from '@angular/router';
 
 import { routes } from './app.routes';
 import { provideServiceWorker } from '@angular/service-worker';
+import { provideAuthBearerInterceptor } from './core/auth/auth-interceptor.providers';
+import { provideAppKeycloak } from './core/auth/keycloak.providers';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -18,5 +20,7 @@ export const appConfig: ApplicationConfig = {
       enabled: !isDevMode(),
       registrationStrategy: 'registerWhenStable:30000',
     }),
+    provideAppKeycloak(),
+    provideAuthBearerInterceptor(),
   ],
 };
