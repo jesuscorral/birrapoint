@@ -53,6 +53,7 @@
     "@types/jest": "^30.0.0",
     "angular-eslint": "21.0.1",
     "eslint": "^9.39.1",
+    "fake-indexeddb": "^6.2.5",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
     "jest-preset-angular": "^17.0.0",
