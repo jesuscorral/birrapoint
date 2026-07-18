@@ -253,7 +253,7 @@ query. Contract tests assert the serialized payloads contain none of these field
 | Store | Key | Contents |
 |-------|-----|----------|
 | `drafts` | `beerEntryId` | in-progress sheet fields; written ≤300 ms after each change (SC-003); deleted on successful submit |
-| `outbox` | `idempotencyKey` | submitted-but-unsynced evaluation payloads + attempt metadata; replayed per R-08 |
+| `outbox` | `idempotencyKey` | submitted-but-unsynced evaluation payloads + attempt metadata; replayed per R-08. Secondary index on `tastingTableId` (T020) — T087 looks up "outbox items for this table" when a judge is removed |
 
 Client stores are caches, never sources of truth; a device wipe loses only unsynced work, which
 the UI surfaces via the offline badge (FR-027).
