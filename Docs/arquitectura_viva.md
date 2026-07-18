@@ -5,7 +5,7 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-17 · after T017 (Phase 2 Foundational, in progress)
+**Last updated:** 2026-07-18 · after T018 (Phase 2 Foundational, in progress)
 
 ## Global status
 
@@ -14,13 +14,13 @@ and persistence layer (T008–T009), the full BJCP 2021 style catalog (T010), Ke
 auth with a deny-by-default fallback policy (T011), the ProblemDetails exception-handler chain
 for the 14-entry error catalog (T012), the MediatR + FluentValidation pipeline (T013), the
 audit trail writer (T014), the `CompetitionHub` realtime skeleton + emit-after-commit
-dispatcher (T015), the `DispatchJob` queue + hosted `DispatchWorker` (T016), and the first REST
+dispatcher (T015), the `DispatchJob` queue + hosted `DispatchWorker` (T016), the first REST
 slice, `GET /api/v1/styles` (T017), which also closed the JWT audience-validation gap tracked
-since T011 (ADR-0009) and brought OpenAPI online at `/openapi/v1.json`. Verified against a real
-Aspire-provisioned PostgreSQL + Keycloak (all tables present, catalog seeded, app boots with the
-full pipeline wired in, `/health`/`/alive` still anonymous and green). T018 (the
-`WebApplicationFactory` + test-JWT-issuer harness and this endpoint's first contract test) and
-T019–T020 (frontend core auth/services) remain in Phase 2.
+since T011 (ADR-0009) and brought OpenAPI online at `/openapi/v1.json`, and the
+`WebApplicationFactory` + Testcontainers + test-JWT-issuer HTTP harness with `GetStyles`' first
+contract test (T018). Verified against a real Aspire-provisioned PostgreSQL + Keycloak (all
+tables present, catalog seeded, app boots with the full pipeline wired in, `/health`/`/alive`
+still anonymous and green). T019–T020 (frontend core auth/services) remain in Phase 2.
 
 ## Local topology (.NET Aspire — `dotnet run --project backend/src/BirraPoint.AppHost`)
 
@@ -145,9 +145,10 @@ T019–T020 (frontend core auth/services) remain in Phase 2.
   first actual emitter (`DispatchProgress`), though no job is ever enqueued yet in practice — no
   slice calls `IDispatchJobQueue.EnqueueAsync` until T041/T075. The first story-driven emitter is
   still US2's `ChangeCompetitionState` (T028). **Known gap**: the DB-backed authorization checks
-  above have no integration/contract test yet — T018's Testcontainers harness lands after this
-  task, and EF Core's InMemory provider is not an accepted substitute; tracked with a comment in
-  `CompetitionHub.cs`.
+  above still have no integration/contract test — the `WebApplicationFactory` harness they need
+  now exists (T018), but no task has written the hub-specific coverage yet; tracked with a
+  comment in `CompetitionHub.cs`. EF Core's InMemory provider remains an unaccepted substitute
+  regardless (Testcontainers-only per R-13).
 - **`Common/Jobs/`** (T016, R-06): `DispatchJobQueue.EnqueueAsync` inserts a `Pending`
   `DispatchJob` row and wakes `DispatchWorker` via a shared singleton `Channel<Guid>` — no separate
   signal abstraction, the BCL channel is the wake-up mechanism directly. `DispatchWorker` (hosted
@@ -175,8 +176,8 @@ T019–T020 (frontend core auth/services) remain in Phase 2.
   enum fields) serialize as their name, not the `System.Text.Json` default int (ADR-0007) —
   mirrors the DB-level string-enum convention (ADR-0004). **Known gap**: same pattern as
   `Realtime/` — `DispatchJobQueue`'s insert and `DispatchWorker`'s DB-backed sweep/dispatch loop
-  have no integration test yet (T018); only
-  `DispatchRetryPolicy` (pure) is unit-tested now.
+  still have no integration test; the harness they need now exists (T018) but no task has written
+  this coverage yet. Only `DispatchRetryPolicy` (pure) is unit-tested now.
 - **`BirraPoint.ServiceDefaults`**: OpenTelemetry (ASP.NET Core, HttpClient and runtime
   instrumentation; OTLP exporter switched by `OTEL_EXPORTER_OTLP_ENDPOINT`), default health
   checks (`self`/`live`), HttpClient resilience handler + service discovery.
@@ -199,11 +200,27 @@ T019–T020 (frontend core auth/services) remain in Phase 2.
   under `UnitTests/Common/Errors/`. T015's `Realtime/` tests are hand-rolled fakes (no mocking
   library in this repo) implementing `IHubContext`/`IHubClients`/`IClientProxy` directly — same
   "real/fake collaborator over mock" style as the T011 auth tests. T016's `Common/Jobs/` tests
-  cover only `DispatchRetryPolicy` (pure math) — `DispatchJobQueue`/`DispatchWorker` are DB-backed
-  and wait on T018 for the same reason `CompetitionHub`'s authorization checks do. The
-  `WebApplicationFactory` HTTP-level harness still arrives with T018 (which must also add
-  `public partial class Program;` to the API), and is also where both of those gaps get their
-  first integration coverage.
+  cover only `DispatchRetryPolicy` (pure math) — `DispatchJobQueue`/`DispatchWorker` remain
+  DB-backed with no integration coverage yet (see Known gaps above).
+- **`IntegrationTests/TestHost/`** (T018): the HTTP-level harness. `ApiFactory :
+  WebApplicationFactory<Program>` owns one dedicated `postgres:16` Testcontainer per test class
+  (`IAsyncLifetime`, same one-container-per-class convention as `Persistence/PostgresFixture`),
+  migrates it in `InitializeAsync`, then `ConfigureWebHost`s the real app onto it:
+  `UseEnvironment("Testing")` (so the Development-only auto-migrate/`MapOpenApi` gates stay off —
+  the factory migrates explicitly instead), an in-memory `ConnectionStrings:db` override, and a
+  `PostConfigure<JwtBearerOptions>` that clears `Authority` and swaps in `TestJwtIssuer`'s static
+  `TokenValidationParameters` so no real Keycloak discovery round-trip ever happens.
+  `TestJwtIssuer.IssueToken(sub, email, roles)` signs HMAC-SHA256 JWTs with a fixed test-only key,
+  embedding `realm_access` as raw JSON (`JsonClaimValueTypes.Json`) — the exact shape
+  `KeycloakRolesClaimsTransformation` parses — so tokens exercise the real role-mapping path, not
+  a bypass. Required a one-line addition to the API itself: `public partial class Program;` at
+  the end of `Program.cs`, since a minimal-API top-level `Program` is otherwise implicitly
+  internal and invisible to `WebApplicationFactory<Program>` in the test assembly.
+  `Catalog/GetStylesTests.cs` is the first consumer: unauthenticated → `401`, authenticated (any
+  role, per the fallback policy) → `200` with all 125 catalog rows in numeric category order and
+  exactly the four contracted fields per row. `CompetitionHub` and `DispatchJobQueue`/
+  `DispatchWorker` DB-backed coverage (the two gaps above) can now be built on this same harness,
+  but neither has been written yet.
 
 ## Frontend (`frontend/`, Angular 20)
 
@@ -224,7 +241,7 @@ T019–T020 (frontend core auth/services) remain in Phase 2.
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 46 unit tests: smoke + T010 `BjcpStyleSeedDataTests` (5, DB-free catalog-shape guard) + T011 `Common/Auth` (13: claims transformation, `CurrentUser`, DI-wiring smoke) + T012 `Common/Errors` (6: exception-handler mapping/security) + T013 `Common/Behaviors` (7: `ValidationBehavior` isolation + MediatR DI-wiring end-to-end) + T015 `Realtime` (4: `CompetitionGroups` formatting, `EventPublisher` group/event/payload routing via hand-rolled `IHubContext` fakes) + T016 `Common/Jobs` (10: `DispatchRetryPolicy` — max-attempts cutoff, backoff doubling, backoff cap); 15 integration tests against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3: atomic staging, null-before, no-save-no-persist); HTTP-level harness in T018 |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 46 unit tests: smoke + T010 `BjcpStyleSeedDataTests` (5, DB-free catalog-shape guard) + T011 `Common/Auth` (13: claims transformation, `CurrentUser`, DI-wiring smoke) + T012 `Common/Errors` (6: exception-handler mapping/security) + T013 `Common/Behaviors` (7: `ValidationBehavior` isolation + MediatR DI-wiring end-to-end) + T015 `Realtime` (4: `CompetitionGroups` formatting, `EventPublisher` group/event/payload routing via hand-rolled `IHubContext` fakes) + T016 `Common/Jobs` (10: `DispatchRetryPolicy` — max-attempts cutoff, backoff doubling, backoff cap); 17 integration tests against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3: atomic staging, null-before, no-save-no-persist) + T018 `Catalog/GetStylesTests` (2: 401 unauthenticated, 200 full catalog/shape/order via the new `WebApplicationFactory` + Testcontainers + test-JWT-issuer harness) |
 | Frontend unit | `cd frontend && npx jest` | green — jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
 | E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | green — smoke spec + `e2e/a11y` axe-core WCAG 2.1 A/AA gate (SC-009); **chromium only** — a webkit/mobile-Safari project is pending before the offline suites |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
@@ -247,11 +264,11 @@ file).
 - **ADR-0003**: decide zoneless change detection before Phase 3 frontend work.
 - **ADR-0004**: domain state/status enums are stored as strings in PostgreSQL (T009).
 - **ADR-0006**: `CompetitionHub`'s DB-backed join-authorization (ownership/membership checks) has
-  no integration/contract test yet — close this once T018's Testcontainers harness lands.
-- Same gap as ADR-0006, different task: `DispatchJobQueue`/`DispatchWorker`'s DB-backed enqueue and
-  resume/dispatch loop (T016) have no integration test yet either — same T018 dependency.
-- T017's `GetStyles` slice has no contract test either yet — same T018 dependency, and it's the
-  one T018 explicitly targets first (`Catalog/GetStylesTests.cs`).
+  no integration/contract test yet. The `WebApplicationFactory` harness it needs now exists
+  (T018) — no task has written this coverage yet.
+- Same gap, different task: `DispatchJobQueue`/`DispatchWorker`'s DB-backed enqueue and
+  resume/dispatch loop (T016) have no integration test yet either — same T018 harness, still
+  unwritten.
 - Production/`azd` deployment (T096) must set `Keycloak__ApiAudience` consistently with whatever
   audience value the production realm's mapper stamps (ADR-0009).
 - `WaitFor` a *ready* Keycloak once auth is wired (T011; ADR-0001 mitigation).

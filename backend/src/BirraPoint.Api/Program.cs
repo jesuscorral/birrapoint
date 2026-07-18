@@ -86,3 +86,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.Run();
+
+// Minimal-API top-level Program is implicitly internal; WebApplicationFactory<Program>
+// (BirraPoint.Api.IntegrationTests/TestHost, T018) needs it visible to the test assembly.
+public partial class Program;
