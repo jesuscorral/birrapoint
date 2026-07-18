@@ -45,6 +45,31 @@ Supporting: `/speckit-analyze` (cross-artifact consistency), `/speckit-checklist
   (`specs/001-birrapoint-mvp/`).
 - `.specify/extensions.yml` runs `speckit.agent-context.update` after specify and plan steps.
 
+## AI-assisted development tooling
+
+- **CodeGraph** — `.codegraph/` (gitignored, local-only) is a SQLite index of the workspace's
+  symbols and call graph, kept current by a file watcher. When present, agents query it via the
+  `codegraph_explore` MCP tool or `codegraph explore "<question>"` instead of grep/read loops —
+  one call returns verbatim source plus call paths (including dynamic-dispatch hops). Prefer it
+  over manual exploration whenever it's available; if `.codegraph/` is absent, fall back to
+  Grep/Glob/Read as normal.
+- **Specialized subagents** (`.claude/agents/`) — invoke instead of implementing backend/frontend/
+  QA work inline in the main thread:
+  - `backend-engineer` — .NET slice implementation under `backend/src/BirraPoint.Api/**` plus its
+    unit/integration tests.
+  - `frontend-engineer` — Angular implementation under `frontend/src/app/**` plus Jest unit tests.
+  - `qa-engineer` — contract tests, Playwright E2E, accessibility (axe-core) and performance (k6)
+    gates, owning `backend/tests/BirraPoint.Api.IntegrationTests/**`, `frontend/e2e/**`,
+    `infra/perf/**`.
+  - `senior-code-reviewer` — PR review (Implementation workflow step 5 below).
+  None of the three implementation agents run the branch/tollgate/PR orchestration themselves —
+  that stays at the top-level session; they do the implementation slice of a task already scoped
+  by a plan.
+- **Caveman mode** — an optional, per-developer terse-communication style for the Claude Code
+  session (toggled with `/caveman`), independent of application code and not part of this repo's
+  configuration. Code, commits, PR descriptions, and any security-sensitive output are always
+  written in full, normal language regardless of whether it's active.
+
 ## Implementation workflow (per task — mandatory)
 
 Every `/speckit-implement` execution for a pending task follows these steps in order; none may

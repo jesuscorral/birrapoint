@@ -32,6 +32,9 @@ appsettings.*.Local.json
 # Azure Developer CLI
 .azure/
 
+# CodeGraph — local, regenerable code-intelligence index
+.codegraph/
+
 # IDE / OS
 .vs/
 .idea/
