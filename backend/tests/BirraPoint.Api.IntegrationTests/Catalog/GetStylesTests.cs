@@ -35,13 +35,26 @@ public sealed class GetStylesTests(ApiFactory factory) : IClassFixture<ApiFactor
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var styles = document.RootElement.EnumerateArray().ToList();
 
-        Assert.Equal(125, styles.Count);
+        Assert.Equal(FullCatalogSize, styles.Count);
         Assert.All(styles, style => Assert.Equal(
             new HashSet<string> { "code", "name", "categoryNumber", "categoryName" },
             style.EnumerateObject().Select(property => property.Name).ToHashSet()));
 
-        // Category order is numeric (T017 review fix), not lexicographic: "1" then "2", never "10"
-        // before "2". The catalog's first category is "1" (Standard American Beer).
-        Assert.Equal("1", styles[0].GetProperty("categoryNumber").GetString());
+        // Distinct categories, in wire order, must be numerically ascending (Appendix B's
+        // non-numeric "X" category last) — the T017 review fix over a plain lexicographic
+        // OrderBy, which would place "10" before "2".
+        var categoriesInOrder = styles
+            .Select(style => style.GetProperty("categoryNumber").GetString()!)
+            .Distinct()
+            .ToList();
+        var numericallySorted = categoriesInOrder
+            .OrderBy(category => int.TryParse(category, out var number) ? number : int.MaxValue)
+            .ThenBy(category => category, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.Equal(numericallySorted, categoriesInOrder);
+        Assert.Equal("1", categoriesInOrder[0]);
     }
+
+    private const int FullCatalogSize = 125; // BJCP 2021: categories 1-34 + Appendix B (T010)
 }

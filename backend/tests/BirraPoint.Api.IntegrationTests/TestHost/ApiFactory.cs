@@ -31,8 +31,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     async Task IAsyncLifetime.DisposeAsync()
     {
-        await _container.DisposeAsync();
+        // Stop hosted services (DispatchWorker) and drain the Npgsql pool against a live DB
+        // before the container goes away, not after.
         await base.DisposeAsync();
+        await _container.DisposeAsync();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -44,7 +46,6 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:db"] = _container.GetConnectionString(),
-                ["Keycloak:ApiAudience"] = TestJwtIssuer.Audience,
             });
         });
 
