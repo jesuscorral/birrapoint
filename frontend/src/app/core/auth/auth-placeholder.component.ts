@@ -3,11 +3,12 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { map } from 'rxjs';
 
-// Temporary render target for the guarded /organizer and /judge route shells (T019). Replaced by
-// the real dashboard/tables landing pages in T024.
+// Fallback render target for '/' (T024's homeRedirectGuard): an authenticated caller who holds
+// neither ORGANIZER nor JUDGE is routed here instead of a role-specific landing. Originally the
+// render target for /organizer and /judge too (T019) before real landing pages existed.
 @Component({
   selector: 'app-auth-placeholder',
-  template: `<p>{{ label() }} workspace — placeholder, see T024.</p>`,
+  template: `<p>{{ label() }}: this account has no recognized workspace role.</p>`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AuthPlaceholderComponent {

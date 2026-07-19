@@ -16,6 +16,7 @@ public static class AuthenticationExtensions
         this IServiceCollection services, IConfiguration configuration, bool isDevelopment)
     {
         services.AddHttpContextAccessor();
+        services.AddScoped<IJudgeResolver, JudgeResolver>();
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddSingleton<IClaimsTransformation, KeycloakRolesClaimsTransformation>();
 

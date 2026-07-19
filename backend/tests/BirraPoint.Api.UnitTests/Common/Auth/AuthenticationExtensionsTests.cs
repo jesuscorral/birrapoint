@@ -1,9 +1,11 @@
 using BirraPoint.Api.Common.Auth;
+using BirraPoint.Api.Common.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -24,6 +26,10 @@ public sealed class AuthenticationExtensionsTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddKeycloakAuthentication(configuration, isDevelopment: true);
+        // JudgeResolver (behind ICurrentUser) depends on AppDbContext; registered here purely to
+        // satisfy the DI graph — this test never opens a connection or issues a query.
+        services.AddDbContext<AppDbContext>(options =>
+            options.UseNpgsql("Host=localhost;Database=birrapoint_di_wiring_test;Username=test;Password=test"));
         return services.BuildServiceProvider();
     }
 
