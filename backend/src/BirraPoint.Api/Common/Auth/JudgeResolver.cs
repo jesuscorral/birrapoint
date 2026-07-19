@@ -24,6 +24,7 @@ public sealed class JudgeResolver(AppDbContext db) : IJudgeResolver
     {
         var judges = await db.Judges.Where(judge => judge.Email == email).ToListAsync(ct);
 
+        var changed = false;
         foreach (var judge in judges)
         {
             if (judge.KeycloakUserId is null)
@@ -33,7 +34,17 @@ public sealed class JudgeResolver(AppDbContext db) : IJudgeResolver
                 {
                     judge.DisplayName = name;
                 }
+                changed = true;
             }
+        }
+
+        // Unlike IAuditWriter (which deliberately defers to the caller's own SaveChangesAsync to
+        // stay atomic with a business change), this backfill is its own independent unit of work —
+        // ICurrentUser.GetJudgeRecordsAsync is a claims-accessor-shaped read, so callers have no
+        // reason to expect they must SaveChanges afterward. Persist here, not in the caller.
+        if (changed)
+        {
+            await db.SaveChangesAsync(ct);
         }
 
         return judges;

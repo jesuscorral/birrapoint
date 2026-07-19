@@ -23,7 +23,11 @@ test.describe('US1 — secure access with role-based entry', () => {
   });
 
   test.afterAll(async () => {
-    await deleteUser(judge.id);
+    // Guard against beforeAll having thrown before `judge` was assigned (e.g. Keycloak down) —
+    // an unguarded `judge.id` here would mask the real failure with a TypeError in afterAll.
+    if (judge?.id) {
+      await deleteUser(judge.id);
+    }
   });
 
   test('unauthenticated visit redirects to Keycloak hosted login with PKCE', async ({ page }) => {
