@@ -17,8 +17,14 @@ public sealed class ValidationExceptionHandler(IProblemDetailsService problemDet
 
         var (urn, status, title) = DomainErrorCatalog.Entries[DomainErrorType.Validation];
 
+        // FluentValidation's PropertyName is PascalCase ("Name", "EndDate"); every other JSON
+        // body in this API is camelCase (System.Text.Json's Web defaults), but that naming policy
+        // only applies to object properties, never to Dictionary<string,T> keys — so without this
+        // conversion, `errors` keys would be the one PascalCase corner of an otherwise all-camelCase
+        // API, silently breaking any client-side `errors[fieldName]` lookup (senior-code-reviewer,
+        // T025-T030 review: caught because this handler had no real consumer before Competitions).
         var errors = validationException.Errors
-            .GroupBy(failure => failure.PropertyName)
+            .GroupBy(failure => ToCamelCase(failure.PropertyName))
             .ToDictionary(group => group.Key, group => group.Select(failure => failure.ErrorMessage).ToArray());
 
         var problemDetails = new ValidationProblemDetails(errors)
@@ -37,4 +43,10 @@ public sealed class ValidationExceptionHandler(IProblemDetailsService problemDet
             Exception = validationException,
         });
     }
+
+    // Lowercases only the first character of each dot-separated segment (nested property paths,
+    // e.g. "Address.Street" -> "address.street"), matching JsonNamingPolicy.CamelCase semantics.
+    private static string ToCamelCase(string propertyName) =>
+        string.Join('.', propertyName.Split('.').Select(segment =>
+            segment.Length == 0 ? segment : char.ToLowerInvariant(segment[0]) + segment[1..]));
 }
