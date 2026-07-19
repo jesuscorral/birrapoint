@@ -169,8 +169,11 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 ### Implementation for User Story 5
 
 - [ ] T047 [US5] Slices CreateTable, UpdateTable, ListTables with transactional COI validation + BOS flagging/unflagging + endpoints in `backend/src/BirraPoint.Api/Features/Tables/`
-- [ ] T048 [US5] Frontend table-management: table builder (judges + samples pickers), COI conflict dialog, BOS warning banner in `frontend/src/app/features/table-management/`
-- [ ] T049 [US5] E2E scenario 5 in `frontend/e2e/us5-tables.spec.ts`
+- [ ] T048 [US5] Frontend table-management: `MesaCard` visual component rendering each table as a physical table board with judges as seats around it and assigned beer entries as tokens on top (per the organizer-supplied "Crear mesas" prototype — physical-table metaphor, not a plain list); per-table stats summary (mean ABV, style count, style list) always visible; an "Unassigned" source column (no table/seat iconography, plain judge/beer list) alongside one `MesaCard` per table; COI conflict dialog; BOS warning banner in `frontend/src/app/features/table-management/`
+- [ ] T048A [US5] Click-to-detail interactions: clicking a beer token opens a modal/panel with code, style, ABV, assigned table, and badges (allergen, special award); clicking a judge seat opens a modal with name/initials, BJCP category/certification, assigned table. Applies identically to judges/beers still in the "Unassigned" column (T048), not just once seated at a `MesaCard`
+- [ ] T048B [US5] Drag & drop for judge/beer assignment (`@angular/cdk/drag-drop`, matching the pattern established in T053/FR-020): drag from "Unassigned" into any `MesaCard`, and between `MesaCard`s; must not swallow the T048A click-to-detail interaction on the same element (click vs. drag-start disambiguation, e.g. a drag-distance/press-duration threshold before a pointer-down is treated as a drag)
+- [ ] T048C [US5] Accessibility: seat (~38px) and beer-token (~64px) interactive targets meet a minimum hit-area size on desktop pointer input; this screen is desktop-only for now (no touch/mobile target-size variant needed yet) — a targeted check in addition to T089's broader axe-core sweep, since minimum-target-size is a WCAG 2.1 AA criterion axe-core does not reliably flag for custom drag-and-drop widgets
+- [ ] T049 [US5] E2E scenario 5 (extend with: beer/judge detail modal open+close, drag-and-drop assignment between "Unassigned" and a `MesaCard` and between two `MesaCard`s, and that a plain click on an already-assigned beer/judge opens its detail modal rather than starting a drag) in `frontend/e2e/us5-tables.spec.ts`
 
 **Checkpoint**: All organizer provisioning (US2–US5) complete
 
