@@ -5,24 +5,25 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-19 · after T021–T024 — **Phase 3 (US1, Secure Access) complete**
+**Last updated:** 2026-07-19 · after T025–T030 — **Phase 4 (US2, Competition Wizard) complete**
 
 ## Global status
 
-Phase 1 (Setup, T001–T007) and Phase 2 (Foundational, T008–T020) are **complete**. Phase 3
-(User Story 1 — Secure Access with Role-Based Entry, T021–T024) is now also **complete**:
-contract tests proving the deny-by-default/`ORGANIZER`/owner-scoped auth policies over real HTTP
-(T021), `JudgeResolver` backfilling `Judge.KeycloakUserId`/`DisplayName` on first authenticated
-call (T023), a real Keycloak-login E2E spec (T022), and the frontend's real post-login landing
-routes — `/organizer/dashboard`, `/judge/tables` (T024). Quickstart scenario 1 passes end to end
-against a live Aspire stack. See `Common/Auth/` and `core/auth/`/`features/auth/` below for detail.
+Phase 1 (Setup, T001–T007), Phase 2 (Foundational, T008–T020), and Phase 3 (US1, Secure Access,
+T021–T024) are **complete**. Phase 4 (User Story 2 — Competition Creation Wizard with Drafts,
+T025–T030) is now also **complete**: the `Features/Competitions/` vertical slice (create/update/
+get/list + the FR-006 state machine, T025–T028), a 2-step organizer wizard persisting straight to
+the real backend so `Draft` state itself *is* the save-point — no client-side draft store needed
+for this story (T029), and an E2E spec proving create → save → real-page-reload → resume-with-data
+intact (T030). Quickstart scenarios 1–2 both pass end to end against a live Aspire stack.
 
-**Sequencing note**: Phase 4 (US2, competition wizard, T025–T028 backend + partial T029 frontend)
-was actually built *before* Phase 3 on a sibling branch (`feature/T025-T030`, work stashed there,
-not merged) — `tasks.md` explicitly allows split dev streams since US2 has no story dependency on
-US1. This update is Phase 3 landing on its own branch (`feature/T021-T024`), cut from `main`
-(pre-Phase-4), so none of Phase 4's `Features/Competitions/`/`competition-wizard/` work is present
-here — it remains a separate follow-up merge.
+**Sequencing note**: this phase's backend and most of its frontend were actually built *before*
+Phase 3 landed, on this same branch name (`feature/T025-T030`) — `tasks.md` explicitly allows split
+dev streams since US2 has no story dependency on US1 (`Team split` note, §Parallel Opportunities).
+That work sat uncommitted and was preserved via `git stash` while Phase 3 was implemented and
+merged first; this update is that stashed work reconciled onto the post-Phase-3 `main` (mainly:
+`app.routes.ts`'s wizard routes now nest under T024's `organizer` parent instead of predating its
+route restructure) plus the one genuinely new piece, T030.
 
 ## Local topology (.NET Aspire — `dotnet run --project backend/src/BirraPoint.AppHost`)
 
@@ -159,6 +160,33 @@ here — it remains a separate follow-up merge.
   explicit role policy — "any authenticated" per contracts/rest-api.md is already satisfied by
   the deny-by-default fallback policy. `GetStyleDetail` (`GET /styles/{code}`) lands later with
   T059B/FR-049.
+- **`Features/Competitions/`** (T025–T028, US2): the competition creation wizard + lifecycle, all
+  `ORGANIZER`-only. `CompetitionStateMachine.CanTransition(from, to)` is the single pure/static
+  FR-006 gate (forward-only, skip-free — a lookup table of the one legal next state per state, so
+  reverse/same-state/skip-ahead all fall through to `false`); both `UpdateCompetitionCommandHandler`
+  (edits only while `Draft`/`Active`) and `ChangeCompetitionStateCommandHandler` (any target) read
+  off the same enum, only the latter needs the transition-gate helper itself.
+  `CreateCompetition.cs`/`UpdateCompetition.cs` carry matching `AbstractValidator`s (required
+  `Name`/`Venue`, `EndDate >= StartDate`, `EntryLimit > 0` when set, `RegistrationEnd >=
+  RegistrationStart` when both set — the T009 DB check constraints stay a last-resort backstop, not
+  the primary validation path). `GetCompetition.cs`/`ListCompetitions.cs`/`UpdateCompetition.cs`/
+  `ChangeState.cs` all scope by `CreatedByUserId == currentUser.Sub` and return `null` on a miss —
+  `CompetitionsEndpoints` maps that to a plain `404` (never a `DomainException`/urn, since scope
+  misses aren't in the 14-entry catalog and must never reveal cross-owner existence — this is the
+  exact pattern T021's `/__test/` diagnostic endpoints stood in for before this slice existed).
+  `ChangeCompetitionStateCommandHandler` additionally gates `Finalized` on every `TastingTable`
+  being `Closed` (`409 tables-still-open` with the open ids in the ProblemDetails extensions —
+  vacuously satisfied today since no competition has any tables yet), stages an audit entry via
+  `IAuditWriter` before its own `SaveChangesAsync`, then is the **first real story-driven emitter**
+  on `CompetitionHub`: `CompetitionStateChanged` (`{ competitionId, state }`) to the
+  `competition:{id}:organizers` group, fired only after the transaction commits.
+  `CompetitionsEndpoints.MapCompetitionsEndpoints` maps all five endpoints under one
+  `RequireAuthorization("ORGANIZER")` route group; `POST`/`PUT`/`POST .../state` bind their MediatR
+  command straight from the JSON body (record constructor binding, no extra DTO) and combine it
+  with the route's `{id}` via `command with { Id = id }` before sending. `Competition.State`
+  defaults to `Draft` at the entity level (`Domain/Competition.cs`), so `CreateCompetitionCommandHandler`
+  never sets it explicitly — every created competition already satisfies FR-008 ("save as Draft at
+  any step") the moment it exists, with no separate draft-persistence mechanism needed.
 - **`Realtime/`** (T015): `CompetitionHub` (`/hubs/competition`, `[Authorize]`) — server → client
   only, per contracts/signalr-hub.md. `JoinCompetitionAsOrganizer` guards on `ORGANIZER` role +
   `Competition.CreatedByUserId` ownership; `JoinTable` guards on an active (`RemovedAt == null`)
@@ -169,10 +197,11 @@ here — it remains a separate follow-up merge.
   two fixed group-name formats (`competition:{id}:organizers`, `table:{tableId}`) shared by the
   hub and by `IEventPublisher`/`EventPublisher`, the generic emit-after-commit dispatcher every
   later story's handler will call after its own `SaveChangesAsync` succeeds.
-  `CompetitionEvents` holds the 7 catalogued event-name constants; `DispatchWorker` (T016) is the
-  first actual emitter (`DispatchProgress`), though no job is ever enqueued yet in practice — no
-  slice calls `IDispatchJobQueue.EnqueueAsync` until T041/T075. The first story-driven emitter is
-  still US2's `ChangeCompetitionState` (T028). **Known gap**: the DB-backed authorization checks
+  `CompetitionEvents` holds the 7 catalogued event-name constants; `DispatchWorker` (T016) would
+  emit `DispatchProgress`, though no job is ever enqueued yet in practice — no slice calls
+  `IDispatchJobQueue.EnqueueAsync` until T041/T075. `ChangeCompetitionState` (T028, US2, above) is
+  now the first real story-driven emitter: `CompetitionStateChanged` on every FR-006 transition.
+  **Known gap**: the DB-backed authorization checks
   above still have no integration/contract test — the `WebApplicationFactory` harness they need
   now exists (T018), but no task has written the hub-specific coverage yet; tracked with a
   comment in `CompetitionHub.cs`. EF Core's InMemory provider remains an unaccepted substitute
@@ -282,10 +311,11 @@ here — it remains a separate follow-up merge.
   `@microsoft/signalr@^10`, `tailwindcss@^4.3`. Dev-only (T020): `fake-indexeddb@^6.2` — jsdom has
   no IndexedDB implementation, so testing real Dexie CRUD under Jest needs it (Dexie's own
   recommended test companion); same category as Testcontainers on the backend, never shipped.
-- **Bundle** (production build): initial total ~289.4 kB raw / ~80.1 kB transfer (was ~288.2 kB /
-  ~79.8 kB at T020) — within the ≤ 500 kB gzip budget (Principle IX). The small T024 bump is the
-  two new placeholder landing components + the routing/guard additions; T020's `ApiClient`/
-  `CompetitionHubService`/`db.ts` remain unconsumed and still tree-shake out of the initial chunk.
+- **Bundle** (production build): initial total ~345.1 kB raw / ~93.0 kB transfer (was ~289.4 kB /
+  ~80.1 kB at T024) — within the ≤ 500 kB gzip budget (Principle IX). The T029 jump is
+  `ReactiveFormsModule` pulled in for the first time by the wizard's two step components; T020's
+  `CompetitionHubService`/`db.ts` still remain unconsumed and tree-shake out (only `ApiClient` is
+  now live, via `CompetitionsApiService`).
 - **`src/environments/environment.ts`** (T019): local-dev-only config — `keycloak: { url, realm:
   'birrapoint', clientId: 'birrapoint-spa' }` (matches `infra/keycloak/birrapoint-realm.json`)
   and `apiBaseUrl`, both the fixed Aspire local ports (CLAUDE.md §Commands). No dev/prod split or
@@ -331,15 +361,16 @@ here — it remains a separate follow-up merge.
     holding neither `ORGANIZER` nor `JUDGE` (shouldn't happen given the backend's deny-by-default
     policy, but the frontend still needs to render *something* rather than loop) — kept and
     relabelled rather than deleted/recreated, since it was already small and tested.
-  - `app.routes.ts` (**T024**, restructured): `''` → `homeRedirectGuard` +
-    `AuthPlaceholderComponent` (no-access fallback); `organizer` (→ `organizerGuard`) now nests
-    `dashboard` (→ `OrganizerDashboardComponent`, `frontend/src/app/features/auth/`) with a
-    `'' → redirectTo: 'dashboard'` child; `judge` (→ `judgeGuard`) nests `tables` (→
-    `JudgeTablesComponent`) the same way; `**` still → `''`. `canActivate` on the parent path
-    segment already gates every descendant path in Angular's router, so no `canActivateChild` is
-    needed. Matches the CLAUDE.md-documented `/organizer/**`/`/judge/**` guard convention.
-    `app.config.ts` still wires `provideAppKeycloak()` + `provideAuthBearerInterceptor()`
-    (unchanged).
+  - `app.routes.ts` (**T024**, restructured; **T029** adds the wizard children): `''` →
+    `homeRedirectGuard` + `AuthPlaceholderComponent` (no-access fallback); `organizer` (→
+    `organizerGuard`) nests `dashboard` (→ `OrganizerDashboardComponent`), `competitions/new` and
+    `competitions/:id` (both → `CompetitionWizardComponent`, T029), and a `'' → redirectTo:
+    'dashboard'` child; `judge` (→ `judgeGuard`) nests `tables` (→ `JudgeTablesComponent`) the same
+    way; `**` still → `''`. `canActivate` on the parent path segment already gates every
+    descendant path in Angular's router, so no `canActivateChild` is needed — the wizard routes
+    inherit `organizerGuard` from the parent without repeating it. Matches the
+    CLAUDE.md-documented `/organizer/**`/`/judge/**` guard convention. `app.config.ts` still wires
+    `provideAppKeycloak()` + `provideAuthBearerInterceptor()` (unchanged).
   - **`features/auth/`** (T024, new, first content in this previously-empty FSD layer):
     `OrganizerDashboardComponent`/`JudgeTablesComponent` — standalone `OnPush` placeholders (`<h1>
     Organizer dashboard</h1>` / `<h1>Judge tables</h1>`) proving the routing/guard wiring for
@@ -349,6 +380,30 @@ here — it remains a separate follow-up merge.
     to `/` → Keycloak-hosted login (PKCE `code_challenge_method=S256` visible) → seeded `organizer`
     login → `/organizer/dashboard` renders → `/judge` (same organizer session, no JUDGE role)
     redirects to `/judge/tables` → clean console throughout.
+- **`features/competition-wizard/`** (T029, US2): a 2-step organizer wizard —
+  `BasicsStepComponent` (name/venue/startDate/endDate, the FR-007 required fields, `endDate >=
+  startDate` cross-field validator, `Next` disabled until valid) →
+  `DetailsStepComponent` (description/logoUrl/entryLimit/registrationStart/registrationEnd, all
+  optional, `Save Draft` disabled until the entry-limit/registration-window validators pass).
+  `CompetitionWizardComponent` (`competition-wizard.component.ts`) drives the step switch off a
+  `currentStep` signal and owns the create-vs-resume branch: with no `:id` route param it starts
+  at step 1 with an empty form; with one, its constructor calls `CompetitionsApiService.getById`
+  and passes the result down as `initialValue` to both steps (each has its own `effect()` that
+  `patchValue`s the form when that input arrives). Deliberately **no client-side draft store** —
+  `Competition.State` already defaults to `Draft` server-side (`Domain/Competition.cs`), so step
+  1's "Next" (`create`/`update` via `CompetitionsApiService`) *is* the save point FR-008 asks for;
+  `Location.replaceState` swaps the URL from `/organizer/competitions/new` to
+  `/organizer/competitions/{id}` right after creation without a router navigation (which would
+  recreate the component and lose `currentStep`/in-flight state, since `/new` and `/:id` are
+  different route entries) — a plain page reload at that point already resumes correctly, purely
+  because the browser URL now carries the real id. `CompetitionsApiService`
+  (`competitions-api.service.ts`) is a thin `ApiClient` wrapper (`create`/`update`/`getById`)
+  typed against `contracts/rest-api.md` §Competitions' exact wire shape
+  (`CompetitionPayload`/`CompetitionDetail`). Both step components follow the same shape: a
+  `ReactiveFormsModule` form, an `ApiError`-typed error signal split into per-field (`fieldError`)
+  and banner (`bannerError`) display, and an `input.required<string>()`/`input<T | null>()` +
+  `output<CompetitionDetail>()` contract so the parent wizard never reaches into child state
+  directly.
 - **`core/api/`** (T020): the typed HTTP client + ProblemDetails→UI error mapping.
   - `problem-details.model.ts`: `ProblemDetails`/`ValidationProblemDetails` interfaces plus
     `BIRRAPOINT_ERROR_URNS` — the 14 `urn:birrapoint:*` values from contracts/rest-api.md §Error
@@ -398,9 +453,9 @@ here — it remains a separate follow-up merge.
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 48 unit tests (was 46; +2 T023 `CurrentUserTests` `Name`/`GetJudgeRecordsAsync` coverage): smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (claims transformation, `CurrentUser`, DI-wiring smoke — now also covering `IJudgeResolver`'s DI registration, T023) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10); 25 integration tests (was 17; +8) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + **T021 `Auth/AuthPolicyTests`** (4: 401/403/404/200, via the test-only `/__test/` diagnostic endpoints) + **T023 `Auth/JudgeResolverTests`** (4: cross-competition backfill, idempotent replay, unmatched email, name-less call) |
-| Frontend unit | `cd frontend && npx jest` | green — 44 tests (was 28; +16): smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + **T024** `core/auth/role-landing.spec.ts` (4), `core/auth/home-redirect.guard.spec.ts` (3), `features/auth/organizer-dashboard.component.spec.ts` + `judge-tables.component.spec.ts` (1 each), plus `role.guard.spec.ts` updated for the new mismatch-redirects-to-own-landing behavior (6, was 4). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
-| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed** — new **T022 `us1-auth.spec.ts`** (3/3 green against a live Aspire stack: unauthenticated→Keycloak-with-PKCE redirect, organizer→`/organizer/dashboard`, judge forced through a real `UPDATE_PASSWORD` required-action with no deep-link bypass→`/judge/tables`; provisions/deletes its own judge user via `e2e/support/keycloak-admin.ts` against the realm's existing `birrapoint-api-admin` service account — `infra/keycloak/birrapoint-realm.json` itself is untouched, since Keycloak only imports it once at container start and a shared fixed judge credential there would go stale after one run) — but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` **now fail deterministically** against a live Keycloak stack (pre-existing, unrelated to T021–T024: `page.goto('/')` races `onLoad: 'login-required'`'s redirect to Keycloak's hosted login, so `app-root`/axe assertions never see the SPA render — confirmed via `git stash` that this reproduces identically on the pre-T024 baseline). See Recorded debt below. Chromium only |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 71 unit tests (was 48; +23 **T025** `Competitions/CompetitionValidatorsTests`: Create/Update validator required-field/date/entry-limit/registration-window cases, `CompetitionStateMachine.CanTransition` forward-only/skip-free/reverse/same-state matrix): smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (claims transformation, `CurrentUser`, DI-wiring smoke incl. `IJudgeResolver`, T023) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` unit coverage; 39 integration tests (was 25; +14 **T026** `Competitions/CompetitionsApiTests`: create 201/400, owner-scoped list/get incl. cross-owner 404, update 200/404/409-in-evaluation, full-lifecycle state transitions 200, skip/reverse/cross-owner state-change 409/404) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) |
+| Frontend unit | `cd frontend && npx jest` | green — 67 tests (was 44; +23 **T029** `features/competition-wizard/`: `competitions-api.service.spec.ts` (3), `competition-wizard.component.spec.ts` (5, incl. the create→resume id-swap and load-error paths), `steps/basics-step.component.spec.ts` (7), `steps/details-step.component.spec.ts` (8)): smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` additions (14). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
+| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3) and new **T030 `us2-wizard.spec.ts`** (1: Next disabled until all 4 required fields + the endDate-not-before-startDate rule are satisfied; create → URL becomes `/organizer/competitions/{id}` → Details "Save Draft" → **real `page.goto` reload** at that URL → both steps' data still populated, proving server-persisted Draft state survives a reload, not just in-memory component state) all green against a live Aspire stack — but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated to T025–T030: `login-required` races `page.goto('/')`). See Recorded debt below. Chromium only |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
 ## Data flows
@@ -410,21 +465,26 @@ audience `birrapoint-api`) → `GetStylesQuery` via MediatR → `GetStylesQueryH
 `AppDbContext.BjcpStyles` → `200` with the lightweight `[{ code, name, categoryNumber,
 categoryName }]` catalog projection. `CompetitionHub` (T015) is mapped at `/hubs/competition` and
 accepts authenticated group joins; `DispatchWorker` (T016) is running and would emit
-`DispatchProgress` on any job status change, but no story enqueues a `DispatchJob` yet, so in
-practice nothing flows over the hub until US2's `ChangeCompetitionState` (T028) becomes the first
-real emitter. The database holds the full domain schema (T008–T009); target contracts live in
+`DispatchProgress` on any job status change, but no story enqueues a `DispatchJob` yet. **T025–T028**
+(US2): the organizer's `/organizer/competitions/new` → `CompetitionWizardComponent` → `POST
+/competitions` (Draft by default) → `Location.replaceState` to `/organizer/competitions/{id}` →
+Details step `PUT /competitions/{id}` ("Save Draft") is the first real read/write round-trip a
+frontend feature slice makes against the backend (`ApiClient`, wired T020, first actually consumed
+here via `CompetitionsApiService`); `ChangeCompetitionState` (T028) is the first real
+`CompetitionHub` emitter, `CompetitionStateChanged` to the `competition:{id}:organizers` group —
+though nothing subscribes to it yet (the dashboard that would, US9, is Phase 11). The database
+holds the full domain schema (T008–T009); target contracts live in
 `specs/001-birrapoint-mvp/contracts/` (REST `/api/v1`, SignalR `CompetitionHub`, `.xlsx` import
 file). Frontend-side: any route load triggers Keycloak's `login-required` flow first (PKCE
 redirect to the realm's hosted login if no session). **T024**: once authenticated, `''` resolves
 via `homeRedirectGuard` and `/organizer`/`/judge` via `organizerGuard`/`judgeGuard`, all sharing
-`role-landing.ts`'s single role→URL mapping, landing on `/organizer/dashboard` or `/judge/tables`
-(both still placeholder content — real dashboard data starts at Phase 11/US9, real judge-tables
-data at Phase 8/US6); a judge with a Keycloak `UPDATE_PASSWORD` required action never reaches any
-of this routing at all, since Keycloak's hosted UI resolves it before the OIDC code exchange
-completes (no app code involved, FR-003). Every outgoing `HttpClient` request to `apiBaseUrl` gets
-the access token attached automatically (T019). T020's `ApiClient`/`CompetitionHubService`/`db.ts`
-still aren't consumed by any feature slice yet — that starts with Phase 4's Competitions work
-(separate branch, not merged here).
+`role-landing.ts`'s single role→URL mapping, landing on `/organizer/dashboard` (still placeholder
+— real dashboard data starts at Phase 11/US9) or `/judge/tables` (placeholder until Phase 8/US6);
+a judge with a Keycloak `UPDATE_PASSWORD` required action never reaches any of this routing at
+all, since Keycloak's hosted UI resolves it before the OIDC code exchange completes (no app code
+involved, FR-003). Every outgoing `HttpClient` request to `apiBaseUrl` gets the access token
+attached automatically (T019). T020's `CompetitionHubService`/`db.ts` still aren't consumed by any
+feature slice yet.
 
 ## Recorded debt / immediate next steps
 
