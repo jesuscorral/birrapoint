@@ -30,8 +30,25 @@ public sealed class ValidationExceptionHandlerTests
         var body = await ReadBodyAsync(context);
         Assert.Equal("urn:birrapoint:validation", body.GetProperty("type").GetString());
         var errors = body.GetProperty("errors");
-        Assert.Equal(2, errors.GetProperty("Name").GetArrayLength());
-        Assert.Equal(1, errors.GetProperty("EndDate").GetArrayLength());
+        // Keys are camelCase ("name", not "name") even though FluentValidation's PropertyName is
+        // PascalCase — every other JSON body in this API is camelCase, and System.Text.Json's
+        // naming policy never touches Dictionary<string,T> keys on its own (T025-T030 review).
+        Assert.Equal(2, errors.GetProperty("name").GetArrayLength());
+        Assert.Equal(1, errors.GetProperty("endDate").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task Lowercases_only_the_first_character_of_each_dot_separated_path_segment()
+    {
+        var context = new DefaultHttpContext { Response = { Body = new MemoryStream() } };
+        var exception = new ValidationException(
+            [new ValidationFailure("Owner.DisplayName", "DisplayName is required.")]);
+
+        await _handler.TryHandleAsync(context, exception, CancellationToken.None);
+
+        var body = await ReadBodyAsync(context);
+        var errors = body.GetProperty("errors");
+        Assert.Equal(1, errors.GetProperty("owner.displayName").GetArrayLength());
     }
 
     [Fact]
