@@ -33,13 +33,21 @@ describe('role guards', () => {
     expect(result).toBe(true);
   });
 
-  it('isOrganizerAllowed redirects a JUDGE-only caller to root', async () => {
+  it('isOrganizerAllowed redirects a JUDGE-only caller to their own landing', async () => {
     const result = await TestBed.runInInjectionContext(() =>
       isOrganizerAllowed(
         {} as ActivatedRouteSnapshot,
         {} as RouterStateSnapshot,
         authData(['JUDGE']),
       ),
+    );
+
+    expect(result).toEqual(router.parseUrl('/judge/tables'));
+  });
+
+  it('isOrganizerAllowed redirects a caller with neither role to root', async () => {
+    const result = await TestBed.runInInjectionContext(() =>
+      isOrganizerAllowed({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot, authData([])),
     );
 
     expect(result).toEqual(router.parseUrl('/'));
@@ -53,13 +61,21 @@ describe('role guards', () => {
     expect(result).toBe(true);
   });
 
-  it('isJudgeAllowed redirects an ORGANIZER-only caller to root', async () => {
+  it('isJudgeAllowed redirects an ORGANIZER-only caller to their own landing', async () => {
     const result = await TestBed.runInInjectionContext(() =>
       isJudgeAllowed(
         {} as ActivatedRouteSnapshot,
         {} as RouterStateSnapshot,
         authData(['ORGANIZER']),
       ),
+    );
+
+    expect(result).toEqual(router.parseUrl('/organizer/dashboard'));
+  });
+
+  it('isJudgeAllowed redirects a caller with neither role to root', async () => {
+    const result = await TestBed.runInInjectionContext(() =>
+      isJudgeAllowed({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot, authData([])),
     );
 
     expect(result).toEqual(router.parseUrl('/'));

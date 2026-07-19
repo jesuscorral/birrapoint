@@ -75,13 +75,13 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 ### Tests for User Story 1 (MANDATORY — write first, must fail) ⚠️
 
-- [ ] T021 [P] [US1] Contract tests: protected endpoint without token → 401; JUDGE token on ORGANIZER endpoint → 403; scoping returns 404 outside caller's data in `backend/tests/BirraPoint.Api.IntegrationTests/Auth/AuthPolicyTests.cs`
-- [ ] T022 [P] [US1] E2E: unauthenticated visit redirects to Keycloak; organizer lands on `/organizer/dashboard`; judge lands on `/judge/tables`; temp-credential judge is forced through password change with no deep-link bypass in `frontend/e2e/us1-auth.spec.ts`
+- [X] T021 [P] [US1] Contract tests: protected endpoint without token → 401; JUDGE token on ORGANIZER endpoint → 403; scoping returns 404 outside caller's data in `backend/tests/BirraPoint.Api.IntegrationTests/Auth/AuthPolicyTests.cs`
+- [X] T022 [P] [US1] E2E: unauthenticated visit redirects to Keycloak; organizer lands on `/organizer/dashboard`; judge lands on `/judge/tables`; temp-credential judge is forced through password change with no deep-link bypass in `frontend/e2e/us1-auth.spec.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T023 [US1] Judge identity resolution: match authenticated email→`Judge` rows, persist `KeycloakUserId`/`DisplayName` on first authenticated call, expose helper on `CurrentUser` in `backend/src/BirraPoint.Api/Common/Auth/JudgeResolver.cs`
-- [ ] T024 [US1] Frontend post-login routing by realm role + landing placeholders (organizer dashboard shell, judge tables shell) in `frontend/src/app/features/auth/`
+- [X] T023 [US1] Judge identity resolution: match authenticated email→`Judge` rows, persist `KeycloakUserId`/`DisplayName` on first authenticated call, expose helper on `CurrentUser` in `backend/src/BirraPoint.Api/Common/Auth/JudgeResolver.cs`
+- [X] T024 [US1] Frontend post-login routing by realm role + landing placeholders (organizer dashboard shell, judge tables shell) in `frontend/src/app/features/auth/`
 
 **Checkpoint**: Scenario 1 passes end to end
 

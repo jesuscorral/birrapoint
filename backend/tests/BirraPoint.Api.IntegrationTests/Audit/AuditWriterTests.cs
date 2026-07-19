@@ -2,6 +2,7 @@ using System.Text.Json;
 using BirraPoint.Api.Common.Audit;
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,7 +18,10 @@ public sealed class AuditWriterTests(PostgresFixture fixture) : IClassFixture<Po
     {
         public string Sub { get; } = sub;
         public string? Email => null;
+        public string? Name => null;
         public IReadOnlyList<string> Roles => [];
+        public Task<IReadOnlyList<Judge>> GetJudgeRecordsAsync(CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<Judge>>([]);
     }
 
     private AppDbContext NewContext() => new(fixture.Options);
