@@ -3,6 +3,7 @@ import { Routes } from '@angular/router';
 import { AuthPlaceholderComponent } from './core/auth/auth-placeholder.component';
 import { homeRedirectGuard } from './core/auth/home-redirect.guard';
 import { judgeGuard, organizerGuard } from './core/auth/role.guard';
+import { CompetitionWizardComponent } from './features/competition-wizard/competition-wizard.component';
 import { JudgeTablesComponent } from './features/auth/judge-tables.component';
 import { OrganizerDashboardComponent } from './features/auth/organizer-dashboard.component';
 
@@ -23,6 +24,8 @@ export const routes: Routes = [
     canActivate: [organizerGuard],
     children: [
       { path: 'dashboard', component: OrganizerDashboardComponent },
+      { path: 'competitions/new', component: CompetitionWizardComponent },
+      { path: 'competitions/:id', component: CompetitionWizardComponent },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
     ],
   },

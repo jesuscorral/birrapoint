@@ -7,6 +7,7 @@ using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Features.Catalog;
+using BirraPoint.Api.Features.Competitions;
 using BirraPoint.Api.Realtime;
 using Microsoft.EntityFrameworkCore;
 
@@ -98,6 +99,9 @@ app.MapHub<CompetitionHub>("/hubs/competition");
 
 // First REST slice (T017): GET /api/v1/styles.
 app.MapCatalogEndpoints();
+
+// Competitions wizard/lifecycle (T027/T028).
+app.MapCompetitionsEndpoints();
 
 // EF migrations apply on startup in Development only (T009); production migrates at deploy time.
 if (app.Environment.IsDevelopment())

@@ -95,15 +95,15 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 ### Tests for User Story 2 (MANDATORY — write first, must fail) ⚠️
 
-- [ ] T025 [P] [US2] Unit tests: CreateCompetition/UpdateCompetition validators (required fields, endDate ≥ startDate) and ChangeState gates (forward-only, skip-free, edits rejected in `InEvaluation`) in `backend/tests/BirraPoint.Api.UnitTests/Competitions/`
-- [ ] T026 [P] [US2] Contract tests: POST/GET/PUT `/competitions`, `POST /competitions/{id}/state` happy + `409 invalid-state-transition` cases in `backend/tests/BirraPoint.Api.IntegrationTests/Competitions/CompetitionsApiTests.cs`
+- [X] T025 [P] [US2] Unit tests: CreateCompetition/UpdateCompetition validators (required fields, endDate ≥ startDate) and ChangeState gates (forward-only, skip-free, edits rejected in `InEvaluation`) in `backend/tests/BirraPoint.Api.UnitTests/Competitions/`
+- [X] T026 [P] [US2] Contract tests: POST/GET/PUT `/competitions`, `POST /competitions/{id}/state` happy + `409 invalid-state-transition` cases in `backend/tests/BirraPoint.Api.IntegrationTests/Competitions/CompetitionsApiTests.cs`
 
 ### Implementation for User Story 2
 
-- [ ] T027 [US2] Slices CreateCompetition, UpdateCompetition, GetCompetition, ListCompetitions + endpoint mapping in `backend/src/BirraPoint.Api/Features/Competitions/`
-- [ ] T028 [US2] Slice ChangeCompetitionState with FR-006 state gates, audit entry, `CompetitionStateChanged` emit in `backend/src/BirraPoint.Api/Features/Competitions/ChangeState.cs`
-- [ ] T029 [US2] Frontend wizard: stepper with per-step required-field validation ("Next" disabled), Save Draft, resume-with-data in `frontend/src/app/features/competition-wizard/`
-- [ ] T030 [US2] E2E scenario 2 in `frontend/e2e/us2-wizard.spec.ts`
+- [X] T027 [US2] Slices CreateCompetition, UpdateCompetition, GetCompetition, ListCompetitions + endpoint mapping in `backend/src/BirraPoint.Api/Features/Competitions/`
+- [X] T028 [US2] Slice ChangeCompetitionState with FR-006 state gates, audit entry, `CompetitionStateChanged` emit in `backend/src/BirraPoint.Api/Features/Competitions/ChangeState.cs`
+- [X] T029 [US2] Frontend wizard: stepper with per-step required-field validation ("Next" disabled), Save Draft, resume-with-data in `frontend/src/app/features/competition-wizard/`
+- [X] T030 [US2] E2E scenario 2 in `frontend/e2e/us2-wizard.spec.ts`
 
 **Checkpoint**: Scenarios 1–2 pass independently
 
