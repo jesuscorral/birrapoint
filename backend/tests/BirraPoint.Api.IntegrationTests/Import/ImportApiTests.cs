@@ -469,6 +469,23 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         Assert.Equal(StyleCodeStout, entries[0].GetProperty("styleCode").GetString());
     }
 
+    [Fact]
+    public async Task Resolve_row_assign_style_on_an_Invalid_row_is_rejected_with_400()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+        // Missing ParticipantEmail -> Invalid, not StyleMismatch; a style code cannot fix that.
+        var (importId, _) = await UploadStandardWorkbookAsync(organizer, competitionId,
+            ("Casey Void", "", "Skunk Ale", StyleCodeApa, null));
+
+        var response = await ResolveRowAsync(organizer, competitionId, importId, rowNumber: 1,
+            body: new { action = "assign-style", styleCode = StyleCodeApa });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("urn:birrapoint:invalid-import-file", document.RootElement.GetProperty("type").GetString());
+    }
+
     // ---- Consolidate -----------------------------------------------------------------------
 
     [Fact]
@@ -531,6 +548,24 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
 
         var blindCodes = entries.Select(entry => entry.GetProperty("blindCode").GetString()).ToList();
         Assert.Equal(blindCodes.Distinct().Count(), blindCodes.Count);
+    }
+
+    [Fact]
+    public async Task Consolidate_a_second_time_on_the_same_batch_is_rejected_with_409_and_does_not_duplicate_entries()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+        var (importId, _) = await UploadStandardWorkbookAsync(organizer, competitionId,
+            ("Ana Gomez", "ana@brew.example", "Hop Cannon", StyleCodeApa, null));
+
+        var first = await ConsolidateAsync(organizer, competitionId, importId);
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+        var second = await ConsolidateAsync(organizer, competitionId, importId);
+
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        using var document = JsonDocument.Parse(await second.Content.ReadAsStringAsync());
+        Assert.Equal("urn:birrapoint:invalid-state-transition", document.RootElement.GetProperty("type").GetString());
     }
 
     [Fact]

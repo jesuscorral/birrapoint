@@ -29,10 +29,10 @@ Conventions: `404` for resources outside the caller's scope (never reveal existe
 
 | Method & Path | Role | Description |
 |---|---|---|
-| `POST /competitions/{id}/imports` | ORGANIZER | Multipart `.xlsx` upload (schema: [import-file.md](./import-file.md)). Competition must be `Draft`/`Active`. → `201` `{ importId, rows: [{ rowNumber, status: "Valid" \| "StyleMismatch" \| "Invalid", data, error? }] }`. Malformed/empty file → `400 invalid-import-file`. |
-| `GET /competitions/{id}/imports/{importId}` | ORGANIZER | Current row states. |
-| `PUT /competitions/{id}/imports/{importId}/rows/{rowNumber}` | ORGANIZER | Resolve a row: `{ action: "assign-style", styleCode }` or `{ action: "exclude" }`. `400` if styleCode not in catalog. |
-| `POST /competitions/{id}/imports/{importId}/consolidate` | ORGANIZER | `409 unresolved-import-rows` while any row is `StyleMismatch`/`Invalid` (FR-011). On success `200` `{ imported, excluded, entries: [{ id, blindCode, styleCode }] }` — blind codes generated here (FR-013). |
+| `POST /competitions/{id}/imports` | ORGANIZER | Multipart `.xlsx` upload (schema: [import-file.md](./import-file.md)). Competition must be `Draft`/`Active` (`409 invalid-state-transition` otherwise). → `201` `{ importId, rows: [{ rowNumber, status: "Valid" \| "StyleMismatch" \| "Invalid", data, error? }] }`. Malformed/empty file → `400 invalid-import-file`. A prior unconsolidated batch for the competition is discarded (single active batch). |
+| `GET /competitions/{id}/imports/{importId}` | ORGANIZER | Current row states — `status` may additionally be `Excluded` for rows resolved via `action: "exclude"` (see below). |
+| `PUT /competitions/{id}/imports/{importId}/rows/{rowNumber}` | ORGANIZER | Resolve a row: `{ action: "assign-style", styleCode }` (only valid for a `StyleMismatch` row — `400 invalid-import-file` on an `Invalid` row, since a style code can't fix a missing/malformed required cell) or `{ action: "exclude" }` (valid for either `StyleMismatch` or `Invalid`, sets `status: "Excluded"`). `400` if styleCode not in catalog. |
+| `POST /competitions/{id}/imports/{importId}/consolidate` | ORGANIZER | `409 unresolved-import-rows` while any row is `StyleMismatch`/`Invalid` (FR-011). `409 invalid-state-transition` if the batch was already consolidated (no re-consolidation). On success `200` `{ imported, excluded, entries: [{ id, blindCode, styleCode }] }` — blind codes generated here (FR-013); `excluded` counts `Excluded` rows. |
 
 ## Judges
 

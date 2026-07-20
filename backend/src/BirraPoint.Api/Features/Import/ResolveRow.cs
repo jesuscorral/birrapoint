@@ -1,4 +1,5 @@
 using BirraPoint.Api.Common.Auth;
+using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using FluentValidation;
 using MediatR;
@@ -62,6 +63,17 @@ public sealed class ResolveRowCommandHandler(AppDbContext dbContext, ICurrentUse
 
         if (request.Action == "assign-style")
         {
+            if (row.Status != ImportRowStatus.StyleMismatch)
+            {
+                // Invalid rows carry missing/malformed required cells that a style code can't
+                // fix (import-file.md §Row validation outcomes: "fix in source file and
+                // re-upload, or exclude") — flipping them to Valid would consolidate a row with
+                // a null/malformed ParticipantEmail/Name/BeerName.
+                throw new DomainException(
+                    DomainErrorType.InvalidImportFile,
+                    "assign-style only resolves StyleMismatch rows; correct Invalid rows at the source or exclude them.");
+            }
+
             row.ResolvedStyleCode = request.StyleCode;
             row.Status = ImportRowStatus.Valid;
             row.ErrorMessage = null;

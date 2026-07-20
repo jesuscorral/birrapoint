@@ -84,11 +84,13 @@ const UNRESOLVED_STATUSES = new Set(['StyleMismatch', 'Invalid']);
                   }
                 </td>
                 <td>
-                  @if (isUnresolved(row.status)) {
+                  @if (row.status === 'StyleMismatch') {
                     <app-style-picker
                       [styles]="styles()"
                       (assign)="onAssignStyle(row.rowNumber, $event)"
                     />
+                    <button type="button" (click)="onExclude(row.rowNumber)">Exclude</button>
+                  } @else if (row.status === 'Invalid') {
                     <button type="button" (click)="onExclude(row.rowNumber)">Exclude</button>
                   }
                 </td>
@@ -144,10 +146,6 @@ export class EntryImportComponent {
   protected readonly unresolvedCount = computed(
     () => this.importBatch()?.rows.filter((row) => UNRESOLVED_STATUSES.has(row.status)).length ?? 0,
   );
-
-  protected isUnresolved(status: string): boolean {
-    return UNRESOLVED_STATUSES.has(status);
-  }
 
   protected onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;

@@ -153,6 +153,23 @@ describe('EntryImportComponent', () => {
     expect(text).toContain('Invalid');
   });
 
+  it('offers the style picker only for StyleMismatch rows — Invalid rows only get Exclude', () => {
+    fakeApi.upload.mockReturnValue(of(batchFixture()));
+    const fixture = createComponent();
+
+    selectFile(fixture, new File(['data'], 'entries.xlsx'));
+    fixture.detectChanges();
+    fixture.componentInstance['onUpload']();
+    fixture.detectChanges();
+
+    const rows = fixture.nativeElement.querySelectorAll('tr[data-row-number]');
+    // Row 2 is StyleMismatch: picker + Exclude. Row 3 is Invalid: Exclude only, no picker —
+    // a style code can't repair a row broken for an unrelated reason (missing email/name).
+    expect(rows[1].querySelector('app-style-picker')).not.toBeNull();
+    expect(rows[2].querySelector('app-style-picker')).toBeNull();
+    expect(rows[2].textContent).toContain('Exclude');
+  });
+
   it('surfaces the server error message when upload fails instead of silently failing', () => {
     fakeApi.upload.mockReturnValue(
       throwError(

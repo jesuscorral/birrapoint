@@ -211,12 +211,18 @@ route restructure) plus the one genuinely new piece, T030.
   FluentValidation-produced) and `exclude`; both set the row to a fourth `ImportRowStatus.Excluded`
   value beyond the contract's three parse-time statuses, needed so an excluded row is
   distinguishable from `Invalid`/`StyleMismatch` for the unresolved-row gate and countable
-  separately on consolidation. `assign-style` unconditionally moves a row to `Valid` once a valid
-  catalog code is supplied, regardless of whether the row was `StyleMismatch` or `Invalid` for an
-  unrelated reason (e.g. a bad email) — the contract only really describes the action as the
-  `StyleMismatch` resolution path; see Recorded debt below. `ConsolidateImport` blocks with
+  separately on consolidation. **`assign-style` is restricted to `StyleMismatch` rows** (`400
+  invalid-import-file` otherwise) — an `Invalid` row is broken for a reason a style code can't fix
+  (missing/malformed required cell), and the original implementation let it through anyway; caught
+  by senior-code-reviewer's PR pass (would have produced an unhandled `500`/NOT-NULL violation at
+  consolidation for a null `ParticipantEmail`/`Name`/`BeerName`), fixed before merge, now covered
+  by both an integration test and a frontend test asserting the style picker only renders for
+  `StyleMismatch` rows. `ConsolidateImport` blocks with
   `409 unresolved-import-rows` (row numbers in the ProblemDetails extensions) while any row is
-  still `StyleMismatch`/`Invalid`; on success it dedupes `Participant`s by email within the
+  still `StyleMismatch`/`Invalid`, and **rejects a batch that's already `Consolidated`** with
+  `409 invalid-state-transition` (same review pass — re-POSTing `/consolidate` on a finished batch
+  previously re-ran the whole creation loop with no idempotency guard, producing duplicate
+  `BeerEntry` rows); on success it dedupes `Participant`s by email within the
   competition (loaded into an in-memory dictionary up front, since a per-row query wouldn't see
   participants created earlier in the same loop before `SaveChanges`), creates `BeerEntry`/
   `EntryCollaborator` rows, and generates a unique-per-competition `BlindCode` via
@@ -509,8 +515,8 @@ route restructure) plus the one genuinely new piece, T030.
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 93 unit tests (was 71; +22 **T031** `Import/`: `WorkbookParserTests` (19, header matching/row statuses/duplicate-pair/collaborators split/style match by code+name) + `BlindCodeGeneratorTests` (2), plus T033's entity/config coverage folded in) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (claims transformation, `CurrentUser`, DI-wiring smoke incl. `IJudgeResolver`, T023) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23); 63 integration tests (was 39; +24 **T032** `Import/ImportApiTests`: upload 201/400/401/403/404/409, row-status assignment incl. `99Z` `StyleMismatch` and duplicate-pair `Invalid`, single-active-batch-per-competition discard, GET, resolve-row assign-style/exclude incl. `400` unknown style code, consolidate 409-unresolved/200-success with unique blind codes) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) |
-| Frontend unit | `cd frontend && npx jest` | green — 85 tests (was 67; +18 **T036** `features/entry-import/`: `entry-import-api.service.spec.ts`, `style-picker.component.spec.ts`, `entry-import.component.spec.ts` incl. a real-`submit`-event regression test added after T037's E2E caught the missing-`FormsModule` bug) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (14) + T029 `features/competition-wizard/` (23). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 93 unit tests (was 71; +22 **T031** `Import/`: `WorkbookParserTests` (19, header matching/row statuses/duplicate-pair/collaborators split/style match by code+name) + `BlindCodeGeneratorTests` (2), plus T033's entity/config coverage folded in) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (claims transformation, `CurrentUser`, DI-wiring smoke incl. `IJudgeResolver`, T023) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23); 65 integration tests (was 39; +26 **T032** `Import/ImportApiTests`: upload 201/400/401/403/404/409, row-status assignment incl. `99Z` `StyleMismatch` and duplicate-pair `Invalid`, single-active-batch-per-competition discard, GET, resolve-row assign-style/exclude incl. `400` unknown style code, consolidate 409-unresolved/200-success with unique blind codes, plus 2 review-driven regression tests: `assign-style` on an `Invalid` row → `400`, re-`consolidate`-ing an already-`Consolidated` batch → `409` with no duplicate entries) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) |
+| Frontend unit | `cd frontend && npx jest` | green — 86 tests (was 67; +19 **T036** `features/entry-import/`: `entry-import-api.service.spec.ts`, `style-picker.component.spec.ts`, `entry-import.component.spec.ts` incl. a real-`submit`-event regression test added after T037's E2E caught the missing-`FormsModule` bug, plus one more asserting the style picker only renders for `StyleMismatch` rows, added with the `assign-style` review fix) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (14) + T029 `features/competition-wizard/` (23). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
 | E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), and new **T037 `us3-import.spec.ts`** (1: upload a 4-row fixture incl. the contract's `99Z` mismatch row and an `Invalid` row → row-status assertions → Consolidate disabled while unresolved → resolve `StyleMismatch` via the style picker and `Invalid` via Exclude → Consolidate enabled → `Imported: 3, Excluded: 1` summary with unique blind codes) all green against a live Aspire stack — but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated to Phase 4/5: `login-required` races `page.goto('/')`). See Recorded debt below. Chromium only |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
@@ -552,14 +558,6 @@ feature slice yet.
 
 ## Recorded debt / immediate next steps
 
-- **New**: `ResolveRow`'s `assign-style` action (T035, `Features/Import/ResolveRow.cs`) moves a
-  row to `Valid` on any catalog-valid style code, regardless of whether the row was originally
-  `StyleMismatch` or `Invalid` for an unrelated reason (e.g. a missing/malformed email). The
-  contract only really specifies `assign-style` as the `StyleMismatch` resolution path; nothing in
-  `contracts/rest-api.md`/`import-file.md` restricts the action by prior status, and it isn't
-  exercised by `ImportApiTests`/`us3-import.spec.ts` either way. Low risk (an organizer can only
-  reach this by deliberately assigning a style to a row broken for another reason) but worth a
-  spec clarification if it ever surfaces in practice.
 - **New**: `frontend/e2e/smoke.spec.ts` and `frontend/e2e/a11y/home.a11y.spec.ts` fail
   deterministically against a live Keycloak stack with `login-required` active — discovered while
   verifying T024, confirmed pre-existing (reproduces identically on the pre-T024 baseline via

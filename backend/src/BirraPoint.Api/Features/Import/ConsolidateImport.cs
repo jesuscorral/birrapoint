@@ -37,6 +37,13 @@ public sealed class ConsolidateImportCommandHandler(AppDbContext dbContext, ICur
             return null;
         }
 
+        if (batch.Status != ImportBatchStatus.Pending)
+        {
+            throw new DomainException(
+                DomainErrorType.InvalidStateTransition,
+                "This import has already been consolidated.");
+        }
+
         var unresolvedRowNumbers = batch.Rows
             .Where(row => row.Status is ImportRowStatus.StyleMismatch or ImportRowStatus.Invalid)
             .Select(row => row.RowNumber)
