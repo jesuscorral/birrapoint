@@ -34,13 +34,19 @@ Conventions: `404` for resources outside the caller's scope (never reveal existe
 | `PUT /competitions/{id}/imports/{importId}/rows/{rowNumber}` | ORGANIZER | Resolve a row: `{ action: "assign-style", styleCode }` (only valid for a `StyleMismatch` row — `400 invalid-import-file` on an `Invalid` row, since a style code can't fix a missing/malformed required cell) or `{ action: "exclude" }` (valid for either `StyleMismatch` or `Invalid`, sets `status: "Excluded"`). `400` if styleCode not in catalog. |
 | `POST /competitions/{id}/imports/{importId}/consolidate` | ORGANIZER | `409 unresolved-import-rows` while any row is `StyleMismatch`/`Invalid` (FR-011). `409 invalid-state-transition` if the batch was already consolidated (no re-consolidation). On success `200` `{ imported, excluded, entries: [{ id, blindCode, styleCode }] }` — blind codes generated here (FR-013); `excluded` counts `Excluded` rows. |
 
+## Entries (organizer)
+
+| Method & Path | Role | Description |
+|---|---|---|
+| `GET /competitions/{id}/entries` | ORGANIZER | Every entry in the competition with its current table assignment — feeds the table-setup UI's "Unassigned" column (T048). `200` → `[{ id, blindCode, styleCode, styleName, abvLow, abvHigh, beerName, notValidForBos, tastingTableId, tastingTableName }]`; `tastingTableId`/`tastingTableName` are `null` until the entry is assigned via `POST`/`PUT .../tables`. Organizer-only, so unlike judge-facing DTOs this includes `beerName` (no BR-01 concern). |
+
 ## Judges
 
 | Method & Path | Role | Description |
 |---|---|---|
 | `POST /competitions/{id}/judges` | ORGANIZER | Body: `{ emails: [string] }`. Creates missing profiles, queues invitations (Keycloak provisioning happens per-delivery-attempt inside the async `SendInvitation` job, not synchronously in this request). → `201` `{ created: [{ id, email }], skipped: [{ email, reason: "duplicate-in-list" \| "already-registered" }] }` (FR-014/FR-015). |
 | `GET /competitions/{id}/judges` | ORGANIZER | `[{ id, email, displayName, invitationStatus, attempts, lastError, sentAt }]`. |
-| `PUT /competitions/{id}/judges/{judgeId}` | ORGANIZER | Correct a judge's email before first login (edge case: bounced invitation). Body: `{ email }`. Re-validates uniqueness (FR-015), updates the Keycloak account. `409 judge-already-active` once the judge has authenticated. **COI matching / BOS re-flagging against the new address (FR-017/FR-018) is not yet implemented** — deferred to Phase 7 once `Features/Tables` exists to test it against (see `Docs/arquitectura_viva.md` Recorded debt); until then a judge can only be assigned to a table *after* Phase 7 ships, by which point this endpoint's pre-first-login window will typically already be closed in practice, but this is not yet enforced. |
+| `PUT /competitions/{id}/judges/{judgeId}` | ORGANIZER | Correct a judge's email before first login (edge case: bounced invitation). Body: `{ email }`. Re-validates uniqueness (FR-015), updates the Keycloak account. `409 judge-already-active` once the judge has authenticated. **COI matching / BOS re-flagging against the new address (FR-017/FR-018) is still not implemented here** — `Features/Tables` now exists (Phase 7), so the blocking dependency is resolved, but wiring this endpoint to `CoiDetector`/`BosFlagRules` was never in either phase's task scope; tracked as an explicit follow-up (see `Docs/arquitectura_viva.md` Recorded debt). |
 | `POST /competitions/{id}/judges/{judgeId}/invitation` | ORGANIZER | Re-send invitation (edge case: bounced email after correction). |
 
 ## Tables (organizer)
