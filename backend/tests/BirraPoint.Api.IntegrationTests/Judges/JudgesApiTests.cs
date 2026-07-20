@@ -327,6 +327,25 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Update_judge_email_for_a_competition_owned_by_a_different_organizer_returns_404_even_when_the_email_is_taken_there()
+    {
+        // senior-code-reviewer PR #18 finding: an unscoped uniqueness check would let a caller who
+        // doesn't own this competition distinguish 400 (email taken) from 404 (wrong owner) —
+        // a scope-existence leak. A non-owner colliding with an email that genuinely IS taken in
+        // that competition must still get a plain 404, identical to any other wrong-owner call.
+        using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(owner);
+        var takenEmail = $"taken-{Guid.NewGuid():N}@brew.example";
+        await SeedJudgeAsync(competitionId, takenEmail);
+        var judgeId = await SeedJudgeAsync(competitionId, $"bounced-{Guid.NewGuid():N}@brew.example", keycloakUserId: null);
+
+        using var other = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var response = await UpdateJudgeEmailAsync(other, competitionId, judgeId, takenEmail);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     // ---- POST /judges/{judgeId}/invitation: resend --------------------------------------------
 
     [Fact]

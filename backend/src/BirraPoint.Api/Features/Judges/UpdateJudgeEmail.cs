@@ -13,25 +13,42 @@ public sealed record UpdateJudgeEmailCommand(Guid CompetitionId, Guid JudgeId, s
 
 public sealed class UpdateJudgeEmailCommandValidator : AbstractValidator<UpdateJudgeEmailCommand>
 {
-    public UpdateJudgeEmailCommandValidator(AppDbContext dbContext)
+    public UpdateJudgeEmailCommandValidator(AppDbContext dbContext, ICurrentUser currentUser)
     {
         RuleFor(c => c.Email)
             .NotEmpty()
             .EmailAddress()
             .DependentRules(() =>
                 RuleFor(c => c)
-                    .MustAsync((command, cancellationToken) => IsUniqueWithinCompetitionAsync(dbContext, command, cancellationToken))
+                    .MustAsync((command, cancellationToken) => IsUniqueWithinOwnedCompetitionAsync(dbContext, currentUser, command, cancellationToken))
                     .WithName(nameof(UpdateJudgeEmailCommand.Email))
                     .WithMessage("This email is already registered to another judge in this competition."));
     }
 
-    private static Task<bool> IsUniqueWithinCompetitionAsync(
-        AppDbContext dbContext, UpdateJudgeEmailCommand command, CancellationToken cancellationToken) =>
-        dbContext.Judges.AllAsync(
+    // Scoped to a competition the caller owns — an unscoped query would let a non-owner learn
+    // whether an email is registered in a competition they don't own before the handler's own
+    // ownership check ever runs, violating "404 for resources outside the caller's scope, never
+    // reveal existence" (rest-api.md convention, senior-code-reviewer PR #18 finding). If the
+    // caller doesn't own this competition, this passes trivially — the handler's separate
+    // ownership check still returns 404 for the request as a whole. (`Judge` has no `Competition`
+    // navigation property, so ownership is checked as its own query rather than a join.)
+    private static async Task<bool> IsUniqueWithinOwnedCompetitionAsync(
+        AppDbContext dbContext, ICurrentUser currentUser, UpdateJudgeEmailCommand command, CancellationToken cancellationToken)
+    {
+        var isOwnCompetition = await dbContext.Competitions.AnyAsync(
+            c => c.Id == command.CompetitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
+
+        if (!isOwnCompetition)
+        {
+            return true;
+        }
+
+        return await dbContext.Judges.AllAsync(
             j => j.Id == command.JudgeId
                 || j.CompetitionId != command.CompetitionId
                 || j.Email.ToLower() != command.Email.ToLower(),
             cancellationToken);
+    }
 }
 
 public sealed class UpdateJudgeEmailCommandHandler(

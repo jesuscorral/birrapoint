@@ -1,4 +1,6 @@
+using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Domain;
 using BirraPoint.Api.Features.Judges;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,13 +21,24 @@ public sealed class UpdateJudgeEmailCommandValidatorTests
     private static AppDbContext CreateUnusedDbContext() => new(
         new DbContextOptionsBuilder<AppDbContext>().UseNpgsql("Host=unused;Database=unused").Options);
 
+    // Never called either, for the same reason — only the constructor shape needs satisfying.
+    private sealed class UnusedCurrentUser : ICurrentUser
+    {
+        public string Sub => throw new InvalidOperationException("Not expected to be called.");
+        public string? Email => throw new InvalidOperationException("Not expected to be called.");
+        public string? Name => throw new InvalidOperationException("Not expected to be called.");
+        public IReadOnlyList<string> Roles => throw new InvalidOperationException("Not expected to be called.");
+        public Task<IReadOnlyList<Judge>> GetJudgeRecordsAsync(CancellationToken ct = default) =>
+            throw new InvalidOperationException("Not expected to be called.");
+    }
+
     [Theory]
     [InlineData("not-an-email")]
     [InlineData("")]
     public void Command_with_malformed_email_is_invalid(string email)
     {
         using var dbContext = CreateUnusedDbContext();
-        var validator = new UpdateJudgeEmailCommandValidator(dbContext);
+        var validator = new UpdateJudgeEmailCommandValidator(dbContext, new UnusedCurrentUser());
 
         var result = validator.Validate(new UpdateJudgeEmailCommand(Guid.NewGuid(), Guid.NewGuid(), email));
 
