@@ -117,16 +117,16 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 ### Tests for User Story 3 (MANDATORY — write first, must fail) ⚠️
 
-- [ ] T031 [P] [US3] Unit tests: workbook parsing per contracts/import-file.md (header matching, row statuses, duplicate pair, collaborators split), style matching by code/exact name, blind-code generation uniqueness in `backend/tests/BirraPoint.Api.UnitTests/Import/`
-- [ ] T032 [P] [US3] Contract tests: upload → row results; resolve row (assign-style/exclude); consolidate blocked with `409 unresolved-import-rows`; success returns blind codes; `400 invalid-import-file` for malformed uploads in `backend/tests/BirraPoint.Api.IntegrationTests/Import/ImportApiTests.cs`
+- [X] T031 [P] [US3] Unit tests: workbook parsing per contracts/import-file.md (header matching, row statuses, duplicate pair, collaborators split), style matching by code/exact name, blind-code generation uniqueness in `backend/tests/BirraPoint.Api.UnitTests/Import/`
+- [X] T032 [P] [US3] Contract tests: upload → row results; resolve row (assign-style/exclude); consolidate blocked with `409 unresolved-import-rows`; success returns blind codes; `400 invalid-import-file` for malformed uploads in `backend/tests/BirraPoint.Api.IntegrationTests/Import/ImportApiTests.cs`
 
 ### Implementation for User Story 3
 
-- [ ] T033 [US3] Slice-owned staging entities `ImportBatch`/`ImportRow` + EF migration (single active batch per competition) in `backend/src/BirraPoint.Api/Features/Import/ImportBatch.cs`; document them in `specs/001-birrapoint-mvp/data-model.md` (Principle X)
-- [ ] T034 [US3] ClosedXML workbook parser implementing contracts/import-file.md in `backend/src/BirraPoint.Api/Features/Import/WorkbookParser.cs`
-- [ ] T035 [US3] Slices UploadImport, GetImport, ResolveRow, ConsolidateImport (creates Participants/BeerEntries/Collaborators + blind codes, FR-013) + endpoints in `backend/src/BirraPoint.Api/Features/Import/`
-- [ ] T036 [US3] Frontend import feature: upload, per-row results, Mapping & Correction screen with searchable catalog picker + exclude, consolidate summary in `frontend/src/app/features/entry-import/`
-- [ ] T037 [US3] E2E scenario 3 + fixture `frontend/e2e/fixtures/entries-with-errors.xlsx` (mirrors the contract example incl. `99Z` row) in `frontend/e2e/us3-import.spec.ts`
+- [X] T033 [US3] Slice-owned staging entities `ImportBatch`/`ImportRow` + EF migration (single active batch per competition) in `backend/src/BirraPoint.Api/Features/Import/ImportBatch.cs`; document them in `specs/001-birrapoint-mvp/data-model.md` (Principle X)
+- [X] T034 [US3] ClosedXML workbook parser implementing contracts/import-file.md in `backend/src/BirraPoint.Api/Features/Import/WorkbookParser.cs`
+- [X] T035 [US3] Slices UploadImport, GetImport, ResolveRow, ConsolidateImport (creates Participants/BeerEntries/Collaborators + blind codes, FR-013) + endpoints in `backend/src/BirraPoint.Api/Features/Import/`
+- [X] T036 [US3] Frontend import feature: upload, per-row results, Mapping & Correction screen with searchable catalog picker + exclude, consolidate summary in `frontend/src/app/features/entry-import/`
+- [X] T037 [US3] E2E scenario 3 + fixture `frontend/e2e/fixtures/entries-with-errors.xlsx` (mirrors the contract example incl. `99Z` row) in `frontend/e2e/us3-import.spec.ts`
 
 **Checkpoint**: Import flow complete with correction loop
 

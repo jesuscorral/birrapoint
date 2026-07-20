@@ -20,8 +20,9 @@ Header names are matched case-insensitively, trimmed; column order is not signif
 | Status | Condition | Resolution path |
 |--------|-----------|-----------------|
 | `Valid` | all required cells present and well-formed; style matches catalog | imported on consolidation |
-| `StyleMismatch` | row well-formed but style doesn't exactly match code or name (FR-010) | Mapping & Correction screen: assign catalog style or exclude (FR-011) |
-| `Invalid` | missing required cell, bad email, over-length value (row error message included) | fix in source file and re-upload, or exclude |
+| `StyleMismatch` | row well-formed but style doesn't exactly match code or name (FR-010) | Mapping & Correction screen: assign catalog style (moves the row to `Valid`) or exclude (FR-011) |
+| `Invalid` | missing required cell, bad email, over-length value (row error message included) | fix in source file and re-upload, or exclude — **not** assign-style: a style code cannot repair a malformed/missing required cell, so `assign-style` on an `Invalid` row is rejected (`400 invalid-import-file`) |
+| `Excluded` | organizer resolved a `StyleMismatch`/`Invalid` row via `action: "exclude"` | terminal for this row; counted in `consolidate`'s `excluded` total, never imported |
 
 File-level rejections (`400 invalid-import-file`): not an `.xlsx`, no worksheet, missing required
 header columns, zero data rows.

@@ -4,6 +4,7 @@ import { AuthPlaceholderComponent } from './core/auth/auth-placeholder.component
 import { homeRedirectGuard } from './core/auth/home-redirect.guard';
 import { judgeGuard, organizerGuard } from './core/auth/role.guard';
 import { CompetitionWizardComponent } from './features/competition-wizard/competition-wizard.component';
+import { EntryImportComponent } from './features/entry-import/entry-import.component';
 import { JudgeTablesComponent } from './features/auth/judge-tables.component';
 import { OrganizerDashboardComponent } from './features/auth/organizer-dashboard.component';
 
@@ -26,6 +27,7 @@ export const routes: Routes = [
       { path: 'dashboard', component: OrganizerDashboardComponent },
       { path: 'competitions/new', component: CompetitionWizardComponent },
       { path: 'competitions/:id', component: CompetitionWizardComponent },
+      { path: 'competitions/:id/import', component: EntryImportComponent },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
     ],
   },

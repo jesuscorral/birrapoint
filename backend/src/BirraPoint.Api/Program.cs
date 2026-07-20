@@ -8,6 +8,7 @@ using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Features.Catalog;
 using BirraPoint.Api.Features.Competitions;
+using BirraPoint.Api.Features.Import;
 using BirraPoint.Api.Realtime;
 using Microsoft.EntityFrameworkCore;
 
@@ -87,11 +88,13 @@ app.MapDefaultEndpoints();
 
 // OpenAPI document (T017), gated to Development like the health endpoints above, plus the
 // Swagger UI on top of it at /swagger (Swashbuckle UI middleware only — document generation
-// stays with the built-in Microsoft.AspNetCore.OpenApi).
+// stays with the built-in Microsoft.AspNetCore.OpenApi). AllowAnonymous: the fallback policy
+// (AuthenticationExtensions.cs) requires an authenticated user on every mapped endpoint by
+// default, which would otherwise 401 the doc fetch and break the Swagger UI page.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
-    app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "BirraPoint API v1"));
+    app.MapOpenApi().AllowAnonymous();
+    app.MapSwaggerUI("swagger", options => options.SwaggerEndpoint("/openapi/v1.json", "BirraPoint API v1")).AllowAnonymous();
 }
 
 // CompetitionHub: server → client notifications only (T015).
@@ -102,6 +105,9 @@ app.MapCatalogEndpoints();
 
 // Competitions wizard/lifecycle (T027/T028).
 app.MapCompetitionsEndpoints();
+
+// Entry import: upload, mapping/correction, consolidation (T031/T033-T035).
+app.MapImportEndpoints();
 
 // EF migrations apply on startup in Development only (T009); production migrates at deploy time.
 if (app.Environment.IsDevelopment())
