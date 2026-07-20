@@ -469,6 +469,48 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         Assert.False(await GetNotValidForBosAsync(elsewhereEntryId));
     }
 
+    [Fact]
+    public async Task Update_removing_one_co_owner_does_not_lift_the_bos_flag_while_another_co_owner_stays_active()
+    {
+        // senior-code-reviewer PR #19 finding: the unflag check originally looked only at the
+        // judge leaving THIS table, ignoring a co-owner (collaborator) still seated at a
+        // different table. A shared entry must stay flagged as long as ANY owner/collaborator
+        // judge remains actively assigned anywhere in the competition.
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+
+        var ownerEmail = $"owner-{Guid.NewGuid():N}@brew.example";
+        var collaboratorEmail = $"collaborator-{Guid.NewGuid():N}@brew.example";
+        var ownerParticipantId = await SeedParticipantAsync(competitionId, "Shared Brewer", ownerEmail);
+        var sharedEntryId = await SeedBeerEntryAsync(
+            competitionId, ownerParticipantId, "Shared Brew", collaboratorEmails: [collaboratorEmail]);
+
+        var otherParticipantId = await SeedParticipantAsync(competitionId, "Other Brewer", $"other-{Guid.NewGuid():N}@brew.example");
+        var table1EntryId = await SeedBeerEntryAsync(competitionId, otherParticipantId, "Table 1 Brew");
+        var table2EntryId = await SeedBeerEntryAsync(competitionId, otherParticipantId, "Table 2 Brew");
+
+        var ownerJudgeId = await SeedJudgeAsync(competitionId, ownerEmail);
+        var collaboratorJudgeId = await SeedJudgeAsync(competitionId, collaboratorEmail);
+        var bystanderJudgeId = await SeedJudgeAsync(competitionId, $"bystander-{Guid.NewGuid():N}@brew.example");
+
+        var table1Name = $"Table1 {Guid.NewGuid():N}";
+        var table1Response = await CreateTableAsync(
+            organizer, competitionId, table1Name, [ownerJudgeId, bystanderJudgeId], [table1EntryId]);
+        var table1Id = (await table1Response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var table2Name = $"Table2 {Guid.NewGuid():N}";
+        await CreateTableAsync(organizer, competitionId, table2Name, [collaboratorJudgeId], [table2EntryId]);
+
+        Assert.True(await GetNotValidForBosAsync(sharedEntryId));
+
+        // Remove the owner-judge from Table 1 — the collaborator-judge is still seated at
+        // Table 2, so the shared entry must stay flagged.
+        var response = await UpdateTableAsync(organizer, competitionId, table1Id, table1Name, [bystanderJudgeId], [table1EntryId]);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(await GetNotValidForBosAsync(sharedEntryId));
+    }
+
     // ---- GET /tables ----------------------------------------------------------------------------
 
     [Fact]

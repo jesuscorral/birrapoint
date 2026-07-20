@@ -1,3 +1,4 @@
+import { CdkTrapFocus } from '@angular/cdk/a11y';
 import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 import type { WritableSignal } from '@angular/core';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
@@ -73,7 +74,13 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
 @Component({
   selector: 'app-table-management',
   standalone: true,
-  imports: [FormsModule, MesaCardComponent, UnassignedColumnComponent, TableDetailModalComponent],
+  imports: [
+    FormsModule,
+    CdkTrapFocus,
+    MesaCardComponent,
+    UnassignedColumnComponent,
+    TableDetailModalComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <h1>Table management</h1>
@@ -142,6 +149,8 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
           aria-modal="true"
           aria-label="Conflict of interest"
           class="modal-panel"
+          cdkTrapFocus
+          cdkTrapFocusAutoCapture
           (click)="$event.stopPropagation()"
           (keydown.escape)="dismissConflictDialog()"
         >

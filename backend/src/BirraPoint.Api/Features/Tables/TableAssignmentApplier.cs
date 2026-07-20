@@ -109,20 +109,14 @@ internal static class TableAssignmentApplier
 
         var flaggedEntryIds = BosFlagRules.EntriesOwnedByJudges(judgesToAdd, ownedEntriesByJudgeId);
 
+        // Candidate entries: owned by a judge who just left this table. An entry can be
+        // co-owned (participant + collaborators), so a candidate is only actually eligible to
+        // unflag once EVERY owner/collaborator judge is clear — not just the one judge who left
+        // this particular table (senior-code-reviewer PR #19 finding: the original per-leaving-
+        // judge check ignored a co-owner still seated at a *different* table).
         var unflagCandidateEntryIds = new HashSet<Guid>();
         foreach (var row in judgeRowsToRemove)
         {
-            var remainingAssignments = await dbContext.TableJudges.CountAsync(
-                tj => tj.JudgeId == row.JudgeId && tj.TastingTableId != table.Id && tj.RemovedAt == null,
-                cancellationToken);
-            var hasSubmittedEvaluation = await dbContext.Evaluations.AnyAsync(
-                e => e.JudgeId == row.JudgeId, cancellationToken);
-
-            if (!BosFlagRules.IsEligibleForUnflag(remainingAssignments, hasSubmittedEvaluation))
-            {
-                continue;
-            }
-
             if (ownedEntriesByJudgeId.TryGetValue(row.JudgeId, out var owned))
             {
                 unflagCandidateEntryIds.UnionWith(owned);
@@ -132,6 +126,58 @@ internal static class TableAssignmentApplier
         // An entry co-owned by both a judge leaving this table and a judge just added to it (or
         // still active) must stay flagged — never let the leaving judge's unflag win.
         unflagCandidateEntryIds.ExceptWith(flaggedEntryIds);
+
+        if (unflagCandidateEntryIds.Count > 0)
+        {
+            var entryOwnerEmailsById = InvertOwnedEntriesByEmail(ownedEntriesByEmail);
+            var stillEligible = new HashSet<Guid>();
+
+            foreach (var entryId in unflagCandidateEntryIds)
+            {
+                var ownerEmails = entryOwnerEmailsById.TryGetValue(entryId, out var emails)
+                    ? emails
+                    : (IReadOnlySet<string>)new HashSet<string>();
+
+                var coOwnerJudgeIds = await dbContext.Judges
+                    .Where(j => j.CompetitionId == table.CompetitionId && ownerEmails.Contains(j.Email))
+                    .Select(j => j.Id)
+                    .ToListAsync(cancellationToken);
+
+                var anyCoOwnerStillKeepsFlagAlive = false;
+                foreach (var coOwnerJudgeId in coOwnerJudgeIds)
+                {
+                    // Staying on (or newly added to) THIS table — the mutated table's own
+                    // judgeIdSet reflects the desired end state, ahead of SaveChangesAsync.
+                    if (judgeIdSet.Contains(coOwnerJudgeId))
+                    {
+                        anyCoOwnerStillKeepsFlagAlive = true;
+                        break;
+                    }
+
+                    // Excludes this table (the diff above already accounts for it) so an
+                    // in-flight removal on this same call is never double-counted as "still
+                    // active" from a pre-commit query.
+                    var remainingElsewhere = await dbContext.TableJudges.CountAsync(
+                        tj => tj.JudgeId == coOwnerJudgeId && tj.TastingTableId != table.Id && tj.RemovedAt == null,
+                        cancellationToken);
+                    var hasSubmittedEvaluation = await dbContext.Evaluations.AnyAsync(
+                        e => e.JudgeId == coOwnerJudgeId, cancellationToken);
+
+                    if (!BosFlagRules.IsEligibleForUnflag(remainingElsewhere, hasSubmittedEvaluation))
+                    {
+                        anyCoOwnerStillKeepsFlagAlive = true;
+                        break;
+                    }
+                }
+
+                if (!anyCoOwnerStillKeepsFlagAlive)
+                {
+                    stillEligible.Add(entryId);
+                }
+            }
+
+            unflagCandidateEntryIds = stillEligible;
+        }
 
         if (flaggedEntryIds.Count > 0)
         {
@@ -189,5 +235,27 @@ internal static class TableAssignmentApplier
         }
 
         return map;
+    }
+
+    private static IReadOnlyDictionary<Guid, IReadOnlySet<string>> InvertOwnedEntriesByEmail(
+        IReadOnlyDictionary<string, HashSet<Guid>> ownedEntriesByEmail)
+    {
+        var result = new Dictionary<Guid, HashSet<string>>();
+
+        foreach (var (email, entryIds) in ownedEntriesByEmail)
+        {
+            foreach (var entryId in entryIds)
+            {
+                if (!result.TryGetValue(entryId, out var emails))
+                {
+                    emails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    result[entryId] = emails;
+                }
+
+                emails.Add(email);
+            }
+        }
+
+        return result.ToDictionary(kv => kv.Key, kv => (IReadOnlySet<string>)kv.Value);
     }
 }

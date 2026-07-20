@@ -303,11 +303,14 @@ route restructure) plus the one genuinely new piece, T030.
   pattern as `Features/Import/ConsolidateImport.cs`), diffs current vs. submitted `TableJudge`/
   `TableSample` rows (hard-deletes what's no longer present — safe pre-Phase-9, no evaluations can
   exist yet to protect), then flags every newly-assigned judge's owner-or-collaborator entries
-  competition-wide and unflags a removed judge's entries only if they now hold zero active table
-  assignments **and** zero `Evaluation` rows. An entry co-owned by a judge leaving one table and a
-  judge staying active elsewhere is deliberately excluded from the unflag set so it can't be
-  incorrectly cleared — full cross-judge reconciliation beyond that one guard is a known limitation,
-  not built (see Recorded debt). `TableValidationRules` (FluentValidation `MustAsync`, closed
+  competition-wide, and unflags a removed judge's entries only once **every** owner/collaborator
+  judge of that entry is clear — zero active table assignments elsewhere in the competition and
+  zero `Evaluation` rows, checked per co-owner via `InvertOwnedEntriesByEmail`, not just the one
+  judge who happened to leave this table. **Fixed same-day by senior-code-reviewer's PR #19
+  pass**: the original version checked only the leaving judge's own remaining assignments, so an
+  entry co-owned by a judge leaving Table 1 and a judge still seated at Table 2 was incorrectly
+  unflagged — a real FR-018 integrity bug, not a scoping choice; caught before merge, covered by
+  a new regression test. `TableValidationRules` (FluentValidation `MustAsync`, closed
   error catalog — no new `DomainErrorType` needed, `ConflictOfInterest`/`TableClosed` already
   existed) checks table-name uniqueness, that submitted judge/entry ids actually belong to the
   caller's competition (ownership-scoped the same way `UpdateJudgeEmail`'s validator was fixed to
@@ -610,7 +613,10 @@ route restructure) plus the one genuinely new piece, T030.
   `DomainExceptionHandler.cs` that `DomainException.Extensions` serialize as flat top-level
   ProblemDetails members, not nested — `ApiError.extensions['conflicts']`, not
   `extensions.extensions.conflicts`) into judge display names / entry blind codes for a readable
-  message. **Bug found by its own E2E spec, fixed same-day**: the mutation-response reconciliation
+  message; it gained `cdkTrapFocus`/`cdkTrapFocusAutoCapture` in the same PR #19 review pass that
+  found the backend BOS-unflag bug above — the detail modal already had it, the conflict dialog
+  initially didn't, so a keyboard user landed with focus nowhere in particular after a rejected
+  move. **Bug found by its own E2E spec, fixed same-day**: the mutation-response reconciliation
   originally patched the `entries` signal's `tastingTableId`/`notValidForBos` incrementally from
   only the mutated table's own membership — but `bosFlaggedEntryIds` only ever reports newly
   *flagged* ids (never unflagged ones) and FR-018 can flag/unflag entries anywhere in the
@@ -669,7 +675,7 @@ route restructure) plus the one genuinely new piece, T030.
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 121 unit tests (was 108; +13 **T045** `Tables/`: `CoiDetectorTests` (owner/collaborator match, no-conflict, case-insensitivity, per-judge grouping, 6) + `BosFlagRulesTests` (flag-on-any-membership, the permanence rule specifically — `hasSubmittedEvaluation` wins even with zero remaining assignments, 7)) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15); 103 integration tests (was 81; +22 **T046** `Tables/TablesApiTests` (17: auth/ownership matrix, `201` success incl. indirect-BOS-flag assertion, `409 conflict-of-interest` on owner and collaborator collisions with atomic-rollback proof, `409 table-closed`, `400` duplicate name / entry-already-elsewhere, `PUT` add+remove-in-one-call incl. the FR-018 unflag case) + `Tables/EntriesApiTests` (4: auth pattern, null-before/populated-after-assignment) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 121 unit tests (was 108; +13 **T045** `Tables/`: `CoiDetectorTests` (owner/collaborator match, no-conflict, case-insensitivity, per-judge grouping, 6) + `BosFlagRulesTests` (flag-on-any-membership, the permanence rule specifically — `hasSubmittedEvaluation` wins even with zero remaining assignments, 7)) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15); 104 integration tests (was 81; +23 **T046** `Tables/TablesApiTests` (18: auth/ownership matrix, `201` success incl. indirect-BOS-flag assertion, `409 conflict-of-interest` on owner and collaborator collisions with atomic-rollback proof, `409 table-closed`, `400` duplicate name / entry-already-elsewhere, `PUT` add+remove-in-one-call incl. the FR-018 unflag case, plus a review-driven regression: removing one co-owner from their table must not lift the flag while a different co-owner stays active elsewhere) + `Tables/EntriesApiTests` (4: auth pattern, null-before/populated-after-assignment) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) |
 | Frontend unit | `cd frontend && npx jest` | green — 145 tests (was 98; +47 **T048** `features/table-management/`: 8 spec files across the API service, `ClickVsDragDirective` (the 6px threshold as a pure function), `JudgeSeatComponent`/`BeerTokenComponent`, `MesaCardComponent`, `UnassignedColumnComponent`, `TableDetailModalComponent`, and the container — table create/update success and 409/400 paths, Unassigned-column set-membership computation, BOS banner, detail modal content, plus a regression test locking in the entries-refetch-after-mutation fix below; the CDK pointer/drag gesture itself is explicitly NOT covered by Jest — jsdom can't simulate pointer capture/movement reliably, verified manually in a real browser instead, see Data flows) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (14) + T029 `features/competition-wizard/` (23) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
 | E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), and new **T049 `us5-tables.spec.ts`** (1: import 3 entries + register 2 judges sharing emails with two participants → create two tables → drag the COI judge onto their own beer's table → `alertdialog` naming judge+blind-code, nothing persisted → drag the BOS judge onto a non-conflicting table → success + BOS banner, and the *other* judge's entry shows the `beer-token--bos-flagged` visual state live, no reload needed (this is what caught the entries-refetch bug) → click-to-detail on a seated beer and judge → drag a beer `MesaCard`→`MesaCard` and confirm a plain click immediately after still opens detail rather than re-arming a drag; real pointer-drag simulated via `mouse.down`→multi-step `mouse.move`→`mouse.up` against CDK's drop-list elements, worked reliably with no fallback to the keyboard "Move to" control needed) all green against a live, fully-warmed Aspire stack — but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated to Phase 4–7: `login-required` races `page.goto('/')`). See Recorded debt below. Chromium only |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
@@ -749,16 +755,6 @@ feature slice yet.
   product behavior. If these are wanted, they need a proper spec amendment first (where does the
   data come from — an import column? organizer-entered post-consolidation? judge self-reported at
   registration?) before any code should reference them again.
-- **New**: `TableAssignmentApplier`'s BOS unflag logic (FR-018, `Features/Tables/
-  TableAssignmentApplier.cs`) only guards the one case it was built for — an entry co-owned by a
-  judge leaving the table just edited and a judge staying active *on that same table* stays
-  correctly flagged. It does not do full cross-judge reconciliation: e.g. an entry co-owned by
-  Judge A (leaving Table 1, otherwise no more assignments) and Judge B (seated only at Table 2,
-  untouched by this call) — Judge A's removal is evaluated using Judge A's own remaining-
-  assignment count only, so the entry unflags correctly in that specific example, but the logic
-  was deliberately not built out to holistically recompute every co-owner across an arbitrary
-  edit graph. Flagged as a known limitation rather than over-built for MVP scope; revisit if a
-  reported bug ever traces back to it.
 - **New**: `frontend/src/app/features/table-management/click-vs-drag.directive.ts`'s actual CDK
   pointer/drag gesture is not exercised by Jest — jsdom can't simulate real pointer
   capture/movement reliably. Verified manually in a real browser during T048 (screenshot +
