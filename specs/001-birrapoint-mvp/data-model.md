@@ -104,6 +104,35 @@ local styles (X1–X5, e.g. `Italian Grape Ale`, `Catharina Sour`, `New Zealand 
 | BeerEntryId | Guid | composite PK, FK → BeerEntry |
 | Email | string(320) | composite PK; used for COI matching (FR-017) |
 
+### ImportBatch *(slice-owned staging area, Features/Import)*
+
+| Field | Type | Constraints |
+|-------|------|-------------|
+| Id | Guid | PK |
+| CompetitionId | Guid | FK → Competition |
+| Status | enum `ImportBatchStatus` | `Pending` \| `Consolidated`; **at most one `Pending` batch per competition** (partial unique index on `Status = 'Pending'`) — a new upload discards the prior unconsolidated batch (import-file.md §Semantics) |
+
+### ImportRow *(slice-owned staging area, Features/Import)*
+
+| Field | Type | Constraints |
+|-------|------|-------------|
+| Id | Guid | PK |
+| ImportBatchId | Guid | FK → ImportBatch; **unique (ImportBatchId, RowNumber)** |
+| RowNumber | int | 1-based position among the file's data rows (excludes the header row) |
+| Status | enum `ImportRowStatus` | `Valid` \| `StyleMismatch` \| `Invalid` \| `Excluded` — the first three are parse-time outcomes (import-file.md); `Excluded` is a resolution outcome set only via the `exclude` action. `Valid` and `Excluded` never block consolidation; `StyleMismatch`/`Invalid` do (FR-011) |
+| ParticipantName | string(200)? | raw parsed cell, may be null/malformed when Status = `Invalid` |
+| ParticipantEmail | string(320)? | raw parsed cell |
+| BeerName | string(200)? | raw parsed cell |
+| StyleText | string(200)? | raw cell text as read from the file — may not match any catalog style |
+| CollaboratorsJson | jsonb | JSON array of the semicolon-split, trimmed collaborator emails |
+| ResolvedStyleCode | string(20)? | FK → BjcpStyle.Code (not DB-enforced, staging data); set at parse time when Style matched, or by the organizer via the `assign-style` resolution action |
+| ErrorMessage | string(1000)? | present for `StyleMismatch`/`Invalid`; null once resolved |
+
+These two entities are staging data only — never referenced outside the Import slice. On
+consolidation (FR-013), every `Valid` row becomes a `Participant` (deduplicated by email within
+the competition, reusing an existing row) + `BeerEntry` (with a generated unique `BlindCode`) +
+`EntryCollaborator` rows; `Excluded` rows are simply skipped.
+
 ### Judge *(competition-scoped judge profile)*
 
 | Field | Type | Constraints |
@@ -262,6 +291,7 @@ the UI surfaces via the offline badge (FR-027).
 
 ```text
 Competition 1─* Participant 1─* BeerEntry *─1 BjcpStyle
+Competition 1─* ImportBatch 1─* ImportRow (staging; consolidates into Participant/BeerEntry/EntryCollaborator)
 Competition 1─* Judge 1─* Invitation
 Competition 1─* TastingTable 1─* TableJudge *─1 Judge
 TastingTable 1─* TableSample *─1 BeerEntry (entry in at most one table)

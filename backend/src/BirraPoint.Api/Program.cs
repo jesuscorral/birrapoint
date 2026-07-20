@@ -8,6 +8,7 @@ using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Features.Catalog;
 using BirraPoint.Api.Features.Competitions;
+using BirraPoint.Api.Features.Import;
 using BirraPoint.Api.Realtime;
 using Microsoft.EntityFrameworkCore;
 
@@ -104,6 +105,9 @@ app.MapCatalogEndpoints();
 
 // Competitions wizard/lifecycle (T027/T028).
 app.MapCompetitionsEndpoints();
+
+// Entry import: upload, mapping/correction, consolidation (T031/T033-T035).
+app.MapImportEndpoints();
 
 // EF migrations apply on startup in Development only (T009); production migrates at deploy time.
 if (app.Environment.IsDevelopment())

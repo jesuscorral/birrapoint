@@ -5,17 +5,20 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-19 · after T025–T030 — **Phase 4 (US2, Competition Wizard) complete**
+**Last updated:** 2026-07-20 · after T031–T037 — **Phase 5 (US3, Beer Entry Import) complete**
 
 ## Global status
 
-Phase 1 (Setup, T001–T007), Phase 2 (Foundational, T008–T020), and Phase 3 (US1, Secure Access,
-T021–T024) are **complete**. Phase 4 (User Story 2 — Competition Creation Wizard with Drafts,
-T025–T030) is now also **complete**: the `Features/Competitions/` vertical slice (create/update/
-get/list + the FR-006 state machine, T025–T028), a 2-step organizer wizard persisting straight to
-the real backend so `Draft` state itself *is* the save-point — no client-side draft store needed
-for this story (T029), and an E2E spec proving create → save → real-page-reload → resume-with-data
-intact (T030). Quickstart scenarios 1–2 both pass end to end against a live Aspire stack.
+Phase 1 (Setup, T001–T007), Phase 2 (Foundational, T008–T020), Phase 3 (US1, Secure Access,
+T021–T024), and Phase 4 (US2, Competition Creation Wizard with Drafts, T025–T030) are
+**complete**. Phase 5 (User Story 3 — Beer Entry Import with In-Flow Correction, T031–T037) is now
+also **complete**: a slice-owned `ImportBatch`/`ImportRow` staging model + EF migration (T033), a
+ClosedXML `.xlsx` parser implementing `contracts/import-file.md` exactly — header matching, row
+statuses, duplicate-pair detection, BJCP style matching (T034) — the four `Features/Import/`
+slices (`UploadImport`/`GetImport`/`ResolveRow`/`ConsolidateImport`, T035), a frontend
+upload → correction → consolidate-summary feature (T036), and an E2E spec covering the full
+correction loop against a real fixture (T037). Quickstart scenarios 1–3 all pass end to end
+against a live Aspire stack.
 
 **Sequencing note**: this phase's backend and most of its frontend were actually built *before*
 Phase 3 landed, on this same branch name (`feature/T025-T030`) — `tasks.md` explicitly allows split
@@ -187,6 +190,40 @@ route restructure) plus the one genuinely new piece, T030.
   defaults to `Draft` at the entity level (`Domain/Competition.cs`), so `CreateCompetitionCommandHandler`
   never sets it explicitly — every created competition already satisfies FR-008 ("save as Draft at
   any step") the moment it exists, with no separate draft-persistence mechanism needed.
+- **`Features/Import/`** (T031–T035, US3): the `.xlsx` bulk-entry import + in-flow correction
+  slice, `ORGANIZER`-only, under `/api/v1/competitions/{id}/imports`. `ImportBatch`/`ImportRow`
+  (T033) are slice-owned staging entities — deliberately not in `Domain/`, since they exist only
+  to hold parsed-but-not-yet-consolidated rows, not the domain model itself — with their own EF
+  configs/migration (`AddImportBatchAndImportRow`) and are documented in `data-model.md` per
+  Principle X. `WorkbookParser` (T034, ClosedXML) implements `contracts/import-file.md` exactly:
+  first worksheet only, header row matched case-insensitively/trimmed regardless of column order,
+  stops at the first fully empty row, per-row status `Valid`/`StyleMismatch`/`Invalid` (missing
+  required cell, bad email, or the second occurrence of a duplicate `(ParticipantEmail, BeerName)`
+  pair), style matched against `BjcpStyles` by exact code or exact name (case-insensitive
+  comparison, no fuzzy matching, per FR-010). `UploadImport` discards any prior unconsolidated
+  batch for the competition first (single active batch per competition, per the contract) and
+  rejects with `409 invalid-state-transition` outside `Draft`/`Active` — reusing
+  `DomainErrorType.InvalidStateTransition` by analogy with `ChangeState.cs`'s FR-006 gates rather
+  than adding a new catalog entry, since the 14-urn list is closed (Principle VI). `ResolveRow`
+  handles `assign-style` (FluentValidation `MustAsync` checks the style code exists in the
+  catalog, `400` otherwise — kept in the validation pipeline rather than a handler-thrown
+  `DomainException`, matching the repo convention that `urn:birrapoint:validation` is exclusively
+  FluentValidation-produced) and `exclude`; both set the row to a fourth `ImportRowStatus.Excluded`
+  value beyond the contract's three parse-time statuses, needed so an excluded row is
+  distinguishable from `Invalid`/`StyleMismatch` for the unresolved-row gate and countable
+  separately on consolidation. `assign-style` unconditionally moves a row to `Valid` once a valid
+  catalog code is supplied, regardless of whether the row was `StyleMismatch` or `Invalid` for an
+  unrelated reason (e.g. a bad email) — the contract only really describes the action as the
+  `StyleMismatch` resolution path; see Recorded debt below. `ConsolidateImport` blocks with
+  `409 unresolved-import-rows` (row numbers in the ProblemDetails extensions) while any row is
+  still `StyleMismatch`/`Invalid`; on success it dedupes `Participant`s by email within the
+  competition (loaded into an in-memory dictionary up front, since a per-row query wouldn't see
+  participants created earlier in the same loop before `SaveChanges`), creates `BeerEntry`/
+  `EntryCollaborator` rows, and generates a unique-per-competition `BlindCode` via
+  `BlindCodeGenerator` (collision-checked against existing codes). `ImportEndpoints` mirrors
+  `CompetitionsEndpoints`'s route-group/`RequireAuthorization("ORGANIZER")` shape; the multipart
+  upload endpoint binds `IFormFile` directly and carries `.DisableAntiforgery()` (no cookie-based
+  auth on this API, Principle VII, so CSRF protection is moot for a bearer-token endpoint).
 - **`Realtime/`** (T015): `CompetitionHub` (`/hubs/competition`, `[Authorize]`) — server → client
   only, per contracts/signalr-hub.md. `JoinCompetitionAsOrganizer` guards on `ORGANIZER` role +
   `Competition.CreatedByUserId` ownership; `JoinTable` guards on an active (`RemovedAt == null`)
@@ -404,6 +441,25 @@ route restructure) plus the one genuinely new piece, T030.
   and banner (`bannerError`) display, and an `input.required<string>()`/`input<T | null>()` +
   `output<CompetitionDetail>()` contract so the parent wizard never reaches into child state
   directly.
+- **`features/entry-import/`** (T036, US3): one signal-driven view swap — upload → row
+  results/correction → consolidate summary — rather than a full stepper, since the three views
+  never need independent back-and-forth navigation beyond the natural upload-once,
+  correct-until-clean, consolidate-once flow. `EntryImportApiService`
+  (`entry-import-api.service.ts`) mirrors `CompetitionsApiService`'s thin-wrapper shape; `upload()`
+  builds a `FormData` (field name `file`) and leaves the multipart `Content-Type` to `HttpClient`.
+  `StylePickerComponent` is a small filter-as-you-type catalog picker (plain Signals, no
+  `ReactiveFormsModule` needed for two local text/select values) used inline in the correction
+  table for `StyleMismatch`/`Invalid` rows, alongside an `Exclude` button; row resolution updates
+  local state directly from the `PUT` response (no refetch). Route: `competitions/:id/import`
+  under the existing `organizer` guard, reachable only by direct navigation (no dashboard link
+  yet, matching how `us2-wizard.spec.ts` already reaches the wizard). **Bug found by its own E2E
+  spec, fixed same-day**: the upload `<form (ngSubmit)="onUpload()">` initially shipped without
+  `FormsModule` in the component's `imports`, so Angular never bound `NgForm` to intercept the
+  native `submit` event — clicking "Upload" did a real browser GET form submission, reloading the
+  page and, under this app's Keycloak `login-required` init, re-triggering the entire OIDC
+  redirect and wiping all state. Invisible to the original Jest spec (it called `onUpload()`
+  directly, bypassing the form); caught only by T037's real-browser E2E run. Fixed by adding
+  `FormsModule`; a regression test dispatching a real `submit` event now guards it.
 - **`core/api/`** (T020): the typed HTTP client + ProblemDetails→UI error mapping.
   - `problem-details.model.ts`: `ProblemDetails`/`ValidationProblemDetails` interfaces plus
     `BIRRAPOINT_ERROR_URNS` — the 14 `urn:birrapoint:*` values from contracts/rest-api.md §Error
@@ -453,9 +509,9 @@ route restructure) plus the one genuinely new piece, T030.
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 71 unit tests (was 48; +23 **T025** `Competitions/CompetitionValidatorsTests`: Create/Update validator required-field/date/entry-limit/registration-window cases, `CompetitionStateMachine.CanTransition` forward-only/skip-free/reverse/same-state matrix): smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (claims transformation, `CurrentUser`, DI-wiring smoke incl. `IJudgeResolver`, T023) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` unit coverage; 39 integration tests (was 25; +14 **T026** `Competitions/CompetitionsApiTests`: create 201/400, owner-scoped list/get incl. cross-owner 404, update 200/404/409-in-evaluation, full-lifecycle state transitions 200, skip/reverse/cross-owner state-change 409/404) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) |
-| Frontend unit | `cd frontend && npx jest` | green — 67 tests (was 44; +23 **T029** `features/competition-wizard/`: `competitions-api.service.spec.ts` (3), `competition-wizard.component.spec.ts` (5, incl. the create→resume id-swap and load-error paths), `steps/basics-step.component.spec.ts` (7), `steps/details-step.component.spec.ts` (8)): smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` additions (14). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
-| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3) and new **T030 `us2-wizard.spec.ts`** (1: Next disabled until all 4 required fields + the endDate-not-before-startDate rule are satisfied; create → URL becomes `/organizer/competitions/{id}` → Details "Save Draft" → **real `page.goto` reload** at that URL → both steps' data still populated, proving server-persisted Draft state survives a reload, not just in-memory component state) all green against a live Aspire stack — but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated to T025–T030: `login-required` races `page.goto('/')`). See Recorded debt below. Chromium only |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 93 unit tests (was 71; +22 **T031** `Import/`: `WorkbookParserTests` (19, header matching/row statuses/duplicate-pair/collaborators split/style match by code+name) + `BlindCodeGeneratorTests` (2), plus T033's entity/config coverage folded in) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (claims transformation, `CurrentUser`, DI-wiring smoke incl. `IJudgeResolver`, T023) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23); 63 integration tests (was 39; +24 **T032** `Import/ImportApiTests`: upload 201/400/401/403/404/409, row-status assignment incl. `99Z` `StyleMismatch` and duplicate-pair `Invalid`, single-active-batch-per-competition discard, GET, resolve-row assign-style/exclude incl. `400` unknown style code, consolidate 409-unresolved/200-success with unique blind codes) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) |
+| Frontend unit | `cd frontend && npx jest` | green — 85 tests (was 67; +18 **T036** `features/entry-import/`: `entry-import-api.service.spec.ts`, `style-picker.component.spec.ts`, `entry-import.component.spec.ts` incl. a real-`submit`-event regression test added after T037's E2E caught the missing-`FormsModule` bug) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (14) + T029 `features/competition-wizard/` (23). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
+| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), and new **T037 `us3-import.spec.ts`** (1: upload a 4-row fixture incl. the contract's `99Z` mismatch row and an `Invalid` row → row-status assertions → Consolidate disabled while unresolved → resolve `StyleMismatch` via the style picker and `Invalid` via Exclude → Consolidate enabled → `Imported: 3, Excluded: 1` summary with unique blind codes) all green against a live Aspire stack — but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated to Phase 4/5: `login-required` races `page.goto('/')`). See Recorded debt below. Chromium only |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
 ## Data flows
@@ -472,7 +528,15 @@ Details step `PUT /competitions/{id}` ("Save Draft") is the first real read/writ
 frontend feature slice makes against the backend (`ApiClient`, wired T020, first actually consumed
 here via `CompetitionsApiService`); `ChangeCompetitionState` (T028) is the first real
 `CompetitionHub` emitter, `CompetitionStateChanged` to the `competition:{id}:organizers` group —
-though nothing subscribes to it yet (the dashboard that would, US9, is Phase 11). The database
+though nothing subscribes to it yet (the dashboard that would, US9, is Phase 11). **T031–T037**
+(US3): `/organizer/competitions/{id}/import` → `EntryImportComponent` → `POST
+.../imports` (multipart `.xlsx`) → `WorkbookParser` validates row-by-row against
+`BjcpStyles` → `201` with per-row statuses rendered inline; `StyleMismatch`/`Invalid` rows are
+resolved via `PUT .../rows/{rowNumber}` (`assign-style` using the same `GET /styles` catalog the
+picker filters over, or `exclude`) until none remain, then `POST .../consolidate` creates
+`Participant`/`BeerEntry`/`EntryCollaborator` rows with generated blind codes — the first time
+this repo's import staging model (`ImportBatch`/`ImportRow`) round-trips a file through to real
+domain entities. The database
 holds the full domain schema (T008–T009); target contracts live in
 `specs/001-birrapoint-mvp/contracts/` (REST `/api/v1`, SignalR `CompetitionHub`, `.xlsx` import
 file). Frontend-side: any route load triggers Keycloak's `login-required` flow first (PKCE
@@ -488,6 +552,14 @@ feature slice yet.
 
 ## Recorded debt / immediate next steps
 
+- **New**: `ResolveRow`'s `assign-style` action (T035, `Features/Import/ResolveRow.cs`) moves a
+  row to `Valid` on any catalog-valid style code, regardless of whether the row was originally
+  `StyleMismatch` or `Invalid` for an unrelated reason (e.g. a missing/malformed email). The
+  contract only really specifies `assign-style` as the `StyleMismatch` resolution path; nothing in
+  `contracts/rest-api.md`/`import-file.md` restricts the action by prior status, and it isn't
+  exercised by `ImportApiTests`/`us3-import.spec.ts` either way. Low risk (an organizer can only
+  reach this by deliberately assigning a style to a row broken for another reason) but worth a
+  spec clarification if it ever surfaces in practice.
 - **New**: `frontend/e2e/smoke.spec.ts` and `frontend/e2e/a11y/home.a11y.spec.ts` fail
   deterministically against a live Keycloak stack with `login-required` active — discovered while
   verifying T024, confirmed pre-existing (reproduces identically on the pre-T024 baseline via
