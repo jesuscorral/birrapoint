@@ -5,20 +5,22 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-20 · after T031–T037 — **Phase 5 (US3, Beer Entry Import) complete**
+**Last updated:** 2026-07-20 · after T038–T044 — **Phase 6 (US4, Judge Registration & Invitations) complete**
 
 ## Global status
 
 Phase 1 (Setup, T001–T007), Phase 2 (Foundational, T008–T020), Phase 3 (US1, Secure Access,
-T021–T024), and Phase 4 (US2, Competition Creation Wizard with Drafts, T025–T030) are
-**complete**. Phase 5 (User Story 3 — Beer Entry Import with In-Flow Correction, T031–T037) is now
-also **complete**: a slice-owned `ImportBatch`/`ImportRow` staging model + EF migration (T033), a
-ClosedXML `.xlsx` parser implementing `contracts/import-file.md` exactly — header matching, row
-statuses, duplicate-pair detection, BJCP style matching (T034) — the four `Features/Import/`
-slices (`UploadImport`/`GetImport`/`ResolveRow`/`ConsolidateImport`, T035), a frontend
-upload → correction → consolidate-summary feature (T036), and an E2E spec covering the full
-correction loop against a real fixture (T037). Quickstart scenarios 1–3 all pass end to end
-against a live Aspire stack.
+T021–T024), Phase 4 (US2, Competition Creation Wizard with Drafts, T025–T030), and Phase 5 (US3,
+Beer Entry Import with In-Flow Correction, T031–T037) are **complete**. Phase 6 (User Story 4 —
+Judge Registration and Automatic Invitations, T038–T044) is now also **complete**: bulk judge
+registration with in-list/already-registered dedup (T038/T042), a Keycloak Admin API client
+(T040), a MailKit invitation sender wired as the first real `DispatchJob` handler (T041), the four
+`Features/Judges/` slices (T042), a frontend paste-list/delivery-status/edit-email feature (T043),
+and an E2E spec confirming the invitation actually lands in Mailpit (T044). Quickstart scenarios
+1–4 all pass end to end against a live Aspire stack.
+
+**Scope note**: `UpdateJudgeEmail`'s COI/BOS re-run (FR-017/FR-018, contract text) is deliberately
+NOT implemented yet — see Recorded debt below.
 
 **Sequencing note**: this phase's backend and most of its frontend were actually built *before*
 Phase 3 landed, on this same branch name (`feature/T025-T030`) — `tasks.md` explicitly allows split
@@ -34,8 +36,8 @@ route restructure) plus the one genuinely new piece, T030.
 |---|---|---|---|
 | `postgres` / database `db` | `postgres:16` container, persistent data volume, persistent lifetime | dynamic port | connection string injected into the API as `ConnectionStrings__db` |
 | `keycloak` | `quay.io/keycloak/keycloak:26.2` container via `AddContainer` (ADR-0001) | http://localhost:8081 | realm `birrapoint` auto-imported from `infra/keycloak/` (roles `ORGANIZER`/`JUDGE`, seeded organizer, PKCE SPA client, admin service-account client with `manage-users`); bootstrap/realm credentials are local-dev placeholders (FR-046) |
-| `mailpit` | CommunityToolkit MailPit integration | dynamic SMTP + UI ports | local mail sink for invitations/results |
-| `api` | `BirraPoint.Api` project | http://localhost:5121 · https://localhost:7075 (launchSettings) | receives env: `Keycloak__Authority` (realm URL), `Keycloak__AdminClientId/Secret` (dev placeholder), `Smtp__Host/Port` (from the Mailpit endpoint); waits for the database |
+| `mailpit` | CommunityToolkit MailPit integration | dynamic SMTP · **http://localhost:8025 (T040, pinned)** | local mail sink for invitations/results; UI/API port fixed (`AddMailPit("mailpit", httpPort: 8025)`) so `frontend/e2e/us4-judges.spec.ts` can poll its REST API deterministically — SMTP endpoint stays dynamic, only injected into the API via `Smtp__Host/Port` |
+| `api` | `BirraPoint.Api` project | http://localhost:5121 · https://localhost:7075 (launchSettings) | receives env: `Keycloak__Authority` (realm URL), `Keycloak__AdminClientId/Secret` (dev placeholder), `Smtp__Host/Port` (from the Mailpit endpoint), `Frontend__BaseUrl` (T041, invitation email login link); waits for the database |
 | `frontend` | `npm start` (ng serve) via `AddNpmApp` | http://localhost:4200 (non-proxied) | matches the SPA client redirect URIs; waits for the API |
 
 ## Backend (`backend/`, .NET 10 / C# 14)
@@ -230,6 +232,48 @@ route restructure) plus the one genuinely new piece, T030.
   `CompetitionsEndpoints`'s route-group/`RequireAuthorization("ORGANIZER")` shape; the multipart
   upload endpoint binds `IFormFile` directly and carries `.DisableAntiforgery()` (no cookie-based
   auth on this API, Principle VII, so CSRF protection is moot for a bearer-token endpoint).
+- **`Common/Keycloak/`** (T040, R-10): `IKeycloakAdminClient`/`KeycloakAdminClient` — kept to the
+  two calls this codebase actually needs, not a general Admin SDK wrapper. Client-credentials
+  grant against `{Keycloak:Authority}/protocol/openid-connect/token` using
+  `Keycloak:AdminClientId`/`Keycloak:AdminClientSecret` (already wired since T009/`AppHost.cs`;
+  realm.json's `birrapoint-api-admin` service-account client already carries `manage-users`/
+  `view-users`); the admin REST base is derived from `Authority` by swapping `/realms/` for
+  `/admin/realms/` in the same URL — no separate config key needed.
+  `EnsureUserWithTemporaryPasswordAsync(email)` is idempotent on an existing account (one
+  person's Keycloak user can be shared across competitions, per `JudgeResolver`'s own comment):
+  finds-or-creates the user, ensures the `UPDATE_PASSWORD` required action, resets the password
+  with `temporary: true`, and returns the plaintext password — **never persisted anywhere**, the
+  caller emails it once and discards it. `UpdateUserEmailAsync` is a no-op if no Keycloak account
+  exists yet for the old address (the judge's invitation hasn't been dispatched yet).
+- **`Common/Email/`** (T041, R-10): `IEmailSender`/`MailKitEmailSender` — one method,
+  `SendAsync(toEmail, subject, htmlBody)`, against `Smtp:Host`/`Smtp:Port` (already wired to
+  Mailpit locally, `SecureSocketOptions.None`, no auth needed for Mailpit).
+- **`Features/Judges/`** (T038, T042, US4): bulk judge registration + invitation dispatch,
+  `ORGANIZER`-only, under `/api/v1/competitions/{id}/judges`. Dedup/classification is a pure
+  static helper, `JudgeRegistrationPlanner.Plan(emails, existingEmails)` — fully unit-testable
+  without a DB round-trip (T038): case-insensitive within-list duplicates → skipped
+  `duplicate-in-list`, emails already registered for the competition → skipped
+  `already-registered`, everything else → created. `RegisterJudgesCommandHandler` does only DB
+  writes (creates `Judge` + `Invitation(Pending)` rows) and, **after its own `SaveChangesAsync`**
+  (same after-commit convention as every other `IDispatchJobQueue`/`IEventPublisher` call in this
+  codebase), enqueues one `DispatchJobType.SendInvitation` job per newly created judge — fast bulk
+  response, no N synchronous Keycloak/SMTP calls blocking the HTTP request.
+  **`SendInvitationHandler`** (T041, `IDispatchJobHandler`, registered
+  `services.AddScoped<IDispatchJobHandler, SendInvitationHandler>()` — auto-discovered by
+  `DispatchWorker`, T016, which is this handler's first real consumer) is where Keycloak
+  provisioning actually happens: it calls `IKeycloakAdminClient.EnsureUserWithTemporaryPasswordAsync`
+  fresh on every delivery attempt (never stored on the `DispatchJob` payload — the payload is just
+  `{ JudgeId }`), builds the invitation email, sends it, and updates `Invitation.Status`/`SentAt`
+  on success or `Attempts`/`LastError`/`Status = Failed` on failure before rethrowing so
+  `DispatchWorker`'s existing `DispatchRetryPolicy` backoff handles the reattempt — no bespoke
+  retry loop. **`Judge.KeycloakUserId` is never written by this slice** — it stays `null` at
+  creation and is only ever backfilled by the existing `JudgeResolver` (T023) the first time the
+  judge's account actually authenticates; `judge-already-active` (`UpdateJudgeEmail`'s `409` gate)
+  keys directly off that field being non-null. `ResendInvitation` resets `Invitation.Status` to
+  `Pending` (leaves `Attempts` as a running total, mirroring `DispatchJob.Attempts`'s own
+  convention) and re-enqueues the same job type. `UpdateJudgeEmail` re-validates uniqueness and
+  updates the Keycloak account email; see the scope note above and Recorded debt below for what it
+  deliberately does not yet do.
 - **`Realtime/`** (T015): `CompetitionHub` (`/hubs/competition`, `[Authorize]`) — server → client
   only, per contracts/signalr-hub.md. `JoinCompetitionAsOrganizer` guards on `ORGANIZER` role +
   `Competition.CreatedByUserId` ownership; `JoinTable` guards on an active (`RemovedAt == null`)
@@ -466,6 +510,24 @@ route restructure) plus the one genuinely new piece, T030.
   redirect and wiping all state. Invisible to the original Jest spec (it called `onUpload()`
   directly, bypassing the form); caught only by T037's real-browser E2E run. Fixed by adding
   `FormsModule`; a regression test dispatching a real `submit` event now guards it.
+- **`features/judge-management/`** (T043, US4): another single signal-driven container (no
+  stepper) — a paste-list registration form (textarea split on newline or comma, trimmed, empties
+  dropped) always shown together with a delivery-status table, since the two are meant to stay
+  visible side by side rather than gated behind navigation. `JudgeManagementApiService` mirrors the
+  same thin-`ApiClient`-wrapper shape as `EntryImportApiService`/`CompetitionsApiService`. The
+  delivery-status table loads on component init (not just after a registration) and refreshes
+  after every register/resend/edit action, so reopening the screen always reflects current state;
+  each row carries `[attr.data-judge-email]` (same E2E-hook convention as `entry-import`'s
+  `data-row-number`). Skip reasons are translated to plain language client-side
+  (`duplicate-in-list` → "duplicate in the pasted list", `already-registered` → "already
+  registered") rather than surfacing the raw API strings. Edit-email is inline per-row (toggle →
+  `<input type="email">` + Save/Cancel) rather than a separate view, since it's a single-field
+  correction; a `409 judge-already-active` failure surfaces through the same generic
+  `ApiError.detail` path as any other error, no special-casing needed since the backend's detail
+  message is already user-readable. A `busyJudgeId` signal disables the acting row's
+  Resend/Save buttons during its own in-flight request without a full-page loading blocker. Route:
+  `competitions/:id/judges` under `organizer`, same direct-navigation-only convention as
+  `entry-import`.
 - **`core/api/`** (T020): the typed HTTP client + ProblemDetails→UI error mapping.
   - `problem-details.model.ts`: `ProblemDetails`/`ValidationProblemDetails` interfaces plus
     `BIRRAPOINT_ERROR_URNS` — the 14 `urn:birrapoint:*` values from contracts/rest-api.md §Error
@@ -515,9 +577,9 @@ route restructure) plus the one genuinely new piece, T030.
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 93 unit tests (was 71; +22 **T031** `Import/`: `WorkbookParserTests` (19, header matching/row statuses/duplicate-pair/collaborators split/style match by code+name) + `BlindCodeGeneratorTests` (2), plus T033's entity/config coverage folded in) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (claims transformation, `CurrentUser`, DI-wiring smoke incl. `IJudgeResolver`, T023) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23); 65 integration tests (was 39; +26 **T032** `Import/ImportApiTests`: upload 201/400/401/403/404/409, row-status assignment incl. `99Z` `StyleMismatch` and duplicate-pair `Invalid`, single-active-batch-per-competition discard, GET, resolve-row assign-style/exclude incl. `400` unknown style code, consolidate 409-unresolved/200-success with unique blind codes, plus 2 review-driven regression tests: `assign-style` on an `Invalid` row → `400`, re-`consolidate`-ing an already-`Consolidated` batch → `409` with no duplicate entries) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) |
-| Frontend unit | `cd frontend && npx jest` | green — 86 tests (was 67; +19 **T036** `features/entry-import/`: `entry-import-api.service.spec.ts`, `style-picker.component.spec.ts`, `entry-import.component.spec.ts` incl. a real-`submit`-event regression test added after T037's E2E caught the missing-`FormsModule` bug, plus one more asserting the style picker only renders for `StyleMismatch` rows, added with the `assign-style` review fix) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (14) + T029 `features/competition-wizard/` (23). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
-| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), and new **T037 `us3-import.spec.ts`** (1: upload a 4-row fixture incl. the contract's `99Z` mismatch row and an `Invalid` row → row-status assertions → Consolidate disabled while unresolved → resolve `StyleMismatch` via the style picker and `Invalid` via Exclude → Consolidate enabled → `Imported: 3, Excluded: 1` summary with unique blind codes) all green against a live Aspire stack — but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated to Phase 4/5: `login-required` races `page.goto('/')`). See Recorded debt below. Chromium only |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 108 unit tests (was 93; +15 **T038** `Judges/`: `JudgeRegistrationPlannerTests` (dedup/classification, no DB round-trip), `RegisterJudgesCommandValidatorTests`, `UpdateJudgeEmailCommandValidatorTests`) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (claims transformation, `CurrentUser`, DI-wiring smoke incl. `IJudgeResolver`, T023) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22); 81 integration tests (was 65; +16 **T039** `Judges/JudgesApiTests`: register 201 mixed created/skipped incl. case-insensitive duplicate-in-list + already-registered, async `SendInvitation` job reaching `Sent` via poll against a live `DispatchWorker` — the first slice to exercise it end to end — GET shape, `PUT` email correction 200/`409 judge-already-active`/uniqueness conflict, resend re-triggering delivery, all against fake `IKeycloakAdminClient`/`IEmailSender` registered in `ApiFactory`) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) |
+| Frontend unit | `cd frontend && npx jest` | green — 98 tests (was 86; +12 **T043** `features/judge-management/`: `judge-management-api.service.spec.ts` (4), `judge-management.component.spec.ts` (8, incl. registration success/failure, delivery-status load-on-init, resend-triggers-refresh, edit-email success and `409 judge-already-active`)) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (14) + T029 `features/competition-wizard/` (23) + T036 `features/entry-import/` (19). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
+| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), and new **T044 `us4-judges.spec.ts`** (1: paste 3 emails + a duplicate → Registration report shows created/skipped with plain-language reasons → delivery-status table rows appear → poll Mailpit's `:8025` REST API until an invitation to one of the new judges is found, asserting on the actual email — not just UI/DB state) all green against a live, fully-warmed Aspire stack — but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated to Phase 4–6: `login-required` races `page.goto('/')`); `us3-import.spec.ts` was also observed to fail once under a cold/still-warming stack (Keycloak not yet ready) and pass reliably once warmed — a timing flake, not a regression, same root cause as the pre-existing pair above. See Recorded debt below. Chromium only |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
 ## Data flows
@@ -542,7 +604,17 @@ resolved via `PUT .../rows/{rowNumber}` (`assign-style` using the same `GET /sty
 picker filters over, or `exclude`) until none remain, then `POST .../consolidate` creates
 `Participant`/`BeerEntry`/`EntryCollaborator` rows with generated blind codes — the first time
 this repo's import staging model (`ImportBatch`/`ImportRow`) round-trips a file through to real
-domain entities. The database
+domain entities. **T038–T044** (US4): `/organizer/competitions/{id}/judges` →
+`JudgeManagementComponent` → `POST .../judges` creates `Judge`+`Invitation(Pending)` rows and
+returns immediately (`created`/`skipped`), then enqueues one `DispatchJobType.SendInvitation` job
+per new judge — the first `DispatchJob` type with a real handler (`SendInvitationHandler`,
+T041) since the queue/worker infrastructure (T016) landed. `DispatchWorker` (already running)
+picks the job up, `SendInvitationHandler` calls `IKeycloakAdminClient` to provision the Keycloak
+account + a fresh temporary password (never touching `Judge.KeycloakUserId`, which stays `null`
+until the judge's real first login backfills it via `JudgeResolver`, T023) and `IEmailSender` to
+deliver the invitation via Mailpit, then updates `Invitation.Status`/`SentAt`/`Attempts`/
+`LastError` — the frontend's delivery-status table reflects this once it refreshes/reloads. The
+database
 holds the full domain schema (T008–T009); target contracts live in
 `specs/001-birrapoint-mvp/contracts/` (REST `/api/v1`, SignalR `CompetitionHub`, `.xlsx` import
 file). Frontend-side: any route load triggers Keycloak's `login-required` flow first (PKCE
@@ -558,6 +630,20 @@ feature slice yet.
 
 ## Recorded debt / immediate next steps
 
+- **New**: `UpdateJudgeEmail` (T042, `Features/Judges/UpdateJudgeEmail.cs`) does not implement the
+  COI-matching/BOS-reflagging re-run against the new address that `contracts/rest-api.md` cites
+  (FR-017/FR-018) — deliberately deferred. `TastingTable`/`TableJudge` entities already exist
+  (scaffolded T008), but `Features/Tables` (Phase 7, the only way to ever create a `TableJudge`
+  row) doesn't exist yet, so that logic would be unreachable/untestable except by hand-seeding
+  rows no real flow produces. Build it as part of Phase 7 once `Features/Tables`' own COI checker
+  exists to potentially share logic with (or deliberately duplicate a small pure matching helper —
+  decide at that point, don't extract a shared abstraction speculatively now).
+- **New**: `SendInvitationHandler` (T041) requires a `Frontend:BaseUrl` config value (used to build
+  the invitation email's login link) that's only ever set by `AppHost.cs`'s Aspire env injection —
+  there's no fallback in `appsettings.json`/`appsettings.Development.json`. Harmless today (every
+  local/test path goes through Aspire or a test-config override), but will need a real value wired
+  into whatever non-Aspire deployment Phase 16 (`azd`) produces, or the job will fail every time in
+  that environment. Flagged during T039 review; not fixed here since Phase 16 doesn't exist yet.
 - **New**: `frontend/e2e/smoke.spec.ts` and `frontend/e2e/a11y/home.a11y.spec.ts` fail
   deterministically against a live Keycloak stack with `login-required` active — discovered while
   verifying T024, confirmed pre-existing (reproduces identically on the pre-T024 baseline via

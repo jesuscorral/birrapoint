@@ -38,9 +38,9 @@ Conventions: `404` for resources outside the caller's scope (never reveal existe
 
 | Method & Path | Role | Description |
 |---|---|---|
-| `POST /competitions/{id}/judges` | ORGANIZER | Body: `{ emails: [string] }`. Creates missing profiles, provisions Keycloak users, queues invitations. → `201` `{ created: [...], skipped: [{ email, reason: "duplicate-in-list" \| "already-registered" }] }` (FR-014/FR-015). |
-| `GET /competitions/{id}/judges` | ORGANIZER | Profiles + invitation delivery status. |
-| `PUT /competitions/{id}/judges/{judgeId}` | ORGANIZER | Correct a judge's email before first login (edge case: bounced invitation). Body: `{ email }`. Re-validates uniqueness (FR-015), re-runs COI matching and BOS flagging against the new address (FR-017/FR-018), updates the Keycloak account. `409 judge-already-active` once the judge has authenticated. |
+| `POST /competitions/{id}/judges` | ORGANIZER | Body: `{ emails: [string] }`. Creates missing profiles, queues invitations (Keycloak provisioning happens per-delivery-attempt inside the async `SendInvitation` job, not synchronously in this request). → `201` `{ created: [{ id, email }], skipped: [{ email, reason: "duplicate-in-list" \| "already-registered" }] }` (FR-014/FR-015). |
+| `GET /competitions/{id}/judges` | ORGANIZER | `[{ id, email, displayName, invitationStatus, attempts, lastError, sentAt }]`. |
+| `PUT /competitions/{id}/judges/{judgeId}` | ORGANIZER | Correct a judge's email before first login (edge case: bounced invitation). Body: `{ email }`. Re-validates uniqueness (FR-015), updates the Keycloak account. `409 judge-already-active` once the judge has authenticated. **COI matching / BOS re-flagging against the new address (FR-017/FR-018) is not yet implemented** — deferred to Phase 7 once `Features/Tables` exists to test it against (see `Docs/arquitectura_viva.md` Recorded debt); until then a judge can only be assigned to a table *after* Phase 7 ships, by which point this endpoint's pre-first-login window will typically already be closed in practice, but this is not yet enforced. |
 | `POST /competitions/{id}/judges/{judgeId}/invitation` | ORGANIZER | Re-send invitation (edge case: bounced email after correction). |
 
 ## Tables (organizer)

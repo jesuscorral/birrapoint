@@ -3,12 +3,15 @@ using System.Threading.Channels;
 using BirraPoint.Api.Common.Audit;
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Behaviors;
+using BirraPoint.Api.Common.Email;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Jobs;
+using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Features.Catalog;
 using BirraPoint.Api.Features.Competitions;
 using BirraPoint.Api.Features.Import;
+using BirraPoint.Api.Features.Judges;
 using BirraPoint.Api.Realtime;
 using Microsoft.EntityFrameworkCore;
 
@@ -56,6 +59,16 @@ builder.Services.AddSingleton<IEventPublisher, EventPublisher>();
 builder.Services.AddSingleton(Channel.CreateUnbounded<Guid>());
 builder.Services.AddScoped<IDispatchJobQueue, DispatchJobQueue>();
 builder.Services.AddHostedService<DispatchWorker>();
+
+// Judge provisioning (R-10/T040): Keycloak Admin REST API via a typed HttpClient (client-credentials
+// grant against Keycloak:AdminClientId/AdminClientSecret).
+builder.Services.AddHttpClient<IKeycloakAdminClient, KeycloakAdminClient>();
+
+// Invitation/result email delivery (R-10/T041): MailKit against Smtp:Host/Smtp:Port (Mailpit locally).
+builder.Services.AddScoped<IEmailSender, MailKitEmailSender>();
+
+// First DispatchJobHandler (T041): SendInvitation, auto-discovered by DispatchWorker.
+builder.Services.AddScoped<IDispatchJobHandler, SendInvitationHandler>();
 
 // The Angular dev server runs on a different origin (:4200) than the API (:5121/:7075) — the
 // browser needs this to call REST/hub endpoints directly (T020). Development only; production
@@ -108,6 +121,9 @@ app.MapCompetitionsEndpoints();
 
 // Entry import: upload, mapping/correction, consolidation (T031/T033-T035).
 app.MapImportEndpoints();
+
+// Judge bulk registration, invitations, email correction (T042).
+app.MapJudgesEndpoints();
 
 // EF migrations apply on startup in Development only (T009); production migrates at deploy time.
 if (app.Environment.IsDevelopment())

@@ -140,16 +140,16 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 ### Tests for User Story 4 (MANDATORY — write first, must fail) ⚠️
 
-- [ ] T038 [P] [US4] Unit tests: bulk registration dedup (in-list + already-registered with reasons), email validation in `backend/tests/BirraPoint.Api.UnitTests/Judges/`
-- [ ] T039 [P] [US4] Contract tests: `POST /competitions/{id}/judges` created/skipped semantics, `GET` delivery statuses, resend invitation, email correction (`PUT .../judges/{judgeId}` incl. `409 judge-already-active` and COI/BOS re-run) in `backend/tests/BirraPoint.Api.IntegrationTests/Judges/JudgesApiTests.cs`
+- [X] T038 [P] [US4] Unit tests: bulk registration dedup (in-list + already-registered with reasons), email validation in `backend/tests/BirraPoint.Api.UnitTests/Judges/`
+- [X] T039 [P] [US4] Contract tests: `POST /competitions/{id}/judges` created/skipped semantics, `GET` delivery statuses, resend invitation, email correction (`PUT .../judges/{judgeId}` incl. `409 judge-already-active`) in `backend/tests/BirraPoint.Api.IntegrationTests/Judges/JudgesApiTests.cs` — COI/BOS re-run deferred to Phase 7 (see note below)
 
 ### Implementation for User Story 4
 
-- [ ] T040 [US4] Keycloak Admin API client (create user, temp password, `UPDATE_PASSWORD` required action, idempotent on existing user) in `backend/src/BirraPoint.Api/Common/Keycloak/KeycloakAdminClient.cs`
-- [ ] T041 [US4] MailKit SMTP sender + invitation template; `SendInvitation` DispatchJob handler updating `Invitation` status/attempts/lastError in `backend/src/BirraPoint.Api/Common/Email/` and `Features/Judges/SendInvitationHandler.cs`
-- [ ] T042 [US4] Slices RegisterJudges (bulk), GetJudges, ResendInvitation, UpdateJudgeEmail (pre-first-login correction: uniqueness, COI/BOS re-run, Keycloak update) + endpoints in `backend/src/BirraPoint.Api/Features/Judges/`
-- [ ] T043 [US4] Frontend judge-management: paste list, created/skipped report, delivery status, edit email (with resend) in `frontend/src/app/features/judge-management/`
-- [ ] T044 [US4] E2E scenario 4 (assert invitation visible in Mailpit API) in `frontend/e2e/us4-judges.spec.ts`
+- [X] T040 [US4] Keycloak Admin API client (create user, temp password, `UPDATE_PASSWORD` required action, idempotent on existing user) in `backend/src/BirraPoint.Api/Common/Keycloak/KeycloakAdminClient.cs`
+- [X] T041 [US4] MailKit SMTP sender + invitation template; `SendInvitation` DispatchJob handler updating `Invitation` status/attempts/lastError in `backend/src/BirraPoint.Api/Common/Email/` and `Features/Judges/SendInvitationHandler.cs`
+- [X] T042 [US4] Slices RegisterJudges (bulk), GetJudges, ResendInvitation, UpdateJudgeEmail (pre-first-login correction: uniqueness, Keycloak update) + endpoints in `backend/src/BirraPoint.Api/Features/Judges/` — **scope note**: `UpdateJudgeEmail`'s COI/BOS re-run (FR-017/018) is deliberately deferred to Phase 7 (`Features/Tables` doesn't exist yet, so that logic would be unreachable/untestable now); tracked in `Docs/arquitectura_viva.md` Recorded debt
+- [X] T043 [US4] Frontend judge-management: paste list, created/skipped report, delivery status, edit email (with resend) in `frontend/src/app/features/judge-management/`
+- [X] T044 [US4] E2E scenario 4 (assert invitation visible in Mailpit API) in `frontend/e2e/us4-judges.spec.ts`
 
 **Checkpoint**: Judges provisioned end to end; forced password change from US1 applies to them
 

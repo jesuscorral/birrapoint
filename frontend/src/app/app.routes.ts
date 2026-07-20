@@ -5,6 +5,7 @@ import { homeRedirectGuard } from './core/auth/home-redirect.guard';
 import { judgeGuard, organizerGuard } from './core/auth/role.guard';
 import { CompetitionWizardComponent } from './features/competition-wizard/competition-wizard.component';
 import { EntryImportComponent } from './features/entry-import/entry-import.component';
+import { JudgeManagementComponent } from './features/judge-management/judge-management.component';
 import { JudgeTablesComponent } from './features/auth/judge-tables.component';
 import { OrganizerDashboardComponent } from './features/auth/organizer-dashboard.component';
 
@@ -28,6 +29,7 @@ export const routes: Routes = [
       { path: 'competitions/new', component: CompetitionWizardComponent },
       { path: 'competitions/:id', component: CompetitionWizardComponent },
       { path: 'competitions/:id/import', component: EntryImportComponent },
+      { path: 'competitions/:id/judges', component: JudgeManagementComponent },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
     ],
   },
