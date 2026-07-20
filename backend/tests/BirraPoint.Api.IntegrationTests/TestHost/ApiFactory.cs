@@ -1,3 +1,5 @@
+using BirraPoint.Api.Common.Email;
+using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
@@ -5,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Testcontainers.PostgreSql;
 
 namespace BirraPoint.Api.IntegrationTests.TestHost;
@@ -46,6 +49,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:db"] = _container.GetConnectionString(),
+                // SendInvitationHandler (T041) requires this to build the invitation email body;
+                // only real AppHost env injection sets it outside this test host.
+                ["Frontend:BaseUrl"] = "http://localhost:4200",
             });
         });
 
@@ -58,6 +64,16 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 options.Authority = null;
                 options.TokenValidationParameters = TestJwtIssuer.ValidationParameters;
             });
+
+            // Judge provisioning/invitation delivery (T039/T040/T041) has no real Keycloak Admin
+            // API or SMTP server in the test environment — swap in in-memory fakes. RemoveAll is
+            // needed because IKeycloakAdminClient is registered via AddHttpClient<,> (a typed
+            // client, not a plain AddScoped) in Program.cs.
+            services.RemoveAll<IKeycloakAdminClient>();
+            services.AddSingleton<IKeycloakAdminClient, FakeKeycloakAdminClient>();
+
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender, FakeEmailSender>();
         });
     }
 }
