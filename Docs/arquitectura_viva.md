@@ -5,19 +5,30 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-20 · after T038–T044 — **Phase 6 (US4, Judge Registration & Invitations) complete**
+**Last updated:** 2026-07-20 · after T045–T049 — **Phase 7 (US5, Table Setup with COI Protection) complete**
 
 ## Global status
 
 Phase 1 (Setup, T001–T007), Phase 2 (Foundational, T008–T020), Phase 3 (US1, Secure Access,
-T021–T024), Phase 4 (US2, Competition Creation Wizard with Drafts, T025–T030), and Phase 5 (US3,
-Beer Entry Import with In-Flow Correction, T031–T037) are **complete**. Phase 6 (User Story 4 —
-Judge Registration and Automatic Invitations, T038–T044) is now also **complete**: bulk judge
-registration with in-list/already-registered dedup (T038/T042), a Keycloak Admin API client
-(T040), a MailKit invitation sender wired as the first real `DispatchJob` handler (T041), the four
-`Features/Judges/` slices (T042), a frontend paste-list/delivery-status/edit-email feature (T043),
-and an E2E spec confirming the invitation actually lands in Mailpit (T044). Quickstart scenarios
-1–4 all pass end to end against a live Aspire stack.
+T021–T024), Phase 4 (US2, Competition Creation Wizard with Drafts, T025–T030), Phase 5 (US3, Beer
+Entry Import with In-Flow Correction, T031–T037), and Phase 6 (US4, Judge Registration and
+Automatic Invitations, T038–T044) are **complete**. Phase 7 (User Story 5 — Table Setup with
+Conflict-of-Interest Protection, T045–T049) is now also **complete**: the `Features/Tables/` slice
+(COI hard-block + BOS flag/unflag, T047) plus a mid-implementation addendum
+(`GET /competitions/{id}/entries`, needed for the frontend's "Unassigned" column and missing from
+every prior contract), and a substantial frontend build — `MesaCard`'s physical-table visual, CDK
+drag-and-drop (the first use of `@angular/cdk/drag-drop` in this codebase), click-to-detail
+modals, and a keyboard-accessible reassignment fallback (T048/A/B/C) — plus an E2E spec covering
+COI rejection, BOS flagging, and both drag-and-click interactions end to end (T049). Quickstart
+scenarios 1–5 all pass end to end against a live Aspire stack.
+
+**Scope note**: T048A's beer/judge detail modals ship without allergen/special-award badges or
+judge BJCP-certification fields — a prior session's task-doc edit referenced them with zero
+backing anywhere in spec.md/data-model.md/contracts; user-approved decision to scope them out
+rather than invent product behavior no one specified. `UpdateJudgeEmail`'s COI/BOS re-run
+(FR-017/018, deferred in Phase 6) is *still* not implemented — `Features/Tables` now exists, so
+the blocking dependency is gone, but wiring it up was never in either phase's task list. Both
+tracked in Recorded debt below.
 
 **Scope note**: `UpdateJudgeEmail`'s COI/BOS re-run (FR-017/FR-018, contract text) is deliberately
 NOT implemented yet — see Recorded debt below.
@@ -274,6 +285,47 @@ route restructure) plus the one genuinely new piece, T030.
   convention) and re-enqueues the same job type. `UpdateJudgeEmail` re-validates uniqueness and
   updates the Keycloak account email; see the scope note above and Recorded debt below for what it
   deliberately does not yet do.
+- **`Features/Tables/`** (T045, T047, US5): table setup with transactional COI validation and
+  competition-wide BOS flag/unflag, `ORGANIZER`-only under `/api/v1/competitions/{id}/tables` —
+  **no migration needed**, `TastingTable`/`TableJudge`/`TableSample` were fully scaffolded since
+  Phase 2 with every constraint already DB-enforced (unique `(CompetitionId, Name)`, unique
+  `BeerEntryId` on `TableSample`). Pure logic is split out for unit-testability without Postgres:
+  `CoiDetector.FindConflicts(judgeEmails, beerEntryIds, entryOwnerEmails)` (FR-017 — owner-or-
+  collaborator email match, grouped per judge) and `BosFlagRules` (FR-018 —
+  `IsEligibleForUnflag(remainingAssignments, hasEvaluated)` encodes the permanence rule: `false`
+  once `hasEvaluated` is true regardless of remaining assignments, even though
+  `Features/Evaluations` doesn't exist until Phase 9 — genuinely testable today by seeding an
+  `Evaluation` row directly via `AppDbContext`, not dead code). `CreateTable`/`UpdateTable` both
+  take the **full desired state** (`{ name, judgeIds, beerEntryIds }`, replace semantics, not
+  incremental) and share one core, `TableAssignmentApplier.ApplyAsync`: validates COI over the
+  complete submitted set **before any mutation** (`409 conflict-of-interest`, `{conflicts:
+  [{judgeId, beerEntryIds}]}` — nothing persisted, same check-before-`SaveChangesAsync` atomicity
+  pattern as `Features/Import/ConsolidateImport.cs`), diffs current vs. submitted `TableJudge`/
+  `TableSample` rows (hard-deletes what's no longer present — safe pre-Phase-9, no evaluations can
+  exist yet to protect), then flags every newly-assigned judge's owner-or-collaborator entries
+  competition-wide, and unflags a removed judge's entries only once **every** owner/collaborator
+  judge of that entry is clear — zero active table assignments elsewhere in the competition and
+  zero `Evaluation` rows, checked per co-owner via `InvertOwnedEntriesByEmail`, not just the one
+  judge who happened to leave this table. **Fixed same-day by senior-code-reviewer's PR #19
+  pass**: the original version checked only the leaving judge's own remaining assignments, so an
+  entry co-owned by a judge leaving Table 1 and a judge still seated at Table 2 was incorrectly
+  unflagged — a real FR-018 integrity bug, not a scoping choice; caught before merge, covered by
+  a new regression test. `TableValidationRules` (FluentValidation `MustAsync`, closed
+  error catalog — no new `DomainErrorType` needed, `ConflictOfInterest`/`TableClosed` already
+  existed) checks table-name uniqueness, that submitted judge/entry ids actually belong to the
+  caller's competition (ownership-scoped the same way `UpdateJudgeEmail`'s validator was fixed to
+  be — a PR #18 review finding — otherwise a submitted foreign-competition entry id could leak
+  cross-tenant existence or let one organizer "steal" another's unassigned entry via the global
+  `TableSample.BeerEntryId` uniqueness constraint), and that no submitted entry is already assigned
+  to a *different* table. `TableProjector` builds the shared GET/response DTO — judges, samples
+  (blind code, style name, ABV range, BOS flag), progress (submitted-evaluation count, vacuously 0
+  today), and per-table stats (mean ABV from `BjcpStyle.ABVLow/High`, style count/list) — all
+  computed server-side so the frontend never needs a second round-trip to the catalog.
+  **Addendum, added mid-implementation**: `ListEntries.cs` (`GET /entries`) — a real gap found
+  while scoping the frontend work, not present in any contract: nothing let the organizer list a
+  competition's `BeerEntry` rows at all outside `ConsolidateImport`'s one-time response, so T048's
+  "Unassigned" beer column had no data source. Returns every entry with its style/ABV and current
+  table assignment (`tastingTableId`/`tastingTableName`, both `null` when unassigned).
 - **`Realtime/`** (T015): `CompetitionHub` (`/hubs/competition`, `[Authorize]`) — server → client
   only, per contracts/signalr-hub.md. `JoinCompetitionAsOrganizer` guards on `ORGANIZER` role +
   `Competition.CreatedByUserId` ownership; `JoinTable` guards on an active (`RemovedAt == null`)
@@ -528,6 +580,52 @@ route restructure) plus the one genuinely new piece, T030.
   Resend/Save buttons during its own in-flight request without a full-page loading blocker. Route:
   `competitions/:id/judges` under `organizer`, same direct-navigation-only convention as
   `entry-import`.
+- **`features/table-management/`** (T048/A/B/C, US5): the largest single-screen feature slice so
+  far — an "Unassigned" source column (plain list, deliberately no seat/table iconography) plus
+  one `MesaCardComponent` per table rendering the physical-table metaphor from the organizer's
+  "Crear mesas" prototype: judges as seats positioned trigonometrically around an ellipse, beer
+  tokens centered inside, per-table stats (`meanAbv`/`styleCount`/`styles`) read directly off the
+  backend's own computed `stats` field, no client-side recomputation. `JudgeSeatComponent`
+  (~38px)/`BeerTokenComponent` (~64px, T048C sizing) are shared draggable presentational items
+  reused identically by both `MesaCard` and the Unassigned column, so click-vs-drag
+  disambiguation and hit-area sizing live in exactly one place each. **`ClickVsDragDirective`**
+  (T048B) is the click-vs-drag mechanism: tracks the `pointerdown` position, attaches a one-shot
+  `window` `pointerup` listener, and fires its own `appClickVsDrag` output only if movement stayed
+  within a 6px threshold — deliberately independent of CDK's own drag detection (never calls
+  `preventDefault`/`stopPropagation`), verified in a real browser (not just Jest, jsdom can't
+  simulate pointer capture/movement reliably for this) that a plain click on an already-seated
+  item opens its detail modal while a real drag does not, and that disambiguation doesn't get
+  "stuck" on the item a drag just dropped. This is the **first use of `@angular/cdk/drag-drop`**
+  in this codebase — Phase 8/T053 (order reordering, not yet built) will be the second, following
+  this pattern rather than the other way around (the original task text had the dependency
+  backwards). `TableDetailModalComponent` (T048A) shows only fields the backend actually has —
+  beer: blind code, style name, ABV range, assigned table; judge: name, email, assigned table —
+  per the user-approved scope cut (no allergen/award/certification, see Global status above); it
+  also doubles as **T048B's mandated keyboard-accessible drag-drop equivalent**, not called out in
+  the task text but required by this codebase's accessibility mandate (Principle VIII, "every drag
+  & drop has a keyboard-accessible equivalent") — a "Move to" `<select>` + button reachable via
+  Enter/Space on any seat/token, calling the exact same mutation path as a real drag. Every
+  judge/beer move (drag or keyboard) goes through `TableManagementComponent`'s `moveJudge`/
+  `moveBeer`, which issue one or two sequential `PUT /tables/{id}` calls (remove-from-source then
+  add-to-target for a cross-table move) and only update local state once each call actually
+  resolves — a mid-flight failure can never leave local state ahead of what the server committed.
+  The COI conflict dialog resolves the `409`'s top-level `conflicts` field (confirmed via
+  `DomainExceptionHandler.cs` that `DomainException.Extensions` serialize as flat top-level
+  ProblemDetails members, not nested — `ApiError.extensions['conflicts']`, not
+  `extensions.extensions.conflicts`) into judge display names / entry blind codes for a readable
+  message; it gained `cdkTrapFocus`/`cdkTrapFocusAutoCapture` in the same PR #19 review pass that
+  found the backend BOS-unflag bug above — the detail modal already had it, the conflict dialog
+  initially didn't, so a keyboard user landed with focus nowhere in particular after a rejected
+  move. **Bug found by its own E2E spec, fixed same-day**: the mutation-response reconciliation
+  originally patched the `entries` signal's `tastingTableId`/`notValidForBos` incrementally from
+  only the mutated table's own membership — but `bosFlaggedEntryIds` only ever reports newly
+  *flagged* ids (never unflagged ones) and FR-018 can flag/unflag entries anywhere in the
+  competition, not just at the table being edited, so an entry's BOS-flagged visual state could go
+  stale outside the table just mutated until a full page reload. Fixed by refetching `GET
+  /entries` wholesale after every mutation instead of patching incrementally — simpler and
+  correct in both directions, at the cost of one extra request per mutation (acceptable for an
+  organizer-only setup screen). Route: `competitions/:id/tables` under `organizer`, same
+  direct-navigation-only convention as the other two Phase 5–6 feature routes.
 - **`core/api/`** (T020): the typed HTTP client + ProblemDetails→UI error mapping.
   - `problem-details.model.ts`: `ProblemDetails`/`ValidationProblemDetails` interfaces plus
     `BIRRAPOINT_ERROR_URNS` — the 14 `urn:birrapoint:*` values from contracts/rest-api.md §Error
@@ -577,9 +675,9 @@ route restructure) plus the one genuinely new piece, T030.
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 108 unit tests (was 93; +15 **T038** `Judges/`: `JudgeRegistrationPlannerTests` (dedup/classification, no DB round-trip), `RegisterJudgesCommandValidatorTests`, `UpdateJudgeEmailCommandValidatorTests`) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (claims transformation, `CurrentUser`, DI-wiring smoke incl. `IJudgeResolver`, T023) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22); 81 integration tests (was 65; +16 **T039** `Judges/JudgesApiTests`: register 201 mixed created/skipped incl. case-insensitive duplicate-in-list + already-registered, async `SendInvitation` job reaching `Sent` via poll against a live `DispatchWorker` — the first slice to exercise it end to end — GET shape, `PUT` email correction 200/`409 judge-already-active`/uniqueness conflict, resend re-triggering delivery, all against fake `IKeycloakAdminClient`/`IEmailSender` registered in `ApiFactory`) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) |
-| Frontend unit | `cd frontend && npx jest` | green — 98 tests (was 86; +12 **T043** `features/judge-management/`: `judge-management-api.service.spec.ts` (4), `judge-management.component.spec.ts` (8, incl. registration success/failure, delivery-status load-on-init, resend-triggers-refresh, edit-email success and `409 judge-already-active`)) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (14) + T029 `features/competition-wizard/` (23) + T036 `features/entry-import/` (19). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
-| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), and new **T044 `us4-judges.spec.ts`** (1: paste 3 emails + a duplicate → Registration report shows created/skipped with plain-language reasons → delivery-status table rows appear → poll Mailpit's `:8025` REST API until an invitation to one of the new judges is found, asserting on the actual email — not just UI/DB state) all green against a live, fully-warmed Aspire stack — but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated to Phase 4–6: `login-required` races `page.goto('/')`); `us3-import.spec.ts` was also observed to fail once under a cold/still-warming stack (Keycloak not yet ready) and pass reliably once warmed — a timing flake, not a regression, same root cause as the pre-existing pair above. See Recorded debt below. Chromium only |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 121 unit tests (was 108; +13 **T045** `Tables/`: `CoiDetectorTests` (owner/collaborator match, no-conflict, case-insensitivity, per-judge grouping, 6) + `BosFlagRulesTests` (flag-on-any-membership, the permanence rule specifically — `hasSubmittedEvaluation` wins even with zero remaining assignments, 7)) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15); 104 integration tests (was 81; +23 **T046** `Tables/TablesApiTests` (18: auth/ownership matrix, `201` success incl. indirect-BOS-flag assertion, `409 conflict-of-interest` on owner and collaborator collisions with atomic-rollback proof, `409 table-closed`, `400` duplicate name / entry-already-elsewhere, `PUT` add+remove-in-one-call incl. the FR-018 unflag case, plus a review-driven regression: removing one co-owner from their table must not lift the flag while a different co-owner stays active elsewhere) + `Tables/EntriesApiTests` (4: auth pattern, null-before/populated-after-assignment) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) |
+| Frontend unit | `cd frontend && npx jest` | green — 145 tests (was 98; +47 **T048** `features/table-management/`: 8 spec files across the API service, `ClickVsDragDirective` (the 6px threshold as a pure function), `JudgeSeatComponent`/`BeerTokenComponent`, `MesaCardComponent`, `UnassignedColumnComponent`, `TableDetailModalComponent`, and the container — table create/update success and 409/400 paths, Unassigned-column set-membership computation, BOS banner, detail modal content, plus a regression test locking in the entries-refetch-after-mutation fix below; the CDK pointer/drag gesture itself is explicitly NOT covered by Jest — jsdom can't simulate pointer capture/movement reliably, verified manually in a real browser instead, see Data flows) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (14) + T029 `features/competition-wizard/` (23) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
+| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), and new **T049 `us5-tables.spec.ts`** (1: import 3 entries + register 2 judges sharing emails with two participants → create two tables → drag the COI judge onto their own beer's table → `alertdialog` naming judge+blind-code, nothing persisted → drag the BOS judge onto a non-conflicting table → success + BOS banner, and the *other* judge's entry shows the `beer-token--bos-flagged` visual state live, no reload needed (this is what caught the entries-refetch bug) → click-to-detail on a seated beer and judge → drag a beer `MesaCard`→`MesaCard` and confirm a plain click immediately after still opens detail rather than re-arming a drag; real pointer-drag simulated via `mouse.down`→multi-step `mouse.move`→`mouse.up` against CDK's drop-list elements, worked reliably with no fallback to the keyboard "Move to" control needed) all green against a live, fully-warmed Aspire stack — but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated to Phase 4–7: `login-required` races `page.goto('/')`). See Recorded debt below. Chromium only |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
 ## Data flows
@@ -613,8 +711,17 @@ picks the job up, `SendInvitationHandler` calls `IKeycloakAdminClient` to provis
 account + a fresh temporary password (never touching `Judge.KeycloakUserId`, which stays `null`
 until the judge's real first login backfills it via `JudgeResolver`, T023) and `IEmailSender` to
 deliver the invitation via Mailpit, then updates `Invitation.Status`/`SentAt`/`Attempts`/
-`LastError` — the frontend's delivery-status table reflects this once it refreshes/reloads. The
-database
+`LastError` — the frontend's delivery-status table reflects this once it refreshes/reloads.
+**T045–T049** (US5): `/organizer/competitions/{id}/tables` → `TableManagementComponent` loads
+`GET /tables` + `GET /entries` + `GET /judges` in parallel, computes "Unassigned" client-side by
+set difference, and renders one `MesaCard` per table. Every judge/beer assignment — drag-and-drop
+or the keyboard "Move to" fallback — issues `PUT /tables/{id}` with that table's full desired
+membership; `TableAssignmentApplier` validates COI over the complete submitted set before any
+write (`409` + nothing persisted on conflict), diffs `TableJudge`/`TableSample` rows, and
+flags/unflags `BeerEntry.NotValidForBos` competition-wide as table membership changes (FR-018) —
+the response's `bosFlaggedEntryIds` drives the frontend's warning banner, and the component
+refetches `GET /entries` wholesale afterward so every entry's flagged visual state (not just ones
+touched by this one mutation) stays live without a reload. The database
 holds the full domain schema (T008–T009); target contracts live in
 `specs/001-birrapoint-mvp/contracts/` (REST `/api/v1`, SignalR `CompetitionHub`, `.xlsx` import
 file). Frontend-side: any route load triggers Keycloak's `login-required` flow first (PKCE
@@ -630,14 +737,32 @@ feature slice yet.
 
 ## Recorded debt / immediate next steps
 
-- **New**: `UpdateJudgeEmail` (T042, `Features/Judges/UpdateJudgeEmail.cs`) does not implement the
-  COI-matching/BOS-reflagging re-run against the new address that `contracts/rest-api.md` cites
-  (FR-017/FR-018) — deliberately deferred. `TastingTable`/`TableJudge` entities already exist
-  (scaffolded T008), but `Features/Tables` (Phase 7, the only way to ever create a `TableJudge`
-  row) doesn't exist yet, so that logic would be unreachable/untestable except by hand-seeding
-  rows no real flow produces. Build it as part of Phase 7 once `Features/Tables`' own COI checker
-  exists to potentially share logic with (or deliberately duplicate a small pure matching helper —
-  decide at that point, don't extract a shared abstraction speculatively now).
+- **Updated**: `UpdateJudgeEmail` (T042, `Features/Judges/UpdateJudgeEmail.cs`) still does not
+  implement the COI-matching/BOS-reflagging re-run against the new address that
+  `contracts/rest-api.md` cites (FR-017/FR-018). The original blocker (`Features/Tables` not
+  existing) is gone — Phase 7 built it, and `CoiDetector`/`BosFlagRules` (`Features/Tables/`) are
+  exactly the pure helpers this would reuse — but wiring `UpdateJudgeEmail` to them was never
+  actually in either phase's task list, so it's still unbuilt. Low urgency in practice (this
+  endpoint only matters pre-first-login, before a judge could plausibly be assigned to a table
+  too), but a real gap between the contract's stated behavior and the code — pick up as a small
+  follow-up task rather than silently continuing to defer it indefinitely.
+- **New**: T048A's beer/judge detail modals ship without allergen/special-award beer badges or
+  judge BJCP-category/certification fields. These were referenced only in a prior session's
+  tasks.md edit (commit 9ec60a4, from an organizer-supplied UI prototype) with zero backing in
+  spec.md/data-model.md/contracts/any import column — the process this repo requires (flow
+  requirement changes back into the spec first) wasn't followed at the time. User-approved
+  decision this phase: scope them out rather than invent the data model/UI for unspecified
+  product behavior. If these are wanted, they need a proper spec amendment first (where does the
+  data come from — an import column? organizer-entered post-consolidation? judge self-reported at
+  registration?) before any code should reference them again.
+- **New**: `frontend/src/app/features/table-management/click-vs-drag.directive.ts`'s actual CDK
+  pointer/drag gesture is not exercised by Jest — jsdom can't simulate real pointer
+  capture/movement reliably. Verified manually in a real browser during T048 (screenshot +
+  `boundingBox()` measurements) and covered by T049's E2E (real `mouse.down`/multi-step
+  `mouse.move`/`mouse.up` sequences against CDK's drop lists) instead. Same "browser E2E fills the
+  jsdom gap" pattern as the FormsModule bug found in Phase 5 — worth remembering that any future
+  pointer-gesture-dependent UI in this codebase needs the same treatment, Jest alone won't catch
+  a regression there.
 - **New**: `SendInvitationHandler` (T041) requires a `Frontend:BaseUrl` config value (used to build
   the invitation email's login link) that's only ever set by `AppHost.cs`'s Aspire env injection —
   there's no fallback in `appsettings.json`/`appsettings.Development.json`. Harmless today (every

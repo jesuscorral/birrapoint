@@ -12,6 +12,7 @@ using BirraPoint.Api.Features.Catalog;
 using BirraPoint.Api.Features.Competitions;
 using BirraPoint.Api.Features.Import;
 using BirraPoint.Api.Features.Judges;
+using BirraPoint.Api.Features.Tables;
 using BirraPoint.Api.Realtime;
 using Microsoft.EntityFrameworkCore;
 
@@ -124,6 +125,9 @@ app.MapImportEndpoints();
 
 // Judge bulk registration, invitations, email correction (T042).
 app.MapJudgesEndpoints();
+
+// Tasting tables: create/update with transactional COI validation + BOS flagging, list (T047).
+app.MapTablesEndpoints();
 
 // EF migrations apply on startup in Development only (T009); production migrates at deploy time.
 if (app.Environment.IsDevelopment())

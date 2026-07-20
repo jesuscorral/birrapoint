@@ -8,6 +8,7 @@ import { EntryImportComponent } from './features/entry-import/entry-import.compo
 import { JudgeManagementComponent } from './features/judge-management/judge-management.component';
 import { JudgeTablesComponent } from './features/auth/judge-tables.component';
 import { OrganizerDashboardComponent } from './features/auth/organizer-dashboard.component';
+import { TableManagementComponent } from './features/table-management/table-management.component';
 
 export const routes: Routes = [
   // No component renders here for a recognized role — homeRedirectGuard (T024) always resolves
@@ -30,6 +31,7 @@ export const routes: Routes = [
       { path: 'competitions/:id', component: CompetitionWizardComponent },
       { path: 'competitions/:id/import', component: EntryImportComponent },
       { path: 'competitions/:id/judges', component: JudgeManagementComponent },
+      { path: 'competitions/:id/tables', component: TableManagementComponent },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
     ],
   },
