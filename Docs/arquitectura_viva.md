@@ -840,6 +840,14 @@ first real E2E exerciser, even though still no organizer-facing UI button calls 
 
 ## Recorded debt / immediate next steps
 
+- **New, minor**: `features/dashboard/organizer-dashboard.component.ts` (T100) imports
+  `CompetitionsApiService`/`CompetitionSummary`/`CompetitionState` from `features/competition-wizard/`
+  — the first feature→feature import in this codebase (every prior consumer of that service lived
+  inside `competition-wizard/` itself). Flagged by senior-code-reviewer on PR #21: now that two
+  features share this client, it's a reasonable candidate to relocate to `core/api/`, per this
+  repo's FSD convention (cross-cutting infrastructure in `core/`, business screens in `features/`).
+  Not fixed inline — reuse over duplication was still the right call for this PR — but worth doing
+  before a third feature needs the same service.
 - **New**: no organizer-facing UI exists anywhere to change a competition's lifecycle state
   (`POST /competitions/{id}/state`, already built since T028) — an organizer can create a `Draft`
   and, as of T100, see and open it, but has no button to advance it to `Active`/`InEvaluation`/
