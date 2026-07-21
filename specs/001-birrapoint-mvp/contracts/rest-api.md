@@ -20,7 +20,7 @@ Conventions: `404` for resources outside the caller's scope (never reveal existe
 | Method & Path | Role | Description |
 |---|---|---|
 | `POST /competitions` | ORGANIZER | Create draft. Body: `{ name, venue, startDate, endDate, description?, logoUrl?, entryLimit?, registrationStart?, registrationEnd? }` → `201` `{ id, state: "Draft", … }`. `400` on missing required field / endDate < startDate / registrationEnd < registrationStart. |
-| `GET /competitions` | ORGANIZER | Own competitions summary list. |
+| `GET /competitions` | ORGANIZER | Own competitions summary list (US13): `[{ id, name, venue, startDate, endDate, state }]`, `state` one of `Draft`\|`Active`\|`InEvaluation`\|`Finalized` (FR-050). Already implemented (T027); the organizer dashboard is its first consumer. |
 | `GET /competitions/{id}` | ORGANIZER | Full detail. |
 | `PUT /competitions/{id}` | ORGANIZER | Update wizard data. Allowed in `Draft`/`Active` only → else `409 invalid-state-transition`. |
 | `POST /competitions/{id}/state` | ORGANIZER | Body: `{ target: "Active" \| "InEvaluation" \| "Finalized" }`. Forward-only, skip-free (FR-006) → `409 invalid-state-transition` otherwise. `Finalized` additionally requires all tables closed → `409 tables-still-open` (lists open table ids). On success `200 { state }`; `Finalized` enqueues the dispatch pipeline (FR-036). |

@@ -5,7 +5,11 @@ import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { CompetitionsApiService } from './competitions-api.service';
-import type { CompetitionDetail, CompetitionPayload } from './competitions-api.service';
+import type {
+  CompetitionDetail,
+  CompetitionPayload,
+  CompetitionSummary,
+} from './competitions-api.service';
 
 describe('CompetitionsApiService', () => {
   let service: CompetitionsApiService;
@@ -78,5 +82,25 @@ describe('CompetitionsApiService', () => {
     req.flush(detail);
 
     expect(await result).toEqual(detail);
+  });
+
+  it('list() gets the caller-owned competitions summary from /competitions', async () => {
+    const summaries: CompetitionSummary[] = [
+      {
+        id: 'c1',
+        name: 'Golden Ale Cup',
+        venue: 'Town Hall',
+        startDate: '2026-08-01',
+        endDate: '2026-08-02',
+        state: 'Draft',
+      },
+    ];
+    const result = firstValueFrom(service.list());
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions`);
+    expect(req.request.method).toBe('GET');
+    req.flush(summaries);
+
+    expect(await result).toEqual(summaries);
   });
 });

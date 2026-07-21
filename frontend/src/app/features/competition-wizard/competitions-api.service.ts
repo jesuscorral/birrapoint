@@ -33,6 +33,17 @@ export interface CompetitionDetail {
   state: CompetitionState;
 }
 
+// Response shape for GET /competitions (contracts/rest-api.md §Competitions, US13) — the
+// caller-owned summary subset, not the full wizard detail.
+export interface CompetitionSummary {
+  id: string;
+  name: string;
+  venue: string;
+  startDate: string;
+  endDate: string;
+  state: CompetitionState;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CompetitionsApiService {
   private readonly apiClient = inject(ApiClient);
@@ -47,5 +58,9 @@ export class CompetitionsApiService {
 
   getById(id: string): Observable<CompetitionDetail> {
     return this.apiClient.get<CompetitionDetail>(`/competitions/${id}`);
+  }
+
+  list(): Observable<CompetitionSummary[]> {
+    return this.apiClient.get<CompetitionSummary[]>('/competitions');
   }
 }

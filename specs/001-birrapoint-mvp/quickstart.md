@@ -79,6 +79,7 @@ Each scenario maps to a spec user story (US) and must pass before that story is 
 | 10 | Finalize & dispatch (US10) | Close all tables, finalize | ZIP hierarchy `/Competition/Participant/Style_BlindCode.pdf`; every participant email in Mailpit; per-recipient status + retry works |
 | 11 | Discrepancy (US11) | Two judges score one sample 15 pts apart | Second submit `PendingConsensus` + alert both sessions; close blocked; adjust within 7 → resolved |
 | 12 | Live removal (US12) | Remove judge from live table via dashboard | Judge session ejected instantly; their sync attempts `404/409`; submitted evaluations remain in audit |
+| 13 | Competition selection (US13) | Log in as an organizer owning 2+ competitions in different states; select one, then separately start a new one | Dashboard lists all owned competitions with name/venue/dates/state; selecting one opens the wizard (`Draft`) or the matching management screen (`Active`+); "new competition" opens the wizard empty; zero owned competitions shows an empty state with a create action |
 
 ## Quality gates (constitution)
 

@@ -91,6 +91,13 @@ Complexity Tracking entries required.
 orchestration, containerization, and ACA/Bicep deployment constraints incorporated
 (FR-043–FR-048, research R-16–R-19, tasks Phase 16); still no Complexity Tracking entries.
 
+**Post-addition re-check (2026-07-21, User Story 13 / FR-050)**: ✅ PASS, trivially — reuses the
+already-implemented `GET /competitions` endpoint and the existing `Competition`/`CompetitionState`
+model verbatim; no new dependency, entity, contract, or pattern. No `research.md`/`data-model.md`
+changes needed. `contracts/rest-api.md`'s `GET /competitions` row tightened to the exact response
+shape it already returns (was previously just prose). See Project Structure below for where the
+frontend work lands.
+
 ## Project Structure
 
 ### Documentation (this feature)
@@ -156,7 +163,11 @@ frontend/
 │       │   ├── judge-tables/           # Judge: my tables, blind sample list, order fixing
 │       │   ├── evaluation-sheet/       # Judge: scored sections, offline drafts, submit
 │       │   ├── discrepancy/            # Judge: alert & adjustment UI
-│       │   ├── dashboard/              # Organizer: live progress, audit drill-down, removal
+│       │   ├── dashboard/              # Organizer: competition list/selection (US13, buildable
+│       │   │                           #   now — GET /competitions already exists) growing into
+│       │   │                           #   live progress, audit drill-down, removal (US9, later,
+│       │   │                           #   needs evaluations flowing) — same landing screen/route,
+│       │   │                           #   same incremental-fill pattern as judge-tables/'s T024→T053
 │       │   └── results-dispatch/       # Organizer: ZIP download, email statuses, retries
 │       └── shared/                     # UI primitives, pipes, a11y helpers
 └── tests/                              # Jest unit; e2e/ Playwright suites
