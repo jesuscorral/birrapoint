@@ -6,7 +6,8 @@ import { judgeGuard, organizerGuard } from './core/auth/role.guard';
 import { CompetitionWizardComponent } from './features/competition-wizard/competition-wizard.component';
 import { EntryImportComponent } from './features/entry-import/entry-import.component';
 import { JudgeManagementComponent } from './features/judge-management/judge-management.component';
-import { JudgeTablesComponent } from './features/auth/judge-tables.component';
+import { JudgeTableOrderComponent } from './features/judge-tables/judge-table-order.component';
+import { JudgeTablesListComponent } from './features/judge-tables/judge-tables-list.component';
 import { OrganizerDashboardComponent } from './features/auth/organizer-dashboard.component';
 import { TableManagementComponent } from './features/table-management/table-management.component';
 
@@ -39,7 +40,8 @@ export const routes: Routes = [
     path: 'judge',
     canActivate: [judgeGuard],
     children: [
-      { path: 'tables', component: JudgeTablesComponent },
+      { path: 'tables', component: JudgeTablesListComponent },
+      { path: 'tables/:tableId', component: JudgeTableOrderComponent },
       { path: '', pathMatch: 'full', redirectTo: 'tables' },
     ],
   },

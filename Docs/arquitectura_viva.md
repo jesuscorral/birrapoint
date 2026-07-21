@@ -5,22 +5,24 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-20 · after T045–T049 — **Phase 7 (US5, Table Setup with COI Protection) complete**
+**Last updated:** 2026-07-21 · after T050–T054 — **Phase 8 (US6, Blind Table Dynamics: Shared Fixed Order) complete**
 
 ## Global status
 
 Phase 1 (Setup, T001–T007), Phase 2 (Foundational, T008–T020), Phase 3 (US1, Secure Access,
 T021–T024), Phase 4 (US2, Competition Creation Wizard with Drafts, T025–T030), Phase 5 (US3, Beer
-Entry Import with In-Flow Correction, T031–T037), and Phase 6 (US4, Judge Registration and
-Automatic Invitations, T038–T044) are **complete**. Phase 7 (User Story 5 — Table Setup with
-Conflict-of-Interest Protection, T045–T049) is now also **complete**: the `Features/Tables/` slice
-(COI hard-block + BOS flag/unflag, T047) plus a mid-implementation addendum
-(`GET /competitions/{id}/entries`, needed for the frontend's "Unassigned" column and missing from
-every prior contract), and a substantial frontend build — `MesaCard`'s physical-table visual, CDK
-drag-and-drop (the first use of `@angular/cdk/drag-drop` in this codebase), click-to-detail
-modals, and a keyboard-accessible reassignment fallback (T048/A/B/C) — plus an E2E spec covering
-COI rejection, BOS flagging, and both drag-and-click interactions end to end (T049). Quickstart
-scenarios 1–5 all pass end to end against a live Aspire stack.
+Entry Import with In-Flow Correction, T031–T037), Phase 6 (US4, Judge Registration and
+Automatic Invitations, T038–T044), and Phase 7 (US5, Table Setup with Conflict-of-Interest
+Protection, T045–T049) are **complete**. Phase 8 (User Story 6 — Blind Table Dynamics: Shared
+Fixed Order, T050–T054) is now also **complete**: the judge-facing `Features/TastingOrder/` slice
+(`GET /me/tables`, `GET /me/tables/{tableId}/samples`, one-shot `POST /me/tables/{tableId}/order`
+serialized via `SELECT ... FOR UPDATE`, T050–T052) plus the first real frontend content in
+`features/judge-tables/` — blind sample list, CDK drag-drop + keyboard move-up/down reorder
+(FR-020), a live `TableOrderFixed` subscription over `CompetitionHubService` (T053) — and an E2E
+spec proving cross-session propagation within FR-021's ≤1s budget across two independent judge
+browser sessions (T054). Quickstart scenarios 1–5 pass end to end; scenario 6 passes for the
+order-fix/propagation/lock behavior this story delivers (the "sheets openable only in fixed
+sequence" half needs the evaluation sheet, US7/T061, not built yet).
 
 **Scope note**: T048A's beer/judge detail modals ship without allergen/special-award badges or
 judge BJCP-certification fields — a prior session's task-doc edit referenced them with zero
@@ -103,11 +105,12 @@ route restructure) plus the one genuinely new piece, T030.
   one person can judge several competitions with separate rows — and backfills `KeycloakUserId`
   once per row (idempotent: an already-backfilled row is left untouched on replay) plus
   `DisplayName` only when a non-null `name` is supplied. Takes primitives rather than
-  `ICurrentUser` itself to avoid a DI cycle (`CurrentUser` calls *into* this). Nothing calls
-  `GetJudgeRecordsAsync` yet besides its own test — judge-scoped slices that would (US6+, T052+)
-  don't exist on this branch; `CompetitionHub.JoinTable`'s existing inline email/`KeycloakUserId`
-  fallback (below) is intentionally left as-is, not refactored to call this resolver, since it
-  reads `Context.User` not `ICurrentUser` (ADR-0006) and T023 doesn't ask for a hub change.
+  `ICurrentUser` itself to avoid a DI cycle (`CurrentUser` calls *into* this). **T052**:
+  `GetJudgeRecordsAsync` now has its first real caller — `Features/TastingOrder/`'s
+  `JudgeTableAccess` helper resolves the caller's Judge row ids through it before checking active
+  `TableJudge` membership. `CompetitionHub.JoinTable`'s own inline email/`KeycloakUserId` fallback
+  (below) is still intentionally left as-is, not refactored to call this resolver, since it reads
+  `Context.User` not `ICurrentUser` (ADR-0006) and no task has asked for a hub change.
 - **`Common/Errors/`** (T012): ProblemDetails via the .NET `IExceptionHandler` chain (tried in
   registration order): `DomainExceptionHandler` (maps `DomainException` to its catalogued urn),
   `ValidationExceptionHandler` (maps FluentValidation's `ValidationException` to `400` +
@@ -326,6 +329,29 @@ route restructure) plus the one genuinely new piece, T030.
   competition's `BeerEntry` rows at all outside `ConsolidateImport`'s one-time response, so T048's
   "Unassigned" beer column had no data source. Returns every entry with its style/ABV and current
   table assignment (`tastingTableId`/`tastingTableName`, both `null` when unassigned).
+- **`Features/TastingOrder/`** (T050–T052, US6): the first judge-facing slice, `JUDGE`-only under
+  `/api/v1/me/tables` — the mirror image of `Features/Tables/`'s organizer-only shape. `JudgeDtos.cs`
+  is a dedicated anonymity-boundary namespace (data-model.md §Anonymity boundary): `JudgeSampleDto`
+  and `JudgeTableSummaryDto` structurally carry no entrant field, and a contract test asserts the
+  serialized wire payload directly, not just the DTO's declared members. `JudgeTableAccess`
+  (shared, all three handlers use it) resolves active table membership off `ICurrentUser.
+  GetJudgeRecordsAsync()`'s backfilled Judge rows rather than re-deriving the sub/email match
+  `CompetitionHub.JoinTable` does inline. `GetTableSamples` derives `evaluationStatus` (`NotStarted`
+  / `Submitted` / `PendingConsensus`) by left-joining `Evaluation` scoped to the caller's own Judge
+  id — no `Evaluation` row yet since `Features/Evaluations` doesn't exist until Phase 9, so every
+  sample reports `NotStarted` today, same "genuinely wired, not dead code" shape as Phase 7's
+  `BosFlagRules`. `TastingOrderRules` (pure, unit-tested without Postgres) encodes the one-shot
+  check and the `Active`/`InEvaluation` state gate; `FixOrder`'s handler wraps the actual mutation
+  in an explicit transaction with `SELECT ... FOR UPDATE` (`FromSqlInterpolated`) on the
+  `TastingTable` row so two judges racing to fix the same table's order get exactly one `200` and
+  one `409 order-already-fixed` — this is the first row-locking pattern in the codebase (every
+  other one-shot/uniqueness guard so far has relied on a DB unique constraint catching a
+  `DbUpdateException`, which doesn't fit here since there's no unique index to violate — "already
+  fixed" is a business-state check, not a row collision). On success, emits `TableOrderFixed` (after
+  commit, `CancellationToken.None`, matching every other emitter's convention) — **only to the
+  `table:{tableId}` group**; contracts/signalr-hub.md also lists this event under the organizer
+  group, not yet wired (Phase 9/US9's monitoring dashboard is the natural owner — see Recorded debt
+  below).
 - **`Realtime/`** (T015): `CompetitionHub` (`/hubs/competition`, `[Authorize]`) — server → client
   only, per contracts/signalr-hub.md. `JoinCompetitionAsOrganizer` guards on `ORGANIZER` role +
   `Competition.CreatedByUserId` ownership; `JoinTable` guards on an active (`RemovedAt == null`)
@@ -450,11 +476,15 @@ route restructure) plus the one genuinely new piece, T030.
   `@microsoft/signalr@^10`, `tailwindcss@^4.3`. Dev-only (T020): `fake-indexeddb@^6.2` — jsdom has
   no IndexedDB implementation, so testing real Dexie CRUD under Jest needs it (Dexie's own
   recommended test companion); same category as Testcontainers on the backend, never shipped.
-- **Bundle** (production build): initial total ~345.1 kB raw / ~93.0 kB transfer (was ~289.4 kB /
-  ~80.1 kB at T024) — within the ≤ 500 kB gzip budget (Principle IX). The T029 jump is
-  `ReactiveFormsModule` pulled in for the first time by the wizard's two step components; T020's
-  `CompetitionHubService`/`db.ts` still remain unconsumed and tree-shake out (only `ApiClient` is
-  now live, via `CompetitionsApiService`).
+- **Bundle** (production build): initial total ~547.1 kB raw / ~136.5 kB transfer (was ~471.1 kB /
+  ~120.4 kB before T053) — still comfortably within the ≤ 500 kB **gzip** budget (Principle IX,
+  measured as transfer size), but T053 is the first phase to cross the Angular CLI's own raw-byte
+  budget (`angular.json`, `maximumWarning: 500kB`), which now prints a build warning (not an
+  error — `maximumError` is 1 MB). Driven by `@angular/cdk/drag-drop`'s `CdkTrapFocus` a11y module
+  and `@microsoft/signalr` becoming reachable code for the first time (T020's `CompetitionHubService`
+  was wired but unconsumed until now). Not addressed this phase — flagged in Recorded debt below
+  since the gzip budget (the actual constitutional gate) is unaffected today, but the margin to the
+  CLI warning threshold is gone.
 - **`src/environments/environment.ts`** (T019): local-dev-only config — `keycloak: { url, realm:
   'birrapoint', clientId: 'birrapoint-spa' }` (matches `infra/keycloak/birrapoint-realm.json`)
   and `apiBaseUrl`, both the fixed Aspire local ports (CLAUDE.md §Commands). No dev/prod split or
@@ -511,9 +541,11 @@ route restructure) plus the one genuinely new piece, T030.
     CLAUDE.md-documented `/organizer/**`/`/judge/**` guard convention. `app.config.ts` still wires
     `provideAppKeycloak()` + `provideAuthBearerInterceptor()` (unchanged).
   - **`features/auth/`** (T024, new, first content in this previously-empty FSD layer):
-    `OrganizerDashboardComponent`/`JudgeTablesComponent` — standalone `OnPush` placeholders (`<h1>
-    Organizer dashboard</h1>` / `<h1>Judge tables</h1>`) proving the routing/guard wiring for
-    quickstart scenario 1; real content lands with US9 (Phase 11) and US6 (Phase 8) respectively.
+    `OrganizerDashboardComponent` — standalone `OnPush` placeholder (`<h1>Organizer dashboard</h1>`)
+    proving the routing/guard wiring for quickstart scenario 1; real content lands with US9 (Phase
+    11). Its sibling, `JudgeTablesComponent`, served the same purpose for the JUDGE role until
+    **T053** replaced it with real content — see `features/judge-tables/` below; `app.routes.ts`'s
+    `judge` children now point at `JudgeTablesListComponent`/`JudgeTableOrderComponent` instead.
   - Verified against the full Aspire stack two ways: `frontend/e2e/us1-auth.spec.ts` (T022, below)
     driving a real Keycloak login end to end, and a manual browser check — unauthenticated visit
     to `/` → Keycloak-hosted login (PKCE `code_challenge_method=S256` visible) → seeded `organizer`
@@ -596,8 +628,8 @@ route restructure) plus the one genuinely new piece, T030.
   simulate pointer capture/movement reliably for this) that a plain click on an already-seated
   item opens its detail modal while a real drag does not, and that disambiguation doesn't get
   "stuck" on the item a drag just dropped. This is the **first use of `@angular/cdk/drag-drop`**
-  in this codebase — Phase 8/T053 (order reordering, not yet built) will be the second, following
-  this pattern rather than the other way around (the original task text had the dependency
+  in this codebase — Phase 8/T053 (order reordering, `features/judge-tables/`) was the second,
+  following this pattern rather than the other way around (the original task text had the dependency
   backwards). `TableDetailModalComponent` (T048A) shows only fields the backend actually has —
   beer: blind code, style name, ABV range, assigned table; judge: name, email, assigned table —
   per the user-approved scope cut (no allergen/award/certification, see Global status above); it
@@ -626,6 +658,27 @@ route restructure) plus the one genuinely new piece, T030.
   correct in both directions, at the cost of one extra request per mutation (acceptable for an
   organizer-only setup screen). Route: `competitions/:id/tables` under `organizer`, same
   direct-navigation-only convention as the other two Phase 5–6 feature routes.
+- **`features/judge-tables/`** (T053, US6): the JUDGE role's first real screen —
+  `JudgeTablesListComponent` (route `/judge/tables`, the post-login landing) lists assigned tables
+  with an order-fixed badge; `JudgeTableOrderComponent` (route `/judge/tables/:tableId`) is the
+  blind sample/order view. `TastingOrderApiService` mirrors the established thin-`ApiClient`-wrapper
+  shape. Renders exclusively `blindCode`/`styleCode`/`styleName` from `JudgeSample` — the BR-01
+  boundary carried through to the template, not just the DTO. Reorder before fixing: CDK
+  `cdkDropList`/`cdkDrag` with a dedicated `cdkDragHandle` (not the whole row, since — unlike
+  `MesaCard`'s tokens — each row here already has two independent interactive buttons nested
+  inside it, so the drag surface is restricted rather than resolved via `ClickVsDragDirective`'s
+  pointer-threshold heuristic) plus per-row keyboard Move up/down buttons, the FR-020 equivalent
+  this codebase's accessibility mandate requires alongside every drag gesture, not after it. "Fix
+  order" is a one-shot, irreversible action gated by an explicit `role="alertdialog"` confirm step
+  (`cdkTrapFocus`, learned from Phase 7's PR #19 review finding on the COI conflict dialog — applied
+  here from the start rather than added after the fact). Connects to `CompetitionHubService`,
+  `joinTable`/`leaveTable` on init/destroy, and subscribes to `TableOrderFixed` filtered to the open
+  table — receiving it live-patches `sequenceOrder`s and flips the locked state without a refetch;
+  losing the one-shot race (`409 order-already-fixed`) reconciles by refetching
+  `GET .../samples` rather than trusting the pre-race local reorder. Realtime is treated as
+  best-effort throughout (a hub connection failure leaves the view fully functional over REST, just
+  without live updates until next load) — contracts/signalr-hub.md's own framing, "events are
+  notifications, not the source of truth."
 - **`core/api/`** (T020): the typed HTTP client + ProblemDetails→UI error mapping.
   - `problem-details.model.ts`: `ProblemDetails`/`ValidationProblemDetails` interfaces plus
     `BIRRAPOINT_ERROR_URNS` — the 14 `urn:birrapoint:*` values from contracts/rest-api.md §Error
@@ -675,9 +728,9 @@ route restructure) plus the one genuinely new piece, T030.
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 121 unit tests (was 108; +13 **T045** `Tables/`: `CoiDetectorTests` (owner/collaborator match, no-conflict, case-insensitivity, per-judge grouping, 6) + `BosFlagRulesTests` (flag-on-any-membership, the permanence rule specifically — `hasSubmittedEvaluation` wins even with zero remaining assignments, 7)) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15); 104 integration tests (was 81; +23 **T046** `Tables/TablesApiTests` (18: auth/ownership matrix, `201` success incl. indirect-BOS-flag assertion, `409 conflict-of-interest` on owner and collaborator collisions with atomic-rollback proof, `409 table-closed`, `400` duplicate name / entry-already-elsewhere, `PUT` add+remove-in-one-call incl. the FR-018 unflag case, plus a review-driven regression: removing one co-owner from their table must not lift the flag while a different co-owner stays active elsewhere) + `Tables/EntriesApiTests` (4: auth pattern, null-before/populated-after-assignment) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) |
-| Frontend unit | `cd frontend && npx jest` | green — 145 tests (was 98; +47 **T048** `features/table-management/`: 8 spec files across the API service, `ClickVsDragDirective` (the 6px threshold as a pure function), `JudgeSeatComponent`/`BeerTokenComponent`, `MesaCardComponent`, `UnassignedColumnComponent`, `TableDetailModalComponent`, and the container — table create/update success and 409/400 paths, Unassigned-column set-membership computation, BOS banner, detail modal content, plus a regression test locking in the entries-refetch-after-mutation fix below; the CDK pointer/drag gesture itself is explicitly NOT covered by Jest — jsdom can't simulate pointer capture/movement reliably, verified manually in a real browser instead, see Data flows) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (14) + T029 `features/competition-wizard/` (23) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
-| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), and new **T049 `us5-tables.spec.ts`** (1: import 3 entries + register 2 judges sharing emails with two participants → create two tables → drag the COI judge onto their own beer's table → `alertdialog` naming judge+blind-code, nothing persisted → drag the BOS judge onto a non-conflicting table → success + BOS banner, and the *other* judge's entry shows the `beer-token--bos-flagged` visual state live, no reload needed (this is what caught the entries-refetch bug) → click-to-detail on a seated beer and judge → drag a beer `MesaCard`→`MesaCard` and confirm a plain click immediately after still opens detail rather than re-arming a drag; real pointer-drag simulated via `mouse.down`→multi-step `mouse.move`→`mouse.up` against CDK's drop-list elements, worked reliably with no fallback to the keyboard "Move to" control needed) all green against a live, fully-warmed Aspire stack — but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated to Phase 4–7: `login-required` races `page.goto('/')`). See Recorded debt below. Chromium only |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 131 unit tests (was 121; +10 **T050** `TastingOrder/FixOrderTests.cs`: permutation-validation edge cases, one-shot `OrderAlreadyFixed` with the `fixedBy` extension, state gating Draft/Finalized reject vs. Active/InEvaluation accept — exercises `TastingOrderRules` directly, a pure static helper, not the MediatR handler, same "pure rule beside DB-touching handler" split as Phase 7's `CoiDetector`/`BosFlagRules`, since a real handler test needs a live transaction/row lock the constitution reserves for Testcontainers) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15) + T045 `Tables/` (13); 113 integration tests (was 104; +9 **T051** `TastingOrder/OrderApiTests.cs`: `/me/tables` membership scoping (unassigned → `[]`, `RemovedAt`-excluded, Draft-invisible), `404` on non-membership, the BR-01 wire-payload structural check (no `beerName`/`participant`/`brewery` key anywhere in the raw JSON, not just DTO-shape), happy-path fix + locked state, `400` on a non-permutation body, and the concurrent-fixer race — two simultaneous `POST .../order` calls via `Task.WhenAll`, exactly one `200` and one `409 order-already-fixed`) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) + T046 `Tables/` (22) |
+| Frontend unit | `cd frontend && npx jest` | green — 167 tests (was 145; net +22 = **T053** `features/judge-tables/`'s 23 new tests (`TastingOrderApiService` URL/method assertions; `JudgeTablesListComponent` renders assigned tables + order-fixed badge; `JudgeTableOrderComponent` covering drag reorder, keyboard up/down reorder, Fix Order confirm-then-lock, a fake `HubConnection` delivering `TableOrderFixed` locking the UI with no explicit API call, and `409` error-path messages including `order-already-fixed`'s `fixedBy` extension — same hand-rolled-fake-over-mocking-library convention as `competition-hub.service.spec.ts` for the SignalR seam) minus the 1 placeholder test for the `features/auth/JudgeTablesComponent` stub T053 replaced) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (13, was 14) + T029 `features/competition-wizard/` (23) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12) + T048 `features/table-management/` (47). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
+| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), `us5-tables.spec.ts` (1), and new **T054 `us6-order.spec.ts`** (1: two independent judge browser contexts — separate Keycloak SSO sessions, real forced-password-change flow each — on one table; judge A reorders via the keyboard Move-down control and fixes the order through the confirm dialog; judge A's own view locks immediately; judge B's view, with **no reload/navigation**, reflects the lock and matching sample order within a bounded 1000 ms wait, enforcing FR-021's propagation budget rather than masking a regression with a generous timeout; also asserts no entrant field ever renders on either judge's page. The "sheets openable only in fixed sequence" half of scenario 6 is deferred — inline comment pointing at T061/`us7-offline.spec.ts` once the evaluation sheet exists) — verified green across 4 consecutive runs, no flakiness — all green against a live, fully-warmed Aspire stack, but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated to Phase 4–8: `login-required` races `page.goto('/')`). See Recorded debt below. Chromium only |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
 ## Data flows
@@ -721,22 +774,65 @@ write (`409` + nothing persisted on conflict), diffs `TableJudge`/`TableSample` 
 flags/unflags `BeerEntry.NotValidForBos` competition-wide as table membership changes (FR-018) —
 the response's `bosFlaggedEntryIds` drives the frontend's warning banner, and the component
 refetches `GET /entries` wholesale afterward so every entry's flagged visual state (not just ones
-touched by this one mutation) stays live without a reload. The database
-holds the full domain schema (T008–T009); target contracts live in
+touched by this one mutation) stays live without a reload. **T050–T054** (US6): `/judge/tables` →
+`JudgeTablesListComponent` → `GET /me/tables` (own Judge rows resolved via `GetJudgeRecordsAsync`,
+active `TableJudge` membership only, `Draft`-state competitions invisible) → selecting a table
+opens `/judge/tables/:tableId` → `JudgeTableOrderComponent` → `GET /me/tables/{id}/samples` (blind
+projection, `evaluationStatus` always `NotStarted` today since `Features/Evaluations` doesn't exist
+until Phase 9) → local drag/keyboard reorder → `POST /me/tables/{id}/order` takes a row lock on the
+`TastingTable`, assigns `SequenceOrder` 1..M, stamps `OrderFixedByJudgeId`/`At`, and — only once the
+transaction has committed — emits `TableOrderFixed` to the `table:{tableId}` group; every other
+judge with that table's sample view open and a live hub connection sees the fixed order and locked
+state within FR-021's ≤1s budget with no refetch, `CompetitionHubService.joinTable` having already
+subscribed them to that group on view-init. This is the first slice on either side of the codebase
+that's judge-facing rather than organizer-facing, and the first REST-level consumer of
+`ICurrentUser.GetJudgeRecordsAsync` (T023, previously exercised only by its own unit test) and of
+`CompetitionHubService`'s realtime event stream (T020, previously wired but unconsumed). The
+database holds the full domain schema (T008–T009); target contracts live in
 `specs/001-birrapoint-mvp/contracts/` (REST `/api/v1`, SignalR `CompetitionHub`, `.xlsx` import
 file). Frontend-side: any route load triggers Keycloak's `login-required` flow first (PKCE
 redirect to the realm's hosted login if no session). **T024**: once authenticated, `''` resolves
 via `homeRedirectGuard` and `/organizer`/`/judge` via `organizerGuard`/`judgeGuard`, all sharing
 `role-landing.ts`'s single role→URL mapping, landing on `/organizer/dashboard` (still placeholder
-— real dashboard data starts at Phase 11/US9) or `/judge/tables` (placeholder until Phase 8/US6);
-a judge with a Keycloak `UPDATE_PASSWORD` required action never reaches any of this routing at
-all, since Keycloak's hosted UI resolves it before the OIDC code exchange completes (no app code
+— real dashboard data starts at Phase 11/US9) or `/judge/tables` (real content since Phase 8/US6,
+above); a judge with a Keycloak `UPDATE_PASSWORD` required action never reaches any of this routing
+at all, since Keycloak's hosted UI resolves it before the OIDC code exchange completes (no app code
 involved, FR-003). Every outgoing `HttpClient` request to `apiBaseUrl` gets the access token
-attached automatically (T019). T020's `CompetitionHubService`/`db.ts` still aren't consumed by any
-feature slice yet.
+attached automatically (T019). T020's `CompetitionHubService` is consumed for the first time by
+Phase 8/US6 (above); its `db.ts` (the Dexie offline store) still isn't — that's T060's job.
 
 ## Recorded debt / immediate next steps
 
+- **New, security-relevant**: real judge invitations never grant the Keycloak `JUDGE` realm role.
+  `RegisterJudgesCommandHandler` → `SendInvitationHandler` → `IKeycloakAdminClient.
+  EnsureUserWithTemporaryPasswordAsync` (`Common/Keycloak/KeycloakAdminClient.cs`) creates/updates
+  the Keycloak user but never calls a role-mappings endpoint, while the `JUDGE` authorization policy
+  is a plain `RequireRole("JUDGE")` (`Common/Auth/AuthenticationExtensions.cs`). Net effect: a judge
+  invited purely through the organizer's "Register judges" UI — no test-harness shortcut involved —
+  completes the forced password change and then gets `403` on every judge-facing endpoint forever;
+  the product's real invitation path cannot currently produce a working judge account.
+  `frontend/e2e/us4-judges.spec.ts` doesn't catch this because it only asserts the invitation email
+  lands in Mailpit, never logs the invited judge in. Found while building T054's E2E spec (which
+  needed two real judge logins) — `frontend/e2e/support/keycloak-admin.ts`'s test-only
+  `createJudgeUser` already does the correct role-assignment call, so the spec provisions its own
+  judges through that instead of the real invitation path and isn't blocked by the bug, but the bug
+  itself is unfixed. **Real fix**: add a `POST /admin/realms/{realm}/users/{id}/role-mappings/realm`
+  call to `KeycloakAdminClient.CreateUserAsync` (mirroring `keycloak-admin.ts`'s test helper) plus
+  an integration/E2E assertion that an invited-only judge can actually log in and reach a
+  `JUDGE`-authorized endpoint — deliberately not patched inline with T050–T054 since it's a
+  different story's slice (T038–T044) and warrants its own deliberate fix + tests.
+- **New**: `TableOrderFixed` (T052) is emitted only to the `table:{tableId}` group.
+  contracts/signalr-hub.md also lists it under the organizer group's event table ("same as judge
+  event"), so the live monitoring dashboard (Phase 9/US9, not built yet) won't see order-fix events
+  when it lands unless that emit is added alongside it — natural to close together with US9 rather
+  than as a standalone fix now, since nothing consumes the organizer group's `TableOrderFixed` yet
+  either way.
+- **New**: `angular.json`'s CLI bundle-size budget (`maximumWarning: 500kB` raw) now trips a build
+  warning as of T053 (~547.1 kB raw) — the actual constitutional gate (Principle IX, ≤500 kB
+  **gzip**) is still comfortably met at ~136.5 kB transfer, so this isn't a Definition-of-Done
+  blocker, but the margin to the CLI's own warning threshold is gone; worth revisiting the
+  `angular.json` budget numbers (or trimming what's eagerly bundled) before the next feature adds
+  more to the initial chunk.
 - **Updated**: `UpdateJudgeEmail` (T042, `Features/Judges/UpdateJudgeEmail.cs`) still does not
   implement the COI-matching/BOS-reflagging re-run against the new address that
   `contracts/rest-api.md` cites (FR-017/FR-018). The original blocker (`Features/Tables` not

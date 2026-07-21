@@ -1,0 +1,380 @@
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { TestBed } from '@angular/core/testing';
+import { of, Subject, throwError } from 'rxjs';
+import type { CdkDragDrop } from '@angular/cdk/drag-drop';
+
+import { ApiError } from '../../core/api/api-error';
+import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
+import type { TableOrderFixedEvent } from '../../core/realtime/competition-hub.events';
+import { JudgeTableOrderComponent } from './judge-table-order.component';
+import { TastingOrderApiService } from './tasting-order-api.service';
+import type { JudgeSample, JudgeTableSummary } from './tasting-order-api.service';
+
+function tableFixture(overrides: Partial<JudgeTableSummary> = {}): JudgeTableSummary {
+  return {
+    tableId: 't1',
+    name: 'Table 1',
+    competitionState: 'Active',
+    tableState: 'Open',
+    orderFixed: false,
+    orderFixedBy: null,
+    ...overrides,
+  };
+}
+
+function sampleFixture(overrides: Partial<JudgeSample> = {}): JudgeSample {
+  return {
+    beerEntryId: 'e1',
+    blindCode: 'AB12',
+    styleCode: '4A',
+    styleName: 'Munich Helles',
+    sequenceOrder: null,
+    evaluationStatus: 'NotStarted',
+    ...overrides,
+  };
+}
+
+function samplesFixture(): JudgeSample[] {
+  return [
+    sampleFixture({ beerEntryId: 'e1', blindCode: 'AB12' }),
+    sampleFixture({
+      beerEntryId: 'e2',
+      blindCode: 'CD34',
+      styleCode: '21A',
+      styleName: 'American IPA',
+    }),
+    sampleFixture({ beerEntryId: 'e3', blindCode: 'EF56' }),
+  ];
+}
+
+function buttonWithLabel(root: Element, label: string): HTMLButtonElement {
+  const buttons = [...root.querySelectorAll('button')] as HTMLButtonElement[];
+  const match = buttons.find((button) => button.getAttribute('aria-label') === label);
+  if (!match) {
+    throw new Error(`No button with aria-label "${label}" found`);
+  }
+  return match;
+}
+
+function buttonWithText(root: Element, text: string): HTMLButtonElement {
+  const buttons = [...root.querySelectorAll('button')] as HTMLButtonElement[];
+  const match = buttons.find((button) => button.textContent?.trim() === text);
+  if (!match) {
+    throw new Error(`No button with text "${text}" found`);
+  }
+  return match;
+}
+
+describe('JudgeTableOrderComponent', () => {
+  let fakeApi: {
+    getMyTables: jest.Mock;
+    getTableSamples: jest.Mock;
+    fixOrder: jest.Mock;
+  };
+  let fakeHub: {
+    start: jest.Mock;
+    joinTable: jest.Mock;
+    leaveTable: jest.Mock;
+    on: jest.Mock;
+  };
+  let orderFixedSubject: Subject<TableOrderFixedEvent>;
+
+  beforeEach(() => {
+    orderFixedSubject = new Subject<TableOrderFixedEvent>();
+    fakeApi = {
+      getMyTables: jest.fn().mockReturnValue(of([tableFixture()])),
+      getTableSamples: jest.fn().mockReturnValue(of(samplesFixture())),
+      fixOrder: jest.fn(),
+    };
+    fakeHub = {
+      start: jest.fn().mockResolvedValue(undefined),
+      joinTable: jest.fn().mockResolvedValue(undefined),
+      leaveTable: jest.fn().mockResolvedValue(undefined),
+      on: jest.fn().mockReturnValue(orderFixedSubject.asObservable()),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: TastingOrderApiService, useValue: fakeApi },
+        { provide: CompetitionHubService, useValue: fakeHub },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: convertToParamMap({ tableId: 't1' }) } },
+        },
+      ],
+    });
+  });
+
+  function createComponent() {
+    const fixture = TestBed.createComponent(JudgeTableOrderComponent);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  async function flush() {
+    await Promise.resolve();
+    await Promise.resolve();
+  }
+
+  it('loads samples and the table summary on init', async () => {
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    expect(fakeApi.getTableSamples).toHaveBeenCalledWith('t1');
+    expect(fakeApi.getMyTables).toHaveBeenCalled();
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Table 1');
+    expect(text).toContain('AB12');
+    expect(text).toContain('CD34');
+    expect(text).toContain('EF56');
+  });
+
+  it('joins the table SignalR group on init and leaves it on destroy', async () => {
+    const fixture = createComponent();
+    await flush();
+
+    expect(fakeHub.start).toHaveBeenCalled();
+    expect(fakeHub.joinTable).toHaveBeenCalledWith('t1');
+
+    fixture.destroy();
+    await flush();
+
+    expect(fakeHub.leaveTable).toHaveBeenCalledWith('t1');
+  });
+
+  it('reorders the local sample list on a CDK drop event', async () => {
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    const dropEvent = { previousIndex: 0, currentIndex: 2 } as CdkDragDrop<unknown>;
+    fixture.componentInstance.onDrop(dropEvent);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.samples().map((s) => s.beerEntryId)).toEqual([
+      'e2',
+      'e3',
+      'e1',
+    ]);
+  });
+
+  it('reorders the local sample list with the keyboard move-down control', async () => {
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    buttonWithLabel(fixture.nativeElement, 'Move AB12 down').click();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.samples().map((s) => s.beerEntryId)).toEqual([
+      'e2',
+      'e1',
+      'e3',
+    ]);
+  });
+
+  it('reorders the local sample list with the keyboard move-up control', async () => {
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    buttonWithLabel(fixture.nativeElement, 'Move CD34 up').click();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.samples().map((s) => s.beerEntryId)).toEqual([
+      'e2',
+      'e1',
+      'e3',
+    ]);
+  });
+
+  it('disables move-up for the first row and move-down for the last row', async () => {
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    expect(buttonWithLabel(fixture.nativeElement, 'Move AB12 up').disabled).toBe(true);
+    expect(buttonWithLabel(fixture.nativeElement, 'Move EF56 down').disabled).toBe(true);
+  });
+
+  it('fixes the order only after the confirm step, then locks the UI', async () => {
+    fakeApi.fixOrder.mockReturnValue(
+      of(samplesFixture().map((s, i) => ({ ...s, sequenceOrder: i + 1 }))),
+    );
+    fakeApi.getMyTables
+      .mockReturnValueOnce(of([tableFixture()]))
+      .mockReturnValue(of([tableFixture({ orderFixed: true, orderFixedBy: 'Ada Lovelace' })]));
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    buttonWithText(fixture.nativeElement, 'Fix order').click();
+    fixture.detectChanges();
+
+    expect(fakeApi.fixOrder).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('cannot be undone');
+
+    buttonWithText(fixture.nativeElement, 'Confirm fix order').click();
+    fixture.detectChanges();
+    await flush();
+    fixture.detectChanges();
+
+    expect(fakeApi.fixOrder).toHaveBeenCalledWith('t1', ['e1', 'e2', 'e3']);
+    expect(fixture.componentInstance.orderFixed()).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Ada Lovelace');
+    expect(fixture.nativeElement.querySelector('button[aria-label="Move AB12 up"]')).toBeNull();
+  });
+
+  it('cancelling the confirm step does not call fixOrder', async () => {
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    buttonWithText(fixture.nativeElement, 'Fix order').click();
+    fixture.detectChanges();
+    buttonWithText(fixture.nativeElement, 'Cancel').click();
+    fixture.detectChanges();
+
+    expect(fakeApi.fixOrder).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).not.toContain('cannot be undone');
+  });
+
+  it('locks the UI on a live TableOrderFixed event without calling fixOrder', async () => {
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    orderFixedSubject.next({
+      tableId: 't1',
+      orderedSamples: [
+        { beerEntryId: 'e2', blindCode: 'CD34', sequenceOrder: 1 },
+        { beerEntryId: 'e1', blindCode: 'AB12', sequenceOrder: 2 },
+        { beerEntryId: 'e3', blindCode: 'EF56', sequenceOrder: 3 },
+      ],
+      fixedByDisplayName: 'Grace Hopper',
+    });
+    fixture.detectChanges();
+
+    expect(fakeApi.fixOrder).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.orderFixed()).toBe(true);
+    expect(fixture.componentInstance.samples().map((s) => s.beerEntryId)).toEqual([
+      'e2',
+      'e1',
+      'e3',
+    ]);
+    expect(fixture.nativeElement.textContent).toContain('Grace Hopper');
+  });
+
+  it('ignores a TableOrderFixed event for a different table', async () => {
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    orderFixedSubject.next({
+      tableId: 'other-table',
+      orderedSamples: [{ beerEntryId: 'e1', blindCode: 'AB12', sequenceOrder: 1 }],
+      fixedByDisplayName: 'Someone Else',
+    });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.orderFixed()).toBe(false);
+  });
+
+  it('shows "already fixed by {fixedBy}" and reconciles the order on a 409 order-already-fixed race', async () => {
+    fakeApi.fixOrder.mockReturnValue(
+      throwError(
+        () =>
+          new ApiError({
+            status: 409,
+            title: 'Tasting order already fixed',
+            urn: 'urn:birrapoint:order-already-fixed',
+            extensions: { fixedBy: 'Grace Hopper' },
+          }),
+      ),
+    );
+    const reconciled = samplesFixture().map((s, i) => ({ ...s, sequenceOrder: i + 1 }));
+    fakeApi.getTableSamples
+      .mockReturnValueOnce(of(samplesFixture()))
+      .mockReturnValue(of(reconciled));
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    buttonWithText(fixture.nativeElement, 'Fix order').click();
+    fixture.detectChanges();
+    buttonWithText(fixture.nativeElement, 'Confirm fix order').click();
+    fixture.detectChanges();
+    await flush();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Order already fixed by Grace Hopper');
+    expect(fixture.componentInstance.orderFixed()).toBe(true);
+  });
+
+  it('shows a plain message on a 409 invalid-state-transition', async () => {
+    fakeApi.fixOrder.mockReturnValue(
+      throwError(
+        () =>
+          new ApiError({
+            status: 409,
+            title: 'Invalid state transition',
+            urn: 'urn:birrapoint:invalid-state-transition',
+          }),
+      ),
+    );
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    buttonWithText(fixture.nativeElement, 'Fix order').click();
+    fixture.detectChanges();
+    buttonWithText(fixture.nativeElement, 'Confirm fix order').click();
+    fixture.detectChanges();
+    await flush();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('not open for ordering yet');
+  });
+
+  it('surfaces a generic error message on other fixOrder failures', async () => {
+    fakeApi.fixOrder.mockReturnValue(
+      throwError(
+        () =>
+          new ApiError({
+            status: 400,
+            title: 'Invalid request',
+            urn: 'urn:birrapoint:validation',
+            detail: 'orderedBeerEntryIds must be an exact permutation.',
+          }),
+      ),
+    );
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    buttonWithText(fixture.nativeElement, 'Fix order').click();
+    fixture.detectChanges();
+    buttonWithText(fixture.nativeElement, 'Confirm fix order').click();
+    fixture.detectChanges();
+    await flush();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'orderedBeerEntryIds must be an exact permutation.',
+    );
+  });
+
+  it('surfaces a load error message when fetching samples fails', async () => {
+    fakeApi.getTableSamples.mockReturnValue(
+      throwError(
+        () => new ApiError({ status: 404, title: 'Not found', urn: null, detail: 'Not found.' }),
+      ),
+    );
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Not found.');
+  });
+});
