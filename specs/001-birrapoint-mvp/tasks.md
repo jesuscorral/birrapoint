@@ -187,14 +187,14 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 ### Tests for User Story 6 (MANDATORY — write first, must fail) ⚠️
 
-- [ ] T050 [P] [US6] Unit tests: FixOrder permutation validation, one-shot semantics (`order-already-fixed`), state gating (Active/InEvaluation only) in `backend/tests/BirraPoint.Api.UnitTests/TastingOrder/`
-- [ ] T051 [P] [US6] Contract tests: `/me/tables`, `/me/tables/{id}/samples` (**assert serialized payload contains no `beerName`/participant fields — BR-01 structural test**), order fix race → exactly one winner in `backend/tests/BirraPoint.Api.IntegrationTests/TastingOrder/OrderApiTests.cs`
+- [X] T050 [P] [US6] Unit tests: FixOrder permutation validation, one-shot semantics (`order-already-fixed`), state gating (Active/InEvaluation only) in `backend/tests/BirraPoint.Api.UnitTests/TastingOrder/`
+- [X] T051 [P] [US6] Contract tests: `/me/tables`, `/me/tables/{id}/samples` (**assert serialized payload contains no `beerName`/participant fields — BR-01 structural test**), order fix race → exactly one winner in `backend/tests/BirraPoint.Api.IntegrationTests/TastingOrder/OrderApiTests.cs`
 
 ### Implementation for User Story 6
 
-- [ ] T052 [US6] Slices GetMyTables, GetTableSamples (JudgeSampleDto projection per data-model.md §Anonymity), FixOrder (+ `TableOrderFixed` emit) + endpoints in `backend/src/BirraPoint.Api/Features/TastingOrder/`
-- [ ] T053 [US6] Frontend judge-tables: blind list, CDK drag-drop **plus keyboard reorder alternative (move up/down buttons, FR-020)**, Fix Order confirm, "Order fixed by Judge X" locked state, live reorder on hub event in `frontend/src/app/features/judge-tables/`
-- [ ] T054 [US6] E2E scenario 6 with two judge sessions (propagation ≤1 s, lock, sequence gate) in `frontend/e2e/us6-order.spec.ts`
+- [X] T052 [US6] Slices GetMyTables, GetTableSamples (JudgeSampleDto projection per data-model.md §Anonymity), FixOrder (+ `TableOrderFixed` emit) + endpoints in `backend/src/BirraPoint.Api/Features/TastingOrder/`
+- [X] T053 [US6] Frontend judge-tables: blind list, CDK drag-drop **plus keyboard reorder alternative (move up/down buttons, FR-020)**, Fix Order confirm, "Order fixed by Judge X" locked state, live reorder on hub event in `frontend/src/app/features/judge-tables/`
+- [X] T054 [US6] E2E scenario 6 with two judge sessions (propagation ≤1 s, lock, sequence gate) in `frontend/e2e/us6-order.spec.ts` — sequence-gate half deferred to T061 (needs the evaluation sheet, US7)
 
 **Checkpoint**: Blind ordered judging flow ready for evaluation capture
 
