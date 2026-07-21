@@ -1,4 +1,5 @@
 using BirraPoint.Api.Common.Auth;
+using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Realtime;
 using FluentValidation;
@@ -71,21 +72,32 @@ public sealed class FixOrderCommandHandler(AppDbContext dbContext, ICurrentUser 
             .Select(c => c.State)
             .SingleAsync(cancellationToken);
 
-        if (table.OrderFixedByJudgeId is not null)
-        {
-            var fixerName = await dbContext.Judges
+        var isAlreadyFixed = table.OrderFixedByJudgeId is not null;
+        var fixerName = isAlreadyFixed
+            ? await dbContext.Judges
                 .Where(j => j.Id == table.OrderFixedByJudgeId)
                 .Select(j => j.DisplayName)
-                .SingleOrDefaultAsync(cancellationToken);
+                .SingleOrDefaultAsync(cancellationToken)
+            : null;
 
-            TastingOrderRules.EnsureOrderCanBeFixed(isAlreadyFixed: true, fixerName, competitionState);
-        }
-
-        TastingOrderRules.EnsureOrderCanBeFixed(isAlreadyFixed: false, fixedByDisplayName: null, competitionState);
+        TastingOrderRules.EnsureOrderCanBeFixed(isAlreadyFixed, fixerName, competitionState);
 
         var samples = await dbContext.TableSamples
             .Where(ts => ts.TastingTableId == request.TableId)
             .ToListAsync(cancellationToken);
+
+        // Re-validate the permutation against the table's samples as of the row lock, not just the
+        // pre-lock snapshot the validator saw — an organizer edit to the table's membership
+        // (Features/Tables, still allowed while the competition is Active) could otherwise race
+        // this call and leave sequenceByEntryId missing an entry, throwing an unhandled
+        // KeyNotFoundException (500) instead of a clean, retryable error.
+        var currentSampleIds = samples.Select(s => s.BeerEntryId).ToList();
+        if (!TastingOrderRules.IsExactPermutation(request.OrderedBeerEntryIds, currentSampleIds))
+        {
+            throw new DomainException(
+                DomainErrorType.InvalidStateTransition,
+                "The table's samples changed while this order was being fixed; reload and try again.");
+        }
 
         var sequenceByEntryId = request.OrderedBeerEntryIds
             .Select((entryId, index) => (entryId, sequence: index + 1))
