@@ -3,6 +3,7 @@ import { Routes } from '@angular/router';
 import { AuthPlaceholderComponent } from './core/auth/auth-placeholder.component';
 import { homeRedirectGuard } from './core/auth/home-redirect.guard';
 import { judgeGuard, organizerGuard } from './core/auth/role.guard';
+import { CompetitionMonitorComponent } from './features/dashboard/competition-monitor.component';
 import { CompetitionWizardComponent } from './features/competition-wizard/competition-wizard.component';
 import { EntryImportComponent } from './features/entry-import/entry-import.component';
 import { EvaluationSheetComponent } from './features/evaluation-sheet/evaluation-sheet.component';
@@ -34,6 +35,7 @@ export const routes: Routes = [
       { path: 'competitions/:id/import', component: EntryImportComponent },
       { path: 'competitions/:id/judges', component: JudgeManagementComponent },
       { path: 'competitions/:id/tables', component: TableManagementComponent },
+      { path: 'competitions/:id/monitor', component: CompetitionMonitorComponent },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
     ],
   },

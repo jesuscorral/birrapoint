@@ -5,7 +5,7 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-22 · after T062–T067 — **Phase 10 (US8, Table Closing and Score Immutability) complete — every P1 user story is now done**
+**Last updated:** 2026-07-22 · after T068–T071 — **Phase 11 (US9, Live Monitoring Dashboard with Audit) complete — the first P2 user story is now done**
 
 ## Global status
 
@@ -88,6 +88,46 @@ silently to the closed state, not an error — the judge's desired outcome alrea
 by their own click). No organizer-facing UI exists yet for `CorrectEvaluation` — it's exercised
 today only via direct API calls (E2E, and presumably real incident response) — a natural fit for
 whatever the Phase 11 (US9) monitoring dashboard's audit drill-down eventually needs.
+
+**Phase 11 (User Story 9 — Live Monitoring Dashboard with Audit, T068–T071)** is now **complete**
+— the first P2 story built. Backend: `Features/Monitoring/GetProgress.cs` (`GET
+/competitions/{id}/progress`, ORGANIZER-only) returns every table's `{ tableId, name, state,
+completed, expected, percent }`, using the exact same completed/expected/percent formula
+`SubmitEvaluation.cs`'s `EvaluationCompleted` emit already used, so a freshly-fetched row and a
+live-patched one can never disagree. `GetEntryEvaluations.cs` (`GET
+/competitions/{id}/entries/{entryId}/evaluations`) is the FR-038 audit drill-down — every judge's
+scores/comments/total/status (reusing `SubmitEvaluation`'s `EvaluationScoresDto`/
+`EvaluationCommentsDto`, no need to redefine them), plus a consolidated mean that's `null` until
+the entry's table closes, then computed inline (a deliberate small duplication of
+`CloseTableRules.ComputeMean`'s 2-decimal rounding rather than a cross-feature-folder import — this
+codebase's established preference, see `CorrectEvaluationCommandValidator`'s similar duplication of
+`SubmitEvaluationRules`). Both 404 on non-ownership or a non-existent/unassigned entry, never
+leaking existence, same convention as `ListEntriesQuery`/`CorrectEvaluation`. Also closed a gap
+open since T052: `Features/TastingOrder/FixOrder.cs` now emits `TableOrderFixed` to the organizer
+group too, not just the judge group — the contract had documented this row since Phase 8 but
+nothing emitted it. Frontend: `getEntries` (previously `table-management`-only) was promoted to
+`core/api/entries-api.service.ts` — the same FSD "≥2 features → `core/api/`" rule already applied
+to `CompetitionsApiService`/`CatalogApiService`. New `core/api/monitoring-api.service.ts` wraps both
+endpoints. New `features/dashboard/competition-monitor.component.ts` (route
+`organizer/competitions/:id/monitor`, now `OrganizerDashboardComponent`'s `destination()` target for
+`InEvaluation`/`Finalized` — `Active` still goes to `tables`, there's nothing left to *set up* once
+evaluation has started) loads the initial progress/entries/competition-header GETs once, then
+patches state in place from three hub events on the `competition:{id}:organizers` group it now
+joins for the first time (that join method existed since T020 but had no subscriber until this
+phase): `EvaluationCompleted` replaces just the matching row's completed/expected/percent (no
+refetch, satisfying FR-037's "no reload, no flicker"), `TableClosed` flips that row's badge to
+`Closed`, `TableOrderFixed` shows a per-table "Order fixed by {name}." note. The audit drill-down
+always fetches fresh via `getEntryEvaluations` on a sample click rather than caching `TableClosed`'s
+`consolidatedScores` — one round trip per click, simpler than keeping a second cache in sync, and
+renders everything as plain text/`<dl>` pairs with no form controls (FR-038's read-only
+requirement, contract-tested in the E2E spec by asserting zero `input`/`textarea` inside the
+drill-down). **Known, verified gap** (found by the E2E work, not by inspection): the "Order fixed
+by" note has no REST backfill — `GetProgressQuery`'s response carries no order-fixed field at all,
+so it's populated *purely* from the live `TableOrderFixed` event. An organizer who opens the
+monitor screen *after* a table's order was already fixed will never see that note for that table
+(fixing order is one-shot, so no second event will ever arrive to populate it retroactively) — not
+a functional problem (the note is purely informational, nothing depends on it), but worth knowing
+if a future task touches this area. See Recorded debt below.
 
 **Scope note**: T048A's beer/judge detail modals ship without allergen/special-award badges or
 judge BJCP-certification fields — a prior session's task-doc edit referenced them with zero
@@ -578,6 +618,19 @@ route restructure) plus the one genuinely new piece, T030.
   one email and asserts: cross-competition backfill, idempotent replay (an already-backfilled row
   ignores a later call with a different sub/name), an unmatched email returns an empty list, and a
   name-less call backfills `KeycloakUserId` while leaving `DisplayName` untouched.
+- **`Features/Monitoring/`** (T068–T069, US9): `GetProgress.cs` and `GetEntryEvaluations.cs`, the
+  organizer dashboard's two read models. `GetProgress` loops the competition's tables and issues
+  three small per-table counts (active-judge count, sample count, evaluation count) rather than one
+  bigger joined query — readable and correct at the table counts this MVP targets, though a future
+  competition with many tables could make this worth collapsing into fewer round trips; not done
+  here since it wasn't a measured problem. `GetEntryEvaluations` joins `Evaluation` to `Judge` for
+  display names and only computes a consolidated mean once the entry's table is `Closed` — the
+  rounding is a small deliberate duplicate of `CloseTableRules.ComputeMean` (2 decimals,
+  `AwayFromZero`) rather than a cross-feature-folder import, matching how `CorrectEvaluation.cs`
+  already duplicates `SubmitEvaluationRules`' values instead of reaching into another slice.
+  `Features/TastingOrder/FixOrder.cs` also gained a `PublishToOrganizersAsync` emit for
+  `TableOrderFixed` (same payload as the pre-existing judge-group one) — contracts/signalr-hub.md
+  had documented this row since Phase 8, but nothing emitted it there until now.
 
 ## Frontend (`frontend/`, Angular 20)
 
@@ -804,10 +857,12 @@ route restructure) plus the one genuinely new piece, T030.
   placeholder in `features/auth/` (deleted, same stub-removal convention as `judge-tables`'s T053).
   Loads `CompetitionsApiService.list()` (new method, `GET /competitions`) and renders each owned
   competition's name/venue/dates plus a `badge--{state-lowercased}` pill; each row is a
-  `routerLink` to the wizard (`/organizer/competitions/{id}`) for `Draft`, or the tables screen
-  (`/organizer/competitions/{id}/tables`) for `Active`/`InEvaluation`/`Finalized` — a deliberate
-  stand-in destination, confirmed with the user, until Phase 11/US9 ships a real unified Active+
-  management view. An always-visible "New competition" action routes to
+  `routerLink` to the wizard (`/organizer/competitions/{id}`) for `Draft`, the tables screen
+  (`/organizer/competitions/{id}/tables`) for `Active` (still the setup/assignment view — there's
+  nothing left to configure once evaluation has started), or the live monitoring dashboard
+  (`/organizer/competitions/{id}/monitor`, T070/US9, see below) for `InEvaluation`/`Finalized` — the
+  original placeholder "everything past Draft goes to tables" stand-in from T100 is now resolved.
+  An always-visible "New competition" action routes to
   `/organizer/competitions/new`; zero competitions renders an empty state with the same CTA
   (FR-050, Acceptance Scenario 4). Single component, no list/item split.
   **Bug found and fixed the same day, unrelated to this task's own files**: while visually
@@ -832,6 +887,24 @@ route restructure) plus the one genuinely new piece, T030.
   extension array's length for the blocked-count message (resolving the ids to table names was
   scoped out — an extra round-trip not worth it for an error path); `409 invalid-state-transition`
   (a same-competition race) shows a plain message and refetches to reconcile.
+  **T070 (US9)**: new sibling component `competition-monitor.component.ts` (route
+  `/organizer/competitions/:id/monitor`, the routing target above for `InEvaluation`/`Finalized`).
+  On init: one `forkJoin` of the competition header (`CompetitionsApiService.getById`), the initial
+  `/progress` rows (`MonitoringApiService.getProgress`), and the competition's entries
+  (`EntriesApiService.getEntries`, promoted out of `table-management` this same task since it's now
+  a second consumer — same FSD rule as `CompetitionsApiService`) grouped client-side by
+  `tastingTableId` to know which blind codes sit under each table row for the drill-down list. Then
+  joins the `competition:{id}:organizers` SignalR group for the first time ever in this codebase
+  (`CompetitionHubService.joinCompetitionAsOrganizer` existed since T020 but had no caller until
+  now) and patches state in place from three live events rather than refetching:
+  `EvaluationCompleted` replaces just the matching row's `{completed, expected, percent}` (FR-037's
+  "no reload, no flicker"), `TableClosed` flips that row's badge to `Closed`, `TableOrderFixed`
+  renders a per-table "Order fixed by {name}." note. Clicking a blind-code button calls
+  `getEntryEvaluations(competitionId, entryId)` fresh every time (simpler than caching
+  `TableClosed`'s `consolidatedScores` payload) and renders a read-only panel — every judge's five
+  scores/comments as plain text, total, status, and the consolidated mean or "not yet closed" — with
+  no form controls anywhere in it (FR-038 Acceptance Scenario 2, asserted directly in the E2E spec
+  by counting `input`/`textarea` elements inside the drill-down section: zero).
 - **`features/evaluation-sheet/`** (T059/T060B, US7): the capped five-section blind evaluation
   sheet, route `/judge/tables/:tableId/samples/:beerEntryId`. Renders exclusively `blindCode`/
   `styleCode`/`styleName` (BR-01) — never touches Dexie or the network directly, delegating all
@@ -959,9 +1032,9 @@ route restructure) plus the one genuinely new piece, T030.
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 177 unit tests (was 168; +9 **T062-T063** `Evaluations/CloseTableTests.cs`: `CloseTableRules.ComputeMissingBlindCodes`/`ComputeMean` pure-function edge cases — missing judge, missing sample, mean of an empty/single/multi-row group) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15) + T045 `Tables/` (13) + T050 `TastingOrder/` (10) + **T055** `Evaluations/SubmitEvaluationTests.cs` (37); 136 integration tests (was 127 — 126 at Phase 9 close, +1 from PR #22's `Replaying_an_already_stored_evaluation_after_the_table_closes_still_returns_200_not_409` regression test; +9 **T062-T065** `Evaluations/CloseTableApiTests.cs`: completeness (`409 evaluations-incomplete` with the missing blind codes), double-close (`409 table-closed`), a correctly-averaged consolidated mean on success, a late judge submission after close (`409 table-closed`, FR-034), and five `CorrectEvaluation` cases — successful correction after close recomputes total/mean and is audited, non-owning-organizer and non-existent-evaluation both `404` without leaking existence, out-of-range score and under-20-char comment both `400`) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) + T046 `Tables/` (22) + T051 `TastingOrder/` (9) + **T056** `Evaluations/SubmitEvaluationApiTests.cs` (12, incl. the PR #22 regression test) + **T057B** `Catalog/GetStyleDetailTests.cs` (2) |
-| Frontend unit | `cd frontend && npx jest` | green — 247 tests (was 234; +13 **T066-T067**: `judge-table-order.component.spec.ts`'s extension for the Close Table button/`canCloseTable` gating/confirm dialog/live `TableClosed` hub subscription/three-way `409` handling, and `tasting-order-api.service.spec.ts`'s `closeTable()` request-shape coverage) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (13) + T029 `features/competition-wizard/` (24) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12) + T048 `features/table-management/` (47) + T053 `features/judge-tables/` (23) + T100/T102 `features/dashboard/` (19) + T057/T059/T060/T060B/T061 US7 work (48: `sync.service.spec.ts` (18), `catalog-api.service.spec.ts` (3), `evaluation-sheet.component.spec.ts` (18), `style-reference-panel.component.spec.ts` (4), plus the Evaluate/Locked entry-point extension already folded into the `features/judge-tables/` count above). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
-| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), `us5-tables.spec.ts` (1), `us6-order.spec.ts` (1), `us13-dashboard.spec.ts` (3), `us7-offline.spec.ts` (1), and new **T067 `us8-close.spec.ts`** (1: full US8 setup through the real dashboard/UI — fixes order, submits every sample for every active judge at the table, closes it via the real Close Table button/confirm dialog, asserts the closed banner and consolidated scores, then a direct API call for a late submission on a fresh entry confirms `409 table-closed`, exercising FR-034 without needing a full offline race) — all green against a live, fully-warmed Aspire stack, but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated: `login-required` races `page.goto('/')`). **Gap still open**: no judge- or organizer-facing route, including the evaluation sheet and the dashboard, is in the axe-core sweep yet — `a11y/home.a11y.spec.ts` only covers the placeholder app shell; a full-suite sweep is Phase 15/T089 territory. See Recorded debt below. Chromium only |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 177 unit tests (unchanged this phase — T068-T069's Monitoring slice is DB-touching only, no new pure-rule unit tests) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15) + T045 `Tables/` (13) + T050 `TastingOrder/` (10) + T055 `Evaluations/SubmitEvaluationTests.cs` (37) + T062-T063 `Evaluations/CloseTableTests.cs` (9); 144 integration tests (was 136; +8 **T068** `Monitoring/MonitoringApiTests.cs`: `/progress`'s completed/expected/percent across two differently-progressed tables, 404 non-owner, 403 for a JUDGE-role caller, `/entries/{entryId}/evaluations`'s judge names/scores/comments/total/status with a `null` consolidated mean while open, the mean populated correctly once the table closes, and three 404s — non-owner, entry from a different competition, entry not yet assigned to a table) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) + T046 `Tables/` (22) + T051 `TastingOrder/` (9) + T056 `Evaluations/SubmitEvaluationApiTests.cs` (12) + T057B `Catalog/GetStyleDetailTests.cs` (2) + T062-T065 `Evaluations/CloseTableApiTests.cs` (9) |
+| Frontend unit | `cd frontend && npx jest` | green — 262 tests (was 247; +15 **T070**: new `core/api/entries-api.service.spec.ts` (1, the promoted `getEntries` — its prior test in `table-management-api.service.spec.ts` moved here rather than duplicating), new `core/api/monitoring-api.service.spec.ts` (2), new `features/dashboard/competition-monitor.component.spec.ts` (13: initial load renders table rows, `EvaluationCompleted`/`TableClosed`/`TableOrderFixed` hub events patch state in place without a refetch, drill-down fetch/render/read-only-proof, load-error handling), plus `organizer-dashboard.component.spec.ts`'s `destination()` coverage updated in place for the `InEvaluation`/`Finalized` → `monitor` routing change) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (13) + T029 `features/competition-wizard/` (24) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12) + T048 `features/table-management/` (46, was 47 — `getEntries` moved out) + T053 `features/judge-tables/` (23) + T100/T102 `features/dashboard/` (19) + T057/T059/T060/T060B/T061 US7 work (48) + T066-T067 US8 work (13). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
+| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), `us5-tables.spec.ts` (1), `us6-order.spec.ts` (1), `us13-dashboard.spec.ts` (3), `us7-offline.spec.ts` (1), `us8-close.spec.ts` (1), and new **T071 `us9-dashboard.spec.ts`** (1: full US9 setup through the real dashboard/UI — organizer opens the monitor screen for an `InEvaluation` competition via `/organizer/dashboard`'s real routing before the judge fixes order, so the live `TableOrderFixed` note is actually reachable — see Recorded debt for why order must be fixed *after* the monitor page is already open; then the judge submits an evaluation and the already-open, non-reloaded organizer page reflects the new count within 1s exactly as `us6-order.spec.ts` proves for its own event; finally the organizer opens the submitted sample's drill-down and asserts every score/comment/total as plain text with zero `input`/`textarea` elements) — all green against a live, fully-warmed Aspire stack (also re-verified alongside `us6-order.spec.ts`/`us8-close.spec.ts`/`us13-dashboard.spec.ts` as a regression spot-check), but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated: `login-required` races `page.goto('/')`). **Gap still open**: no judge- or organizer-facing route, including the evaluation sheet and both dashboard screens, is in the axe-core sweep yet — `a11y/home.a11y.spec.ts` only covers the placeholder app shell; a full-suite sweep is Phase 15/T089 territory. See Recorded debt below. Chromium only |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
 ## Data flows
@@ -1081,6 +1154,20 @@ as `SubmitEvaluation`, writing an `EvaluationCorrected` audit row via `IAuditWri
 transaction as the correction (FR-035), and returning the recomputed total and consolidated mean so
 a future organizer UI can update in place without a second round-trip.
 
+**T068–T071** (US9): `/organizer/dashboard` → clicking an `InEvaluation`/`Finalized` competition →
+`/organizer/competitions/{id}/monitor` → `CompetitionMonitorComponent` fetches `GET
+/competitions/{id}/progress` (every table's completed/expected/percent), `GET /competitions/{id}`
+(header), and `GET /competitions/{id}/entries` (for the drill-down sample list) in parallel, then
+joins `competition:{id}:organizers` — the first real subscriber to that SignalR group in this
+codebase, though `SubmitEvaluation.cs`'s `EvaluationCompleted` emit and `CloseTable.cs`'s
+organizer-group `TableClosed` emit have both been firing into it, unconsumed, since Phase 9/10.
+`FixOrder.cs` gained a matching organizer-group `TableOrderFixed` emit this phase specifically so
+the dashboard would have all three event types tasks.md asked for. Selecting a blind code calls
+`GET /competitions/{id}/entries/{entryId}/evaluations` for the read-only audit view (FR-038) — a
+consolidated mean appears only once that entry's table has closed, computed the same way
+`CloseTable.cs` computes it for the SignalR payload, just independently (see the Backend section
+above for why this is a deliberate small duplication rather than a cross-slice import).
+
 ## Recorded debt / immediate next steps
 
 - **Resolved 2026-07-22 (T102)**: `features/dashboard/organizer-dashboard.component.ts`'s
@@ -1090,6 +1177,20 @@ a future organizer UI can update in place without a second round-trip.
   (FR-051) — `POST /competitions/{id}/state` (T028) is no longer only reachable via a raw API call;
   both E2E specs that used to work around its absence with a captured-bearer-token direct call now
   drive the real button. See `features/dashboard/` above for the implementation.
+- **Resolved 2026-07-22 (T069)**: `TableOrderFixed` (T052) used to be emitted only to the
+  `table:{tableId}` group even though contracts/signalr-hub.md documented an organizer-group row for
+  it too — fixed by adding a matching `PublishToOrganizersAsync` call in `FixOrder.cs`; the live
+  monitoring dashboard (T070) consumes it.
+- **New (T070, US9), found by the E2E work, not by inspection**: the monitor dashboard's "Order
+  fixed by {name}." note has no REST backfill — `GetProgressQuery`'s response carries no
+  order-fixed field, so the note is populated *purely* from the live `TableOrderFixed` hub event.
+  An organizer who opens `/organizer/competitions/{id}/monitor` *after* a table's order was already
+  fixed will never see that note for that table, since fixing order is one-shot and no second event
+  will ever arrive to populate it retroactively. Not a functional problem today — nothing depends on
+  the note besides the organizer's own awareness, and `GetProgress`'s `state`/`percent` fields are
+  unaffected — but worth a conscious fix (either add an `orderFixed`/`orderFixedByDisplayName` field
+  to `TableProgressSummaryDto`, or accept the gap explicitly) before anything else comes to depend on
+  this note being reliably present on first load.
 - **Fixed 2026-07-22 (senior-code-reviewer, PR #23)**: three findings on `CloseTable.cs` fixed
   before merge — (1) no concurrency guard on the table-state flip, unlike the sibling `FixOrder.cs`
   one-shot flip; two judges racing `POST /close` could both pass the not-already-closed check and
@@ -1172,12 +1273,10 @@ a future organizer UI can update in place without a second round-trip.
   an integration/E2E assertion that an invited-only judge can actually log in and reach a
   `JUDGE`-authorized endpoint — deliberately not patched inline with T050–T054 since it's a
   different story's slice (T038–T044) and warrants its own deliberate fix + tests.
-- **New**: `TableOrderFixed` (T052) is emitted only to the `table:{tableId}` group.
-  contracts/signalr-hub.md also lists it under the organizer group's event table ("same as judge
-  event"), so the live monitoring dashboard (Phase 9/US9, not built yet) won't see order-fix events
-  when it lands unless that emit is added alongside it — natural to close together with US9 rather
-  than as a standalone fix now, since nothing consumes the organizer group's `TableOrderFixed` yet
-  either way.
+- **Resolved 2026-07-22 (T069/US9)** — was: `TableOrderFixed` (T052) emitted only to the
+  `table:{tableId}` group though contracts/signalr-hub.md also listed it under the organizer
+  group's event table. Closed together with US9 exactly as this entry anticipated — see the
+  "Resolved 2026-07-22 (T069)" entry above.
 - **New**: `angular.json`'s CLI bundle-size budget (`maximumWarning: 500kB` raw) now trips a build
   warning as of T053 (~547.1 kB raw) — the actual constitutional gate (Principle IX, ≤500 kB
   **gzip**) is still comfortably met at ~136.5 kB transfer, so this isn't a Definition-of-Done

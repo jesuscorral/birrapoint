@@ -118,21 +118,26 @@ public sealed class FixOrderCommandHandler(AppDbContext dbContext, ICurrentUser 
         var fixedByDisplayName = judges.First(j => j.Id == judgeId).DisplayName;
 
         // Emitted only after the transaction above commits (contracts/signalr-hub.md §Delivery
-        // semantics) — never before, to avoid phantom events from a rolled-back fix.
+        // semantics) — never before, to avoid phantom events from a rolled-back fix. Same payload
+        // shape to both groups (contracts/signalr-hub.md documents the organizer-group event as
+        // "same as judge event") — the dashboard needs to know a table's order was fixed too.
+        var orderedSamples = result.Select(s => new
+        {
+            beerEntryId = s.BeerEntryId,
+            blindCode = s.BlindCode,
+            sequenceOrder = s.SequenceOrder,
+        });
+
         await eventPublisher.PublishToTableAsync(
             request.TableId,
             "TableOrderFixed",
-            new
-            {
-                tableId = request.TableId,
-                orderedSamples = result.Select(s => new
-                {
-                    beerEntryId = s.BeerEntryId,
-                    blindCode = s.BlindCode,
-                    sequenceOrder = s.SequenceOrder,
-                }),
-                fixedByDisplayName,
-            },
+            new { tableId = request.TableId, orderedSamples, fixedByDisplayName },
+            CancellationToken.None);
+
+        await eventPublisher.PublishToOrganizersAsync(
+            table.CompetitionId,
+            "TableOrderFixed",
+            new { tableId = request.TableId, orderedSamples, fixedByDisplayName },
             CancellationToken.None);
 
         return result;

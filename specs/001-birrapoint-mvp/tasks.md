@@ -256,13 +256,13 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 ### Tests for User Story 9 (MANDATORY — write first, must fail) ⚠️
 
-- [ ] T068 [P] [US9] Contract tests: `GET /competitions/{id}/progress` shape, `GET .../entries/{entryId}/evaluations` audit payload (judge names + mean when closed), organizer-only access in `backend/tests/BirraPoint.Api.IntegrationTests/Monitoring/MonitoringApiTests.cs`
+- [X] T068 [P] [US9] Contract tests: `GET /competitions/{id}/progress` shape, `GET .../entries/{entryId}/evaluations` audit payload (judge names + mean when closed), organizer-only access in `backend/tests/BirraPoint.Api.IntegrationTests/Monitoring/MonitoringApiTests.cs`
 
 ### Implementation for User Story 9
 
-- [ ] T069 [US9] Slices GetProgress, GetEntryEvaluations (audit read model) + endpoints in `backend/src/BirraPoint.Api/Features/Monitoring/`
-- [ ] T070 [US9] Frontend dashboard: initial load from `/progress`, live updates via `EvaluationCompleted`/`TableClosed`/`TableOrderFixed` (smooth update, no reload/flicker), audit drill-down read-only view, per-table state badges in `frontend/src/app/features/dashboard/`
-- [ ] T071 [US9] E2E scenario 9 incl. ≤1 s latency assertion in `frontend/e2e/us9-dashboard.spec.ts`
+- [X] T069 [US9] Slices GetProgress, GetEntryEvaluations (audit read model) + endpoints in `backend/src/BirraPoint.Api/Features/Monitoring/` — also added the missing organizer-group `TableOrderFixed` emit in `Features/TastingOrder/FixOrder.cs` (previously judge-group only, a documented gap since T052)
+- [X] T070 [US9] Frontend dashboard: initial load from `/progress`, live updates via `EvaluationCompleted`/`TableClosed`/`TableOrderFixed` (smooth update, no reload/flicker), audit drill-down read-only view, per-table state badges in `frontend/src/app/features/dashboard/` — `getEntries` promoted from `table-management` to `core/api/entries-api.service.ts` (FSD rule, now consumed by 2 features)
+- [X] T071 [US9] E2E scenario 9 incl. ≤1 s latency assertion in `frontend/e2e/us9-dashboard.spec.ts`
 
 **Checkpoint**: Organizer can run a live event visually
 

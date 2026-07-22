@@ -7,12 +7,13 @@ import { ActivatedRoute } from '@angular/router';
 import { forkJoin } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
+import { EntriesApiService } from '../../core/api/entries-api.service';
+import type { EntryListItem } from '../../core/api/entries-api.service';
 import { MesaCardComponent } from './mesa-card.component';
 import { TableDetailModalComponent } from './table-detail-modal.component';
 import type { DetailModalContent, TableOption } from './table-detail-modal.component';
 import { TableManagementApiService } from './table-management-api.service';
 import type {
-  EntryListItem,
   JudgeListItem,
   TableAssignmentRequest,
   TableMutationResult,
@@ -216,6 +217,7 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
 export class TableManagementComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(TableManagementApiService);
+  private readonly entriesApi = inject(EntriesApiService);
 
   private readonly competitionId = this.route.snapshot.paramMap.get('id')!;
 
@@ -265,7 +267,7 @@ export class TableManagementComponent {
     this.loadError.set(null);
     forkJoin({
       tables: this.api.getTables(this.competitionId),
-      entries: this.api.getEntries(this.competitionId),
+      entries: this.entriesApi.getEntries(this.competitionId),
       judges: this.api.getJudges(this.competitionId),
     }).subscribe({
       next: ({ tables, entries, judges }) => {
@@ -522,7 +524,7 @@ export class TableManagementComponent {
       return next;
     });
 
-    this.api.getEntries(this.competitionId).subscribe({
+    this.entriesApi.getEntries(this.competitionId).subscribe({
       next: (entries) => this.entries.set(entries),
       error: (error: unknown) => this.handleMutationError(error, this.dragError),
     });
