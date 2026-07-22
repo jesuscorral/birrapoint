@@ -295,6 +295,11 @@ describe('ResultsDispatchComponent', () => {
     expect(fakeDispatchApi.downloadResultsArchive).toHaveBeenCalledWith('c1');
     expect(createObjectURLMock).toHaveBeenCalled();
     expect(clickSpy).toHaveBeenCalled();
+
+    // The revoke is deferred to a macrotask (not called synchronously right after click()) so a
+    // still-in-flight download in some engines, incl. iOS Safari, isn't cancelled by revoking the
+    // object URL too eagerly — wait out that same macrotask here.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:fake-url');
   });
 

@@ -366,6 +366,96 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
         }
     }
 
+    // ---- Regression: fan-out enqueues must be idempotent under DispatchWorker's at-least-once
+    // handler contract (senior-code-reviewer finding on PR #25) ------------------------------------
+
+    [Fact]
+    public async Task Resetting_a_completed_BundleZip_job_back_to_Pending_does_not_double_enqueue_SendResultEmail_jobs()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var (competitionId, _, entries) =
+            await SeedClosedTableCompetitionAsync(organizer, "Idempotent", entryCount: 2);
+
+        var finalizeResponse = await FinalizeAsync(organizer, competitionId);
+        Assert.Equal(HttpStatusCode.OK, finalizeResponse.StatusCode);
+
+        await PollForArchiveReadyAsync(organizer, competitionId);
+        await PollForAllDispatchRowsCompletedAsync(organizer, competitionId, entries.Count);
+
+        // Simulates DispatchWorker's own crash-resume path (ResumeInterruptedJobsAsync / a failed
+        // final "mark Completed" save both reset a job back to Pending) — the BundleZip handler's
+        // fan-out loop already committed durably on the first, successful attempt, so a re-run
+        // must recognize that and skip re-enqueueing rather than doubling every participant's
+        // SendResultEmail job. Reset directly via DB (no wake-up signal), so the worker only
+        // notices on its periodic safety-net sweep, same as a real crash-resume would.
+        var updatedAtBeforeReset = await ResetBundleZipJobToPendingAsync(competitionId);
+
+        // Wait for the worker to actually pick the reset job back up and reprocess it to
+        // completion — polling on the job's own UpdatedAt/Status rather than the dispatch-status
+        // count, since the pre-existing 2 rows are already Completed and would otherwise satisfy a
+        // count-based poll instantly, before the (buggy, pre-fix) re-enqueue ever had a chance to
+        // run.
+        await PollForBundleZipReprocessedAsync(competitionId, updatedAtBeforeReset);
+
+        // Give any newly (incorrectly, if the guard were missing) re-enqueued SendResultEmail jobs
+        // time to actually be sent before counting — they wake the worker immediately on enqueue.
+        await PollForAllDispatchRowsCompletedAsync(
+            organizer, competitionId, expectedCount: entries.Count, timeout: PollTimeout);
+
+        var sendResultEmailJobCount = await CountDispatchJobsAsync(competitionId, DispatchJobType.SendResultEmail);
+        Assert.Equal(entries.Count, sendResultEmailJobCount);
+
+        foreach (var entry in entries)
+        {
+            Assert.Single(FakeEmailSender.Sent, s => s.ToEmail == entry.Email);
+        }
+    }
+
+    /// <summary>Resets the competition's BundleZip job back to Pending and returns the
+    /// post-reset UpdatedAt, so a caller can distinguish "reprocessed since the reset" from the
+    /// job's pre-existing Completed state (which would otherwise satisfy a naive status check
+    /// immediately, before the worker ever picks the reset job back up).</summary>
+    private async Task<DateTimeOffset> ResetBundleZipJobToPendingAsync(Guid competitionId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var job = await db.DispatchJobs
+            .SingleAsync(j => j.CompetitionId == competitionId && j.Type == DispatchJobType.BundleZip);
+        job.Status = DispatchJobStatus.Pending;
+        job.NextAttemptAt = null;
+        await db.SaveChangesAsync();
+        return job.UpdatedAt;
+    }
+
+    private async Task PollForBundleZipReprocessedAsync(Guid competitionId, DateTimeOffset resetAt)
+    {
+        var deadline = DateTime.UtcNow + SafetyNetPollTimeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var job = await db.DispatchJobs
+                .AsNoTracking()
+                .SingleAsync(j => j.CompetitionId == competitionId && j.Type == DispatchJobType.BundleZip);
+
+            if (job.Status == DispatchJobStatus.Completed && job.UpdatedAt > resetAt)
+            {
+                return;
+            }
+
+            await Task.Delay(PollInterval);
+        }
+
+        Assert.Fail("Timed out waiting for the reset BundleZip job to be reprocessed.");
+    }
+
+    private async Task<int> CountDispatchJobsAsync(Guid competitionId, DispatchJobType type)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.DispatchJobs.CountAsync(j => j.CompetitionId == competitionId && j.Type == type);
+    }
+
     [Fact]
     public async Task Get_results_archive_before_the_pipeline_completes_returns_202_with_status()
     {

@@ -296,13 +296,24 @@ export class ResultsDispatchComponent implements OnInit, OnDestroy {
     });
   }
 
+  // Appends the anchor to the DOM (some engines, notably Firefox, don't reliably fire a click on
+  // a detached element) and defers the revoke to a macrotask instead of doing it synchronously
+  // right after click() (some engines, including iOS Safari — this PWA's stated offline-engine
+  // constraint, R-08 — can cancel a still-in-flight download if the object URL is revoked too
+  // eagerly). Chromium (the only E2E browser) tolerates both shortcuts, which is how this shipped
+  // originally (senior-code-reviewer finding on PR #25).
   private triggerBlobDownload(blob: Blob): void {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = `results-${this.competitionId}.zip`;
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    }, 0);
   }
 
   private clearRetrying(participantId: string): void {

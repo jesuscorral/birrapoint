@@ -46,10 +46,12 @@ public sealed class GeneratePdfsHandler(AppDbContext dbContext, IDispatchJobQueu
                     x.Evaluation.Total))
                 .ToList();
 
-            // Mirrors CloseTableRules.ComputeMean's rounding convention without importing across
-            // feature folders (same deliberate duplication already used by GetEntryEvaluationsQueryHandler).
-            var consolidatedMean = evaluations.Count == 0
-                ? 0m
+            // Null (not 0) when nobody has evaluated this entry — 0 would read as a real score of
+            // zero rather than "not evaluated" (senior-code-reviewer finding on PR #25). Mirrors
+            // CloseTableRules.ComputeMean's rounding convention without importing across feature
+            // folders (same deliberate duplication already used by GetEntryEvaluationsQueryHandler).
+            decimal? consolidatedMean = evaluations.Count == 0
+                ? null
                 : Math.Round(evaluations.Average(x => (decimal)x.Evaluation.Total), 2, MidpointRounding.AwayFromZero);
 
             var document = new ScoreSheetDocument(
@@ -77,6 +79,15 @@ public sealed class GeneratePdfsHandler(AppDbContext dbContext, IDispatchJobQueu
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        await dispatchJobQueue.EnqueueAsync(job.CompetitionId, DispatchJobType.BundleZip, new { }, cancellationToken);
+        // Same at-least-once guard as BundleZipHandler's fan-out (senior-code-reviewer finding on
+        // PR #25): DispatchWorker may re-run this handler after a crash even though a prior
+        // attempt's BundleZip enqueue already committed durably — without this check, a re-run
+        // would enqueue a second BundleZip job (and, transitively, a second round of emails).
+        var bundleZipAlreadyQueued = await dbContext.DispatchJobs
+            .AnyAsync(j => j.CompetitionId == job.CompetitionId && j.Type == DispatchJobType.BundleZip, cancellationToken);
+        if (!bundleZipAlreadyQueued)
+        {
+            await dispatchJobQueue.EnqueueAsync(job.CompetitionId, DispatchJobType.BundleZip, new { }, cancellationToken);
+        }
     }
 }

@@ -22,7 +22,7 @@ public sealed record ScoreSheetJudgeEntry(
 /// </summary>
 public sealed class ScoreSheetDocument(
     string competitionName, string blindCode, string styleCode, string styleName,
-    IReadOnlyList<ScoreSheetJudgeEntry> judgeEntries, decimal consolidatedMean)
+    IReadOnlyList<ScoreSheetJudgeEntry> judgeEntries, decimal? consolidatedMean)
     : IDocument
 {
     public DocumentMetadata GetMetadata() => DocumentMetadata.Default;
@@ -49,7 +49,12 @@ public sealed class ScoreSheetDocument(
                     column.Item().Text($"Total: {entry.Total}").Bold();
                 }
 
-                column.Item().PaddingTop(20).Text($"Consolidated mean: {consolidatedMean}").FontSize(14).Bold();
+                // Null (not 0) when nobody has evaluated this entry yet — 0 would read as a real
+                // score of zero rather than "not evaluated" (senior-code-reviewer finding on PR
+                // #25; matches GetEntryEvaluationsQueryHandler's null-until-closed convention).
+                column.Item().PaddingTop(20)
+                    .Text($"Consolidated mean: {(consolidatedMean.HasValue ? consolidatedMean.Value.ToString() : "not evaluated")}")
+                    .FontSize(14).Bold();
             });
         });
     }
