@@ -392,9 +392,13 @@ route restructure) plus the one genuinely new piece, T030.
   judge-facing endpoint, `POST /me/tables/{tableId}/evaluations`. `SubmitEvaluationRules` (pure,
   unit-tested without Postgres, same split as `TastingOrderRules`) encodes `IsNextInSequence`
   (FR-022 — the requested entry must be the first one in the fixed order this judge hasn't
-  submitted yet) and `CanSubmitInState` (`InEvaluation` only). The handler gates in order —
-  competition state, order-fixed, table-open, sequence — each throwing the matching pre-existing
-  `DomainErrorType` (no new catalog entries needed). **Idempotency (FR-029/R-07) is a genuine
+  submitted yet) and `CanSubmitInState` (`InEvaluation` only). **The very first thing the handler
+  does, before any precondition gate, is check for an already-persisted `(judge, entry)` row and
+  return it immediately if found** (fixed same-day per senior-code-reviewer on PR #22 — see
+  Recorded debt — idempotent replay must hold no matter what happened to the table/competition
+  since the original successful submit); only then does it gate in order — competition state,
+  order-fixed, table-open, sequence — each throwing the matching pre-existing `DomainErrorType` (no
+  new catalog entries needed). **Idempotency (FR-029/R-07) is also a genuine
   insert-time race guard, the first of its kind in this codebase**: every prior unique constraint
   (blind code, participant email, the tasting-order one-shot) was pre-checked with a query before
   the write; here that's structurally forbidden — "never UPSERT" (locked-on-submit) means the check
@@ -869,7 +873,11 @@ route restructure) plus the one genuinely new piece, T030.
   right away, while anything transient (no real connectivity despite a stale `navigator.onLine`,
   5xx, timeout) resolves exactly like the offline path — a flaky connection never blocks or errors
   the "submit" action, only a definitive server rejection does; the outbox row stays queued in
-  either case; only a confirmed `200`/`201` clears it. `replayOutbox()` is the background sweep —
+  either case; only a confirmed `200`/`201` clears it. **Fixed same-day (senior-code-reviewer, PR
+  #22)**: `HttpClient` has no default request timeout, so a hung socket on a nominally-online
+  connection would have hung `submit()` and left `replayOutbox()`'s reentrancy guard stuck
+  indefinitely — a 15s RxJS `timeout()` on the submit/replay POST makes "timeout" above a real,
+  enforced case, not just an aspirational one. `replayOutbox()` is the background sweep —
   triggered by the `window` `online` event, the service's own construction (this codebase's stand-in
   for "app start," since `SyncService` is `providedIn: 'root'` and nothing else needed a dedicated
   `APP_INITIALIZER`), and immediately after each `submit()` — applying capped exponential backoff
@@ -998,17 +1006,29 @@ duplicate POST safe regardless of how many times the client's replay loop fires 
   home.a11y.spec.ts` only exercises the placeholder app shell today. Same gap category as the
   pre-existing `smoke.spec.ts`/`home.a11y.spec.ts` `login-required`-race failures noted below; a
   real organizer- and judge-route sweep is Phase 15/T089's job, not done piecemeal per story so far.
-- **New (T060, US7)**: an outbox row that hits a *definitive* rejection (`400`/`409`) retries
-  forever with capped backoff and never re-surfaces to the judge again after the initial toast at
-  submit time. Correct for a rejection that might later resolve on its own (`order-not-fixed` —
-  fixable once another judge fixes the order), but for one that structurally never will
-  (`table-closed`, or `invalid-state-transition` once the competition moves past `InEvaluation`)
-  the row sits in the outbox silently retrying indefinitely — not a data-loss (the payload is
-  intact, and SC-002's "reaches the server exactly once" isn't violated, since it correctly never
-  reaches the server), but a user-visible dead end the judge has no way to discover or resolve
-  short of clearing app storage. Fixing this needs real UI (surface stuck rows, let the judge
-  retry/discard/investigate) — a small enough scope on its own that it's flagged here rather than
-  folded into T060 itself.
+- **Fixed 2026-07-22 (senior-code-reviewer, PR #22), narrows the item below**: idempotent replay
+  didn't hold once a table closed or its competition moved past `InEvaluation` — `SubmitEvaluation`
+  gated on table/competition state *before* checking for an already-persisted `(judge, entry)` row,
+  so a judge whose evaluation had genuinely already committed (the ack was just lost — exactly the
+  scenario the outbox replay engine exists for) got `409 table-closed` on retry instead of the
+  stored `200`. Fixed by moving the existing-row check to the very top of the handler, before any
+  precondition gate — a persisted evaluation is a fact regardless of what happens to the table
+  afterward (FR-029/R-07). Regression test:
+  `Replaying_an_already_stored_evaluation_after_the_table_closes_still_returns_200_not_409`.
+  Same review pass also added a 15s RxJS `timeout()` to `sync.service.ts`'s submit/replay POST —
+  `HttpClient` has no default one, so a hung socket on a nominally-online connection would have
+  hung `submit()` and stuck `replayOutbox()`'s reentrancy guard indefinitely.
+- **New (T060, US7), scope now narrower after the fix above**: an outbox row that hits a
+  *definitive* rejection (`400`/`409`) still retries forever with capped backoff and never
+  re-surfaces to the judge after the initial toast — but this can now only happen for a submission
+  that never actually persisted in the first place and never legitimately will (e.g. the table
+  closes or the competition moves past `InEvaluation` before the *first* attempt ever reaches the
+  server) — not, as before the fix, for every already-successful submission whose ack merely got
+  lost. Not a data-loss (the payload is intact, and SC-002's "exactly once" isn't violated, since it
+  correctly never reaches the server), but still a user-visible dead end the judge has no way to
+  discover or resolve short of clearing app storage. Fixing this needs real UI (surface stuck rows,
+  let the judge retry/discard/investigate) — a small enough scope on its own that it's flagged here
+  rather than folded into T060 itself.
 - **New (T061, US7)**: a literal `page.reload()` while `context.setOffline(true)` is infeasible
   against this E2E suite's dev-mode harness — `npm start` (`ng serve`, what `playwright.config.ts`'s
   `webServer` runs) sends `no-cache` on every request and the PWA service worker is intentionally

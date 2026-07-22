@@ -395,6 +395,34 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         Assert.Equal(1, await CountEvaluationsAsync(fixture.JudgeId, fixture.EntryIds[0]));
     }
 
+    [Fact]
+    public async Task Replaying_an_already_stored_evaluation_after_the_table_closes_still_returns_200_not_409()
+    {
+        // FR-029/R-07: idempotency must hold regardless of what happens to the table afterward — a
+        // judge's evaluation is a fact once persisted. This reproduces the exact scenario the
+        // offline outbox's replay engine exists for: the original submission succeeded and
+        // committed, but the client never saw the ack (dropped connection) and later replays it —
+        // by which point the table has since closed. Must still be 200 with the stored result, not
+        // 409 table-closed (senior-code-reviewer finding on PR #22).
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer);
+
+        using var judge = JudgeClient(fixture.JudgeSub);
+        var first = await SubmitAsync(judge, fixture.TableId, fixture.EntryIds[0]);
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        using var firstDocument = JsonDocument.Parse(await first.Content.ReadAsStringAsync());
+        var firstEvaluationId = firstDocument.RootElement.GetProperty("evaluationId").GetGuid();
+
+        await CloseTableDirectlyAsync(fixture.TableId);
+
+        var replay = await SubmitAsync(judge, fixture.TableId, fixture.EntryIds[0]);
+
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+        using var replayDocument = JsonDocument.Parse(await replay.Content.ReadAsStringAsync());
+        Assert.Equal(firstEvaluationId, replayDocument.RootElement.GetProperty("evaluationId").GetGuid());
+        Assert.Equal(1, await CountEvaluationsAsync(fixture.JudgeId, fixture.EntryIds[0]));
+    }
+
     // ---- Concurrency race (proves the unique-constraint catch path, not just sequential replay) --
 
     [Fact]

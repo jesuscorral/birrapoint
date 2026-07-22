@@ -81,6 +81,25 @@ public sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurr
             return null;
         }
 
+        // FR-029/R-07 idempotency MUST hold regardless of what happens to the table/competition
+        // after the original submission committed: a judge's evaluation is a fact once persisted,
+        // and a replay of it (the ack got lost, the outbox retries it later) must always return
+        // that stored result — even if the table has since closed or the competition has moved
+        // past InEvaluation. Checking this before any precondition gate below is what makes that
+        // true; gating first would 409 a legitimate replay simply because time passed since the
+        // original successful submit, which is exactly the scenario the outbox/replay engine
+        // exists to handle (frontend/src/app/core/offline/sync.service.ts).
+        var existingEvaluation = await dbContext.Evaluations
+            .SingleOrDefaultAsync(e => e.JudgeId == judgeId && e.BeerEntryId == request.BeerEntryId, cancellationToken);
+        if (existingEvaluation is not null)
+        {
+            return new SubmitEvaluationResult(
+                existingEvaluation.Id, existingEvaluation.Status.ToString(), existingEvaluation.Total, Discrepancy: null)
+            {
+                IsNewSubmission = false,
+            };
+        }
+
         // The active TableJudge row above references an existing TastingTable (FK), so this is
         // always found — no need to null-check.
         var table = await dbContext.TastingTables.SingleAsync(t => t.Id == request.TableId, cancellationToken);
@@ -117,19 +136,14 @@ public sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurr
             .Select(ts => ts.BeerEntryId)
             .ToListAsync(cancellationToken);
 
+        // request.BeerEntryId is guaranteed absent from this judge's already-submitted set here —
+        // the early idempotent-replay return above already handled the case where it's present.
         var alreadySubmittedIds = await dbContext.Evaluations
             .Where(e => e.TastingTableId == request.TableId && e.JudgeId == judgeId)
             .Select(e => e.BeerEntryId)
             .ToListAsync(cancellationToken);
 
-        // A replay of a sample this judge already submitted (FR-029/R-07 idempotency) is not a new
-        // submission — the sequence gate only applies to samples not yet submitted, otherwise a
-        // legitimate retry (or the concurrency loser below) would be rejected as out-of-sequence
-        // instead of falling through to the unique-index catch that returns the stored result.
-        var isReplayOfAnAlreadySubmittedSample = alreadySubmittedIds.Contains(request.BeerEntryId);
-
-        if (!isReplayOfAnAlreadySubmittedSample
-            && !SubmitEvaluationRules.IsNextInSequence(orderedSampleIds, alreadySubmittedIds, request.BeerEntryId))
+        if (!SubmitEvaluationRules.IsNextInSequence(orderedSampleIds, alreadySubmittedIds, request.BeerEntryId))
         {
             throw new DomainException(
                 DomainErrorType.OutOfSequence,
@@ -165,11 +179,12 @@ public sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurr
         }
         catch (DbUpdateException ex) when (IsUniqueViolation(ex))
         {
-            // FR-029/R-07 idempotency backstop: a concurrent or repeated submission for the same
-            // (JudgeId, BeerEntryId) hit the unique index (EvaluationConfiguration) before this one
-            // committed. Detach the failed insert — it was never persisted — and return whatever is
-            // actually stored, never assuming it matches this request's body (a genuine replay will
-            // match; a true race is decided by whichever insert Postgres committed first).
+            // FR-029/R-07 idempotency backstop for a *genuine concurrent* race the early
+            // existing-row check above couldn't see (both requests read "no row" before either
+            // committed) — the unique index (EvaluationConfiguration) is what actually serializes
+            // them. Detach the failed insert — it was never persisted — and return whatever is
+            // actually stored; the race is decided by whichever insert Postgres committed first,
+            // never assumed to match this request's body.
             dbContext.Entry(evaluation).State = EntityState.Detached;
 
             var existing = await dbContext.Evaluations

@@ -259,6 +259,45 @@ describe('SyncService', () => {
       expect(stored).toBeDefined();
       expect(stored?.attempts).toBe(1);
     });
+
+    it('times out a hung request instead of waiting forever, treating it as transient (resolves "enqueued")', async () => {
+      // HttpClient has no default timeout — a dead socket while navigator.onLine is (stale-)true
+      // would otherwise hang submit() indefinitely (senior-code-reviewer finding on PR #22).
+      // Real timers up through createService()/the initial "app start" replay settling (same as
+      // every other test here), then fake timers just for this test so a 15s wait resolves
+      // instantly instead of actually elapsing in the test run.
+      const service = await createService();
+      jest.useFakeTimers();
+
+      const outcome = service.submit(
+        'table-1:entry-1',
+        'table-1',
+        'entry-1',
+        scoresFixture(),
+        commentsFixture(),
+      );
+      // Let the durable outbox write settle — fake-indexeddb dispatches its request events via a
+      // macrotask, potentially several nested hops deep (see the `flush()` helper's own comment
+      // above, which loops 5 real-timer ticks for the same reason), so under fake timers this
+      // needs a few `advanceTimersByTimeAsync` passes (each flushes microtasks too), not a single
+      // one, before the HTTP call reliably registers with httpMock.
+      for (let i = 0; i < 5; i++) {
+        await jest.advanceTimersByTimeAsync(0);
+      }
+
+      // Registers the pending mock request as matched (so httpMock.verify() in afterEach doesn't
+      // complain about an unmatched expectation) — never flushed, since the whole point is that it
+      // hangs; RxJS's timeout() unsubscribes from it once the deadline passes, which Angular's
+      // testing backend itself marks as "cancelled," a terminal state verify() accepts.
+      httpMock.expectOne(`${API_URL}/me/tables/table-1/evaluations`);
+      await jest.advanceTimersByTimeAsync(15_001); // SUBMIT_TIMEOUT_MS + 1, kept local — not exported
+
+      await expect(outcome).resolves.toEqual({ status: 'enqueued' });
+
+      const stored = await db.outbox.get('table-1:entry-1');
+      expect(stored).toBeDefined();
+      expect(stored?.attempts).toBe(1);
+    });
   });
 
   describe('replayOutbox()', () => {

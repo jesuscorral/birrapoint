@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 
 import { ApiClient } from '../api/api-client.service';
 import { ApiError } from '../api/api-error';
@@ -16,6 +16,15 @@ const DRAFT_DEBOUNCE_MS = 300;
 // 2s, 4s, ... capped at 60s so a long offline stretch doesn't spin the network on reconnect.
 const BACKOFF_BASE_MS = 1000;
 const BACKOFF_CAP_MS = 60_000;
+
+// Angular's HttpClient has no default request timeout — without one, a dead socket on a
+// nominally-"online" connection (navigator.onLine true, but the network is actually gone or a
+// proxy/venue Wi-Fi is silently dropping packets) would hang submit() indefinitely instead of
+// resolving 'enqueued' like every other transient failure, and would leave replayOutbox()'s
+// `replaying` flag stuck true, silently blocking every later replay attempt. 15s is generous
+// enough not to abort a merely-slow-but-working request (the API's own p95 write budget is
+// <500ms, so anything taking seconds is already abnormal) while still bounding the worst case.
+const SUBMIT_TIMEOUT_MS = 15_000;
 
 interface DraftWaiter {
   resolve: () => void;
@@ -235,11 +244,13 @@ export class SyncService {
     // Observable normally — nothing here needs to branch on status code to dedupe correctly;
     // either way, the server has it and this outbox row is done.
     const result = await firstValueFrom(
-      this.apiClient.post<SubmitEvaluationResult>(
-        `/me/tables/${row.tastingTableId}/evaluations`,
-        { beerEntryId: row.beerEntryId, scores: row.scores, comments: row.comments },
-        { headers: { 'X-Idempotency-Key': row.idempotencyKey } },
-      ),
+      this.apiClient
+        .post<SubmitEvaluationResult>(
+          `/me/tables/${row.tastingTableId}/evaluations`,
+          { beerEntryId: row.beerEntryId, scores: row.scores, comments: row.comments },
+          { headers: { 'X-Idempotency-Key': row.idempotencyKey } },
+        )
+        .pipe(timeout(SUBMIT_TIMEOUT_MS)),
     );
     await db.outbox.delete(row.idempotencyKey);
     await db.drafts.delete(row.beerEntryId);
