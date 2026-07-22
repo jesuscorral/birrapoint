@@ -11,7 +11,6 @@ import { createJudgeUser, deleteUser, ProvisionedJudge } from './support/keycloa
 // dropped.
 
 const KEYCLOAK_ORIGIN = 'http://localhost:8081';
-const API_BASE_URL = 'http://localhost:5121';
 const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
 
@@ -184,38 +183,35 @@ async function pointerDrag(page: Page, source: Locator, target: Locator): Promis
   await page.mouse.up();
 }
 
-// The organizer wizard never leaves a competition anywhere but Draft, and no "Activate" UI exists
-// yet on this branch (grepped: nothing) — but GET /me/tables hides Draft competitions (FR-020) and
-// POST .../order requires Active/InEvaluation. Keycloak's birrapoint-spa client also has
-// directAccessGrantsEnabled: false, so a password-grant token isn't an option either. Instead,
-// piggyback on the organizer's own already-authenticated browser session: reload the (already
-// loaded) tables page to trigger one of its normal authenticated GETs, capture the bearer token it
-// sends, and reuse it for a direct REST call to the documented state-transition endpoint
-// (contracts/rest-api.md POST /competitions/{id}/state).
+// GET /me/tables hides Draft competitions (FR-020) and POST .../order requires Active/InEvaluation,
+// so the organizer must advance the just-created competition out of Draft before the two judge
+// sessions below can reach the table's order view. T102 shipped the real advance-state control on
+// the organizer dashboard (FR-051) — this goes through it exactly as an organizer would: navigate
+// to the dashboard, click the row's "Activate" action, confirm the resulting alertdialog. Mirrors
+// us13-dashboard.spec.ts's own advanceCompetitionState helper; kept separate (rather than a shared
+// support module) since this one only ever performs the single Draft -> Active transition and
+// locates the row by the competition id (via its still-Draft href) rather than by name, since this
+// spec's own createCompetition doesn't return the generated name.
 async function activateCompetition(page: Page, competitionId: string): Promise<void> {
-  const [request] = await Promise.all([
-    page.waitForRequest(
-      (req) =>
-        req.url().includes(`/api/v1/competitions/${competitionId}`) &&
-        Boolean(req.headers()['authorization']),
-    ),
-    page.reload(),
-  ]);
-  await expect(page.getByRole('heading', { name: 'Table management' })).toBeVisible();
+  await page.goto('/organizer/dashboard');
 
-  const authorization = request.headers()['authorization'];
-  const response = await page.request.post(
-    `${API_BASE_URL}/api/v1/competitions/${competitionId}/state`,
-    {
-      headers: { Authorization: authorization, 'Content-Type': 'application/json' },
-      data: { target: 'Active' },
-    },
-  );
-  if (!response.ok()) {
-    throw new Error(
-      `Activating competition ${competitionId} failed: ${response.status()} ${await response.text()}`,
-    );
-  }
+  // Match by href *prefix*, not exact: OrganizerDashboardComponent.destination() routes Draft
+  // competitions to /organizer/competitions/{id} but everything Active+ to
+  // /organizer/competitions/{id}/tables, so an exact match would stop matching this same row the
+  // moment the click below succeeds and the list refetches -- breaking the post-click badge
+  // assertion.
+  const row = page
+    .locator('li.competition-list-row')
+    .filter({ has: page.locator(`a[href^="/organizer/competitions/${competitionId}"]`) });
+  await row.getByRole('button', { name: 'Activate', exact: true }).click();
+
+  const dialog = page.getByRole('alertdialog', { name: 'Confirm advance competition state' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+
+  const badge = row.locator('.badge');
+  await expect(badge).toHaveText('Active');
 }
 
 // Mirrors us1-auth.spec.ts's forced-temporary-password-change flow, ending on /judge/tables.

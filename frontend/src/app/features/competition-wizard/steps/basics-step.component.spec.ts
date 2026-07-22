@@ -2,8 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 
 import { ApiError } from '../../../core/api/api-error';
-import { CompetitionsApiService } from '../competitions-api.service';
-import type { CompetitionDetail } from '../competitions-api.service';
+import { CompetitionsApiService } from '../../../core/api/competitions-api.service';
+import type { CompetitionDetail } from '../../../core/api/competitions-api.service';
 import { BasicsStepComponent } from './basics-step.component';
 
 function detailFixture(overrides: Partial<CompetitionDetail> = {}): CompetitionDetail {

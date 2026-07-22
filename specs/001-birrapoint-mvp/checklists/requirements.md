@@ -53,3 +53,13 @@
   specified: configurable/multi-standard scoring (recorded under Out of Scope), a merged
   import/judge-registration screen, and a table-setup visual redesign (both: keep existing,
   already-built/tested behavior — no spec change needed since nothing about them changes).
+
+### Incremental validation — 2026-07-22 addendum (Acceptance Scenario 5 / FR-051)
+
+- Prompted by a real gap noticed after US13 shipped: FR-006 already defined the lifecycle state
+  machine but nothing said where an organizer triggers a transition in the UI. Re-validated only
+  the added content (US13 Acceptance Scenario 5, the Finalized/open-tables edge case, FR-051)
+  against all four checklist sections — passed on first iteration, no new
+  [NEEDS CLARIFICATION] markers. No implementation details introduced — `POST
+  /competitions/{id}/state` is referenced only in `contracts/rest-api.md` (already existed) and
+  Assumptions-adjacent notes, not prescribed in the requirement itself.

@@ -2,8 +2,8 @@ import { Location } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 
-import { CompetitionsApiService } from './competitions-api.service';
-import type { CompetitionDetail } from './competitions-api.service';
+import { CompetitionsApiService } from '../../core/api/competitions-api.service';
+import type { CompetitionDetail } from '../../core/api/competitions-api.service';
 import { BasicsStepComponent } from './steps/basics-step.component';
 import { DetailsStepComponent } from './steps/details-step.component';
 

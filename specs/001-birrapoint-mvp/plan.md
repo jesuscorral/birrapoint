@@ -98,6 +98,12 @@ changes needed. `contracts/rest-api.md`'s `GET /competitions` row tightened to t
 shape it already returns (was previously just prose). See Project Structure below for where the
 frontend work lands.
 
+**Post-addition re-check (2026-07-22, Acceptance Scenario 5 / FR-051)**: ✅ PASS, trivially —
+reuses the already-implemented `POST /competitions/{id}/state` endpoint (T028) verbatim; no new
+dependency, entity, or contract. `CompetitionsApiService` also relocates from
+`features/competition-wizard/` to `core/api/` in the same change (PR #21 review follow-up — it's
+now consumed by two features, the FSD threshold this repo uses for promoting a client to `core/`).
+
 ## Project Structure
 
 ### Documentation (this feature)

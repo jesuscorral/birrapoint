@@ -1,11 +1,12 @@
 import { provideRouter } from '@angular/router';
+import type { ComponentFixture } from '@angular/core/testing';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
 import { OrganizerDashboardComponent } from './organizer-dashboard.component';
-import { CompetitionsApiService } from '../competition-wizard/competitions-api.service';
-import type { CompetitionSummary } from '../competition-wizard/competitions-api.service';
+import { CompetitionsApiService } from '../../core/api/competitions-api.service';
+import type { CompetitionSummary } from '../../core/api/competitions-api.service';
 
 function competitionFixture(overrides: Partial<CompetitionSummary> = {}): CompetitionSummary {
   return {
@@ -19,11 +20,33 @@ function competitionFixture(overrides: Partial<CompetitionSummary> = {}): Compet
   };
 }
 
+function findButtonByText(root: Element, text: string): HTMLButtonElement {
+  const buttons = Array.from(root.querySelectorAll('button')) as HTMLButtonElement[];
+  const button = buttons.find((candidate) => candidate.textContent?.trim() === text);
+  if (!button) {
+    throw new Error(`Button with text "${text}" not found`);
+  }
+  return button;
+}
+
+function clickAdvance(fixture: ComponentFixture<OrganizerDashboardComponent>, label: string): void {
+  findButtonByText(fixture.nativeElement as Element, label).click();
+  fixture.detectChanges();
+}
+
+function clickConfirm(fixture: ComponentFixture<OrganizerDashboardComponent>): void {
+  findButtonByText(fixture.nativeElement as Element, 'Confirm').click();
+  fixture.detectChanges();
+}
+
 describe('OrganizerDashboardComponent', () => {
-  let fakeApi: { list: jest.Mock };
+  let fakeApi: { list: jest.Mock; changeState: jest.Mock };
 
   beforeEach(() => {
-    fakeApi = { list: jest.fn().mockReturnValue(of([competitionFixture()])) };
+    fakeApi = {
+      list: jest.fn().mockReturnValue(of([competitionFixture()])),
+      changeState: jest.fn().mockReturnValue(of({ state: 'Active' })),
+    };
     TestBed.configureTestingModule({
       providers: [{ provide: CompetitionsApiService, useValue: fakeApi }, provideRouter([])],
     });
@@ -95,5 +118,121 @@ describe('OrganizerDashboardComponent', () => {
     const link = fixture.nativeElement.querySelector('a[href="/organizer/competitions/new"]');
     expect(link).not.toBeNull();
     expect(link.textContent).toContain('New competition');
+  });
+
+  describe('advance-state action (FR-051)', () => {
+    it.each([
+      ['Draft', 'Activate'],
+      ['Active', 'Start evaluation'],
+      ['InEvaluation', 'Finalize'],
+    ] as const)('shows a "%s" state as "%s"', (state, label) => {
+      fakeApi.list.mockReturnValue(of([competitionFixture({ state })]));
+      const fixture = createComponent();
+
+      expect(() => findButtonByText(fixture.nativeElement as Element, label)).not.toThrow();
+    });
+
+    it('renders no advance-state control for a Finalized competition', () => {
+      fakeApi.list.mockReturnValue(of([competitionFixture({ state: 'Finalized' })]));
+      const fixture = createComponent();
+
+      const buttons = Array.from(
+        (fixture.nativeElement as Element).querySelectorAll('button'),
+      ) as HTMLButtonElement[];
+      const advanceLabels = ['Activate', 'Start evaluation', 'Finalize'];
+      expect(
+        buttons.some((button) => advanceLabels.includes(button.textContent?.trim() ?? '')),
+      ).toBe(false);
+    });
+
+    it('renders the navigation link and the advance control as independent siblings, not nested', () => {
+      const fixture = createComponent();
+
+      const link = fixture.nativeElement.querySelector('a.competition-list-item');
+      expect(link.querySelector('button')).toBeNull();
+
+      const advanceButton = findButtonByText(fixture.nativeElement as Element, 'Activate');
+      expect(advanceButton.closest('a')).toBeNull();
+    });
+
+    it('requires an explicit confirm step before calling the API', () => {
+      const fixture = createComponent();
+
+      clickAdvance(fixture, 'Activate');
+
+      expect(fakeApi.changeState).not.toHaveBeenCalled();
+      const dialog = fixture.nativeElement.querySelector('[role="alertdialog"]');
+      expect(dialog).not.toBeNull();
+
+      clickConfirm(fixture);
+
+      expect(fakeApi.changeState).toHaveBeenCalledWith('c1', 'Active');
+    });
+
+    it('can be cancelled without calling the API', () => {
+      const fixture = createComponent();
+
+      clickAdvance(fixture, 'Activate');
+      findButtonByText(fixture.nativeElement as Element, 'Cancel').click();
+      fixture.detectChanges();
+
+      expect(fakeApi.changeState).not.toHaveBeenCalled();
+      expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeNull();
+    });
+
+    it('refetches the competitions list after a successful advance', () => {
+      const fixture = createComponent();
+      expect(fakeApi.list).toHaveBeenCalledTimes(1);
+
+      clickAdvance(fixture, 'Activate');
+      clickConfirm(fixture);
+
+      expect(fakeApi.list).toHaveBeenCalledTimes(2);
+    });
+
+    it('names how many tables are blocking on 409 tables-still-open', () => {
+      fakeApi.list.mockReturnValue(of([competitionFixture({ state: 'InEvaluation' })]));
+      fakeApi.changeState.mockReturnValue(
+        throwError(
+          () =>
+            new ApiError({
+              status: 409,
+              title: 'Tables still open',
+              urn: 'urn:birrapoint:tables-still-open',
+              extensions: { openTableIds: ['t1', 't2'] },
+            }),
+        ),
+      );
+      const fixture = createComponent();
+
+      clickAdvance(fixture, 'Finalize');
+      clickConfirm(fixture);
+
+      const alert = fixture.nativeElement.querySelector('[role="alert"]');
+      expect(alert?.textContent).toContain('2 table(s) still open');
+      expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeNull();
+    });
+
+    it('surfaces a plain message and refetches the list on 409 invalid-state-transition', () => {
+      fakeApi.changeState.mockReturnValue(
+        throwError(
+          () =>
+            new ApiError({
+              status: 409,
+              title: 'Invalid state transition',
+              urn: 'urn:birrapoint:invalid-state-transition',
+            }),
+        ),
+      );
+      const fixture = createComponent();
+      expect(fakeApi.list).toHaveBeenCalledTimes(1);
+
+      clickAdvance(fixture, 'Activate');
+      clickConfirm(fixture);
+
+      const alert = fixture.nativeElement.querySelector('[role="alert"]');
+      expect(alert?.textContent).toContain('already changed');
+      expect(fakeApi.list).toHaveBeenCalledTimes(2);
+    });
   });
 });

@@ -103,4 +103,15 @@ describe('CompetitionsApiService', () => {
 
     expect(await result).toEqual(summaries);
   });
+
+  it('changeState() posts the target state to /competitions/{id}/state', async () => {
+    const result = firstValueFrom(service.changeState('c1', 'Active'));
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1/state`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ target: 'Active' });
+    req.flush({ state: 'Active' });
+
+    expect(await result).toEqual({ state: 'Active' });
+  });
 });

@@ -31,6 +31,10 @@
 - Q: The same mockup redesigned table setup (US5) as flat list cards instead of the already-built and E2E-tested physical-table/seat metaphor — adopt it? → A: No — keep the existing, already-validated design; no visual rework.
 - Q: The organizer dashboard (FR-002's landing target) has no way to see or choose which competition to work on beyond a directly-typed address — is a competition list/selection screen in scope? → A: Yes — added as User Story 13 / FR-050.
 
+### Session 2026-07-22
+
+- Q: FR-006 already defines the competition lifecycle state machine, but no requirement says where an organizer actually triggers a transition — after shipping US13's dashboard, there is still no UI control anywhere to advance a competition past `Draft`. In scope now? → A: Yes — the dashboard (US13) is the right home for it; added as Acceptance Scenario 5 / FR-051.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Secure Access with Role-Based Entry (Priority: P1)
@@ -302,12 +306,14 @@ state, then separately start and complete creating a brand-new competition from 
 2. **Given** the organizer dashboard, **When** the organizer selects a listed competition, **Then** they land in the screen matching its current state (the setup wizard for `Draft`, the relevant management view for `Active` or later).
 3. **Given** the organizer dashboard, **When** the organizer chooses to start a new competition, **Then** the creation wizard of User Story 2 opens with no prior data.
 4. **Given** an organizer with no competitions yet, **When** login completes, **Then** the dashboard shows an empty state with a clear call to action to create the first one.
+5. **Given** a competition the organizer owns, **When** they confirm advancing it, **Then** it moves to its single next lifecycle state per FR-006 (`Draft`→`Active`→`In Evaluation`→`Finalized`) and the dashboard reflects the new state without a page reload; **When** advancing to `Finalized` is blocked because tables remain open, **Then** the organizer sees which tables must close first.
 
 ---
 
 ### Edge Cases
 
 - An organizer with no competitions yet: the dashboard shows an empty state with a create action, not a blank or broken screen.
+- An organizer attempts to advance a competition to `Finalized` while one or more of its tables are still open: blocked, and the organizer sees exactly which tables need closing first (FR-006/FR-036).
 
 - A judge goes offline before the table order is fixed: on reconnection their list reorders to the fixed sequence; samples already submitted remain valid regardless of their position in the new order.
 - A judge's offline sync arrives after the table was closed: the sync is rejected (immutability), the judge is notified, and the held data is surfaced to the organizer for manual resolution rather than silently discarded.
@@ -335,6 +341,7 @@ state, then separately start and complete creating a brand-new competition from 
 **Organizer Workspace Navigation**
 
 - **FR-050**: After login, the organizer dashboard MUST list every competition owned by the caller (name, venue, dates, current lifecycle state) and let the organizer open any of them into the screen appropriate for its state, or start creating a new one; this MUST NOT require knowing or typing an internal address for an existing competition.
+- **FR-051**: The organizer dashboard MUST let the organizer advance a listed competition to its next lifecycle state, showing only the single valid next transition per FR-006 (never a menu of all four states) and requiring an explicit confirmation step before the change takes effect, since the transition is forward-only and cannot be undone. Advancing to `Finalized` while any of the competition's tables remain open MUST be blocked with the blocking tables identified to the organizer (FR-036).
 
 **Competition Lifecycle**
 
