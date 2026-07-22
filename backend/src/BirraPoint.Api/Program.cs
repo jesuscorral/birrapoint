@@ -13,6 +13,7 @@ using BirraPoint.Api.Features.Competitions;
 using BirraPoint.Api.Features.Evaluations;
 using BirraPoint.Api.Features.Import;
 using BirraPoint.Api.Features.Judges;
+using BirraPoint.Api.Features.Monitoring;
 using BirraPoint.Api.Features.Tables;
 using BirraPoint.Api.Features.TastingOrder;
 using BirraPoint.Api.Realtime;
@@ -136,6 +137,9 @@ app.MapTastingOrderEndpoints();
 
 // Judge workspace: submit evaluations, idempotent replay (T055-T058).
 app.MapEvaluationsEndpoints();
+
+// Organizer dashboard: table progress snapshot, per-entry audit drill-down (T068-T069).
+app.MapMonitoringEndpoints();
 
 // EF migrations apply on startup in Development only (T009); production migrates at deploy time.
 if (app.Environment.IsDevelopment())

@@ -3,9 +3,10 @@ import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
+import { EntriesApiService } from '../../core/api/entries-api.service';
+import type { EntryListItem } from '../../core/api/entries-api.service';
 import { TableManagementApiService } from './table-management-api.service';
 import type {
-  EntryListItem,
   JudgeListItem,
   TableMutationResult,
   TableSummary,
@@ -83,23 +84,26 @@ function buttonWithText(root: Element, text: string): HTMLButtonElement {
 describe('TableManagementComponent', () => {
   let fakeApi: {
     getTables: jest.Mock;
-    getEntries: jest.Mock;
     getJudges: jest.Mock;
     createTable: jest.Mock;
     updateTable: jest.Mock;
   };
+  let fakeEntriesApi: { getEntries: jest.Mock };
 
   beforeEach(() => {
     fakeApi = {
       getTables: jest.fn().mockReturnValue(of([tableFixture()])),
-      getEntries: jest.fn().mockReturnValue(of(entriesFixture())),
       getJudges: jest.fn().mockReturnValue(of(judgesFixture())),
       createTable: jest.fn(),
       updateTable: jest.fn(),
     };
+    fakeEntriesApi = {
+      getEntries: jest.fn().mockReturnValue(of(entriesFixture())),
+    };
     TestBed.configureTestingModule({
       providers: [
         { provide: TableManagementApiService, useValue: fakeApi },
+        { provide: EntriesApiService, useValue: fakeEntriesApi },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: convertToParamMap({ id: 'c1' }) } },
@@ -118,7 +122,7 @@ describe('TableManagementComponent', () => {
     createComponent();
 
     expect(fakeApi.getTables).toHaveBeenCalledWith('c1');
-    expect(fakeApi.getEntries).toHaveBeenCalledWith('c1');
+    expect(fakeEntriesApi.getEntries).toHaveBeenCalledWith('c1');
     expect(fakeApi.getJudges).toHaveBeenCalledWith('c1');
   });
 
@@ -218,7 +222,7 @@ describe('TableManagementComponent', () => {
     // by T049's E2E: the BOS banner announced correctly but a flagged token's visual state stayed
     // stale until a full reload.
     const fixture = createComponent();
-    fakeApi.getEntries.mockClear();
+    fakeEntriesApi.getEntries.mockClear();
     const mutationResult: TableMutationResult = {
       ...tableFixture({ judges: [judgesFixture()[0], judgesFixture()[1]] }),
       bosFlaggedEntryIds: ['e5'],
@@ -229,7 +233,7 @@ describe('TableManagementComponent', () => {
     fixture.detectChanges();
     fixture.componentInstance.onModalMove('t1');
 
-    expect(fakeApi.getEntries).toHaveBeenCalledWith('c1');
+    expect(fakeEntriesApi.getEntries).toHaveBeenCalledWith('c1');
   });
 
   it('opens the beer detail modal with modal content resolved from the entries list', () => {

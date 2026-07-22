@@ -2,9 +2,10 @@ import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 import { CdkDropList } from '@angular/cdk/drag-drop';
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 
+import type { EntryListItem } from '../../core/api/entries-api.service';
 import { BeerTokenComponent } from './beer-token.component';
 import { JudgeSeatComponent } from './judge-seat.component';
-import type { EntryListItem, JudgeListItem } from './table-management-api.service';
+import type { JudgeListItem } from './table-management-api.service';
 
 // T048's "Unassigned" source column — deliberately a plain list (no table/seat iconography), the
 // entry point for dragging a judge/beer onto a MesaCard, and (T048A) an equally valid place to

@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 
+import type { EntryListItem } from '../../core/api/entries-api.service';
 import { UnassignedColumnComponent } from './unassigned-column.component';
-import type { EntryListItem, JudgeListItem } from './table-management-api.service';
+import type { JudgeListItem } from './table-management-api.service';
 
 function judgesFixture(): JudgeListItem[] {
   return [{ id: 'j1', email: 'ada@example.com', displayName: 'Ada Lovelace' }];

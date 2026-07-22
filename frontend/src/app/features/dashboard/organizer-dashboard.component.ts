@@ -35,9 +35,10 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
 
 // T100/US13: post-login ORGANIZER landing — every competition the caller has created
 // (contracts/rest-api.md GET /competitions), so they can resume or start work without knowing or
-// typing an internal address. Selecting a Draft competition reopens the setup wizard; anything
-// past Draft goes to the tables screen, the closest existing management view until Phase 11/US9
-// ships a unified Active+ dashboard.
+// typing an internal address. Selecting a Draft competition reopens the setup wizard; Active goes
+// to the tables screen (still the setup/assignment view for that state); InEvaluation and
+// Finalized go to the live monitoring dashboard (T070/US9) — there's nothing left to set up once
+// evaluation has started.
 //
 // T102/FR-051: the advance-state action lives as a sibling of the navigation `<a>`, never nested
 // inside it — a `<button>` inside an `<a>` is invalid HTML and an accessibility hazard (nested
@@ -256,9 +257,13 @@ export class OrganizerDashboardComponent {
   }
 
   protected destination(competition: CompetitionSummary): unknown[] {
-    return competition.state === 'Draft'
-      ? ['/organizer', 'competitions', competition.id]
-      : ['/organizer', 'competitions', competition.id, 'tables'];
+    if (competition.state === 'Draft') {
+      return ['/organizer', 'competitions', competition.id];
+    }
+    if (competition.state === 'Active') {
+      return ['/organizer', 'competitions', competition.id, 'tables'];
+    }
+    return ['/organizer', 'competitions', competition.id, 'monitor'];
   }
 
   protected badgeClass(state: CompetitionSummary['state']): string {

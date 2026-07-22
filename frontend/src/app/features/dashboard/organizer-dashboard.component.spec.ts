@@ -77,14 +77,22 @@ describe('OrganizerDashboardComponent', () => {
     expect(link).not.toBeNull();
   });
 
-  it.each(['Active', 'InEvaluation', 'Finalized'] as const)(
-    'links a %s competition to the tables screen',
+  it('links an Active competition to the tables screen', () => {
+    fakeApi.list.mockReturnValue(of([competitionFixture({ state: 'Active' })]));
+    const fixture = createComponent();
+
+    const link = fixture.nativeElement.querySelector('a[href="/organizer/competitions/c1/tables"]');
+    expect(link).not.toBeNull();
+  });
+
+  it.each(['InEvaluation', 'Finalized'] as const)(
+    'links a %s competition to the live monitoring dashboard',
     (state) => {
       fakeApi.list.mockReturnValue(of([competitionFixture({ state })]));
       const fixture = createComponent();
 
       const link = fixture.nativeElement.querySelector(
-        'a[href="/organizer/competitions/c1/tables"]',
+        'a[href="/organizer/competitions/c1/monitor"]',
       );
       expect(link).not.toBeNull();
     },

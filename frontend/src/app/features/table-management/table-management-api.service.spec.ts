@@ -6,7 +6,6 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { TableManagementApiService } from './table-management-api.service';
 import type {
-  EntryListItem,
   JudgeListItem,
   TableMutationResult,
   TableSummary,
@@ -54,30 +53,6 @@ describe('TableManagementApiService', () => {
     req.flush([table]);
 
     expect(await result).toEqual([table]);
-  });
-
-  it('getEntries() gets the competition entries', async () => {
-    const entries: EntryListItem[] = [
-      {
-        id: 'e2',
-        blindCode: 'CD34',
-        styleCode: '21A',
-        styleName: 'American IPA',
-        abvLow: 6,
-        abvHigh: 7.5,
-        beerName: 'Hazy Dream',
-        notValidForBos: false,
-        tastingTableId: null,
-        tastingTableName: null,
-      },
-    ];
-    const result = firstValueFrom(service.getEntries('c1'));
-
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1/entries`);
-    expect(req.request.method).toBe('GET');
-    req.flush(entries);
-
-    expect(await result).toEqual(entries);
   });
 
   it('getJudges() gets the competition judges', async () => {

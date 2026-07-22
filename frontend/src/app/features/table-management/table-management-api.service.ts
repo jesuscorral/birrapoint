@@ -48,20 +48,6 @@ export interface TableMutationResult extends TableSummary {
   bosFlaggedEntryIds: string[];
 }
 
-// GET /entries shape — tastingTableId/tastingTableName are null when unassigned.
-export interface EntryListItem {
-  id: string;
-  blindCode: string;
-  styleCode: string;
-  styleName: string;
-  abvLow: number | null;
-  abvHigh: number | null;
-  beerName: string;
-  notValidForBos: boolean;
-  tastingTableId: string | null;
-  tastingTableName: string | null;
-}
-
 export interface JudgeListItem {
   id: string;
   email: string;
@@ -81,10 +67,6 @@ export class TableManagementApiService {
 
   getTables(competitionId: string): Observable<TableSummary[]> {
     return this.apiClient.get<TableSummary[]>(`/competitions/${competitionId}/tables`);
-  }
-
-  getEntries(competitionId: string): Observable<EntryListItem[]> {
-    return this.apiClient.get<EntryListItem[]>(`/competitions/${competitionId}/entries`);
   }
 
   getJudges(competitionId: string): Observable<JudgeListItem[]> {
