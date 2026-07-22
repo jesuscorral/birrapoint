@@ -5,7 +5,7 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-22 · after T102–T103 — **Phase 8 (US6) and Phase 17 (US13, Organizer Competition Selection, incl. FR-051 state advancement) complete**
+**Last updated:** 2026-07-22 · after T055–T061 — **Phase 9 (US7, Offline-First Validated Evaluation Sheet) complete — all P1 user stories now done**
 
 ## Global status
 
@@ -43,6 +43,22 @@ behind an explicit irreversible-action confirm), calling the already-existing
 `POST /competitions/{id}/state` (T028) for the first time from real UI. Two E2E specs
 (`us6-order.spec.ts`, `us13-dashboard.spec.ts`) that had been working around the missing button
 with a captured-bearer-token direct API call now drive the real button instead.
+
+**Phase 9 (User Story 7 — Offline-First Validated Evaluation Sheet, T055–T061)** is now **complete**
+— the last P1 story, so every priority-1 user story in the MVP is done. Backend: `Features/
+Evaluations/` (`POST /me/tables/{tableId}/evaluations`, idempotent via a unique-constraint-catch on
+the (judge, entry) index rather than a pre-check — the first genuine insert-time race guard in this
+codebase, since locked-on-submit forbids ever pre-checking-then-upserting) and `Features/Catalog/
+GetStyleDetail.cs` (`GET /styles/{code}`, FR-049). Frontend: `core/offline/sync.service.ts` is the
+real offline engine T020 only scaffolded the Dexie tables for — drafts debounced ≤300ms, outbox
+durable-first submit with capped-exponential-backoff replay on `window online` / service
+construction / post-submit, deliberately not the Background Sync API (unsupported on iOS Safari,
+R-08); `features/evaluation-sheet/` is the capped five-section sheet + collapsible BJCP style
+reference panel; `judge-tables/judge-table-order.component.ts` gained the FR-022 sequential-gating
+entry point ("Evaluate" only on the first `NotStarted` sample, "Locked" on the rest). An E2E spec
+(`us7-offline.spec.ts`) proves the full offline round-trip and, along the way, found and fixed a
+real bug: a genuine offline app restart fell back to a load-error screen instead of the cached
+sample. See Recorded debt below for two things this phase left open on purpose.
 
 **Scope note**: T048A's beer/judge detail modals ship without allergen/special-award badges or
 judge BJCP-certification fields — a prior session's task-doc edit referenced them with zero
@@ -358,9 +374,9 @@ route restructure) plus the one genuinely new piece, T030.
   GetJudgeRecordsAsync()`'s backfilled Judge rows rather than re-deriving the sub/email match
   `CompetitionHub.JoinTable` does inline. `GetTableSamples` derives `evaluationStatus` (`NotStarted`
   / `Submitted` / `PendingConsensus`) by left-joining `Evaluation` scoped to the caller's own Judge
-  id — no `Evaluation` row yet since `Features/Evaluations` doesn't exist until Phase 9, so every
-  sample reports `NotStarted` today, same "genuinely wired, not dead code" shape as Phase 7's
-  `BosFlagRules`. `TastingOrderRules` (pure, unit-tested without Postgres) encodes the one-shot
+  id — genuinely wired from the start (same shape as Phase 7's `BosFlagRules`), and now that
+  `Features/Evaluations` exists (Phase 9, below) samples correctly flip to `Submitted`/
+  `PendingConsensus` as a judge submits. `TastingOrderRules` (pure, unit-tested without Postgres) encodes the one-shot
   check and the `Active`/`InEvaluation` state gate; `FixOrder`'s handler wraps the actual mutation
   in an explicit transaction with `SELECT ... FOR UPDATE` (`FromSqlInterpolated`) on the
   `TastingTable` row so two judges racing to fix the same table's order get exactly one `200` and
@@ -370,8 +386,40 @@ route restructure) plus the one genuinely new piece, T030.
   fixed" is a business-state check, not a row collision). On success, emits `TableOrderFixed` (after
   commit, `CancellationToken.None`, matching every other emitter's convention) — **only to the
   `table:{tableId}` group**; contracts/signalr-hub.md also lists this event under the organizer
-  group, not yet wired (Phase 9/US9's monitoring dashboard is the natural owner — see Recorded debt
+  group, not yet wired (Phase 11/US9's monitoring dashboard is the natural owner — see Recorded debt
   below).
+- **`Features/Evaluations/`** (T055–T058, US7): the first slice that mutates domain state from a
+  judge-facing endpoint, `POST /me/tables/{tableId}/evaluations`. `SubmitEvaluationRules` (pure,
+  unit-tested without Postgres, same split as `TastingOrderRules`) encodes `IsNextInSequence`
+  (FR-022 — the requested entry must be the first one in the fixed order this judge hasn't
+  submitted yet) and `CanSubmitInState` (`InEvaluation` only). **The very first thing the handler
+  does, before any precondition gate, is check for an already-persisted `(judge, entry)` row and
+  return it immediately if found** (fixed same-day per senior-code-reviewer on PR #22 — see
+  Recorded debt — idempotent replay must hold no matter what happened to the table/competition
+  since the original successful submit); only then does it gate in order — competition state,
+  order-fixed, table-open, sequence — each throwing the matching pre-existing `DomainErrorType` (no
+  new catalog entries needed). **Idempotency (FR-029/R-07) is also a genuine
+  insert-time race guard, the first of its kind in this codebase**: every prior unique constraint
+  (blind code, participant email, the tasting-order one-shot) was pre-checked with a query before
+  the write; here that's structurally forbidden — "never UPSERT" (locked-on-submit) means the check
+  and the insert must be one atomic operation, so the handler just inserts and catches the Postgres
+  unique-violation on `(JudgeId, BeerEntryId)` (`DbUpdateException` wrapping a `PostgresException`
+  with `SqlState == PostgresErrorCodes.UniqueViolation`), re-queries whatever actually committed,
+  and returns that — never assuming the retried request's body matches, since a genuine
+  concurrent-race loser's body might legitimately differ from the winner's. A dedicated integration
+  test fires two simultaneous submits for the same (judge, entry) via `Task.WhenAll` and asserts
+  exactly one row exists — the same "prove it under a real race, not just sequential replay"
+  standard `FixOrder`'s test set. `Status` is unconditionally `Confirmed` for now — discrepancy
+  detection (>7-point spread → `PendingConsensus` + `DiscrepancyAlert`) activates in US11 (Phase
+  13), left as a one-line comment rather than a premature pluggable-hook abstraction. Emits
+  `EvaluationCompleted` (organizer group, after commit) with a freshly-computed `tableProgress`
+  (completed/expected/percent across the whole table, not just this judge).
+- **`Features/Catalog/GetStyleDetail.cs`** (T059B, US7, FR-049): `GET /styles/{code}`, any
+  authenticated caller (same as the existing `GET /styles` list in the same file's
+  `MapCatalogEndpoints` — extended, not duplicated). Projects `BjcpStyle.DescriptionJson` (parsed
+  with `PropertyNameCaseInsensitive`, mirroring `BjcpStyleCatalogLoader`'s own convention) plus the
+  vital-statistics columns into the judge-facing reference-panel shape; `404` for an unknown code.
+  No entrant/anonymity concern — BJCP catalog data is public reference data, not competition-scoped.
 - **`Realtime/`** (T015): `CompetitionHub` (`/hubs/competition`, `[Authorize]`) — server → client
   only, per contracts/signalr-hub.md. `JoinCompetitionAsOrganizer` guards on `ORGANIZER` role +
   `Competition.CreatedByUserId` ownership; `JoinTable` guards on an active (`RemovedAt == null`)
@@ -734,6 +782,36 @@ route restructure) plus the one genuinely new piece, T030.
   extension array's length for the blocked-count message (resolving the ids to table names was
   scoped out — an extra round-trip not worth it for an error path); `409 invalid-state-transition`
   (a same-competition race) shows a plain message and refetches to reconcile.
+- **`features/evaluation-sheet/`** (T059/T060B, US7): the capped five-section blind evaluation
+  sheet, route `/judge/tables/:tableId/samples/:beerEntryId`. Renders exclusively `blindCode`/
+  `styleCode`/`styleName` (BR-01) — never touches Dexie or the network directly, delegating all
+  persistence to `SyncService`. Each section (Aroma 12/Appearance 3/Flavor 20/Mouthfeel 5/Overall
+  Impression 10 — the exact caps, not a shared placeholder number) pairs a capped numeric score
+  input with a comment `<textarea>` showing a live remaining-characters-to-20 hint; the total is a
+  read-only client-side sum for display only, never submitted (the server's computed `Total` is
+  always authoritative). Submit is gated on the whole form being valid. On mount, hydrates from any
+  existing `SyncService.loadDraft()` result before rendering, so a resumed (or offline-restarted)
+  sheet never starts blank. Offline badge ("Offline mode — data protected locally") tracks the
+  `online`/`offline` window events live, not a one-time check. **Bug found and fixed by T061's E2E
+  spec**: a genuine offline restart re-fetches `GET .../samples` to redisplay the current sample's
+  header, and that fetch's `ApiError.status === 0` (never reached the server) was falling straight
+  into the generic load-error screen — hiding the form the Dexie-backed draft had already loaded
+  correctly underneath. Fixed with a `localStorage`-backed (deliberately not Dexie — this is
+  read-only display metadata, not offline-engine state R-08 needs to reconcile) last-known-good
+  cache per `beerEntryId`, consulted only on a genuine connectivity failure; a real `404`/`403` the
+  server actively returned still blocks the view exactly as before.
+  `features/evaluation-sheet/style-reference/` (T060B) is a collapsible read-only panel showing the
+  sample's declared style's BJCP guide description via the new `CatalogApiService.getStyleDetail`
+  (below), a real `<button aria-expanded>` toggle (WCAG, Principle VIII — no click-div), and an
+  in-memory per-code cache (not persistent — a session-long cache is enough to survive re-toggling
+  or a mid-session connectivity drop once already loaded, without committing to a bigger
+  offline-cache architecture for reference data that isn't itself part of the sync engine).
+  `judge-tables/judge-table-order.component.ts` gained the entry point into this sheet (FR-022):
+  once the order is fixed, the first `NotStarted` sample (by fixed sequence — a `computed()` over
+  the same `samples()` signal the drag/reorder/hub-event paths already keep in order, no separate
+  re-sort needed) shows an "Evaluate" link into the sheet above; any later `NotStarted` sample shows
+  a `Locked` badge instead, and `Submitted`/`PendingConsensus` samples show their own read-only
+  badges — a judge structurally cannot open a sample out of turn from the UI.
 - **`core/api/`** (T020): the typed HTTP client + ProblemDetails→UI error mapping.
   - `problem-details.model.ts`: `ProblemDetails`/`ValidationProblemDetails` interfaces plus
     `BIRRAPOINT_ERROR_URNS` — the 14 `urn:birrapoint:*` values from contracts/rest-api.md §Error
@@ -749,9 +827,16 @@ route restructure) plus the one genuinely new piece, T030.
     `detail` exist; a non-JSON or empty body (network failure, `status 0`) falls back to a fully
     generic error.
   - `api-client.service.ts`: `ApiClient`, `providedIn: 'root'` — `get/post/put/delete<T>(path,
-    …)` against `${environment.apiBaseUrl}/api/v1${path}`, catching `HttpErrorResponse` and
-    rethrowing `ApiError` via the mapper above. No per-endpoint methods — nothing consumes this
-    yet; those land with the feature slice that first needs them.
+    options?)` against `${environment.apiBaseUrl}/api/v1${path}`, catching `HttpErrorResponse` and
+    rethrowing `ApiError` via the mapper above; `options.headers` is how `SyncService` attaches
+    `X-Idempotency-Key` (T060) without reaching for raw `HttpClient`. No per-endpoint methods here
+    by design — those live in per-service files below and in each feature, growing as slices land.
+  - `competitions-api.service.ts` (relocated here at T102 once a second feature needed it) and
+    `catalog-api.service.ts` (T060B, new — `getStyleDetail(code)` against `GET /styles/{code}`,
+    with an in-memory per-code cache) are this folder's two cross-cutting, multi-feature-consumed
+    API wrappers so far; every other feature's API service still lives inside that feature's own
+    folder, consumed by only one caller — see the FSD note in Recorded debt history for when a
+    service is expected to move here.
 - **`core/realtime/`** (T020): the `CompetitionHub` client.
   - `competition-hub.events.ts`: TS payload interfaces for the 8 server→client events +
     `CompetitionHubServerEvents` (name → payload map), mirrored from contracts/signalr-hub.md.
@@ -776,16 +861,44 @@ route restructure) plus the one genuinely new piece, T030.
   contracts/rest-api.md) plus bookkeeping (`updatedAt` for drafts; `attempts`/`lastAttemptAt`/
   `lastError` on outbox rows for R-08's backoff). `tastingTableId` is a secondary index on
   `outbox`, not just embedded in the key string, because T087 needs "outbox items for this table"
-  lookups when a judge is removed. This is the database only — the replay engine (`SyncService`,
-  window-online/app-start/post-submit replay, exponential backoff) is T060, not built yet.
+  lookups when a judge is removed.
+- **`core/offline/sync.service.ts`** (T057/T060, US7): the replay engine `db.ts` was scaffolded for
+  back at T020 — `saveDraft` debounces to `drafts` within the 300ms bound (SC-003/FR-026: a
+  per-`beerEntryId` timer coalesces rapid keystrokes into one write, not one per keystroke, while
+  still landing inside the bound). `submit()` is durable-first: the outbox row is written — and
+  must successfully persist — before anything else, so a submission survives a reload even if the
+  network attempt never completes; offline, it resolves immediately with no network attempt at all.
+  While online it *does* await one immediate send so a **definitive** rejection (`400`/`409` — a
+  domain conflict the server actively refused, e.g. `out-of-sequence`) can be surfaced to the judge
+  right away, while anything transient (no real connectivity despite a stale `navigator.onLine`,
+  5xx, timeout) resolves exactly like the offline path — a flaky connection never blocks or errors
+  the "submit" action, only a definitive server rejection does; the outbox row stays queued in
+  either case; only a confirmed `200`/`201` clears it. **Fixed same-day (senior-code-reviewer, PR
+  #22)**: `HttpClient` has no default request timeout, so a hung socket on a nominally-online
+  connection would have hung `submit()` and left `replayOutbox()`'s reentrancy guard stuck
+  indefinitely — a 15s RxJS `timeout()` on the submit/replay POST makes "timeout" above a real,
+  enforced case, not just an aspirational one. `replayOutbox()` is the background sweep —
+  triggered by the `window` `online` event, the service's own construction (this codebase's stand-in
+  for "app start," since `SyncService` is `providedIn: 'root'` and nothing else needed a dedicated
+  `APP_INITIALIZER`), and immediately after each `submit()` — applying capped exponential backoff
+  (1s/2s/4s/…/60s, loosely mirroring the backend's `DispatchRetryPolicy` shape translated to the
+  client) so a long offline stretch doesn't spin the network on reconnect. Deliberately **not** the
+  Background Sync API (unsupported on iOS Safari, R-08's explicit constraint). A Dexie write that
+  throws (quota exceeded, private-browsing storage restrictions) propagates to the caller rather
+  than failing silently, per the spec edge case. **Recorded debt**: a row that hits a definitive
+  rejection stays in the outbox and retries forever with capped backoff — correct for a rejection
+  that might later resolve (e.g. `order-not-fixed`), but for one that structurally never will
+  (`table-closed`, `invalid-state-transition` once the competition moves past `InEvaluation`) it
+  silently retries indefinitely with no further judge-facing surfacing after the initial toast; see
+  Recorded debt below.
 
 ## Testing & quality gates
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 131 unit tests (was 121; +10 **T050** `TastingOrder/FixOrderTests.cs`: permutation-validation edge cases, one-shot `OrderAlreadyFixed` with the `fixedBy` extension, state gating Draft/Finalized reject vs. Active/InEvaluation accept — exercises `TastingOrderRules` directly, a pure static helper, not the MediatR handler, same "pure rule beside DB-touching handler" split as Phase 7's `CoiDetector`/`BosFlagRules`, since a real handler test needs a live transaction/row lock the constitution reserves for Testcontainers) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15) + T045 `Tables/` (13); 113 integration tests (was 104; +9 **T051** `TastingOrder/OrderApiTests.cs`: `/me/tables` membership scoping (unassigned → `[]`, `RemovedAt`-excluded, Draft-invisible), `404` on non-membership, the BR-01 wire-payload structural check (no `beerName`/`participant`/`brewery` key anywhere in the raw JSON, not just DTO-shape), happy-path fix + locked state, `400` on a non-permutation body, and the concurrent-fixer race — two simultaneous `POST .../order` calls via `Task.WhenAll`, exactly one `200` and one `409 order-already-fixed`) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) + T046 `Tables/` (22) |
-| Frontend unit | `cd frontend && npx jest` | green — 186 tests (was 167; net +19 — **T100**'s net +8 (dashboard list/routing/empty/error, `list()`, `app.spec.ts` router-outlet assertion) plus **T102**'s net +11: `competitions-api.service.spec.ts`'s new `changeState()` test (now living in `core/api/` after the relocation) and `organizer-dashboard.component.spec.ts`'s 9 new tests (per-state advance label/visibility incl. none for `Finalized`, confirm-then-call, cancel, success-triggers-refetch, both `409` paths, and a DOM-structure regression check proving the nav link and advance button are independently clickable siblings, not nested) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (13) + T029 `features/competition-wizard/` (24) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12) + T048 `features/table-management/` (47) + T053 `features/judge-tables/` (23). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
-| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), `us5-tables.spec.ts` (1), `us6-order.spec.ts` (1: two independent judge browser contexts, order-fix propagation ≤1s — its `Draft`→`Active` setup step now drives the real T102 advance-state button instead of a captured-token direct API call, since T103 retired that workaround), and **`us13-dashboard.spec.ts`** (3, was 1 at T101: the original list/routing/new-wizard test, plus **T103**'s two new ones — confirming the advance-state action moves a `Draft` competition to `Active` in place with no navigation and relabels to the next transition (Acceptance Scenario 5), and blocking a `Finalized` attempt while a table is open with the blocking count named (Acceptance Scenario 5 edge case) — both now driven through the real button+confirm-dialog flow, not the token-capture workaround T101 originally used) — verified green across multiple consecutive runs, no flakiness, all green against a live, fully-warmed Aspire stack, but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated to Phase 4–17: `login-required` races `page.goto('/')`). **Gap still open**: no organizer route, including `/organizer/dashboard`, is in the axe-core sweep yet — `a11y/home.a11y.spec.ts` only covers the placeholder app shell; a full-suite sweep is Phase 15/T089 territory, not yet done. See Recorded debt below. Chromium only |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 168 unit tests (was 131; +37 **T055** `Evaluations/SubmitEvaluationTests.cs`: `SubmitEvaluationRules.IsNextInSequence`/`CanSubmitInState` edge cases, and the validator's per-section caps 12/3/20/5/10 — each tested at its own real limit, not one section assumed to represent all five — plus the ≥20-char comment floor) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15) + T045 `Tables/` (13) + T050 `TastingOrder/` (10); 126 integration tests (was 113; +13 — **T056** `Evaluations/SubmitEvaluationApiTests.cs` (11: the full `409` precondition chain, `400` on out-of-range scores/short comments, `404` for a non-member, idempotent replay returning the same stored result, and a concurrent-race test firing two simultaneous submits for the same (judge, entry) via `Task.WhenAll` — asserts exactly one row persists, the same "prove it under a real race" bar `OrderApiTests`' one-shot test set) + **T057B** `Catalog/GetStyleDetailTests.cs` (2)) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) + T046 `Tables/` (22) + T051 `TastingOrder/` (9) |
+| Frontend unit | `cd frontend && npx jest` | green — 234 tests (was 186; +48 across T100/T102/T103 (dashboard + advance-state, already covered above) and **T057/T059/T060/T060B/T061**'s US7 work: `sync.service.spec.ts` (18 — the ≤300ms debounce contract under fake timers, draft round-trip, outbox enqueue-then-replay-removes-on-success, replay on the `online` event and on construction, backoff actually skipping a too-soon retry not just incrementing a counter, dedupe on a `200`, and a rejected Dexie write surfacing to the caller), `catalog-api.service.spec.ts` (3), `evaluation-sheet.component.spec.ts` (17, +1 from T061's offline-restart-cache bugfix = 18 today), `style-reference-panel.component.spec.ts` (4), and `judge-table-order.component.spec.ts`'s extension for the new Evaluate/Locked entry point) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (13) + T029 `features/competition-wizard/` (24) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12) + T048 `features/table-management/` (47) + T053 `features/judge-tables/` (23) + T100/T102 `features/dashboard/` (19). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
+| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), `us5-tables.spec.ts` (1), `us6-order.spec.ts` (1), `us13-dashboard.spec.ts` (3), and new **T061 `us7-offline.spec.ts`** (1: full US7 setup — competition → import → judge → table → `Draft`→`Active`→`InEvaluation` via the real dashboard buttons → judge fixes order → opens the evaluation sheet, goes offline *before* any input, fills all five sections, then in place of a literal `page.reload()` — empirically infeasible against this dev-mode harness, see Recorded debt — uses `page.goBack()`/`page.goForward()` as the closest in-harness equivalent that still destroys/reconstructs the component and exercises real Dexie rehydration, asserts the draft survived, submits while still offline, goes online, and confirms via response interception that exactly one `201` reached the server — verified green across 4 runs, no flakiness) — all green against a live, fully-warmed Aspire stack, but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated: `login-required` races `page.goto('/')`). **Gap still open**: no judge- or organizer-facing route, including the evaluation sheet and the dashboard, is in the axe-core sweep yet — `a11y/home.a11y.spec.ts` only covers the placeholder app shell; a full-suite sweep is Phase 15/T089 territory. See Recorded debt below. Chromium only |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
 ## Data flows
@@ -863,6 +976,22 @@ real UI for the first time, not just tested directly — confirm → success ref
 /competitions` (same call as page load, no separate "just this row" endpoint) → badge updates in
 place.
 
+**T055–T061** (US7): the offline-first judging loop, this MVP's core reason to exist. Once a
+competition is `InEvaluation` and a table's order is fixed, `judge-table-order.component.ts` exposes
+"Evaluate" only on the first `NotStarted` sample → `/judge/tables/:tableId/samples/:beerEntryId` →
+`EvaluationSheetComponent` hydrates from any existing `SyncService.loadDraft()` result, then every
+field change re-drafts (debounced ≤300ms, SC-003) regardless of connectivity. On submit,
+`SyncService.submit()` writes the outbox row durably first — this is the one step that must
+succeed before anything else, so the judge's work survives a reload even mid-flight — then, only if
+online, attempts one immediate `POST /me/tables/{tableId}/evaluations`; a `201`/`200` clears the
+outbox row and the draft, a definitive `400`/`409` surfaces to the judge, anything else (offline, a
+flaky connection, a timeout) leaves the row queued and resolves the submit action anyway — the
+offline-first guarantee is that "submit" is never blocked by the network. `replayOutbox()` (on the
+`window` `online` event, service construction, and after every `submit()`) is what eventually
+reconciles a queued row against the server with capped backoff. The backend's own idempotency
+guarantee (a DB unique-constraint catch, not a pre-check) is what makes a replayed or raced
+duplicate POST safe regardless of how many times the client's replay loop fires it.
+
 ## Recorded debt / immediate next steps
 
 - **Resolved 2026-07-22 (T102)**: `features/dashboard/organizer-dashboard.component.ts`'s
@@ -872,11 +1001,44 @@ place.
   (FR-051) — `POST /competitions/{id}/state` (T028) is no longer only reachable via a raw API call;
   both E2E specs that used to work around its absence with a captured-bearer-token direct call now
   drive the real button. See `features/dashboard/` above for the implementation.
-- **New**: `/organizer/dashboard` (T100) and every other organizer route are not yet covered by the
-  axe-core accessibility sweep — `frontend/e2e/a11y/home.a11y.spec.ts` only exercises the
-  placeholder app shell today. Same gap category as the pre-existing `smoke.spec.ts`/
-  `home.a11y.spec.ts` `login-required`-race failures noted below; a real organizer- and
-  judge-route sweep is Phase 15/T089's job, not done piecemeal per story so far.
+- **New**: `/organizer/dashboard` (T100), the evaluation sheet (T059), and every other organizer/
+  judge route are not yet covered by the axe-core accessibility sweep — `frontend/e2e/a11y/
+  home.a11y.spec.ts` only exercises the placeholder app shell today. Same gap category as the
+  pre-existing `smoke.spec.ts`/`home.a11y.spec.ts` `login-required`-race failures noted below; a
+  real organizer- and judge-route sweep is Phase 15/T089's job, not done piecemeal per story so far.
+- **Fixed 2026-07-22 (senior-code-reviewer, PR #22), narrows the item below**: idempotent replay
+  didn't hold once a table closed or its competition moved past `InEvaluation` — `SubmitEvaluation`
+  gated on table/competition state *before* checking for an already-persisted `(judge, entry)` row,
+  so a judge whose evaluation had genuinely already committed (the ack was just lost — exactly the
+  scenario the outbox replay engine exists for) got `409 table-closed` on retry instead of the
+  stored `200`. Fixed by moving the existing-row check to the very top of the handler, before any
+  precondition gate — a persisted evaluation is a fact regardless of what happens to the table
+  afterward (FR-029/R-07). Regression test:
+  `Replaying_an_already_stored_evaluation_after_the_table_closes_still_returns_200_not_409`.
+  Same review pass also added a 15s RxJS `timeout()` to `sync.service.ts`'s submit/replay POST —
+  `HttpClient` has no default one, so a hung socket on a nominally-online connection would have
+  hung `submit()` and stuck `replayOutbox()`'s reentrancy guard indefinitely.
+- **New (T060, US7), scope now narrower after the fix above**: an outbox row that hits a
+  *definitive* rejection (`400`/`409`) still retries forever with capped backoff and never
+  re-surfaces to the judge after the initial toast — but this can now only happen for a submission
+  that never actually persisted in the first place and never legitimately will (e.g. the table
+  closes or the competition moves past `InEvaluation` before the *first* attempt ever reaches the
+  server) — not, as before the fix, for every already-successful submission whose ack merely got
+  lost. Not a data-loss (the payload is intact, and SC-002's "exactly once" isn't violated, since it
+  correctly never reaches the server), but still a user-visible dead end the judge has no way to
+  discover or resolve short of clearing app storage. Fixing this needs real UI (surface stuck rows,
+  let the judge retry/discard/investigate) — a small enough scope on its own that it's flagged here
+  rather than folded into T060 itself.
+- **New (T061, US7)**: a literal `page.reload()` while `context.setOffline(true)` is infeasible
+  against this E2E suite's dev-mode harness — `npm start` (`ng serve`, what `playwright.config.ts`'s
+  `webServer` runs) sends `no-cache` on every request and the PWA service worker is intentionally
+  disabled outside production builds (`app.config.ts`: `enabled: !isDevMode()`), so a real network
+  cut leaves Chromium with nothing to serve the document from. `us7-offline.spec.ts` substitutes
+  `page.goBack()`/`page.goForward()` (pure client-side Angular Router navigation) as the closest
+  in-harness equivalent that still destroys/reconstructs the component and exercises real Dexie
+  rehydration — documented inline in the spec. A true cold-reload-while-offline proof would need a
+  production build with the service worker enabled as part of the E2E harness — a bigger harness
+  decision, tracked here for Phase 15 rather than solved ad hoc in this task.
 - **New, security-relevant**: real judge invitations never grant the Keycloak `JUDGE` realm role.
   `RegisterJudgesCommandHandler` → `SendInvitationHandler` → `IKeycloakAdminClient.
   EnsureUserWithTemporaryPasswordAsync` (`Common/Keycloak/KeycloakAdminClient.cs`) creates/updates

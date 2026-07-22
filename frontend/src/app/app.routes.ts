@@ -5,6 +5,7 @@ import { homeRedirectGuard } from './core/auth/home-redirect.guard';
 import { judgeGuard, organizerGuard } from './core/auth/role.guard';
 import { CompetitionWizardComponent } from './features/competition-wizard/competition-wizard.component';
 import { EntryImportComponent } from './features/entry-import/entry-import.component';
+import { EvaluationSheetComponent } from './features/evaluation-sheet/evaluation-sheet.component';
 import { JudgeManagementComponent } from './features/judge-management/judge-management.component';
 import { JudgeTableOrderComponent } from './features/judge-tables/judge-table-order.component';
 import { JudgeTablesListComponent } from './features/judge-tables/judge-tables-list.component';
@@ -42,6 +43,10 @@ export const routes: Routes = [
     children: [
       { path: 'tables', component: JudgeTablesListComponent },
       { path: 'tables/:tableId', component: JudgeTableOrderComponent },
+      {
+        path: 'tables/:tableId/samples/:beerEntryId',
+        component: EvaluationSheetComponent,
+      },
       { path: '', pathMatch: 'full', redirectTo: 'tables' },
     ],
   },

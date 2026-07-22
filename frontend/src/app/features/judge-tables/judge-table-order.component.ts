@@ -90,6 +90,37 @@ function swap<T>(items: T[], a: number, b: number): T[] {
               <span class="sample-blind-code">{{ sample.blindCode }}</span>
               <span class="sample-style">{{ sample.styleName }} ({{ sample.styleCode }})</span>
 
+              @if (orderFixed()) {
+                <span class="sample-evaluation-status">
+                  @switch (sample.evaluationStatus) {
+                    @case ('Submitted') {
+                      <span class="badge badge--done">Submitted</span>
+                    }
+                    @case ('PendingConsensus') {
+                      <span class="badge badge--pending-consensus">Pending consensus</span>
+                    }
+                    @default {
+                      @if (sample.beerEntryId === firstReachableEntryId()) {
+                        <a
+                          [routerLink]="[
+                            '/judge',
+                            'tables',
+                            tableId,
+                            'samples',
+                            sample.beerEntryId,
+                          ]"
+                          class="evaluate-action"
+                        >
+                          Evaluate
+                        </a>
+                      } @else {
+                        <span class="badge badge--locked">Locked</span>
+                      }
+                    }
+                  }
+                </span>
+              }
+
               @if (!orderFixed()) {
                 <span class="sample-move-controls">
                   <button
@@ -189,6 +220,43 @@ function swap<T>(items: T[], a: number, b: number): T[] {
       gap: 0.25rem;
     }
 
+    .sample-evaluation-status {
+      margin-left: auto;
+    }
+
+    .evaluate-action {
+      padding: 0.25rem 0.75rem;
+      border-radius: 0.375rem;
+      background: #2563eb;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .badge--done {
+      background: #dcfce7;
+      color: #166534;
+      padding: 0.15rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+    }
+
+    .badge--pending-consensus {
+      background: #fee2e2;
+      color: #991b1b;
+      padding: 0.15rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+    }
+
+    .badge--locked {
+      background: #f3f4f6;
+      color: #6b7280;
+      padding: 0.15rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+    }
+
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -211,7 +279,7 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
   private readonly api = inject(TastingOrderApiService);
   private readonly hub = inject(CompetitionHubService);
 
-  private readonly tableId = this.route.snapshot.paramMap.get('tableId')!;
+  protected readonly tableId = this.route.snapshot.paramMap.get('tableId')!;
   private hubSubscription: Subscription | null = null;
 
   protected readonly tableSummary = signal<JudgeTableSummary | null>(null);
@@ -225,6 +293,17 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
   protected readonly fixError = signal<string | null>(null);
 
   protected readonly tableName = computed(() => this.tableSummary()?.name ?? 'Table');
+
+  // FR-022 strict sequencing, once the order is fixed: the only sample a judge may *start*
+  // evaluating right now is the first one (in the fixed order) still NotStarted. `samples()`
+  // already reflects that order directly (both before and after fixing — the drag/move handlers
+  // above mutate it in place, and the fix/hub-event paths replace it with the server's own
+  // ordering) — no separate re-sort by sequenceOrder is needed here.
+  protected readonly firstReachableEntryId = computed(
+    () =>
+      this.samples().find((sample) => sample.evaluationStatus === 'NotStarted')?.beerEntryId ??
+      null,
+  );
 
   constructor() {
     this.loadAll();

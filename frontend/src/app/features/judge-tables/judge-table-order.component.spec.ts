@@ -365,6 +365,93 @@ describe('JudgeTableOrderComponent', () => {
     );
   });
 
+  it('shows no evaluation entry point while the order is not fixed', async () => {
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('a[href*="/samples/"]')).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('Evaluate');
+  });
+
+  it('shows an Evaluate link only for the first NotStarted sample once the order is fixed', async () => {
+    fakeApi.fixOrder.mockReturnValue(
+      of(samplesFixture().map((s, i) => ({ ...s, sequenceOrder: i + 1 }))),
+    );
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+    buttonWithText(fixture.nativeElement, 'Fix order').click();
+    fixture.detectChanges();
+    buttonWithText(fixture.nativeElement, 'Confirm fix order').click();
+    fixture.detectChanges();
+    await flush();
+    fixture.detectChanges();
+
+    const evaluateLink = fixture.nativeElement.querySelector(
+      'a[href="/judge/tables/t1/samples/e1"]',
+    ) as HTMLAnchorElement | null;
+    expect(evaluateLink).not.toBeNull();
+    expect(evaluateLink?.textContent).toContain('Evaluate');
+
+    // e2/e3 are NotStarted too but not first in sequence — locked, not linked.
+    expect(fixture.nativeElement.querySelector('a[href="/judge/tables/t1/samples/e2"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('a[href="/judge/tables/t1/samples/e3"]')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Locked');
+  });
+
+  it('shows a read-only "Submitted" label (no link) for an already-submitted sample', async () => {
+    fakeApi.fixOrder.mockReturnValue(
+      of(
+        samplesFixture().map((s, i) => ({
+          ...s,
+          sequenceOrder: i + 1,
+          evaluationStatus: s.beerEntryId === 'e1' ? 'Submitted' : s.evaluationStatus,
+        })),
+      ),
+    );
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+    buttonWithText(fixture.nativeElement, 'Fix order').click();
+    fixture.detectChanges();
+    buttonWithText(fixture.nativeElement, 'Confirm fix order').click();
+    fixture.detectChanges();
+    await flush();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('a[href="/judge/tables/t1/samples/e1"]')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Submitted');
+    // e2 is now the first NotStarted sample and becomes reachable.
+    expect(
+      fixture.nativeElement.querySelector('a[href="/judge/tables/t1/samples/e2"]'),
+    ).not.toBeNull();
+  });
+
+  it('shows a read-only "Pending consensus" label (no link) for a sample under discrepancy review', async () => {
+    fakeApi.fixOrder.mockReturnValue(
+      of(
+        samplesFixture().map((s, i) => ({
+          ...s,
+          sequenceOrder: i + 1,
+          evaluationStatus: s.beerEntryId === 'e1' ? 'PendingConsensus' : s.evaluationStatus,
+        })),
+      ),
+    );
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+    buttonWithText(fixture.nativeElement, 'Fix order').click();
+    fixture.detectChanges();
+    buttonWithText(fixture.nativeElement, 'Confirm fix order').click();
+    fixture.detectChanges();
+    await flush();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('a[href="/judge/tables/t1/samples/e1"]')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Pending consensus');
+  });
+
   it('surfaces a load error message when fetching samples fails', async () => {
     fakeApi.getTableSamples.mockReturnValue(
       throwError(
