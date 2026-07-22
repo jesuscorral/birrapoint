@@ -40,6 +40,18 @@ public static class CatalogEndpoints
             .WithTags("Catalog")
             .Produces<IReadOnlyList<StyleSummaryDto>>();
 
+        // T059B: full style detail (vital statistics + guide description) for the judge-facing
+        // evaluation-sheet reference panel (FR-049); any authenticated caller, same as GetStyles.
+        endpoints.MapGet("/api/v1/styles/{code}", async (string code, ISender sender, CancellationToken cancellationToken) =>
+        {
+            var result = await sender.Send(new GetStyleDetailQuery(code), cancellationToken);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        })
+            .WithName("GetStyleDetail")
+            .WithTags("Catalog")
+            .Produces<StyleDetailDto>()
+            .Produces(StatusCodes.Status404NotFound);
+
         return endpoints;
     }
 }
