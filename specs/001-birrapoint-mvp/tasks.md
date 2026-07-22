@@ -234,15 +234,15 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 ### Tests for User Story 8 (MANDATORY — write first, must fail) ⚠️
 
-- [ ] T062 [P] [US8] Unit tests: close preconditions (missing list), immutability guard incl. late offline sync, consolidated mean computation (FR-042) in `backend/tests/BirraPoint.Api.UnitTests/Evaluations/CloseTableTests.cs`
-- [ ] T063 [P] [US8] Contract tests: `409 evaluations-incomplete`, post-close judge mutations → `409 table-closed`, organizer `PUT /competitions/{id}/evaluations/{evaluationId}` succeeds + AuditLog row in `backend/tests/BirraPoint.Api.IntegrationTests/Evaluations/CloseTableApiTests.cs`
+- [X] T062 [P] [US8] Unit tests: close preconditions (missing list), immutability guard incl. late offline sync, consolidated mean computation (FR-042) in `backend/tests/BirraPoint.Api.UnitTests/Evaluations/CloseTableTests.cs` — pure rules extracted to `CloseTableRules.cs` (missing-blind-code computation, mean averaging), same split as `SubmitEvaluationRules`
+- [X] T063 [P] [US8] Contract tests: `409 evaluations-incomplete`, post-close judge mutations → `409 table-closed`, organizer `PUT /competitions/{id}/evaluations/{evaluationId}` succeeds + AuditLog row in `backend/tests/BirraPoint.Api.IntegrationTests/Evaluations/CloseTableApiTests.cs`
 
 ### Implementation for User Story 8
 
-- [ ] T064 [US8] Slices CloseTable (gate checks, consolidated means, `TableClosed` emit) and immutability enforcement across all evaluation mutations in `backend/src/BirraPoint.Api/Features/Evaluations/CloseTable.cs`
-- [ ] T065 [US8] Slice CorrectEvaluation (organizer-only, re-validates caps/lengths, recomputes total + mean, audit before/after) per contracts/rest-api.md in `backend/src/BirraPoint.Api/Features/Evaluations/CorrectEvaluation.cs`
-- [ ] T066 [US8] Frontend: Close Table flow with missing-evaluations dialog; read-only sheet rendering after close in `frontend/src/app/features/judge-tables/close-table/`
-- [ ] T067 [US8] E2E scenario 8 in `frontend/e2e/us8-close.spec.ts`
+- [X] T064 [US8] Slices CloseTable (gate checks, consolidated means, `TableClosed` emit) and immutability enforcement across all evaluation mutations in `backend/src/BirraPoint.Api/Features/Evaluations/CloseTable.cs` — two separate `TableClosed` publishes (judge group `{tableId}`, organizer group `{tableId, consolidatedScores}`); immutability reuses `SubmitEvaluation`'s existing `table-closed` gate once `CloseTable` flips `TastingTable.State`
+- [X] T065 [US8] Slice CorrectEvaluation (organizer-only, re-validates caps/lengths, recomputes total + mean, audit before/after) per contracts/rest-api.md in `backend/src/BirraPoint.Api/Features/Evaluations/CorrectEvaluation.cs`
+- [X] T066 [US8] Frontend: Close Table flow with missing-evaluations dialog; read-only sheet rendering after close in `frontend/src/app/features/judge-tables/judge-table-order.component.ts` (extended in place rather than a new `close-table/` subfolder — the confirm-dialog pattern already established for "Fix order" fit directly; button gated on order fixed + every sample done + not already closed, live `TableClosed` hub subscription flips the banner across sessions)
+- [X] T067 [US8] E2E scenario 8 in `frontend/e2e/us8-close.spec.ts` — the post-close late-sync check (FR-034) uses a direct authenticated API call for a fresh (never-submitted) sample rather than a full offline race, since a genuinely-pending submission for an *already-submitted* pair would hit SubmitEvaluation's idempotent-replay branch (200) before any table-state check regardless of timing — documented inline in the spec
 
 **Checkpoint**: All P1 stories complete — full judging lifecycle works
 

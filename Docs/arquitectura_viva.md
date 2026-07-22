@@ -5,7 +5,7 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-22 · after T055–T061 — **Phase 9 (US7, Offline-First Validated Evaluation Sheet) complete — all P1 user stories now done**
+**Last updated:** 2026-07-22 · after T062–T067 — **Phase 10 (US8, Table Closing and Score Immutability) complete — every P1 user story is now done**
 
 ## Global status
 
@@ -45,7 +45,8 @@ behind an explicit irreversible-action confirm), calling the already-existing
 with a captured-bearer-token direct API call now drive the real button instead.
 
 **Phase 9 (User Story 7 — Offline-First Validated Evaluation Sheet, T055–T061)** is now **complete**
-— the last P1 story, so every priority-1 user story in the MVP is done. Backend: `Features/
+(**correction**: an earlier revision of this line claimed this was "the last P1 story" — wrong,
+Phase 10/US8 below was still pending at the time; fixed here). Backend: `Features/
 Evaluations/` (`POST /me/tables/{tableId}/evaluations`, idempotent via a unique-constraint-catch on
 the (judge, entry) index rather than a pre-check — the first genuine insert-time race guard in this
 codebase, since locked-on-submit forbids ever pre-checking-then-upserting) and `Features/Catalog/
@@ -59,6 +60,34 @@ entry point ("Evaluate" only on the first `NotStarted` sample, "Locked" on the r
 (`us7-offline.spec.ts`) proves the full offline round-trip and, along the way, found and fixed a
 real bug: a genuine offline app restart fell back to a load-error screen instead of the cached
 sample. See Recorded debt below for two things this phase left open on purpose.
+
+**Phase 10 (User Story 8 — Table Closing and Score Immutability, T062–T067)** is now **complete —
+this really is the last P1 story**, so every priority-1 user story in the MVP spec is built.
+Backend: `CloseTable.cs` (`POST /me/tables/{tableId}/close`, JUDGE, any active member) gates on
+completeness (every active judge × sample must have a submitted `Evaluation`, else
+`409 evaluations-incomplete { missing: [blindCode] }`) and zero open `DiscrepancyAlert`s (else
+`409 discrepancy-open { blindCodes }` — always empty today, same forward-declared-but-real pattern
+as everywhere else discrepancy detection (US11) hasn't landed yet), then flips
+`TastingTable.State`/`ClosedAt` and emits **two different `TableClosed` payloads** — `{ tableId }`
+to the judge group, `{ tableId, consolidatedScores: [{ blindCode, mean }] }` (FR-042) to the
+organizer group — from one handler, matching contracts/signalr-hub.md exactly rather than
+conflating the two audiences. `CorrectEvaluation.cs` (`PUT /competitions/{id}/evaluations/{
+evaluationId}`, ORGANIZER-only, allowed regardless of table state) re-validates the same caps/
+comment-length rules as a judge submission, lets `Evaluation.Total`'s computed column recompute
+itself, and audits before/after via the existing `IAuditWriter` convention (FR-035). Both share
+`CloseTableRules` (pure: missing-blind-code computation, mean averaging) — same "pure rule beside
+DB-touching handler" split as `SubmitEvaluationRules`/`TastingOrderRules`. Immutability (FR-034)
+needed no new backend guard at all — `SubmitEvaluation`'s existing `table.State != Open` → `409
+table-closed` check (built in Phase 9) already covers "no further evaluations after close,
+including late offline syncs"; `CloseTable`'s only job is to actually flip that flag. Frontend:
+`judge-table-order.component.ts` gained a "Close table" action (visible only once every sample is
+past `NotStarted` and the order is fixed) behind the same `alertdialog`+`cdkTrapFocus` confirm
+pattern as "Fix order", a live `TableClosed` hub subscription so a different judge's close reflects
+immediately, and handling for all three documented `409`s (a same-race `table-closed` resolves
+silently to the closed state, not an error — the judge's desired outcome already happened, just not
+by their own click). No organizer-facing UI exists yet for `CorrectEvaluation` — it's exercised
+today only via direct API calls (E2E, and presumably real incident response) — a natural fit for
+whatever the Phase 11 (US9) monitoring dashboard's audit drill-down eventually needs.
 
 **Scope note**: T048A's beer/judge detail modals ship without allergen/special-award badges or
 judge BJCP-certification fields — a prior session's task-doc edit referenced them with zero
@@ -420,6 +449,27 @@ route restructure) plus the one genuinely new piece, T030.
   with `PropertyNameCaseInsensitive`, mirroring `BjcpStyleCatalogLoader`'s own convention) plus the
   vital-statistics columns into the judge-facing reference-panel shape; `404` for an unknown code.
   No entrant/anonymity concern — BJCP catalog data is public reference data, not competition-scoped.
+- **`Features/Evaluations/CloseTable.cs` + `CorrectEvaluation.cs`** (T062–T065, US8): `CloseTable`
+  (`POST /me/tables/{tableId}/close`, JUDGE, any active member) is the second slice in this folder,
+  sharing a new `CloseTableRules` pure helper (missing-blind-code completeness computation, mean
+  averaging — same split as `SubmitEvaluationRules`) with `CorrectEvaluation`
+  (`PUT /competitions/{id}/evaluations/{evaluationId}`, ORGANIZER-only). Gates in order:
+  already-closed (`409 table-closed`, reusing the existing urn rather than inventing a
+  double-close-specific one), completeness (every active `TableJudge` × `TableSample` must have a
+  submitted `Evaluation`, else `409 evaluations-incomplete { missing: [blindCode] }`), open
+  `DiscrepancyAlert`s (`409 discrepancy-open { blindCodes }` — vacuously empty today, US11 isn't
+  built). On success, one handler emits **two different `TableClosed` payloads** to two different
+  SignalR groups — `{ tableId }` to judges, `{ tableId, consolidatedScores }` to organizers,
+  matching contracts/signalr-hub.md's per-audience rows exactly rather than sending one shape to
+  both. `CorrectEvaluation` is explicitly ungated by table state (the contract's whole point) —
+  re-validates the same score caps/comment floor as `SubmitEvaluation` (duplicated rather than
+  shared, since the two commands have unrelated shapes — sourced from the same
+  `SubmitEvaluationRules` constants so the boundaries can't drift apart), lets the DB-computed
+  `Total` column recompute itself, and audits via the pre-existing `IAuditWriter` convention
+  (before/after snapshot, staged before the same `SaveChangesAsync` that persists the correction —
+  same ordering as `ChangeState.cs`). FR-034 (immutability) needed no new guard: `SubmitEvaluation`'s
+  existing `table.State != Open` check (Phase 9) already rejects post-close mutations including late
+  offline syncs — `CloseTable`'s only job is to be what actually flips that flag.
 - **`Realtime/`** (T015): `CompetitionHub` (`/hubs/competition`, `[Authorize]`) — server → client
   only, per contracts/signalr-hub.md. `JoinCompetitionAsOrganizer` guards on `ORGANIZER` role +
   `Competition.CreatedByUserId` ownership; `JoinTable` guards on an active (`RemovedAt == null`)
@@ -811,7 +861,20 @@ route restructure) plus the one genuinely new piece, T030.
   the same `samples()` signal the drag/reorder/hub-event paths already keep in order, no separate
   re-sort needed) shows an "Evaluate" link into the sheet above; any later `NotStarted` sample shows
   a `Locked` badge instead, and `Submitted`/`PendingConsensus` samples show their own read-only
-  badges — a judge structurally cannot open a sample out of turn from the UI.
+  badges — a judge structurally cannot open a sample out of turn from the UI. T066 (US8) added the
+  Close Table action to the same component: a `canCloseTable` computed gates the button on
+  `orderFixed() && samples().every(s => s.evaluationStatus !== 'NotStarted')` (every sample at least
+  submitted, not necessarily consensus-resolved — a `PendingConsensus` sample doesn't block closing,
+  only an untouched one does); confirming reuses the same `role="alertdialog"` +
+  `cdkTrapFocusAutoCapture` pattern as the Fix Order and advance-state dialogs rather than inventing
+  a new one. The component subscribes to a live `TableClosed` hub event alongside its existing
+  `TableOrderFixed` subscription and flips a `tableClosed` signal that renders a closed banner and
+  disables further submissions client-side (the server-side guard is `SubmitEvaluation`'s existing
+  table-open check — this is only the UI reflecting it promptly). `POST /me/tables/{tableId}/close`
+  can come back `409` three ways, handled distinctly: `evaluations-incomplete` and `discrepancy-open`
+  render inline with the missing blind codes/discrepant codes from the ProblemDetails extension
+  data; `table-closed` (a race — another judge's close request landed first) is treated as a
+  success, not an error, since the table is closed either way and that's what the caller wanted.
 - **`core/api/`** (T020): the typed HTTP client + ProblemDetails→UI error mapping.
   - `problem-details.model.ts`: `ProblemDetails`/`ValidationProblemDetails` interfaces plus
     `BIRRAPOINT_ERROR_URNS` — the 14 `urn:birrapoint:*` values from contracts/rest-api.md §Error
@@ -896,9 +959,9 @@ route restructure) plus the one genuinely new piece, T030.
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 168 unit tests (was 131; +37 **T055** `Evaluations/SubmitEvaluationTests.cs`: `SubmitEvaluationRules.IsNextInSequence`/`CanSubmitInState` edge cases, and the validator's per-section caps 12/3/20/5/10 — each tested at its own real limit, not one section assumed to represent all five — plus the ≥20-char comment floor) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15) + T045 `Tables/` (13) + T050 `TastingOrder/` (10); 126 integration tests (was 113; +13 — **T056** `Evaluations/SubmitEvaluationApiTests.cs` (11: the full `409` precondition chain, `400` on out-of-range scores/short comments, `404` for a non-member, idempotent replay returning the same stored result, and a concurrent-race test firing two simultaneous submits for the same (judge, entry) via `Task.WhenAll` — asserts exactly one row persists, the same "prove it under a real race" bar `OrderApiTests`' one-shot test set) + **T057B** `Catalog/GetStyleDetailTests.cs` (2)) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) + T046 `Tables/` (22) + T051 `TastingOrder/` (9) |
-| Frontend unit | `cd frontend && npx jest` | green — 234 tests (was 186; +48 across T100/T102/T103 (dashboard + advance-state, already covered above) and **T057/T059/T060/T060B/T061**'s US7 work: `sync.service.spec.ts` (18 — the ≤300ms debounce contract under fake timers, draft round-trip, outbox enqueue-then-replay-removes-on-success, replay on the `online` event and on construction, backoff actually skipping a too-soon retry not just incrementing a counter, dedupe on a `200`, and a rejected Dexie write surfacing to the caller), `catalog-api.service.spec.ts` (3), `evaluation-sheet.component.spec.ts` (17, +1 from T061's offline-restart-cache bugfix = 18 today), `style-reference-panel.component.spec.ts` (4), and `judge-table-order.component.spec.ts`'s extension for the new Evaluate/Locked entry point) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (13) + T029 `features/competition-wizard/` (24) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12) + T048 `features/table-management/` (47) + T053 `features/judge-tables/` (23) + T100/T102 `features/dashboard/` (19). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
-| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), `us5-tables.spec.ts` (1), `us6-order.spec.ts` (1), `us13-dashboard.spec.ts` (3), and new **T061 `us7-offline.spec.ts`** (1: full US7 setup — competition → import → judge → table → `Draft`→`Active`→`InEvaluation` via the real dashboard buttons → judge fixes order → opens the evaluation sheet, goes offline *before* any input, fills all five sections, then in place of a literal `page.reload()` — empirically infeasible against this dev-mode harness, see Recorded debt — uses `page.goBack()`/`page.goForward()` as the closest in-harness equivalent that still destroys/reconstructs the component and exercises real Dexie rehydration, asserts the draft survived, submits while still offline, goes online, and confirms via response interception that exactly one `201` reached the server — verified green across 4 runs, no flakiness) — all green against a live, fully-warmed Aspire stack, but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated: `login-required` races `page.goto('/')`). **Gap still open**: no judge- or organizer-facing route, including the evaluation sheet and the dashboard, is in the axe-core sweep yet — `a11y/home.a11y.spec.ts` only covers the placeholder app shell; a full-suite sweep is Phase 15/T089 territory. See Recorded debt below. Chromium only |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 177 unit tests (was 168; +9 **T062-T063** `Evaluations/CloseTableTests.cs`: `CloseTableRules.ComputeMissingBlindCodes`/`ComputeMean` pure-function edge cases — missing judge, missing sample, mean of an empty/single/multi-row group) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15) + T045 `Tables/` (13) + T050 `TastingOrder/` (10) + **T055** `Evaluations/SubmitEvaluationTests.cs` (37); 136 integration tests (was 127 — 126 at Phase 9 close, +1 from PR #22's `Replaying_an_already_stored_evaluation_after_the_table_closes_still_returns_200_not_409` regression test; +9 **T062-T065** `Evaluations/CloseTableApiTests.cs`: completeness (`409 evaluations-incomplete` with the missing blind codes), double-close (`409 table-closed`), a correctly-averaged consolidated mean on success, a late judge submission after close (`409 table-closed`, FR-034), and five `CorrectEvaluation` cases — successful correction after close recomputes total/mean and is audited, non-owning-organizer and non-existent-evaluation both `404` without leaking existence, out-of-range score and under-20-char comment both `400`) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) + T046 `Tables/` (22) + T051 `TastingOrder/` (9) + **T056** `Evaluations/SubmitEvaluationApiTests.cs` (12, incl. the PR #22 regression test) + **T057B** `Catalog/GetStyleDetailTests.cs` (2) |
+| Frontend unit | `cd frontend && npx jest` | green — 247 tests (was 234; +13 **T066-T067**: `judge-table-order.component.spec.ts`'s extension for the Close Table button/`canCloseTable` gating/confirm dialog/live `TableClosed` hub subscription/three-way `409` handling, and `tasting-order-api.service.spec.ts`'s `closeTable()` request-shape coverage) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (13) + T029 `features/competition-wizard/` (24) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12) + T048 `features/table-management/` (47) + T053 `features/judge-tables/` (23) + T100/T102 `features/dashboard/` (19) + T057/T059/T060/T060B/T061 US7 work (48: `sync.service.spec.ts` (18), `catalog-api.service.spec.ts` (3), `evaluation-sheet.component.spec.ts` (18), `style-reference-panel.component.spec.ts` (4), plus the Evaluate/Locked entry-point extension already folded into the `features/judge-tables/` count above). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
+| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), `us5-tables.spec.ts` (1), `us6-order.spec.ts` (1), `us13-dashboard.spec.ts` (3), `us7-offline.spec.ts` (1), and new **T067 `us8-close.spec.ts`** (1: full US8 setup through the real dashboard/UI — fixes order, submits every sample for every active judge at the table, closes it via the real Close Table button/confirm dialog, asserts the closed banner and consolidated scores, then a direct API call for a late submission on a fresh entry confirms `409 table-closed`, exercising FR-034 without needing a full offline race) — all green against a live, fully-warmed Aspire stack, but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated: `login-required` races `page.goto('/')`). **Gap still open**: no judge- or organizer-facing route, including the evaluation sheet and the dashboard, is in the axe-core sweep yet — `a11y/home.a11y.spec.ts` only covers the placeholder app shell; a full-suite sweep is Phase 15/T089 territory. See Recorded debt below. Chromium only |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
 ## Data flows
@@ -992,6 +1055,32 @@ reconciles a queued row against the server with capped backoff. The backend's ow
 guarantee (a DB unique-constraint catch, not a pre-check) is what makes a replayed or raced
 duplicate POST safe regardless of how many times the client's replay loop fires it.
 
+**T062–T067** (US8, the last P1 story): once every active judge has submitted every sample at a
+table with no open `DiscrepancyAlert`, the "Close Table" button in `judge-table-order.component.ts`
+becomes enabled; confirming issues `POST /me/tables/{tableId}/close` → `CloseTableCommandHandler`
+takes a `FOR UPDATE` row lock on the `TastingTable` inside an explicit transaction (senior-code-
+reviewer finding on PR #23, mirroring `FixOrder.cs`'s identical one-shot-flip pattern — without it,
+two judges racing the close endpoint could both pass the not-already-closed check and both commit,
+double-emitting `TableClosed` to the organizer group), re-checks completeness
+(`CloseTableRules.ComputeMissingBlindCodes`) and discrepancies server-side (never trusts the
+client's gating alone), flips `TastingTable.State` to `Closed` and stamps `ClosedAt`, computes each
+sample's consolidated mean (`CloseTableRules.ComputeMean`, rounded to 2 decimals — also a review
+fix, the unrounded value was leaking repeating-decimal noise onto the wire), and only after that
+transaction commits emits `TableClosed` twice with different payloads per audience — the
+`table:{tableId}` group (judges) get only `{ tableId }`, the `competition:{id}:organizers` group also
+gets the consolidated means (FR-042) for the monitoring dashboard Phase 11 will build. The closing
+judge's own HTTP response is likewise minimal (`{ tableId }`, not the full `consolidatedScores`) —
+another PR #23 review fix, since per-sample means are organizer-only data per
+contracts/signalr-hub.md and the frontend never consumed the field it used to receive. From that
+point, `SubmitEvaluation`'s pre-existing table-open check is what rejects any further submission to
+that table (FR-034) — closing didn't need a new immutability guard, only to flip the flag that
+check already reads. Separately, `PUT /competitions/{id}/evaluations/{evaluationId}`
+(`CorrectEvaluationCommandHandler`, organizer-only, no UI yet — see Recorded debt) lets an organizer
+revise a stored evaluation's scores/comments regardless of table state, re-validating the same caps
+as `SubmitEvaluation`, writing an `EvaluationCorrected` audit row via `IAuditWriter` in the same
+transaction as the correction (FR-035), and returning the recomputed total and consolidated mean so
+a future organizer UI can update in place without a second round-trip.
+
 ## Recorded debt / immediate next steps
 
 - **Resolved 2026-07-22 (T102)**: `features/dashboard/organizer-dashboard.component.ts`'s
@@ -1001,6 +1090,18 @@ duplicate POST safe regardless of how many times the client's replay loop fires 
   (FR-051) — `POST /competitions/{id}/state` (T028) is no longer only reachable via a raw API call;
   both E2E specs that used to work around its absence with a captured-bearer-token direct call now
   drive the real button. See `features/dashboard/` above for the implementation.
+- **Fixed 2026-07-22 (senior-code-reviewer, PR #23)**: three findings on `CloseTable.cs` fixed
+  before merge — (1) no concurrency guard on the table-state flip, unlike the sibling `FixOrder.cs`
+  one-shot flip; two judges racing `POST /close` could both pass the not-already-closed check and
+  both commit, double-emitting `TableClosed` to the organizer group — fixed with the same `FOR
+  UPDATE` row-lock-in-a-transaction pattern `FixOrder.cs` already uses; (2) the judge's own close
+  response carried the full `consolidatedScores` payload, which `contracts/signalr-hub.md`
+  deliberately withholds from judges (organizer-only) and which the frontend discarded anyway —
+  fixed to return just `{ tableId }`; (3) `CloseTableRules.ComputeMean` returned unrounded
+  full-precision `decimal` — fixed to round to 2 decimals before it goes over the wire. See
+  `Features/Evaluations/CloseTable.cs`/`CloseTableRules.cs` and the Data flows section above for the
+  post-fix behavior; `CloseTableApiTests.cs`'s happy-path test was reworked to assert the minimal
+  response shape instead of the now-absent field.
 - **New**: `/organizer/dashboard` (T100), the evaluation sheet (T059), and every other organizer/
   judge route are not yet covered by the axe-core accessibility sweep — `frontend/e2e/a11y/
   home.a11y.spec.ts` only exercises the placeholder app shell today. Same gap category as the
@@ -1039,6 +1140,20 @@ duplicate POST safe regardless of how many times the client's replay loop fires 
   rehydration — documented inline in the spec. A true cold-reload-while-offline proof would need a
   production build with the service worker enabled as part of the E2E harness — a bigger harness
   decision, tracked here for Phase 15 rather than solved ad hoc in this task.
+- **New (T065, US8)**: `PUT /competitions/{id}/evaluations/{evaluationId}` (`CorrectEvaluation.cs`)
+  is implemented, contract-tested (5 integration cases: success + audit, non-owning-organizer 404,
+  non-existent-evaluation 404, out-of-range score 400, short comment 400), but has no organizer-facing
+  UI yet — there is currently no screen where an organizer would discover a discrepancy-resolved or
+  otherwise-wrong evaluation and trigger a correction. FR-035 is satisfied at the API/audit layer;
+  the UI is Phase 11 (US9, Live Monitoring Dashboard) territory, the natural place an organizer would
+  first see a score worth correcting.
+- **Observed, not a regression**: `Two_near_simultaneous_submissions_for_the_same_pair_leave_
+  exactly_one_row` (`SubmitEvaluationApiTests.cs`, a `Task.WhenAll`-driven race test from T056)
+  failed once in a full-suite run (`Expected: 1, Actual: 0`) during this phase's verification, but
+  passed in isolation and on a full-suite re-run immediately after. Concluded pre-existing timing
+  sensitivity in a genuine-concurrency test (not something T062-T067 touched), not chased further —
+  flagged here in case it recurs often enough to be worth a more deterministic race-inducing
+  technique (e.g. a `SemaphoreSlim` barrier instead of bare `Task.WhenAll`).
 - **New, security-relevant**: real judge invitations never grant the Keycloak `JUDGE` realm role.
   `RegisterJudgesCommandHandler` → `SendInvitationHandler` → `IKeycloakAdminClient.
   EnsureUserWithTemporaryPasswordAsync` (`Common/Keycloak/KeycloakAdminClient.cs`) creates/updates

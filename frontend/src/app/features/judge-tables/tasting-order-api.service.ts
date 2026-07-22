@@ -15,6 +15,14 @@ export interface JudgeTableSummary {
 
 export type EvaluationStatus = 'NotStarted' | 'Submitted' | 'PendingConsensus';
 
+// POST /me/tables/{tableId}/close success response (contracts/rest-api.md §Judge workspace,
+// FR-033/FR-042). Deliberately minimal — the per-blind-code consolidated mean is organizer-only
+// (contracts/signalr-hub.md's TableClosed event to the organizer group carries it instead); the
+// closing judge only gets confirmation that their own table is now closed.
+export interface CloseTableResponse {
+  tableId: string;
+}
+
 // GET /me/tables/{tableId}/samples and POST /me/tables/{tableId}/order response shape
 // (contracts/rest-api.md §Judge workspace). This is the BR-01/FR-019 anonymity boundary
 // (data-model.md §Anonymity boundary) on the frontend side of the wire: the backend's
@@ -48,5 +56,11 @@ export class TastingOrderApiService {
     return this.apiClient.post<JudgeSample[]>(`/me/tables/${tableId}/order`, {
       orderedBeerEntryIds,
     });
+  }
+
+  // No request body (contracts/rest-api.md `POST /me/tables/{tableId}/close`); FR-033, one-shot
+  // and irreversible.
+  closeTable(tableId: string): Observable<CloseTableResponse> {
+    return this.apiClient.post<CloseTableResponse>(`/me/tables/${tableId}/close`, null);
   }
 }

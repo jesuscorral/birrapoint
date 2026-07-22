@@ -5,7 +5,10 @@ import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 
 import { ApiError } from '../../core/api/api-error';
 import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
-import type { TableOrderFixedEvent } from '../../core/realtime/competition-hub.events';
+import type {
+  TableClosedEvent,
+  TableOrderFixedEvent,
+} from '../../core/realtime/competition-hub.events';
 import { JudgeTableOrderComponent } from './judge-table-order.component';
 import { TastingOrderApiService } from './tasting-order-api.service';
 import type { JudgeSample, JudgeTableSummary } from './tasting-order-api.service';
@@ -47,6 +50,16 @@ function samplesFixture(): JudgeSample[] {
   ];
 }
 
+// All samples fixed (sequenceOrder assigned) and fully evaluated — the state a table must be in
+// before "Close table" becomes available.
+function doneSamplesFixture(): JudgeSample[] {
+  return samplesFixture().map((sample, i) => ({
+    ...sample,
+    sequenceOrder: i + 1,
+    evaluationStatus: 'Submitted' as const,
+  }));
+}
+
 function buttonWithLabel(root: Element, label: string): HTMLButtonElement {
   const buttons = [...root.querySelectorAll('button')] as HTMLButtonElement[];
   const match = buttons.find((button) => button.getAttribute('aria-label') === label);
@@ -65,11 +78,17 @@ function buttonWithText(root: Element, text: string): HTMLButtonElement {
   return match;
 }
 
+function findButtonWithText(root: Element, text: string): HTMLButtonElement | undefined {
+  const buttons = [...root.querySelectorAll('button')] as HTMLButtonElement[];
+  return buttons.find((button) => button.textContent?.trim() === text);
+}
+
 describe('JudgeTableOrderComponent', () => {
   let fakeApi: {
     getMyTables: jest.Mock;
     getTableSamples: jest.Mock;
     fixOrder: jest.Mock;
+    closeTable: jest.Mock;
   };
   let fakeHub: {
     start: jest.Mock;
@@ -78,19 +97,27 @@ describe('JudgeTableOrderComponent', () => {
     on: jest.Mock;
   };
   let orderFixedSubject: Subject<TableOrderFixedEvent>;
+  let tableClosedSubject: Subject<TableClosedEvent>;
 
   beforeEach(() => {
     orderFixedSubject = new Subject<TableOrderFixedEvent>();
+    tableClosedSubject = new Subject<TableClosedEvent>();
     fakeApi = {
       getMyTables: jest.fn().mockReturnValue(of([tableFixture()])),
       getTableSamples: jest.fn().mockReturnValue(of(samplesFixture())),
       fixOrder: jest.fn(),
+      closeTable: jest.fn(),
     };
     fakeHub = {
       start: jest.fn().mockResolvedValue(undefined),
       joinTable: jest.fn().mockResolvedValue(undefined),
       leaveTable: jest.fn().mockResolvedValue(undefined),
-      on: jest.fn().mockReturnValue(orderFixedSubject.asObservable()),
+      on: jest.fn((event: string) => {
+        if (event === 'TableClosed') {
+          return tableClosedSubject.asObservable();
+        }
+        return orderFixedSubject.asObservable();
+      }),
     };
 
     TestBed.configureTestingModule({
@@ -463,5 +490,239 @@ describe('JudgeTableOrderComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Not found.');
+  });
+
+  describe('closing the table (T066)', () => {
+    it('shows a Close table button once the order is fixed and every sample is done', async () => {
+      fakeApi.getMyTables.mockReturnValue(
+        of([tableFixture({ orderFixed: true, orderFixedBy: 'Ada Lovelace' })]),
+      );
+      fakeApi.getTableSamples.mockReturnValue(of(doneSamplesFixture()));
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      expect(buttonWithText(fixture.nativeElement, 'Close table')).not.toBeNull();
+    });
+
+    it('hides the Close table button while any sample is still NotStarted', async () => {
+      fakeApi.getMyTables.mockReturnValue(
+        of([tableFixture({ orderFixed: true, orderFixedBy: 'Ada Lovelace' })]),
+      );
+      fakeApi.getTableSamples.mockReturnValue(
+        of(
+          doneSamplesFixture().map((sample) =>
+            sample.beerEntryId === 'e2'
+              ? { ...sample, evaluationStatus: 'NotStarted' as const }
+              : sample,
+          ),
+        ),
+      );
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      expect(findButtonWithText(fixture.nativeElement, 'Close table')).toBeUndefined();
+    });
+
+    it('hides the Close table button while the order is not fixed yet, even if samples are done', async () => {
+      fakeApi.getMyTables.mockReturnValue(of([tableFixture({ orderFixed: false })]));
+      fakeApi.getTableSamples.mockReturnValue(of(doneSamplesFixture()));
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      expect(findButtonWithText(fixture.nativeElement, 'Close table')).toBeUndefined();
+    });
+
+    it('closes the table only after the confirm step, then locks the UI', async () => {
+      fakeApi.getMyTables.mockReturnValue(
+        of([tableFixture({ orderFixed: true, orderFixedBy: 'Ada Lovelace' })]),
+      );
+      fakeApi.getTableSamples.mockReturnValue(of(doneSamplesFixture()));
+      fakeApi.closeTable.mockReturnValue(of({ tableId: 't1' }));
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      buttonWithText(fixture.nativeElement, 'Close table').click();
+      fixture.detectChanges();
+
+      expect(fakeApi.closeTable).not.toHaveBeenCalled();
+      expect(fixture.nativeElement.textContent).toContain('cannot be undone');
+
+      buttonWithText(fixture.nativeElement, 'Confirm close table').click();
+      fixture.detectChanges();
+      await flush();
+      fixture.detectChanges();
+
+      expect(fakeApi.closeTable).toHaveBeenCalledWith('t1');
+      expect(fixture.nativeElement.textContent).toContain('Table closed');
+      expect(findButtonWithText(fixture.nativeElement, 'Close table')).toBeUndefined();
+    });
+
+    it('cancelling the confirm step does not call closeTable', async () => {
+      fakeApi.getMyTables.mockReturnValue(
+        of([tableFixture({ orderFixed: true, orderFixedBy: 'Ada Lovelace' })]),
+      );
+      fakeApi.getTableSamples.mockReturnValue(of(doneSamplesFixture()));
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      buttonWithText(fixture.nativeElement, 'Close table').click();
+      fixture.detectChanges();
+      buttonWithText(fixture.nativeElement, 'Cancel').click();
+      fixture.detectChanges();
+
+      expect(fakeApi.closeTable).not.toHaveBeenCalled();
+      expect(fixture.nativeElement.textContent).not.toContain('cannot be undone');
+      expect(fixture.nativeElement.textContent).not.toContain('Table closed');
+    });
+
+    it('shows the missing blind codes on a 409 evaluations-incomplete', async () => {
+      fakeApi.getMyTables.mockReturnValue(
+        of([tableFixture({ orderFixed: true, orderFixedBy: 'Ada Lovelace' })]),
+      );
+      fakeApi.getTableSamples.mockReturnValue(of(doneSamplesFixture()));
+      fakeApi.closeTable.mockReturnValue(
+        throwError(
+          () =>
+            new ApiError({
+              status: 409,
+              title: 'Evaluations incomplete',
+              urn: 'urn:birrapoint:evaluations-incomplete',
+              extensions: { missing: ['AB12', 'EF56'] },
+            }),
+        ),
+      );
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      buttonWithText(fixture.nativeElement, 'Close table').click();
+      fixture.detectChanges();
+      buttonWithText(fixture.nativeElement, 'Confirm close table').click();
+      fixture.detectChanges();
+      await flush();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('AB12');
+      expect(fixture.nativeElement.textContent).toContain('EF56');
+      expect(fixture.nativeElement.textContent).not.toContain('Table closed');
+    });
+
+    it('shows the affected blind codes on a 409 discrepancy-open', async () => {
+      fakeApi.getMyTables.mockReturnValue(
+        of([tableFixture({ orderFixed: true, orderFixedBy: 'Ada Lovelace' })]),
+      );
+      fakeApi.getTableSamples.mockReturnValue(of(doneSamplesFixture()));
+      fakeApi.closeTable.mockReturnValue(
+        throwError(
+          () =>
+            new ApiError({
+              status: 409,
+              title: 'Discrepancy open',
+              urn: 'urn:birrapoint:discrepancy-open',
+              extensions: { blindCodes: ['CD34'] },
+            }),
+        ),
+      );
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      buttonWithText(fixture.nativeElement, 'Close table').click();
+      fixture.detectChanges();
+      buttonWithText(fixture.nativeElement, 'Confirm close table').click();
+      fixture.detectChanges();
+      await flush();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('CD34');
+      expect(fixture.nativeElement.textContent).not.toContain('Table closed');
+    });
+
+    it('treats a 409 table-closed race as success: shows the closed banner, no error', async () => {
+      fakeApi.getMyTables.mockReturnValue(
+        of([tableFixture({ orderFixed: true, orderFixedBy: 'Ada Lovelace' })]),
+      );
+      fakeApi.getTableSamples.mockReturnValue(of(doneSamplesFixture()));
+      fakeApi.closeTable.mockReturnValue(
+        throwError(
+          () =>
+            new ApiError({
+              status: 409,
+              title: 'Table already closed',
+              urn: 'urn:birrapoint:table-closed',
+            }),
+        ),
+      );
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      buttonWithText(fixture.nativeElement, 'Close table').click();
+      fixture.detectChanges();
+      buttonWithText(fixture.nativeElement, 'Confirm close table').click();
+      fixture.detectChanges();
+      await flush();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Table closed');
+      expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+      expect(findButtonWithText(fixture.nativeElement, 'Close table')).toBeUndefined();
+    });
+
+    it('flips to the closed banner on a live TableClosed event without calling the API', async () => {
+      fakeApi.getMyTables.mockReturnValue(
+        of([tableFixture({ orderFixed: true, orderFixedBy: 'Ada Lovelace' })]),
+      );
+      fakeApi.getTableSamples.mockReturnValue(of(doneSamplesFixture()));
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      tableClosedSubject.next({ tableId: 't1' });
+      fixture.detectChanges();
+
+      expect(fakeApi.closeTable).not.toHaveBeenCalled();
+      expect(fixture.nativeElement.textContent).toContain('Table closed');
+      expect(findButtonWithText(fixture.nativeElement, 'Close table')).toBeUndefined();
+    });
+
+    it('ignores a TableClosed event for a different table', async () => {
+      fakeApi.getMyTables.mockReturnValue(
+        of([tableFixture({ orderFixed: true, orderFixedBy: 'Ada Lovelace' })]),
+      );
+      fakeApi.getTableSamples.mockReturnValue(of(doneSamplesFixture()));
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      tableClosedSubject.next({ tableId: 'other-table' });
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).not.toContain('Table closed');
+    });
+
+    it('shows the closed banner immediately when loading an already-closed table', async () => {
+      fakeApi.getMyTables.mockReturnValue(
+        of([
+          tableFixture({
+            tableState: 'Closed',
+            orderFixed: true,
+            orderFixedBy: 'Ada Lovelace',
+          }),
+        ]),
+      );
+      fakeApi.getTableSamples.mockReturnValue(of(doneSamplesFixture()));
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Table closed');
+      expect(findButtonWithText(fixture.nativeElement, 'Close table')).toBeUndefined();
+    });
   });
 });

@@ -81,4 +81,16 @@ describe('TastingOrderApiService', () => {
 
     expect(await result).toEqual(samples);
   });
+
+  it('closeTable() posts with no body and returns the minimal confirmation', async () => {
+    const response = { tableId: 't1' };
+    const result = firstValueFrom(service.closeTable('t1'));
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/me/tables/t1/close`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toBeNull();
+    req.flush(response);
+
+    expect(await result).toEqual(response);
+  });
 });
