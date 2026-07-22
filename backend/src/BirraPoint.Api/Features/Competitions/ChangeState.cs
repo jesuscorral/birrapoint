@@ -1,6 +1,7 @@
 using BirraPoint.Api.Common.Audit;
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Errors;
+using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Realtime;
@@ -16,7 +17,8 @@ public sealed record ChangeCompetitionStateCommand(Guid Id, CompetitionState Tar
     : IRequest<ChangeCompetitionStateResult?>;
 
 public sealed class ChangeCompetitionStateCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter, IEventPublisher eventPublisher)
+    AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter, IEventPublisher eventPublisher,
+    IDispatchJobQueue dispatchJobQueue)
     : IRequestHandler<ChangeCompetitionStateCommand, ChangeCompetitionStateResult?>
 {
     public async Task<ChangeCompetitionStateResult?> Handle(
@@ -73,6 +75,13 @@ public sealed class ChangeCompetitionStateCommandHandler(
             competition.Id,
             "CompetitionStateChanged",
             new { competitionId = competition.Id, state = competition.State });
+
+        if (request.Target == CompetitionState.Finalized)
+        {
+            // FR-036's actual trigger: background PDF/ZIP/email dispatch starts once the
+            // competition is Finalized, same after-commit timing as the event above.
+            await dispatchJobQueue.EnqueueAsync(competition.Id, DispatchJobType.GeneratePdfs, new { }, cancellationToken);
+        }
 
         return new ChangeCompetitionStateResult(competition.State);
     }

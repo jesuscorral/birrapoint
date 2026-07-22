@@ -254,6 +254,26 @@ points from any other submitted total (spec edge case: ≥3 judges).
 | LastError | string? | truncated to 2000 chars |
 | NextAttemptAt | DateTimeOffset? | null until a failed attempt schedules a backoff-delayed retry (ADR-0008); a `Pending` job is dispatch-eligible only once this has passed or is null; indexed together with `Status` |
 
+### GeneratedScoreSheet / ResultsArchive *(T074/T075, US10 — added during implementation)*
+
+Neither entity was in the original design pass; added when implementing US10 revealed no blob/file
+storage was ever decided anywhere in this stack (`plan.md`'s Storage section is Postgres +
+IndexedDB only). PDF and ZIP bytes are stored directly in Postgres (`bytea`) — the only durable
+medium this stack has, consistent with Postgres being the server of record.
+
+| Field | Type | Constraints |
+|-------|------|-------------|
+| **GeneratedScoreSheet** | | one row per `BeerEntry`, upserted on regeneration |
+| Id | Guid | PK |
+| BeerEntryId | Guid | FK; unique (upsert key) |
+| PdfBytes | bytea | rendered by `ScoreSheetDocument` (QuestPDF) |
+| GeneratedAt | DateTimeOffset | |
+| **ResultsArchive** | | one row per `Competition`, upserted on regeneration |
+| Id | Guid | PK |
+| CompetitionId | Guid | FK; unique (upsert key) |
+| ZipBytes | bytea | `/CompetitionName/ParticipantID/Style_BlindCode.pdf` hierarchy (FR-040) |
+| GeneratedAt | DateTimeOffset | |
+
 ### AuditLog
 
 | Field | Type | Constraints |
@@ -298,5 +318,7 @@ TastingTable 1─* TableSample *─1 BeerEntry (entry in at most one table)
 TastingTable 1─* Evaluation *─1 Judge ; Evaluation *─1 BeerEntry
 TastingTable 1─* DiscrepancyAlert *─1 BeerEntry
 Competition 1─* DispatchJob
+Competition 1─1 ResultsArchive
+BeerEntry 1─1 GeneratedScoreSheet
 BeerEntry 1─* EntryCollaborator
 ```

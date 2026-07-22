@@ -212,6 +212,29 @@ describe('CompetitionMonitorComponent', () => {
     expect(text).toContain('1 / 2');
   });
 
+  it('shows a link to the Results & Dispatch screen once the competition is Finalized', async () => {
+    fakeCompetitionsApi.getById.mockReturnValue(of(competitionFixture({ state: 'Finalized' })));
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector(
+      'a[href="/organizer/competitions/c1/dispatch"]',
+    );
+    expect(link?.textContent).toContain('Results & Dispatch');
+  });
+
+  it('does not show the Results & Dispatch link while the competition is not yet Finalized', async () => {
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector(
+      'a[href="/organizer/competitions/c1/dispatch"]',
+    );
+    expect(link).toBeNull();
+  });
+
   it('groups samples under their assigned table, leaving unassigned samples out', async () => {
     const fixture = createComponent();
     await flush();

@@ -4,4 +4,11 @@ namespace BirraPoint.Api.Common.Email;
 public interface IEmailSender
 {
     Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken cancellationToken);
+
+    Task SendWithAttachmentsAsync(
+        string toEmail, string subject, string htmlBody,
+        IReadOnlyList<EmailAttachment> attachments, CancellationToken cancellationToken);
 }
+
+/// <summary>An attachment for <see cref="IEmailSender.SendWithAttachmentsAsync"/> (T075 — result PDFs).</summary>
+public sealed record EmailAttachment(string FileName, byte[] Content, string ContentType);

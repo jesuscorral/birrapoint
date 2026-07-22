@@ -276,16 +276,16 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 ### Tests for User Story 10 (MANDATORY — write first, must fail) ⚠️
 
-- [ ] T072 [P] [US10] Unit tests: finalize precondition (`tables-still-open`), ZIP path scheme `/Competition/Participant/Style_BlindCode.pdf`, email job retry/failure accounting in `backend/tests/BirraPoint.Api.UnitTests/Dispatch/`
-- [ ] T073 [P] [US10] Contract tests: finalize → jobs enqueued; archive `202` then `200` ZIP with correct hierarchy; dispatch status list; retry endpoint re-queues failures in `backend/tests/BirraPoint.Api.IntegrationTests/Dispatch/DispatchApiTests.cs`
+- [X] T072 [P] [US10] Unit tests: finalize precondition (`tables-still-open`), ZIP path scheme `/Competition/Participant/Style_BlindCode.pdf`, email job retry/failure accounting in `backend/tests/BirraPoint.Api.UnitTests/Dispatch/` — `DispatchPathsTests.cs`; the `tables-still-open` precondition itself was already implemented (T028) but had zero test coverage until this task, backfilled at the integration level below since it's a DB-query-driven gate, not a pure rule
+- [X] T073 [P] [US10] Contract tests: finalize → jobs enqueued; archive `202` then `200` ZIP with correct hierarchy; dispatch status list; retry endpoint re-queues failures in `backend/tests/BirraPoint.Api.IntegrationTests/Dispatch/DispatchApiTests.cs` — 6 tests, incl. a real end-to-end run of the full GeneratePdfs→BundleZip→SendResultEmail pipeline against the live `DispatchWorker` and `FakeEmailSender`
 
 ### Implementation for User Story 10
 
-- [ ] T074 [US10] QuestPDF score-sheet document (blind code, style, sections, comments, total, consolidated mean, judge display name per R-14) in `backend/src/BirraPoint.Api/Features/Dispatch/ScoreSheetDocument.cs`
-- [ ] T075 [US10] DispatchJob handlers GeneratePdfs → BundleZip → SendResultEmail (per participant, status/attempts/lastError) + `DispatchProgress` emits; finalize transition enqueues pipeline in `backend/src/BirraPoint.Api/Features/Dispatch/`
-- [ ] T076 [US10] Endpoints: results archive stream (`202`/`200`), dispatch status, retries in `backend/src/BirraPoint.Api/Features/Dispatch/Endpoints.cs`
-- [ ] T077 [US10] Frontend results-dispatch: finalize action, generation progress, ZIP download, per-recipient statuses + retry in `frontend/src/app/features/results-dispatch/`
-- [ ] T078 [US10] E2E scenario 10 (Mailpit attachment assertions, ZIP structure) in `frontend/e2e/us10-dispatch.spec.ts`
+- [X] T074 [US10] QuestPDF score-sheet document (blind code, style, sections, comments, total, consolidated mean, judge display name per R-14) in `backend/src/BirraPoint.Api/Features/Dispatch/ScoreSheetDocument.cs` — also added two new entities not in the original data-model.md (`GeneratedScoreSheet`/`ResultsArchive`, both `bytea` in Postgres) since there was no blob/file storage decision on record anywhere in this stack; migration `AddResultsDispatchStorage`
+- [X] T075 [US10] DispatchJob handlers GeneratePdfs → BundleZip → SendResultEmail (per participant, status/attempts/lastError) + `DispatchProgress` emits; finalize transition enqueues pipeline in `backend/src/BirraPoint.Api/Features/Dispatch/` — `DispatchProgress` emission was already generic in `DispatchWorker.cs`, no per-handler work needed; each handler chains to the next via `IDispatchJobQueue` on success; `ChangeState.cs` enqueues `GeneratePdfs` on the `Finalized` transition (FR-036)
+- [X] T076 [US10] Endpoints: results archive stream (`202`/`200`), dispatch status, retries in `backend/src/BirraPoint.Api/Features/Dispatch/DispatchEndpoints.cs`
+- [X] T077 [US10] Frontend results-dispatch: finalize action, generation progress, ZIP download, per-recipient statuses + retry in `frontend/src/app/features/results-dispatch/` — the finalize action itself was already the existing advance-state button (T102/FR-051); this task is the screen reached afterward via a "Results & Dispatch" link on the monitor screen
+- [X] T078 [US10] E2E scenario 10 (Mailpit attachment assertions, ZIP structure) in `frontend/e2e/us10-dispatch.spec.ts` — `adm-zip` added as a test-only devDependency to read the downloaded ZIP's entry list (Node has no built-in ZIP reader)
 
 **Checkpoint**: Competition can be run start-to-finish including participant delivery
 

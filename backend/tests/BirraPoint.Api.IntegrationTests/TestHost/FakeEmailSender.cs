@@ -10,13 +10,21 @@ namespace BirraPoint.Api.IntegrationTests.TestHost;
 /// </summary>
 public sealed class FakeEmailSender : IEmailSender
 {
-    private readonly ConcurrentQueue<(string ToEmail, string Subject, string HtmlBody)> _sent = new();
+    private readonly ConcurrentQueue<(string ToEmail, string Subject, string HtmlBody, IReadOnlyList<EmailAttachment> Attachments)> _sent = new();
 
-    public IReadOnlyCollection<(string ToEmail, string Subject, string HtmlBody)> Sent => _sent.ToArray();
+    public IReadOnlyCollection<(string ToEmail, string Subject, string HtmlBody, IReadOnlyList<EmailAttachment> Attachments)> Sent => _sent.ToArray();
 
     public Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken cancellationToken)
     {
-        _sent.Enqueue((toEmail, subject, htmlBody));
+        _sent.Enqueue((toEmail, subject, htmlBody, []));
+        return Task.CompletedTask;
+    }
+
+    public Task SendWithAttachmentsAsync(
+        string toEmail, string subject, string htmlBody,
+        IReadOnlyList<EmailAttachment> attachments, CancellationToken cancellationToken)
+    {
+        _sent.Enqueue((toEmail, subject, htmlBody, attachments));
         return Task.CompletedTask;
     }
 }

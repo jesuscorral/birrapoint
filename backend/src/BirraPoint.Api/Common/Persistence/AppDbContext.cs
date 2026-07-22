@@ -36,6 +36,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     public DbSet<DispatchJob> DispatchJobs => Set<DispatchJob>();
 
+    public DbSet<GeneratedScoreSheet> GeneratedScoreSheets => Set<GeneratedScoreSheet>();
+
+    public DbSet<ResultsArchive> ResultsArchives => Set<ResultsArchive>();
+
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

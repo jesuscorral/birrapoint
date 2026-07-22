@@ -1,10 +1,11 @@
-import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import type { Observable } from 'rxjs';
-import { catchError, throwError } from 'rxjs';
+import { catchError, from, switchMap, throwError } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { toApiError } from './api-error';
+import { blobToText } from './blob-text';
 
 export interface ApiRequestOptions {
   headers?: HttpHeaders | Record<string, string | string[]>;
@@ -15,6 +16,25 @@ function rethrowAsApiError(error: unknown): Observable<never> {
     return throwError(() => toApiError(error.status, error.error));
   }
   return throwError(() => error);
+}
+
+// responseType: 'blob' applies to error bodies too, so a 4xx/5xx from getBlob() never arrives as
+// parsed JSON like the other verbs — its body has to be read back out as text first.
+function rethrowBlobError(error: unknown): Observable<never> {
+  if (error instanceof HttpErrorResponse && error.error instanceof Blob) {
+    return from(blobToText(error.error)).pipe(
+      switchMap((text) => {
+        let body: unknown = null;
+        try {
+          body = text ? JSON.parse(text) : null;
+        } catch {
+          body = null;
+        }
+        return throwError(() => toApiError(error.status, body));
+      }),
+    );
+  }
+  return rethrowAsApiError(error);
 }
 
 /**
@@ -41,6 +61,15 @@ export class ApiClient {
 
   delete<T>(path: string, options?: ApiRequestOptions): Observable<T> {
     return this.http.delete<T>(this.url(path), options).pipe(catchError(rethrowAsApiError));
+  }
+
+  // Full HttpResponse (not just the body) so callers can branch on status — e.g. the results
+  // archive endpoint (contracts/rest-api.md) returns 200 (ZIP bytes) or 202 (JSON status) through
+  // the same blob-typed request, and only the status code tells the two apart.
+  getBlob(path: string): Observable<HttpResponse<Blob>> {
+    return this.http
+      .get(this.url(path), { responseType: 'blob', observe: 'response' })
+      .pipe(catchError(rethrowBlobError));
   }
 
   private url(path: string): string {
