@@ -9,7 +9,10 @@ import { filter, forkJoin } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
 import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
-import type { TableOrderFixedEvent } from '../../core/realtime/competition-hub.events';
+import type {
+  TableClosedEvent,
+  TableOrderFixedEvent,
+} from '../../core/realtime/competition-hub.events';
 import { TastingOrderApiService } from './tasting-order-api.service';
 import type { JudgeSample, JudgeTableSummary } from './tasting-order-api.service';
 
@@ -57,7 +60,11 @@ function swap<T>(items: T[], a: number, b: number): T[] {
     }
 
     @if (!loadError()) {
-      @if (orderFixed()) {
+      @if (tableClosed()) {
+        <p role="status" class="order-status order-status--closed">
+          Table closed. Scores are now permanently locked.
+        </p>
+      } @else if (orderFixed()) {
         <p role="status" class="order-status order-status--fixed">
           Order fixed{{ fixedByDisplayName() ? ' by ' + fixedByDisplayName() : '' }}.
         </p>
@@ -68,6 +75,10 @@ function swap<T>(items: T[], a: number, b: number): T[] {
       }
 
       @if (fixError(); as message) {
+        <p role="alert">{{ message }}</p>
+      }
+
+      @if (closeError(); as message) {
         <p role="alert">{{ message }}</p>
       }
 
@@ -147,6 +158,10 @@ function swap<T>(items: T[], a: number, b: number): T[] {
 
         @if (!orderFixed()) {
           <button type="button" [disabled]="fixing()" (click)="onRequestFix()">Fix order</button>
+        } @else if (canCloseTable()) {
+          <button type="button" [disabled]="closing()" (click)="onRequestClose()">
+            Close table
+          </button>
         }
       }
     }
@@ -174,6 +189,31 @@ function swap<T>(items: T[], a: number, b: number): T[] {
         </div>
       </div>
     }
+
+    @if (confirmingClose()) {
+      <div class="modal-backdrop" role="presentation" (click)="onCancelCloseConfirm()">
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-label="Confirm close table"
+          class="modal-panel"
+          cdkTrapFocus
+          cdkTrapFocusAutoCapture
+          (click)="$event.stopPropagation()"
+          (keydown.escape)="onCancelCloseConfirm()"
+        >
+          <h2>Close table</h2>
+          <p>
+            This permanently locks the table and its scores for everyone here and cannot be undone.
+            Continue?
+          </p>
+          <button type="button" [disabled]="closing()" (click)="onConfirmClose()">
+            Confirm close table
+          </button>
+          <button type="button" (click)="onCancelCloseConfirm()">Cancel</button>
+        </div>
+      </div>
+    }
   `,
   styles: `
     .order-status {
@@ -182,6 +222,11 @@ function swap<T>(items: T[], a: number, b: number): T[] {
 
     .order-status--fixed {
       color: #166534;
+      font-weight: 600;
+    }
+
+    .order-status--closed {
+      color: #1e3a8a;
       font-weight: 600;
     }
 
@@ -281,6 +326,7 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
 
   protected readonly tableId = this.route.snapshot.paramMap.get('tableId')!;
   private hubSubscription: Subscription | null = null;
+  private tableClosedSubscription: Subscription | null = null;
 
   protected readonly tableSummary = signal<JudgeTableSummary | null>(null);
   protected readonly samples = signal<JudgeSample[]>([]);
@@ -292,7 +338,27 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
   protected readonly fixing = signal(false);
   protected readonly fixError = signal<string | null>(null);
 
+  // Seeded from the initial GET /me/tables load and flipped on this judge's own successful close,
+  // a 409 table-closed race (someone else closed it first), or a live TableClosed hub event — see
+  // handleCloseError()/applyTableClosedEvent() below. Not purely derived from `samples()` because
+  // it must also reflect a table that was *already* closed before this judge ever opened it.
+  protected readonly tableClosed = signal(false);
+  protected readonly confirmingClose = signal(false);
+  protected readonly closing = signal(false);
+  protected readonly closeError = signal<string | null>(null);
+
   protected readonly tableName = computed(() => this.tableSummary()?.name ?? 'Table');
+
+  // FR-033 close precondition, mirrored client-side purely to gate the button's visibility — the
+  // backend re-validates all of this authoritatively (409 evaluations-incomplete/discrepancy-open)
+  // on the actual close call.
+  protected readonly canCloseTable = computed(
+    () =>
+      this.orderFixed() &&
+      !this.tableClosed() &&
+      this.samples().length > 0 &&
+      this.samples().every((sample) => sample.evaluationStatus !== 'NotStarted'),
+  );
 
   // FR-022 strict sequencing, once the order is fixed: the only sample a judge may *start*
   // evaluating right now is the first one (in the fixed order) still NotStarted. `samples()`
@@ -315,6 +381,7 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.hubSubscription?.unsubscribe();
+    this.tableClosedSubscription?.unsubscribe();
     void this.hub.leaveTable(this.tableId).catch(() => {
       // Best-effort: leaving on navigation-away is a courtesy, not a functional requirement.
     });
@@ -386,6 +453,36 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
     });
   }
 
+  protected onRequestClose(): void {
+    this.closeError.set(null);
+    this.confirmingClose.set(true);
+  }
+
+  protected onCancelCloseConfirm(): void {
+    this.confirmingClose.set(false);
+  }
+
+  protected onConfirmClose(): void {
+    if (this.closing()) {
+      return;
+    }
+    this.closing.set(true);
+    this.closeError.set(null);
+
+    this.api.closeTable(this.tableId).subscribe({
+      next: () => {
+        this.closing.set(false);
+        this.confirmingClose.set(false);
+        this.tableClosed.set(true);
+      },
+      error: (error: unknown) => {
+        this.closing.set(false);
+        this.confirmingClose.set(false);
+        this.handleCloseError(error);
+      },
+    });
+  }
+
   private async connectToHub(): Promise<void> {
     try {
       await this.hub.start();
@@ -394,10 +491,14 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
         .on('TableOrderFixed')
         .pipe(filter((event) => event.tableId === this.tableId))
         .subscribe((event) => this.applyOrderFixedEvent(event));
+      this.tableClosedSubscription = this.hub
+        .on('TableClosed')
+        .pipe(filter((event: TableClosedEvent) => event.tableId === this.tableId))
+        .subscribe(() => this.tableClosed.set(true));
     } catch {
       // Realtime is a best-effort notification channel (contracts/signalr-hub.md): the samples
       // view stays fully functional over REST without it — a judge just won't see another
-      // judge's fix live and will pick it up on next load instead.
+      // judge's fix (or close) live and will pick it up on next load instead.
     }
   }
 
@@ -413,6 +514,7 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
         this.samples.set(samples);
         this.orderFixed.set(summary?.orderFixed ?? false);
         this.fixedByDisplayName.set(summary?.orderFixedBy ?? null);
+        this.tableClosed.set(summary?.tableState === 'Closed');
       },
       error: (error: unknown) => this.loadError.set(errorMessage(toGenericApiError(error))),
     });
@@ -484,5 +586,30 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
     }
 
     this.fixError.set(errorMessage(apiError));
+  }
+
+  private handleCloseError(error: unknown): void {
+    const apiError = toGenericApiError(error);
+
+    if (apiError.urn === 'urn:birrapoint:table-closed') {
+      // We lost the race: someone else at this table closed it first. That's the outcome this
+      // judge wanted too, just not via their own click — treat it as success, not an error.
+      this.tableClosed.set(true);
+      return;
+    }
+
+    if (apiError.urn === 'urn:birrapoint:evaluations-incomplete') {
+      const missing = (apiError.extensions['missing'] as string[] | undefined) ?? [];
+      this.closeError.set(`Still needs evaluating: ${missing.join(', ')}.`);
+      return;
+    }
+
+    if (apiError.urn === 'urn:birrapoint:discrepancy-open') {
+      const blindCodes = (apiError.extensions['blindCodes'] as string[] | undefined) ?? [];
+      this.closeError.set(`Unresolved discrepancies on: ${blindCodes.join(', ')}.`);
+      return;
+    }
+
+    this.closeError.set(errorMessage(apiError));
   }
 }
