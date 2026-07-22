@@ -93,7 +93,7 @@ public sealed class CloseTableTests
     [Fact]
     public void ComputeMean_averages_three_totals_to_a_fractional_result()
     {
-        Assert.Equal(100m / 3m, CloseTableRules.ComputeMean([30, 40, 30]));
+        Assert.Equal(33.33m, CloseTableRules.ComputeMean([30, 40, 30]));
     }
 
     [Fact]

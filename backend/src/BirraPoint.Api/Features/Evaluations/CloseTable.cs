@@ -32,9 +32,16 @@ public sealed class CloseTableCommandHandler(AppDbContext dbContext, ICurrentUse
             return null;
         }
 
-        // The active TableJudge row above references an existing TastingTable (FK), so this is
-        // always found — no need to null-check.
-        var table = await dbContext.TastingTables.SingleAsync(t => t.Id == request.TableId, cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        // Row lock to serialize concurrent closers — two judges racing POST .../close at the same
+        // instant must not both pass the not-already-closed check and both commit Closed (which
+        // would also double-emit TableClosed to the organizer group). Same pattern as
+        // Features/TastingOrder/FixOrder.cs's one-shot table-state flip. The active TableJudge row
+        // found above references an existing TastingTable (FK), so this is always found.
+        var table = await dbContext.TastingTables
+            .FromSqlInterpolated($"SELECT * FROM \"TastingTables\" WHERE \"Id\" = {request.TableId} FOR UPDATE")
+            .SingleAsync(cancellationToken);
 
         if (table.State == TableState.Closed)
         {
@@ -104,6 +111,7 @@ public sealed class CloseTableCommandHandler(AppDbContext dbContext, ICurrentUse
             .ToList();
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         // Emitted only after the transaction above commits (contracts/signalr-hub.md §Delivery
         // semantics). Two separate publishes with different payload shapes per audience

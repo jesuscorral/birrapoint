@@ -16,10 +16,11 @@ export interface JudgeTableSummary {
 export type EvaluationStatus = 'NotStarted' | 'Submitted' | 'PendingConsensus';
 
 // POST /me/tables/{tableId}/close success response (contracts/rest-api.md §Judge workspace,
-// FR-033/FR-042): per-blind-code consolidated mean, computed once every active judge's
-// evaluation is in.
+// FR-033/FR-042). Deliberately minimal — the per-blind-code consolidated mean is organizer-only
+// (contracts/signalr-hub.md's TableClosed event to the organizer group carries it instead); the
+// closing judge only gets confirmation that their own table is now closed.
 export interface CloseTableResponse {
-  consolidatedScores: { blindCode: string; mean: number }[];
+  tableId: string;
 }
 
 // GET /me/tables/{tableId}/samples and POST /me/tables/{tableId}/order response shape

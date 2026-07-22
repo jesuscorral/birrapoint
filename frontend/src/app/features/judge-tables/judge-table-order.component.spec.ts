@@ -540,9 +540,7 @@ describe('JudgeTableOrderComponent', () => {
         of([tableFixture({ orderFixed: true, orderFixedBy: 'Ada Lovelace' })]),
       );
       fakeApi.getTableSamples.mockReturnValue(of(doneSamplesFixture()));
-      fakeApi.closeTable.mockReturnValue(
-        of({ consolidatedScores: [{ blindCode: 'AB12', mean: 32.5 }] }),
-      );
+      fakeApi.closeTable.mockReturnValue(of({ tableId: 't1' }));
       const fixture = createComponent();
       await flush();
       fixture.detectChanges();

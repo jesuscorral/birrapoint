@@ -82,8 +82,8 @@ describe('TastingOrderApiService', () => {
     expect(await result).toEqual(samples);
   });
 
-  it('closeTable() posts with no body and returns the consolidated scores', async () => {
-    const response = { consolidatedScores: [{ blindCode: 'AB12', mean: 32.5 }] };
+  it('closeTable() posts with no body and returns the minimal confirmation', async () => {
+    const response = { tableId: 't1' };
     const result = firstValueFrom(service.closeTable('t1'));
 
     const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/me/tables/t1/close`);

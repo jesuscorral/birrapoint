@@ -38,8 +38,11 @@ public static class CloseTableRules
         return missing;
     }
 
-    /// <summary>FR-042: arithmetic mean of a sample's submitted totals. Shared by CloseTable (all
-    /// samples at once) and CorrectEvaluation (a single sample, recomputed after the correction).</summary>
+    /// <summary>FR-042: arithmetic mean of a sample's submitted totals, rounded to 2 decimal places
+    /// (matching typical BJCP score presentation) — this value goes over the wire in the organizer
+    /// SignalR event and the audit drill-down, so it shouldn't carry raw floating-point-style
+    /// repeating-decimal noise. Shared by CloseTable (all samples at once) and CorrectEvaluation (a
+    /// single sample, recomputed after the correction).</summary>
     public static decimal ComputeMean(IReadOnlyCollection<int> totals) =>
-        totals.Count == 0 ? 0m : totals.Average(t => (decimal)t);
+        totals.Count == 0 ? 0m : Math.Round(totals.Average(t => (decimal)t), 2, MidpointRounding.AwayFromZero);
 }

@@ -1058,12 +1058,20 @@ duplicate POST safe regardless of how many times the client's replay loop fires 
 **T062–T067** (US8, the last P1 story): once every active judge has submitted every sample at a
 table with no open `DiscrepancyAlert`, the "Close Table" button in `judge-table-order.component.ts`
 becomes enabled; confirming issues `POST /me/tables/{tableId}/close` → `CloseTableCommandHandler`
-re-checks completeness (`CloseTableRules.ComputeMissingBlindCodes`) and discrepancies server-side
-(never trusts the client's gating alone), flips `TastingTable.State` to `Closed` and stamps
-`ClosedAt`, computes each sample's consolidated mean (`CloseTableRules.ComputeMean`), and only after
-that transaction commits emits `TableClosed` twice with different payloads per audience — the
-`table:{tableId}` group (judges) just learns it closed, the `competition:{id}:organizers` group also
-gets the consolidated means (FR-042) for the monitoring dashboard Phase 11 will build. From that
+takes a `FOR UPDATE` row lock on the `TastingTable` inside an explicit transaction (senior-code-
+reviewer finding on PR #23, mirroring `FixOrder.cs`'s identical one-shot-flip pattern — without it,
+two judges racing the close endpoint could both pass the not-already-closed check and both commit,
+double-emitting `TableClosed` to the organizer group), re-checks completeness
+(`CloseTableRules.ComputeMissingBlindCodes`) and discrepancies server-side (never trusts the
+client's gating alone), flips `TastingTable.State` to `Closed` and stamps `ClosedAt`, computes each
+sample's consolidated mean (`CloseTableRules.ComputeMean`, rounded to 2 decimals — also a review
+fix, the unrounded value was leaking repeating-decimal noise onto the wire), and only after that
+transaction commits emits `TableClosed` twice with different payloads per audience — the
+`table:{tableId}` group (judges) get only `{ tableId }`, the `competition:{id}:organizers` group also
+gets the consolidated means (FR-042) for the monitoring dashboard Phase 11 will build. The closing
+judge's own HTTP response is likewise minimal (`{ tableId }`, not the full `consolidatedScores`) —
+another PR #23 review fix, since per-sample means are organizer-only data per
+contracts/signalr-hub.md and the frontend never consumed the field it used to receive. From that
 point, `SubmitEvaluation`'s pre-existing table-open check is what rejects any further submission to
 that table (FR-034) — closing didn't need a new immutability guard, only to flip the flag that
 check already reads. Separately, `PUT /competitions/{id}/evaluations/{evaluationId}`
@@ -1082,6 +1090,18 @@ a future organizer UI can update in place without a second round-trip.
   (FR-051) — `POST /competitions/{id}/state` (T028) is no longer only reachable via a raw API call;
   both E2E specs that used to work around its absence with a captured-bearer-token direct call now
   drive the real button. See `features/dashboard/` above for the implementation.
+- **Fixed 2026-07-22 (senior-code-reviewer, PR #23)**: three findings on `CloseTable.cs` fixed
+  before merge — (1) no concurrency guard on the table-state flip, unlike the sibling `FixOrder.cs`
+  one-shot flip; two judges racing `POST /close` could both pass the not-already-closed check and
+  both commit, double-emitting `TableClosed` to the organizer group — fixed with the same `FOR
+  UPDATE` row-lock-in-a-transaction pattern `FixOrder.cs` already uses; (2) the judge's own close
+  response carried the full `consolidatedScores` payload, which `contracts/signalr-hub.md`
+  deliberately withholds from judges (organizer-only) and which the frontend discarded anyway —
+  fixed to return just `{ tableId }`; (3) `CloseTableRules.ComputeMean` returned unrounded
+  full-precision `decimal` — fixed to round to 2 decimals before it goes over the wire. See
+  `Features/Evaluations/CloseTable.cs`/`CloseTableRules.cs` and the Data flows section above for the
+  post-fix behavior; `CloseTableApiTests.cs`'s happy-path test was reworked to assert the minimal
+  response shape instead of the now-absent field.
 - **New**: `/organizer/dashboard` (T100), the evaluation sheet (T059), and every other organizer/
   judge route are not yet covered by the axe-core accessibility sweep — `frontend/e2e/a11y/
   home.a11y.spec.ts` only exercises the placeholder app shell today. Same gap category as the

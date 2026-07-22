@@ -294,15 +294,14 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
         Assert.Contains("table-closed", document.RootElement.GetProperty("type").GetString());
     }
 
-    // ---- Happy path: consolidated mean is correctly averaged (FR-042) -----------------------------
+    // ---- Happy path: closes successfully, judge response omits organizer-only data (FR-042) -------
 
     [Fact]
-    public async Task Close_succeeds_when_complete_and_returns_the_correctly_averaged_consolidated_mean()
+    public async Task Close_succeeds_when_complete_and_the_judge_response_omits_consolidated_scores()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer, sampleCount: 1, judgeCount: 2);
         var entryId = fixture.EntryIds[0];
-        var blindCode = await GetBlindCodeAsync(entryId);
 
         using var judgeAClient = JudgeClient(fixture.Judges[0].JudgeSub);
         using var judgeBClient = JudgeClient(fixture.Judges[1].JudgeSub);
@@ -317,10 +316,13 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
 
         Assert.Equal(HttpStatusCode.OK, closeResponse.StatusCode);
         using var document = JsonDocument.Parse(await closeResponse.Content.ReadAsStringAsync());
-        var consolidatedScores = document.RootElement.GetProperty("consolidatedScores").EnumerateArray().ToList();
-        Assert.Single(consolidatedScores);
-        Assert.Equal(blindCode, consolidatedScores[0].GetProperty("blindCode").GetString());
-        Assert.Equal(44.5m, consolidatedScores[0].GetProperty("mean").GetDecimal()); // (39 + 50) / 2
+        // consolidatedScores is organizer-only (contracts/rest-api.md, signalr-hub.md): the closing
+        // judge's own HTTP response must not carry per-sample means, only confirmation. The mean
+        // computation itself (CloseTableRules.ComputeMean) is covered directly by
+        // CloseTableTests.cs's unit tests and, end-to-end via a real persisted evaluation, by
+        // Organizer_correction_after_close_succeeds_recomputes_total_and_mean_and_is_audited below.
+        Assert.Equal(fixture.TableId, document.RootElement.GetProperty("tableId").GetGuid());
+        Assert.False(document.RootElement.TryGetProperty("consolidatedScores", out _));
 
         var (state, closedAt) = await GetTableStateAsync(fixture.TableId);
         Assert.Equal(TableState.Closed, state);
