@@ -190,6 +190,16 @@ describe('OrganizerDashboardComponent', () => {
       expect(fakeApi.list).toHaveBeenCalledTimes(2);
     });
 
+    it('announces the successful advance via a status region', () => {
+      const fixture = createComponent();
+
+      clickAdvance(fixture, 'Activate');
+      clickConfirm(fixture);
+
+      const status = fixture.nativeElement.querySelector('[role="status"]');
+      expect(status?.textContent).toContain('Active');
+    });
+
     it('names how many tables are blocking on 409 tables-still-open', () => {
       fakeApi.list.mockReturnValue(of([competitionFixture({ state: 'InEvaluation' })]));
       fakeApi.changeState.mockReturnValue(

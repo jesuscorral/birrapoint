@@ -58,6 +58,9 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
     @if (advanceError(); as message) {
       <p role="alert">{{ message }}</p>
     }
+    @if (advanceSuccessMessage(); as message) {
+      <p role="status">{{ message }}</p>
+    }
 
     <a routerLink="/organizer/competitions/new" class="new-competition-action">New competition</a>
 
@@ -238,6 +241,7 @@ export class OrganizerDashboardComponent {
   protected readonly confirmingAdvance = signal<CompetitionSummary | null>(null);
   protected readonly advancing = signal(false);
   protected readonly advanceError = signal<string | null>(null);
+  protected readonly advanceSuccessMessage = signal<string | null>(null);
 
   constructor() {
     this.loadCompetitions();
@@ -271,6 +275,7 @@ export class OrganizerDashboardComponent {
 
   protected onRequestAdvance(competition: CompetitionSummary): void {
     this.advanceError.set(null);
+    this.advanceSuccessMessage.set(null);
     this.confirmingAdvance.set(competition);
   }
 
@@ -280,18 +285,20 @@ export class OrganizerDashboardComponent {
 
   protected onConfirmAdvance(): void {
     const target = this.confirmingAdvance();
-    const nextState = target ? this.nextState(target.state) : null;
-    if (!target || !nextState || this.advancing()) {
+    const targetState = target ? this.nextState(target.state) : null;
+    if (!target || !targetState || this.advancing()) {
       return;
     }
 
     this.advancing.set(true);
     this.advanceError.set(null);
+    this.advanceSuccessMessage.set(null);
 
-    this.api.changeState(target.id, nextState).subscribe({
+    this.api.changeState(target.id, targetState).subscribe({
       next: () => {
         this.advancing.set(false);
         this.confirmingAdvance.set(null);
+        this.advanceSuccessMessage.set(`"${target.name}" advanced to ${targetState}.`);
         this.loadCompetitions();
       },
       error: (error: unknown) => {
