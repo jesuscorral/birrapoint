@@ -33,19 +33,38 @@ public sealed class GetProgressQueryHandler(AppDbContext dbContext, ICurrentUser
             .Select(t => new { t.Id, t.Name, t.State })
             .ToListAsync(cancellationToken);
 
-        var results = new List<TableProgressSummaryDto>();
-        foreach (var table in tables)
-        {
-            var judgeCount = await dbContext.TableJudges
-                .CountAsync(tj => tj.TastingTableId == table.Id && tj.RemovedAt == null, cancellationToken);
-            var sampleCount = await dbContext.TableSamples.CountAsync(ts => ts.TastingTableId == table.Id, cancellationToken);
-            var expected = judgeCount * sampleCount;
-            var completed = await dbContext.Evaluations.CountAsync(e => e.TastingTableId == table.Id, cancellationToken);
-            var percent = expected == 0 ? 0 : (int)Math.Round(completed * 100.0 / expected, MidpointRounding.AwayFromZero);
+        var tableIds = tables.Select(t => t.Id).ToList();
 
-            results.Add(new TableProgressSummaryDto(table.Id, table.Name, table.State.ToString(), completed, expected, percent));
-        }
+        // Three grouped queries (constant round trips regardless of table count) instead of a
+        // per-table loop (senior-code-reviewer finding on PR #24) — this feeds a live dashboard
+        // organizers reload during an active event, so cost shouldn't grow linearly with table count.
+        var judgeCounts = await dbContext.TableJudges
+            .Where(tj => tableIds.Contains(tj.TastingTableId) && tj.RemovedAt == null)
+            .GroupBy(tj => tj.TastingTableId)
+            .Select(g => new { TableId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.TableId, x => x.Count, cancellationToken);
 
-        return results.OrderBy(r => r.Name).ToList();
+        var sampleCounts = await dbContext.TableSamples
+            .Where(ts => tableIds.Contains(ts.TastingTableId))
+            .GroupBy(ts => ts.TastingTableId)
+            .Select(g => new { TableId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.TableId, x => x.Count, cancellationToken);
+
+        var evaluationCounts = await dbContext.Evaluations
+            .Where(e => tableIds.Contains(e.TastingTableId))
+            .GroupBy(e => e.TastingTableId)
+            .Select(g => new { TableId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.TableId, x => x.Count, cancellationToken);
+
+        return tables
+            .Select(table =>
+            {
+                var expected = judgeCounts.GetValueOrDefault(table.Id) * sampleCounts.GetValueOrDefault(table.Id);
+                var completed = evaluationCounts.GetValueOrDefault(table.Id);
+                var percent = expected == 0 ? 0 : (int)Math.Round(completed * 100.0 / expected, MidpointRounding.AwayFromZero);
+                return new TableProgressSummaryDto(table.Id, table.Name, table.State.ToString(), completed, expected, percent);
+            })
+            .OrderBy(r => r.Name)
+            .ToList();
     }
 }

@@ -1,6 +1,14 @@
 import type { OnDestroy, OnInit } from '@angular/core';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { HubConnectionState } from '@microsoft/signalr';
 import type { Subscription } from 'rxjs';
 import { forkJoin } from 'rxjs';
 
@@ -246,8 +254,23 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
     return map;
   });
 
+  private hasConnectedBefore = false;
+
   constructor() {
     this.loadAll();
+
+    // Events are notifications, not the source of truth (contracts/signalr-hub.md) — anything
+    // missed while disconnected (a network blip) must be reconciled by re-fetching once the hub
+    // reconnects, not left stale until a manual reload. Only re-fetches on a *re*-connect, not the
+    // initial one (which loadAll() above already covers) — senior-code-reviewer finding on PR #24.
+    effect(() => {
+      if (this.hub.state() === HubConnectionState.Connected) {
+        if (this.hasConnectedBefore) {
+          this.loadAll();
+        }
+        this.hasConnectedBefore = true;
+      }
+    });
   }
 
   ngOnInit(): void {

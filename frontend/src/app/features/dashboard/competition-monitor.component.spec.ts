@@ -1,5 +1,8 @@
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { signal } from '@angular/core';
+import type { WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { HubConnectionState } from '@microsoft/signalr';
 import { of, Subject, throwError } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
@@ -133,6 +136,7 @@ describe('CompetitionMonitorComponent', () => {
     joinCompetitionAsOrganizer: jest.Mock;
     leaveCompetition: jest.Mock;
     on: jest.Mock;
+    state: WritableSignal<HubConnectionState>;
   };
   let evaluationCompletedSubject: Subject<EvaluationCompletedEvent>;
   let tableClosedSubject: Subject<TableClosedEvent>;
@@ -162,6 +166,11 @@ describe('CompetitionMonitorComponent', () => {
         }
         return evaluationCompletedSubject.asObservable();
       }),
+      // Starts Connected: the effect that watches this signal runs once immediately on creation
+      // and must treat that first observation as "already connected," not a reconnect — same as
+      // the real hub having finished start()/joinCompetitionAsOrganizer() by the time this
+      // component's effect is set up in practice.
+      state: signal(HubConnectionState.Connected),
     };
 
     TestBed.configureTestingModule({
@@ -225,6 +234,25 @@ describe('CompetitionMonitorComponent', () => {
     await flush();
 
     expect(fakeHub.leaveCompetition).toHaveBeenCalledWith('c1');
+  });
+
+  it('re-fetches on a reconnect (state Connected -> Disconnected -> Connected), but not on the initial connect', async () => {
+    const fixture = createComponent();
+    await flush();
+
+    // Initial load: one call each, from the constructor's loadAll() — the effect's first
+    // observation of "Connected" must not trigger a second fetch.
+    expect(fakeMonitoringApi.getProgress).toHaveBeenCalledTimes(1);
+
+    fakeHub.state.set(HubConnectionState.Reconnecting);
+    fixture.detectChanges();
+    fakeHub.state.set(HubConnectionState.Connected);
+    fixture.detectChanges();
+    await flush();
+
+    expect(fakeMonitoringApi.getProgress).toHaveBeenCalledTimes(2);
+    expect(fakeCompetitionsApi.getById).toHaveBeenCalledTimes(2);
+    expect(fakeEntriesApi.getEntries).toHaveBeenCalledTimes(2);
   });
 
   it('updates a table row progress in place on a live EvaluationCompleted event, without reloading', async () => {

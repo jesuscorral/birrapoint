@@ -51,7 +51,10 @@ public sealed class GetEntryEvaluationsQueryHandler(AppDbContext dbContext, ICur
             return null;
         }
 
+        // AsNoTracking: read-only audit view, no reason to track the joined Evaluation entities
+        // (senior-code-reviewer finding on PR #24 — matches GetCompetition's read-model convention).
         var evaluations = await dbContext.Evaluations
+            .AsNoTracking()
             .Where(ev => ev.BeerEntryId == request.EntryId)
             .Join(dbContext.Judges, ev => ev.JudgeId, j => j.Id, (ev, j) => new { Evaluation = ev, j.DisplayName })
             .ToListAsync(cancellationToken);
