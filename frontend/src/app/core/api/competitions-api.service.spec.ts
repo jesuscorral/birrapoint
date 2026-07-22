@@ -5,7 +5,11 @@ import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { CompetitionsApiService } from './competitions-api.service';
-import type { CompetitionDetail, CompetitionPayload } from './competitions-api.service';
+import type {
+  CompetitionDetail,
+  CompetitionPayload,
+  CompetitionSummary,
+} from './competitions-api.service';
 
 describe('CompetitionsApiService', () => {
   let service: CompetitionsApiService;
@@ -78,5 +82,36 @@ describe('CompetitionsApiService', () => {
     req.flush(detail);
 
     expect(await result).toEqual(detail);
+  });
+
+  it('list() gets the caller-owned competitions summary from /competitions', async () => {
+    const summaries: CompetitionSummary[] = [
+      {
+        id: 'c1',
+        name: 'Golden Ale Cup',
+        venue: 'Town Hall',
+        startDate: '2026-08-01',
+        endDate: '2026-08-02',
+        state: 'Draft',
+      },
+    ];
+    const result = firstValueFrom(service.list());
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions`);
+    expect(req.request.method).toBe('GET');
+    req.flush(summaries);
+
+    expect(await result).toEqual(summaries);
+  });
+
+  it('changeState() posts the target state to /competitions/{id}/state', async () => {
+    const result = firstValueFrom(service.changeState('c1', 'Active'));
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1/state`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ target: 'Active' });
+    req.flush({ state: 'Active' });
+
+    expect(await result).toEqual({ state: 'Active' });
   });
 });

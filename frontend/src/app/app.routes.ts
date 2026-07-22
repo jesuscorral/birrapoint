@@ -8,7 +8,7 @@ import { EntryImportComponent } from './features/entry-import/entry-import.compo
 import { JudgeManagementComponent } from './features/judge-management/judge-management.component';
 import { JudgeTableOrderComponent } from './features/judge-tables/judge-table-order.component';
 import { JudgeTablesListComponent } from './features/judge-tables/judge-tables-list.component';
-import { OrganizerDashboardComponent } from './features/auth/organizer-dashboard.component';
+import { OrganizerDashboardComponent } from './features/dashboard/organizer-dashboard.component';
 import { TableManagementComponent } from './features/table-management/table-management.component';
 
 export const routes: Routes = [

@@ -3,8 +3,8 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
-import { CompetitionsApiService } from './competitions-api.service';
-import type { CompetitionDetail } from './competitions-api.service';
+import { CompetitionsApiService } from '../../core/api/competitions-api.service';
+import type { CompetitionDetail } from '../../core/api/competitions-api.service';
 import { CompetitionWizardComponent } from './competition-wizard.component';
 
 function detailFixture(overrides: Partial<CompetitionDetail> = {}): CompetitionDetail {

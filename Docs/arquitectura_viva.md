@@ -5,7 +5,7 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-21 · after T050–T054 — **Phase 8 (US6, Blind Table Dynamics: Shared Fixed Order) complete**
+**Last updated:** 2026-07-22 · after T102–T103 — **Phase 8 (US6) and Phase 17 (US13, Organizer Competition Selection, incl. FR-051 state advancement) complete**
 
 ## Global status
 
@@ -14,7 +14,7 @@ T021–T024), Phase 4 (US2, Competition Creation Wizard with Drafts, T025–T030
 Entry Import with In-Flow Correction, T031–T037), Phase 6 (US4, Judge Registration and
 Automatic Invitations, T038–T044), and Phase 7 (US5, Table Setup with Conflict-of-Interest
 Protection, T045–T049) are **complete**. Phase 8 (User Story 6 — Blind Table Dynamics: Shared
-Fixed Order, T050–T054) is now also **complete**: the judge-facing `Features/TastingOrder/` slice
+Fixed Order, T050–T054) is also **complete**: the judge-facing `Features/TastingOrder/` slice
 (`GET /me/tables`, `GET /me/tables/{tableId}/samples`, one-shot `POST /me/tables/{tableId}/order`
 serialized via `SELECT ... FOR UPDATE`, T050–T052) plus the first real frontend content in
 `features/judge-tables/` — blind sample list, CDK drag-drop + keyboard move-up/down reorder
@@ -23,6 +23,26 @@ spec proving cross-session propagation within FR-021's ≤1s budget across two i
 browser sessions (T054). Quickstart scenarios 1–5 pass end to end; scenario 6 passes for the
 order-fix/propagation/lock behavior this story delivers (the "sheets openable only in fixed
 sequence" half needs the evaluation sheet, US7/T061, not built yet).
+
+**Phase 17 (User Story 13 — Organizer Competition Selection, T100–T101)**, added and built the same
+day after a UI-mockup review surfaced a real gap: the organizer landing page had no way to see or
+pick a competition beyond a directly-typed URL. Backend-free — `GET /competitions` already existed
+(T027) — so this was a pure frontend addition: `features/dashboard/` (the real
+`OrganizerDashboardComponent`, replacing T024's placeholder) lists the caller's competitions with a
+state badge and routes `Draft` into the wizard, `Active`+ into the tables screen (a stand-in until
+Phase 11/US9 ships a unified management view). Found and fixed the same day: a pre-existing
+app-shell bug (`app.html`, since T003) that pushed every route's content below the fold behind a
+static full-viewport splash — see Recorded debt/Frontend section below.
+
+**T102–T103 (2026-07-22)** closed both items PR #21's review left open, same day: (1) a senior-code-
+reviewer FSD finding — `CompetitionsApiService` relocated from `features/competition-wizard/` to
+`core/api/` now that a second feature (`features/dashboard/`) consumes it; (2) a real product gap —
+FR-051/Acceptance Scenario 5 add an advance-state action to each dashboard row (`Draft`→"Activate"→
+`Active`→"Start evaluation"→`InEvaluation`→"Finalize"→`Finalized`, one step at a time per FR-006,
+behind an explicit irreversible-action confirm), calling the already-existing
+`POST /competitions/{id}/state` (T028) for the first time from real UI. Two E2E specs
+(`us6-order.spec.ts`, `us13-dashboard.spec.ts`) that had been working around the missing button
+with a captured-bearer-token direct API call now drive the real button instead.
 
 **Scope note**: T048A's beer/judge detail modals ship without allergen/special-award badges or
 judge BJCP-certification fields — a prior session's task-doc edit referenced them with zero
@@ -568,9 +588,11 @@ route restructure) plus the one genuinely new piece, T030.
   recreate the component and lose `currentStep`/in-flight state, since `/new` and `/:id` are
   different route entries) — a plain page reload at that point already resumes correctly, purely
   because the browser URL now carries the real id. `CompetitionsApiService`
-  (`competitions-api.service.ts`) is a thin `ApiClient` wrapper (`create`/`update`/`getById`)
-  typed against `contracts/rest-api.md` §Competitions' exact wire shape
-  (`CompetitionPayload`/`CompetitionDetail`). Both step components follow the same shape: a
+  (originally `competitions-api.service.ts` here; relocated to `core/api/` at T102 once
+  `features/dashboard/` became a second consumer — see that section below) is a thin `ApiClient`
+  wrapper (`create`/`update`/`getById`, `list`/`changeState` added later for US13) typed against
+  `contracts/rest-api.md` §Competitions' exact wire shape (`CompetitionPayload`/`CompetitionDetail`).
+  Both step components follow the same shape: a
   `ReactiveFormsModule` form, an `ApiError`-typed error signal split into per-field (`fieldError`)
   and banner (`bannerError`) display, and an `input.required<string>()`/`input<T | null>()` +
   `output<CompetitionDetail>()` contract so the parent wizard never reaches into child state
@@ -679,6 +701,39 @@ route restructure) plus the one genuinely new piece, T030.
   best-effort throughout (a hub connection failure leaves the view fully functional over REST, just
   without live updates until next load) — contracts/signalr-hub.md's own framing, "events are
   notifications, not the source of truth."
+- **`features/dashboard/`** (T100, US13): `OrganizerDashboardComponent` — the real ORGANIZER
+  landing page (route `/organizer/dashboard`), replacing T024's `<h1>Organizer dashboard</h1>`
+  placeholder in `features/auth/` (deleted, same stub-removal convention as `judge-tables`'s T053).
+  Loads `CompetitionsApiService.list()` (new method, `GET /competitions`) and renders each owned
+  competition's name/venue/dates plus a `badge--{state-lowercased}` pill; each row is a
+  `routerLink` to the wizard (`/organizer/competitions/{id}`) for `Draft`, or the tables screen
+  (`/organizer/competitions/{id}/tables`) for `Active`/`InEvaluation`/`Finalized` — a deliberate
+  stand-in destination, confirmed with the user, until Phase 11/US9 ships a real unified Active+
+  management view. An always-visible "New competition" action routes to
+  `/organizer/competitions/new`; zero competitions renders an empty state with the same CTA
+  (FR-050, Acceptance Scenario 4). Single component, no list/item split.
+  **Bug found and fixed the same day, unrelated to this task's own files**: while visually
+  verifying this component in a real browser (not just Jest/jsdom), the routed content rendered
+  correctly but was pushed entirely below the fold — `frontend/src/app/app.html` (unchanged since
+  T003/T004 scaffolding) wrapped a static, purely decorative `<h1>{{ title() }}</h1>` (`"BirraPoint"`)
+  in `<main class="flex min-h-screen items-center justify-center …">`, permanently consuming the
+  full viewport height ahead of `<router-outlet />` on **every** route in the app, not just this
+  one. Invisible to every prior E2E spec since Playwright's locators don't care about scroll
+  position. Fixed by removing the splash entirely (`App`'s `title` signal removed too, now unused);
+  each routed page already renders its own `<h1>`, so this was dead weight, not a needed
+  page-title slot — also resolves a latent multiple-`<h1>` accessibility smell.
+  **T102 (2026-07-22)**: each row gains an advance-state `<button class="advance-state-action">`
+  as a **sibling** of the navigation `<a>`, never nested inside it (a `<button>` inside an `<a>` is
+  invalid HTML and a nested-interactive-control accessibility hazard) — shown only when a next
+  state exists per FR-006's forward-only chain (`NEXT_STATE`/`ADVANCE_LABEL` lookup tables,
+  `Finalized` renders none), behind the same explicit `alertdialog`+`cdkTrapFocus` confirm pattern
+  `judge-table-order.component.ts`'s "Fix order" already established — irreversible actions get a
+  confirm step in this codebase, consistently. Success refetches the list rather than mutating
+  state locally (same reconciliation convention as `judge-table-order.component.ts`/
+  `table-management.component.ts`); `409 tables-still-open` reads the `openTableIds` ProblemDetails
+  extension array's length for the blocked-count message (resolving the ids to table names was
+  scoped out — an extra round-trip not worth it for an error path); `409 invalid-state-transition`
+  (a same-competition race) shows a plain message and refetches to reconcile.
 - **`core/api/`** (T020): the typed HTTP client + ProblemDetails→UI error mapping.
   - `problem-details.model.ts`: `ProblemDetails`/`ValidationProblemDetails` interfaces plus
     `BIRRAPOINT_ERROR_URNS` — the 14 `urn:birrapoint:*` values from contracts/rest-api.md §Error
@@ -729,8 +784,8 @@ route restructure) plus the one genuinely new piece, T030.
 | Suite | Command | Current state |
 |---|---|---|
 | Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 131 unit tests (was 121; +10 **T050** `TastingOrder/FixOrderTests.cs`: permutation-validation edge cases, one-shot `OrderAlreadyFixed` with the `fixedBy` extension, state gating Draft/Finalized reject vs. Active/InEvaluation accept — exercises `TastingOrderRules` directly, a pure static helper, not the MediatR handler, same "pure rule beside DB-touching handler" split as Phase 7's `CoiDetector`/`BosFlagRules`, since a real handler test needs a live transaction/row lock the constitution reserves for Testcontainers) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15) + T045 `Tables/` (13); 113 integration tests (was 104; +9 **T051** `TastingOrder/OrderApiTests.cs`: `/me/tables` membership scoping (unassigned → `[]`, `RemovedAt`-excluded, Draft-invisible), `404` on non-membership, the BR-01 wire-payload structural check (no `beerName`/`participant`/`brewery` key anywhere in the raw JSON, not just DTO-shape), happy-path fix + locked state, `400` on a non-permutation body, and the concurrent-fixer race — two simultaneous `POST .../order` calls via `Task.WhenAll`, exactly one `200` and one `409 order-already-fixed`) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) + T046 `Tables/` (22) |
-| Frontend unit | `cd frontend && npx jest` | green — 167 tests (was 145; net +22 = **T053** `features/judge-tables/`'s 23 new tests (`TastingOrderApiService` URL/method assertions; `JudgeTablesListComponent` renders assigned tables + order-fixed badge; `JudgeTableOrderComponent` covering drag reorder, keyboard up/down reorder, Fix Order confirm-then-lock, a fake `HubConnection` delivering `TableOrderFixed` locking the UI with no explicit API call, and `409` error-path messages including `order-already-fixed`'s `fixedBy` extension — same hand-rolled-fake-over-mocking-library convention as `competition-hub.service.spec.ts` for the SignalR seam) minus the 1 placeholder test for the `features/auth/JudgeTablesComponent` stub T053 replaced) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (13, was 14) + T029 `features/competition-wizard/` (23) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12) + T048 `features/table-management/` (47). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
-| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), `us5-tables.spec.ts` (1), and new **T054 `us6-order.spec.ts`** (1: two independent judge browser contexts — separate Keycloak SSO sessions, real forced-password-change flow each — on one table; judge A reorders via the keyboard Move-down control and fixes the order through the confirm dialog; judge A's own view locks immediately; judge B's view, with **no reload/navigation**, reflects the lock and matching sample order within a bounded 1000 ms wait, enforcing FR-021's propagation budget rather than masking a regression with a generous timeout; also asserts no entrant field ever renders on either judge's page. The "sheets openable only in fixed sequence" half of scenario 6 is deferred — inline comment pointing at T061/`us7-offline.spec.ts` once the evaluation sheet exists) — verified green across 4 consecutive runs, no flakiness — all green against a live, fully-warmed Aspire stack, but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated to Phase 4–8: `login-required` races `page.goto('/')`). See Recorded debt below. Chromium only |
+| Frontend unit | `cd frontend && npx jest` | green — 186 tests (was 167; net +19 — **T100**'s net +8 (dashboard list/routing/empty/error, `list()`, `app.spec.ts` router-outlet assertion) plus **T102**'s net +11: `competitions-api.service.spec.ts`'s new `changeState()` test (now living in `core/api/` after the relocation) and `organizer-dashboard.component.spec.ts`'s 9 new tests (per-state advance label/visibility incl. none for `Finalized`, confirm-then-call, cancel, success-triggers-refetch, both `409` paths, and a DOM-structure regression check proving the nav link and advance button are independently clickable siblings, not nested) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (13) + T029 `features/competition-wizard/` (24) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12) + T048 `features/table-management/` (47) + T053 `features/judge-tables/` (23). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
+| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), `us5-tables.spec.ts` (1), `us6-order.spec.ts` (1: two independent judge browser contexts, order-fix propagation ≤1s — its `Draft`→`Active` setup step now drives the real T102 advance-state button instead of a captured-token direct API call, since T103 retired that workaround), and **`us13-dashboard.spec.ts`** (3, was 1 at T101: the original list/routing/new-wizard test, plus **T103**'s two new ones — confirming the advance-state action moves a `Draft` competition to `Active` in place with no navigation and relabels to the next transition (Acceptance Scenario 5), and blocking a `Finalized` attempt while a table is open with the blocking count named (Acceptance Scenario 5 edge case) — both now driven through the real button+confirm-dialog flow, not the token-capture workaround T101 originally used) — verified green across multiple consecutive runs, no flakiness, all green against a live, fully-warmed Aspire stack, but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated to Phase 4–17: `login-required` races `page.goto('/')`). **Gap still open**: no organizer route, including `/organizer/dashboard`, is in the axe-core sweep yet — `a11y/home.a11y.spec.ts` only covers the placeholder app shell; a full-suite sweep is Phase 15/T089 territory, not yet done. See Recorded debt below. Chromium only |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
 ## Data flows
@@ -800,9 +855,28 @@ at all, since Keycloak's hosted UI resolves it before the OIDC code exchange com
 involved, FR-003). Every outgoing `HttpClient` request to `apiBaseUrl` gets the access token
 attached automatically (T019). T020's `CompetitionHubService` is consumed for the first time by
 Phase 8/US6 (above); its `db.ts` (the Dexie offline store) still isn't — that's T060's job.
+**T100–T101** (US13): `/organizer/dashboard` → `OrganizerDashboardComponent` → `GET /competitions`
+(already existed, T027 — first frontend consumer) → each competition routes onward by its own
+`state` field, no new backend round-trip needed. **T102–T103** (US13, FR-051): the same dashboard's
+advance-state button → `POST /competitions/{id}/state` (already existed, T028) — now called from
+real UI for the first time, not just tested directly — confirm → success refetches `GET
+/competitions` (same call as page load, no separate "just this row" endpoint) → badge updates in
+place.
 
 ## Recorded debt / immediate next steps
 
+- **Resolved 2026-07-22 (T102)**: `features/dashboard/organizer-dashboard.component.ts`'s
+  feature→feature import of `CompetitionsApiService` (flagged by senior-code-reviewer on PR #21)
+  is fixed — the service now lives in `core/api/`, both consuming features import it from there.
+- **Resolved 2026-07-22 (T102–T103)**: the organizer dashboard now has a real advance-state action
+  (FR-051) — `POST /competitions/{id}/state` (T028) is no longer only reachable via a raw API call;
+  both E2E specs that used to work around its absence with a captured-bearer-token direct call now
+  drive the real button. See `features/dashboard/` above for the implementation.
+- **New**: `/organizer/dashboard` (T100) and every other organizer route are not yet covered by the
+  axe-core accessibility sweep — `frontend/e2e/a11y/home.a11y.spec.ts` only exercises the
+  placeholder app shell today. Same gap category as the pre-existing `smoke.spec.ts`/
+  `home.a11y.spec.ts` `login-required`-race failures noted below; a real organizer- and
+  judge-route sweep is Phase 15/T089's job, not done piecemeal per story so far.
 - **New, security-relevant**: real judge invitations never grant the Keycloak `JUDGE` realm role.
   `RegisterJudgesCommandHandler` → `SendInvitationHandler` → `IKeycloakAdminClient.
   EnsureUserWithTemporaryPasswordAsync` (`Common/Keycloak/KeycloakAdminClient.cs`) creates/updates

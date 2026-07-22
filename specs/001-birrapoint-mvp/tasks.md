@@ -11,7 +11,7 @@ description: "Task list for BirraPoint MVP — Beer Competition Blind-Tasting Pl
 
 **Tests**: MANDATORY (Constitution Principle III). Every user story includes test tasks, written first and failing before implementation. The quickstart scenario numbers referenced below map 1:1 to user stories.
 
-**Organization**: Tasks are grouped by user story (US1–US12, priority order P1 → P3) so each story is an independently implementable, testable increment.
+**Organization**: Tasks are grouped by user story (US1–US12 priority order P1 → P3, plus US13 appended 2026-07-21) so each story is an independently implementable, testable increment.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -356,6 +356,26 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 ---
 
+## Phase 17: User Story 13 - Organizer Competition Selection (Priority: P2)
+
+**Goal**: Organizer dashboard lists every owned competition (name/venue/dates/state), opens the
+right screen for its state, or starts a new one — no more direct-URL-only access
+
+**Independent Test**: quickstart.md scenario 13
+
+**Note**: Backend already complete — `GET /competitions` (`ListCompetitionsQuery`, T027) already
+returns exactly the shape this story needs (contracts/rest-api.md §Competitions, tightened
+2026-07-21); no new backend task, no new backend test.
+
+### Implementation for User Story 13
+
+- [X] T100 [US13] Frontend organizer dashboard: `features/dashboard/` lists the caller's competitions (name, venue, dates, state) via `GET /competitions`, links each into its wizard (`Draft`) or the matching management screen (`Active`+), a "New competition" action opening the wizard empty, and an empty state when the caller owns none; replaces the placeholder `OrganizerDashboardComponent` in `frontend/src/app/features/auth/` (delete the stub + its spec once replaced, same convention as T053's `judge-tables` stub removal) and updates `app.routes.ts`'s `organizer` children accordingly; include Jest specs alongside (list rendering, per-state routing, empty state, new-competition action) in `frontend/src/app/features/dashboard/` — also fixed a pre-existing app-shell bug found during manual verification: `app.html`'s static full-viewport "BirraPoint" splash (since T003) pushed every route's content below the fold; removed, `App` now renders only `<router-outlet />`
+- [X] T101 [US13] E2E scenario 13 in `frontend/e2e/us13-dashboard.spec.ts` — empty-state acceptance scenario intentionally left to T100's Jest coverage (the shared E2E organizer account is never empty across the suite's run order)
+- [X] T102 [US13] Relocate `CompetitionsApiService` (+ `CompetitionPayload`/`CompetitionDetail`/`CompetitionSummary`/`CompetitionState`) from `frontend/src/app/features/competition-wizard/` to `frontend/src/app/core/api/competitions-api.service.ts` (PR #21 review follow-up — now consumed by two features, the FSD threshold for promoting a client to `core/`); update every import site (`competition-wizard.component.ts`, `steps/basics-step.component.ts`, `steps/details-step.component.ts`, `features/dashboard/organizer-dashboard.component.ts`, and their specs); add `changeState(id, target): Observable<{ state: CompetitionState }>` (`POST /competitions/{id}/state`) to the relocated service. Frontend advance-state action (Acceptance Scenario 5 / FR-051): on each dashboard list item, a control showing only the single valid next state per FR-006 (hidden for `Finalized`), gated behind an explicit confirm step (irreversible, forward-only); on success, refetches the list (badge updates, no reload); on `409 tables-still-open`, surfaces the blocking table count from the ProblemDetails `openTableIds` extension; on `409 invalid-state-transition` (race with another tab), surfaces a plain message and refetches. Jest specs alongside covering the button-per-state matrix, confirm step, both 409 paths, and success refresh, in `frontend/src/app/features/dashboard/`
+- [X] T103 [US13] E2E: extended `frontend/e2e/us13-dashboard.spec.ts` with the advance-state flow (confirm-advance a `Draft` competition to `Active` via the real UI button, badge updates with no reload, action relabels to the next transition) and the `Finalized`-blocked-by-open-tables case; replaced the token-capture `activateCompetition` workaround in `us13-dashboard.spec.ts` **and** `frontend/e2e/us6-order.spec.ts` with the real button — closes the "no UI for this" gap recorded in Docs/arquitectura_viva.md
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -376,6 +396,7 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 - **US12 (Phase 14)**: Needs live tables (US6) and dashboard action surface (US9)
 - **Polish (Phase 15)**: After desired stories
 - **Deployment & Ops (Phase 16)**: T095 any time after Setup; T096–T098 after Foundational (need the AppHost from T005 and running services); T099 last — it validates the releasable whole
+- **US13 (Phase 17)**: Only needs `GET /competitions` (US2/T027, already built); no dependency on any other P2/P3 story or on Phases 9–16
 
 Note: this feature's stories form a pipeline (provisioning → judging → closing), so priority order
 is also the natural dependency order. Each story still has its own independent test checkpoint.
@@ -423,3 +444,7 @@ valve; Phase 15 hardens budgets, accessibility, and docs before release.
 - Tests within each story MUST be written first and observed failing (Constitution Principle III)
 - Commit after each task or logical group; spec artifacts travel with implementation (CLAUDE.md Git rules)
 - The BR-01 anonymity contract test (T051) is the single most important regression guard in the suite — never skip it
+- Phase 17 (US13) was added 2026-07-21 after a UI-mockup review surfaced a real gap in FR-002's
+  landing behavior (no way to see/pick an existing competition beyond a direct URL). It has no
+  dependency on Phases 9–16 and can be done any time after Phase 4 (US2) lands, since it only needs
+  `GET /competitions` to already exist.

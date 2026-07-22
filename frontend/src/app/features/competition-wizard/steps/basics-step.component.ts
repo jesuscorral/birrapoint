@@ -11,8 +11,11 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import type { AbstractControl, ValidationErrors } from '@angular/forms';
 
 import { ApiError } from '../../../core/api/api-error';
-import { CompetitionsApiService } from '../competitions-api.service';
-import type { CompetitionDetail, CompetitionPayload } from '../competitions-api.service';
+import { CompetitionsApiService } from '../../../core/api/competitions-api.service';
+import type {
+  CompetitionDetail,
+  CompetitionPayload,
+} from '../../../core/api/competitions-api.service';
 
 function endDateNotBeforeStartDate(group: AbstractControl): ValidationErrors | null {
   const start = group.get('startDate')?.value as string;

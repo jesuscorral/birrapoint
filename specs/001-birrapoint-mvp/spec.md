@@ -24,6 +24,17 @@
 - Q: Which production PostgreSQL does the infrastructure provision? → A: PostgreSQL runs as a container inside the cloud container environment with persistent storage (not an externally managed database server).
 - Q: Where does the identity provider run in production? → A: As a container in the same cloud environment, provisioned by the same single-command deployment as the rest of the system.
 
+### Session 2026-07-21
+
+- Q: A third-party UI mockup showed a per-competition choice of scoring standard (BJCP/AHA/custom) with organizer-editable section caps and a percentage-based consensus threshold — adopt it? → A: No — competitions stay BJCP-only with the fixed section caps of FR-023 and the fixed 7-point discrepancy threshold of FR-031; explicitly rejected, recorded under Out of Scope.
+- Q: The same mockup merged beer-entry import (US3) and judge registration (US4) into one combined screen — adopt it? → A: No — they stay two separate capabilities, as already built.
+- Q: The same mockup redesigned table setup (US5) as flat list cards instead of the already-built and E2E-tested physical-table/seat metaphor — adopt it? → A: No — keep the existing, already-validated design; no visual rework.
+- Q: The organizer dashboard (FR-002's landing target) has no way to see or choose which competition to work on beyond a directly-typed address — is a competition list/selection screen in scope? → A: Yes — added as User Story 13 / FR-050.
+
+### Session 2026-07-22
+
+- Q: FR-006 already defines the competition lifecycle state machine, but no requirement says where an organizer actually triggers a transition — after shipping US13's dashboard, there is still no UI control anywhere to advance a competition past `Draft`. In scope now? → A: Yes — the dashboard (US13) is the right home for it; added as Acceptance Scenario 5 / FR-051.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Secure Access with Role-Based Entry (Priority: P1)
@@ -275,7 +286,34 @@ rejected.
 
 ---
 
+### User Story 13 - Organizer Competition Selection (Priority: P2)
+
+After login, an organizer sees every competition they have created, each with its name, venue,
+dates, and current lifecycle state, and can either open one to continue working on it or start a
+new one — without needing to know or type any internal address.
+
+**Why this priority**: An organizer running more than one competition (or returning to one created
+in a prior session) needs a way to find it; the core single-competition flows (creation, setup,
+judging) already work end to end without this, so it layers on top rather than blocking them.
+
+**Independent Test**: As an organizer with two competitions in different lifecycle states, log in,
+confirm both are listed with the correct state, open each and land in the screen appropriate to its
+state, then separately start and complete creating a brand-new competition from the same screen.
+
+**Acceptance Scenarios**:
+
+1. **Given** an authenticated organizer with one or more competitions, **When** login completes, **Then** the organizer dashboard lists every competition they created, each showing its name, venue, dates, and current lifecycle state.
+2. **Given** the organizer dashboard, **When** the organizer selects a listed competition, **Then** they land in the screen matching its current state (the setup wizard for `Draft`, the relevant management view for `Active` or later).
+3. **Given** the organizer dashboard, **When** the organizer chooses to start a new competition, **Then** the creation wizard of User Story 2 opens with no prior data.
+4. **Given** an organizer with no competitions yet, **When** login completes, **Then** the dashboard shows an empty state with a clear call to action to create the first one.
+5. **Given** a competition the organizer owns, **When** they confirm advancing it, **Then** it moves to its single next lifecycle state per FR-006 (`Draft`→`Active`→`In Evaluation`→`Finalized`) and the dashboard reflects the new state without a page reload; **When** advancing to `Finalized` is blocked because tables remain open, **Then** the organizer sees which tables must close first.
+
+---
+
 ### Edge Cases
+
+- An organizer with no competitions yet: the dashboard shows an empty state with a create action, not a blank or broken screen.
+- An organizer attempts to advance a competition to `Finalized` while one or more of its tables are still open: blocked, and the organizer sees exactly which tables need closing first (FR-006/FR-036).
 
 - A judge goes offline before the table order is fixed: on reconnection their list reorders to the fixed sequence; samples already submitted remain valid regardless of their position in the new order.
 - A judge's offline sync arrives after the table was closed: the sync is rejected (immutability), the judge is notified, and the held data is surfaced to the organizer for manual resolution rather than silently discarded.
@@ -299,6 +337,11 @@ rejected.
 - **FR-003**: Accounts flagged as requiring a password change MUST be forced to set a new password before any competition data is displayed; direct navigation MUST NOT bypass this step.
 - **FR-004**: Judges MUST be able to view and edit only the samples assigned to their table(s); removing an assignment revokes that access immediately.
 - **FR-005**: Only organizers can: manage the competition lifecycle, import entries, register judges, manage tables, view audit panels, close the event, and trigger dispatch.
+
+**Organizer Workspace Navigation**
+
+- **FR-050**: After login, the organizer dashboard MUST list every competition owned by the caller (name, venue, dates, current lifecycle state) and let the organizer open any of them into the screen appropriate for its state, or start creating a new one; this MUST NOT require knowing or typing an internal address for an existing competition.
+- **FR-051**: The organizer dashboard MUST let the organizer advance a listed competition to its next lifecycle state, showing only the single valid next transition per FR-006 (never a menu of all four states) and requiring an explicit confirmation step before the change takes effect, since the transition is forward-only and cannot be undone. Advancing to `Finalized` while any of the competition's tables remain open MUST be blocked with the blocking tables identified to the organizer (FR-036).
 
 **Competition Lifecycle**
 
@@ -410,6 +453,7 @@ rejected.
 - **SC-009**: A judge can complete and submit an evaluation sheet end to end using only the keyboard, and all judge-facing flows satisfy WCAG 2.1 AA.
 - **SC-010**: A first-time judge completes their first evaluation sheet in under 10 minutes without external help or training material, verified in usability testing with at least 5 judges.
 - **SC-011**: A fresh cloud environment is provisioned and the full system deployed by executing a single command, with zero manual configuration steps; a fresh local environment starts with a single command.
+- **SC-012**: An organizer with multiple competitions can locate and open any existing one from the post-login dashboard in under 10 seconds, without navigating by a directly-typed address.
 
 ## Assumptions
 
@@ -426,7 +470,9 @@ rejected.
 - The concrete containerization, local orchestration, IaC tooling, and cloud target for FR-043–FR-048 are fixed by the project's approved technology definition (constitution, Technology & Architecture Constraints — amended for this feature) rather than restated here.
 - Because the production database runs in-environment (FR-047) instead of on a managed database service, backup/export scheduling and restore verification are an explicit operational responsibility of the deployment, not the platform.
 - Excluding a row during import correction removes it from the import only; it is reported in the import summary.
+- An organizer may own multiple competitions simultaneously (the platform already scopes every competition to its creating organizer); User Story 13 exposes that existing scoping in the UI rather than introducing new multi-tenancy behavior.
 
 ## Out of Scope (MVP)
 
 - **Tie-break rounds and Best of Show (BOS)**: algorithmic or visual handling of ties and the final BOS round are excluded. These continue on paper, coordinated in person by organizers and head judges. The platform's only contribution is the recorded "Not valid for BOS" eligibility flag on affected entries.
+- **Configurable/multi-standard scoring**: only the BJCP 2021 catalog and the fixed five-section score caps (FR-023) are supported; a per-competition choice of scoring standard (e.g. AHA), organizer-editable section caps, or an editable consensus threshold (in place of the fixed 7-point rule of FR-031) are out of scope for the MVP (considered and explicitly rejected, Clarifications 2026-07-21).

@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import type { Observable } from 'rxjs';
 
-import { ApiClient } from '../../core/api/api-client.service';
+import { ApiClient } from './api-client.service';
 
 export type CompetitionState = 'Draft' | 'Active' | 'InEvaluation' | 'Finalized';
 
@@ -33,6 +33,17 @@ export interface CompetitionDetail {
   state: CompetitionState;
 }
 
+// Response shape for GET /competitions (contracts/rest-api.md §Competitions, US13) — the
+// caller-owned summary subset, not the full wizard detail.
+export interface CompetitionSummary {
+  id: string;
+  name: string;
+  venue: string;
+  startDate: string;
+  endDate: string;
+  state: CompetitionState;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CompetitionsApiService {
   private readonly apiClient = inject(ApiClient);
@@ -47,5 +58,19 @@ export class CompetitionsApiService {
 
   getById(id: string): Observable<CompetitionDetail> {
     return this.apiClient.get<CompetitionDetail>(`/competitions/${id}`);
+  }
+
+  list(): Observable<CompetitionSummary[]> {
+    return this.apiClient.get<CompetitionSummary[]>('/competitions');
+  }
+
+  // FR-051/US13 Acceptance Scenario 5 — forward-only lifecycle advance (contracts/rest-api.md
+  // POST /competitions/{id}/state). May 409 with urn:birrapoint:invalid-state-transition (raced
+  // transition) or, for target "Finalized" only, urn:birrapoint:tables-still-open (extensions:
+  // { openTableIds }) — both handled by the caller, not here.
+  changeState(id: string, target: CompetitionState): Observable<{ state: CompetitionState }> {
+    return this.apiClient.post<{ state: CompetitionState }>(`/competitions/${id}/state`, {
+      target,
+    });
   }
 }
