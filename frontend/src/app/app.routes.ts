@@ -11,6 +11,7 @@ import { JudgeManagementComponent } from './features/judge-management/judge-mana
 import { JudgeTableOrderComponent } from './features/judge-tables/judge-table-order.component';
 import { JudgeTablesListComponent } from './features/judge-tables/judge-tables-list.component';
 import { OrganizerDashboardComponent } from './features/dashboard/organizer-dashboard.component';
+import { ResultsDispatchComponent } from './features/results-dispatch/results-dispatch.component';
 import { TableManagementComponent } from './features/table-management/table-management.component';
 
 export const routes: Routes = [
@@ -36,6 +37,7 @@ export const routes: Routes = [
       { path: 'competitions/:id/judges', component: JudgeManagementComponent },
       { path: 'competitions/:id/tables', component: TableManagementComponent },
       { path: 'competitions/:id/monitor', component: CompetitionMonitorComponent },
+      { path: 'competitions/:id/dispatch', component: ResultsDispatchComponent },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
     ],
   },

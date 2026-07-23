@@ -63,6 +63,13 @@ function errorMessage(error: ApiError): string {
       @if (competition(); as comp) {
         <h1>{{ comp.name }}</h1>
         <p class="competition-meta">{{ comp.venue }} &middot; {{ comp.state }}</p>
+        @if (comp.state === 'Finalized') {
+          <p>
+            <a [routerLink]="['/organizer', 'competitions', comp.id, 'dispatch']"
+              >Results &amp; Dispatch</a
+            >
+          </p>
+        }
       }
 
       <ul class="table-progress-list">

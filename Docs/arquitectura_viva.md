@@ -5,7 +5,7 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-22 · after T068–T071 — **Phase 11 (US9, Live Monitoring Dashboard with Audit) complete — the first P2 user story is now done**
+**Last updated:** 2026-07-23 · after T072–T078 — **Phase 12 (US10, Event Closing with Automated Results Dispatch) complete**
 
 ## Global status
 
@@ -128,6 +128,44 @@ monitor screen *after* a table's order was already fixed will never see that not
 (fixing order is one-shot, so no second event will ever arrive to populate it retroactively) — not
 a functional problem (the note is purely informational, nothing depends on it), but worth knowing
 if a future task touches this area. See Recorded debt below.
+
+**Phase 12 (User Story 10 — Event Closing with Automated Results Dispatch, T072–T078)** is now
+**complete**. A real data-model gap surfaced during implementation: nothing in `plan.md`/
+`data-model.md` ever said where generated PDF bytes or the bundled ZIP would live — this stack has
+no blob/file storage at all (Postgres + IndexedDB only). Resolved by adding two entities
+(`data-model.md` updated) storing them as `bytea` directly in Postgres: `GeneratedScoreSheet`
+(one row per `BeerEntry`, upserted on regeneration) and `ResultsArchive` (one row per
+`Competition`). Backend: `ChangeState.cs`'s existing `Finalized` transition (the `tables-still-open`
+gate has existed since T028 but had zero test coverage until this phase — backfilled at the
+integration level) now also enqueues one `GeneratePdfs` `DispatchJob` (FR-036's actual trigger).
+Three new `IDispatchJobHandler`s chain by enqueueing the next stage on success —
+`GeneratePdfsHandler` renders one `ScoreSheetDocument` (QuestPDF) per beer entry, reusing the same
+join shape `GetEntryEvaluationsQueryHandler` (Phase 11) already established for judge names/
+scores/consolidated mean, deliberately duplicated rather than cross-imported per this codebase's
+established preference; `BundleZipHandler` assembles an in-memory `System.IO.Compression.ZipArchive`
+at the FR-040 path (`{CompetitionName}/{ParticipantId}/{StyleCode}_{BlindCode}.pdf`, a pure
+`DispatchPaths.ZipEntryPath` helper) and enqueues one `SendResultEmail` job **per participant** —
+the same one-job-per-recipient convention `SendInvitation` already uses, which is also how FR-041's
+per-recipient status/retry works: each participant's send is tracked entirely via that
+`DispatchJob`'s own `Status`/`Attempts`/`LastError`, no separate email-status entity needed.
+`SendResultEmailHandler` attaches every PDF belonging to that participant's entries via a new
+`IEmailSender.SendWithAttachmentsAsync` (the pre-existing `SendAsync`/`SendInvitationHandler` are
+untouched). Dispatch scope is **competition-wide, not table-wide** — every participant and every
+beer entry in the competition gets a PDF/email/ZIP folder, including an entry that was never
+assigned to any table and so has zero evaluations (confirmed by the E2E spec, which asserts on
+exactly this case). Retry (`POST .../dispatch/retries`) resets a targeted job to a fresh
+`Pending`/`Attempts: 0` rather than continuing an exhausted automatic backoff — picked up by
+`DispatchWorker`'s existing 30s safety-net poll, no proactive wake-up needed. Frontend: the
+"finalize" action needed no new UI at all — it's just another transition through the existing
+T102 advance-state button; `features/results-dispatch/` is the screen reached *afterward*, linked
+from the monitor screen once a competition is `Finalized`. Archive download had to be a `Blob`
+fetch through `HttpClient` (not a plain `<a href>`) since only `HttpClient` requests carry the
+bearer token via the auth interceptor; the component then drives the actual browser save with
+`URL.createObjectURL` + a synthetic anchor click. Archive readiness has no cheap standalone check
+in the contract (the archive endpoint IS the readiness check and the download in one call), so the
+frontend infers it from two signals: an exact live `DispatchProgress` `{jobType: BundleZip, status:
+Completed}` event, or — for a page loaded after the pipeline already finished — a documented
+conservative fallback proxy (every participant status row reaching a terminal state).
 
 **Scope note**: T048A's beer/judge detail modals ship without allergen/special-award badges or
 judge BJCP-certification fields — a prior session's task-doc edit referenced them with zero
@@ -619,18 +657,47 @@ route restructure) plus the one genuinely new piece, T030.
   ignores a later call with a different sub/name), an unmatched email returns an empty list, and a
   name-less call backfills `KeycloakUserId` while leaving `DisplayName` untouched.
 - **`Features/Monitoring/`** (T068–T069, US9): `GetProgress.cs` and `GetEntryEvaluations.cs`, the
-  organizer dashboard's two read models. `GetProgress` loops the competition's tables and issues
-  three small per-table counts (active-judge count, sample count, evaluation count) rather than one
-  bigger joined query — readable and correct at the table counts this MVP targets, though a future
-  competition with many tables could make this worth collapsing into fewer round trips; not done
-  here since it wasn't a measured problem. `GetEntryEvaluations` joins `Evaluation` to `Judge` for
-  display names and only computes a consolidated mean once the entry's table is `Closed` — the
-  rounding is a small deliberate duplicate of `CloseTableRules.ComputeMean` (2 decimals,
-  `AwayFromZero`) rather than a cross-feature-folder import, matching how `CorrectEvaluation.cs`
-  already duplicates `SubmitEvaluationRules`' values instead of reaching into another slice.
-  `Features/TastingOrder/FixOrder.cs` also gained a `PublishToOrganizersAsync` emit for
-  `TableOrderFixed` (same payload as the pre-existing judge-group one) — contracts/signalr-hub.md
-  had documented this row since Phase 8, but nothing emitted it there until now.
+  organizer dashboard's two read models. `GetProgress` computes every table's completed/expected/
+  percent via three `GroupBy` queries (constant round trips regardless of table count — originally
+  a per-table loop, fixed to this shape on senior-code-reviewer's PR #24 finding since this feeds a
+  live dashboard organizers reload during an active event). `GetEntryEvaluations` joins `Evaluation`
+  to `Judge` (`AsNoTracking`, another PR #24 fix — a read-only audit view has no reason to track
+  the joined entities) for display names and only computes a consolidated mean once the entry's
+  table is `Closed` — the rounding is a small deliberate duplicate of `CloseTableRules.ComputeMean`
+  (2 decimals, `AwayFromZero`) rather than a cross-feature-folder import, matching how
+  `CorrectEvaluation.cs` already duplicates `SubmitEvaluationRules`' values instead of reaching into
+  another slice — the same duplication convention `Features/Dispatch/GeneratePdfsHandler.cs` (below)
+  reuses a third time. `Features/TastingOrder/FixOrder.cs` also gained a `PublishToOrganizersAsync`
+  emit for `TableOrderFixed` (same payload as the pre-existing judge-group one) —
+  contracts/signalr-hub.md had documented this row since Phase 8, but nothing emitted it there until
+  now.
+- **`Features/Dispatch/`** (T072–T076, US10, ADR-0010): the finalize→PDF→ZIP→email pipeline.
+  `ChangeState.cs`'s existing `Finalized` transition (the `tables-still-open` gate has existed since
+  T028 but had zero test coverage until this phase) now also enqueues one `GeneratePdfs`
+  `DispatchJob` — FR-036's actual trigger. Three `IDispatchJobHandler`s chain by enqueueing the next
+  stage on success: `GeneratePdfsHandler` renders a `ScoreSheetDocument` (QuestPDF, one page per
+  beer entry — competition name, blind code, style, every judge's five section scores/comments/
+  total, consolidated mean; deliberately no participant/beer name anywhere in the PDF content
+  itself per R-14/BR-01) per beer entry into a new `GeneratedScoreSheet` row (upserted by
+  `BeerEntryId`, `bytea`, ADR-0010); `BundleZipHandler` assembles an in-memory
+  `System.IO.Compression.ZipArchive` at the FR-040 path (`DispatchPaths.ZipEntryPath` — a pure
+  function, deliberately not sanitizing the competition name since a ZIP entry name has none of a
+  filesystem path's reserved-character concerns) into a new `ResultsArchive` row (upserted by
+  `CompetitionId`), then enqueues one `SendResultEmail` job **per participant** — the same
+  one-job-per-recipient convention `SendInvitation` already established, which is also how FR-041's
+  per-recipient status/retry works: each participant's send is tracked entirely via that
+  `DispatchJob`'s own `Status`/`Attempts`/`LastError`, no separate email-status entity needed.
+  `SendResultEmailHandler` attaches every PDF belonging to that participant's entries via a new
+  `IEmailSender.SendWithAttachmentsAsync` (`EmailAttachment` record; the pre-existing `SendAsync`/
+  `SendInvitationHandler` call site is untouched). Dispatch scope is **competition-wide, not
+  table-wide** — every participant/entry in the competition gets a PDF/ZIP-folder/email, including
+  an entry never assigned to any table (zero evaluations, still a valid — if empty — score sheet).
+  `DispatchEndpoints.cs` maps `GET .../results/archive` (200 streams `ResultsArchive.ZipBytes` if
+  present, else 202 reporting the `BundleZip` job's current status), `GET .../dispatch` (every
+  `SendResultEmail` job for the competition, joined to `Participant` for email), and
+  `POST .../dispatch/retries` (resets a targeted job to a fresh `Pending`/`Attempts: 0` — a manual
+  retry gets its own full attempt budget rather than continuing an exhausted automatic one; no
+  proactive worker wake-up, the existing 30s safety-net poll picks it up).
 
 ## Frontend (`frontend/`, Angular 20)
 
@@ -905,6 +972,8 @@ route restructure) plus the one genuinely new piece, T030.
   scores/comments as plain text, total, status, and the consolidated mean or "not yet closed" — with
   no form controls anywhere in it (FR-038 Acceptance Scenario 2, asserted directly in the E2E spec
   by counting `input`/`textarea` elements inside the drill-down section: zero).
+  **T077 (US10)**: the header gains a "Results & Dispatch" link, shown only once
+  `comp.state === 'Finalized'`, to `features/results-dispatch/` (below).
 - **`features/evaluation-sheet/`** (T059/T060B, US7): the capped five-section blind evaluation
   sheet, route `/judge/tables/:tableId/samples/:beerEntryId`. Renders exclusively `blindCode`/
   `styleCode`/`styleName` (BR-01) — never touches Dexie or the network directly, delegating all
@@ -1027,14 +1096,37 @@ route restructure) plus the one genuinely new piece, T030.
   (`table-closed`, `invalid-state-transition` once the competition moves past `InEvaluation`) it
   silently retries indefinitely with no further judge-facing surfacing after the initial toast; see
   Recorded debt below.
+- **`features/results-dispatch/`** (T077, US10): `ResultsDispatchComponent`, route
+  `/organizer/competitions/:id/dispatch`, linked from `competition-monitor.component.ts`'s header
+  once `comp.state === 'Finalized'`. No new "finalize" UI — that's just another transition through
+  the existing T102 advance-state button; this screen is what an organizer reaches afterward. On
+  init loads `GET .../dispatch` for the per-participant status table (`data-participant-id` rows,
+  `.badge--{status}`, a `Retry` button only on `Failed` rows, a `Retry all failed` bulk action only
+  when more than one row is `Failed`) and joins the organizer SignalR group to render a live
+  `DispatchProgress`-driven pipeline-stage indicator. **Archive download** required a design choice:
+  a plain `<a href>` wouldn't carry the bearer token (only `HttpClient` requests go through the auth
+  interceptor), so `core/api/api-client.service.ts` gained `getBlob()` (`responseType: 'blob',
+  observe: 'response'`, its own blob-aware error-body decoder since a 4xx/5xx body arrives as a
+  `Blob` too, not parsed JSON) and the component drives the actual save via
+  `URL.createObjectURL` + a synthetic anchor click. The `GET .../results/archive` `200`/`202`
+  duality (ZIP bytes vs. `{status}` JSON) is modeled as a discriminated `ResultsArchiveResult` union
+  rather than a thrown error for the "not ready" case, decoded via a new `blobToText()` helper
+  (`FileReader`-based, not `Blob.prototype.text()` — this project's Jest jsdom `Blob` polyfill has
+  no `.text()`/`.arrayBuffer()`, so the FileReader approach keeps blob-to-text reads identical
+  under test and in a real browser). **Archive readiness** has no cheap standalone check in the
+  contract (the archive endpoint IS the readiness check and the download, in one call) — inferred
+  instead from an exact live `{jobType: 'BundleZip', status: 'Completed'}` event, or, for a page
+  loaded after the pipeline already finished with no live event to catch, a documented conservative
+  fallback proxy (every participant row reaching a terminal `Completed`/`Failed` status, since the
+  pipeline order is strictly `GeneratePdfs → BundleZip → SendResultEmail`).
 
 ## Testing & quality gates
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 177 unit tests (unchanged this phase — T068-T069's Monitoring slice is DB-touching only, no new pure-rule unit tests) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15) + T045 `Tables/` (13) + T050 `TastingOrder/` (10) + T055 `Evaluations/SubmitEvaluationTests.cs` (37) + T062-T063 `Evaluations/CloseTableTests.cs` (9); 144 integration tests (was 136; +8 **T068** `Monitoring/MonitoringApiTests.cs`: `/progress`'s completed/expected/percent across two differently-progressed tables, 404 non-owner, 403 for a JUDGE-role caller, `/entries/{entryId}/evaluations`'s judge names/scores/comments/total/status with a `null` consolidated mean while open, the mean populated correctly once the table closes, and three 404s — non-owner, entry from a different competition, entry not yet assigned to a table) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) + T046 `Tables/` (22) + T051 `TastingOrder/` (9) + T056 `Evaluations/SubmitEvaluationApiTests.cs` (12) + T057B `Catalog/GetStyleDetailTests.cs` (2) + T062-T065 `Evaluations/CloseTableApiTests.cs` (9) |
-| Frontend unit | `cd frontend && npx jest` | green — 262 tests (was 247; +15 **T070**: new `core/api/entries-api.service.spec.ts` (1, the promoted `getEntries` — its prior test in `table-management-api.service.spec.ts` moved here rather than duplicating), new `core/api/monitoring-api.service.spec.ts` (2), new `features/dashboard/competition-monitor.component.spec.ts` (13: initial load renders table rows, `EvaluationCompleted`/`TableClosed`/`TableOrderFixed` hub events patch state in place without a refetch, drill-down fetch/render/read-only-proof, load-error handling), plus `organizer-dashboard.component.spec.ts`'s `destination()` coverage updated in place for the `InEvaluation`/`Finalized` → `monitor` routing change) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (13) + T029 `features/competition-wizard/` (24) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12) + T048 `features/table-management/` (46, was 47 — `getEntries` moved out) + T053 `features/judge-tables/` (23) + T100/T102 `features/dashboard/` (19) + T057/T059/T060/T060B/T061 US7 work (48) + T066-T067 US8 work (13). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
-| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), `us5-tables.spec.ts` (1), `us6-order.spec.ts` (1), `us13-dashboard.spec.ts` (3), `us7-offline.spec.ts` (1), `us8-close.spec.ts` (1), and new **T071 `us9-dashboard.spec.ts`** (1: full US9 setup through the real dashboard/UI — organizer opens the monitor screen for an `InEvaluation` competition via `/organizer/dashboard`'s real routing before the judge fixes order, so the live `TableOrderFixed` note is actually reachable — see Recorded debt for why order must be fixed *after* the monitor page is already open; then the judge submits an evaluation and the already-open, non-reloaded organizer page reflects the new count within 1s exactly as `us6-order.spec.ts` proves for its own event; finally the organizer opens the submitted sample's drill-down and asserts every score/comment/total as plain text with zero `input`/`textarea` elements) — all green against a live, fully-warmed Aspire stack (also re-verified alongside `us6-order.spec.ts`/`us8-close.spec.ts`/`us13-dashboard.spec.ts` as a regression spot-check), but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated: `login-required` races `page.goto('/')`). **Gap still open**: no judge- or organizer-facing route, including the evaluation sheet and both dashboard screens, is in the axe-core sweep yet — `a11y/home.a11y.spec.ts` only covers the placeholder app shell; a full-suite sweep is Phase 15/T089 territory. See Recorded debt below. Chromium only |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 179 unit tests (was 177; +2 **T072** `Dispatch/DispatchPathsTests.cs`: the FR-040 ZIP path scheme, incl. a competition name with "awkward" characters, proving no sanitization is needed for a ZIP entry name) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15) + T045 `Tables/` (13) + T050 `TastingOrder/` (10) + T055 `Evaluations/SubmitEvaluationTests.cs` (37) + T062-T063 `Evaluations/CloseTableTests.cs` (9); 150 integration tests (was 144; +6 **T073** `Dispatch/DispatchApiTests.cs`: the pre-existing-but-previously-untested `tables-still-open` Finalize gate exercised at the HTTP level for the first time, Finalize enqueuing `GeneratePdfs`, a real end-to-end run of the full `GeneratePdfs→BundleZip→SendResultEmail` pipeline against the live `DispatchWorker`/`FakeEmailSender` asserting the ZIP's exact entry paths and every participant's email attachment, `202` before the archive is ready, retry resetting a failed job and it being reprocessed by the worker's safety-net poll — the slowest test in the suite by a wide margin (~35s, deterministic, not flaky) since it waits out that same poll interval on purpose, and three-endpoint 404 ownership scoping) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) + T046 `Tables/` (22) + T051 `TastingOrder/` (9) + T056 `Evaluations/SubmitEvaluationApiTests.cs` (12) + T057B `Catalog/GetStyleDetailTests.cs` (2) + T062-T065 `Evaluations/CloseTableApiTests.cs` (9) + T068 `Monitoring/MonitoringApiTests.cs` (8) |
+| Frontend unit | `cd frontend && npx jest` | green — 290 tests (was 262; +28 **T077**: new `core/api/blob-text.spec.ts` (2), `core/api/dispatch-api.service.spec.ts` (5), `features/results-dispatch/results-dispatch.component.spec.ts` (15: status table rendering, retry/retry-all gating, download success/not-ready/error, live `DispatchProgress` pipeline-stage text), `core/api/api-client.service.spec.ts`'s `getBlob()` extension (3), plus `competition-monitor.component.spec.ts`'s new "Results & Dispatch" link coverage (2, shown/hidden by `Finalized` state)) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (13) + T029 `features/competition-wizard/` (24) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12) + T048 `features/table-management/` (46) + T053 `features/judge-tables/` (23) + T100/T102 `features/dashboard/` (19) + T057/T059/T060/T060B/T061 US7 work (48) + T066-T067 US8 work (13) + T070 US9 work (16). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
+| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), `us5-tables.spec.ts` (1), `us6-order.spec.ts` (1), `us13-dashboard.spec.ts` (3), `us7-offline.spec.ts` (1), `us8-close.spec.ts` (1), `us9-dashboard.spec.ts` (1), and new **T078 `us10-dispatch.spec.ts`** (1: full US10 setup through the real dashboard/UI — finalizes a competition with a closed table, confirms the badge updates immediately with no wait on the background pipeline (Acceptance Scenario 1's "stays responsive"), polls the new dispatch screen until all three of the fixture's participants — including the one never assigned to any table, proving dispatch scope is competition-wide not table-wide — reach `Completed`, downloads the ZIP via a captured Playwright `download` event and inspects its entries with `adm-zip` (new test-only devDependency, Node has no built-in ZIP reader) against the exact FR-040 path, and confirms every participant's Mailpit message has the right PDF attachment; the retry button's *positive* case — correctly absent once everything is `Completed` — is asserted here, while the retry *mechanism* itself is covered at the integration level by `DispatchApiTests.cs` rather than forcing a contrived real-SMTP failure) — all green against a live, fully-warmed Aspire stack (also re-verified alongside `us6-order.spec.ts`/`us8-close.spec.ts`/`us9-dashboard.spec.ts`/`us13-dashboard.spec.ts` as a regression spot-check), but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated: `login-required` races `page.goto('/')`). **Gap still open**: no judge- or organizer-facing route, including the evaluation sheet and all three dashboard/results screens, is in the axe-core sweep yet — `a11y/home.a11y.spec.ts` only covers the placeholder app shell; a full-suite sweep is Phase 15/T089 territory. See Recorded debt below. Chromium only |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
 ## Data flows
@@ -1167,6 +1259,24 @@ the dashboard would have all three event types tasks.md asked for. Selecting a b
 consolidated mean appears only once that entry's table has closed, computed the same way
 `CloseTable.cs` computes it for the SignalR payload, just independently (see the Backend section
 above for why this is a deliberate small duplication rather than a cross-slice import).
+
+**T072–T078** (US10): the existing T102 advance-state button (`Finalized` transition) is FR-036's
+actual trigger, no new UI — `ChangeState.cs` enqueues one `GeneratePdfs` `DispatchJob` after the
+already-existing `tables-still-open` gate passes and the transaction commits. From there the
+pipeline runs entirely in the background via the pre-existing `DispatchWorker` (T016): `GeneratePdfs
+→ BundleZip → SendResultEmail` (one job per participant for the last stage), each stage enqueueing
+the next on success, with progress visible via the already-generic `DispatchProgress` SignalR event
+(no per-handler wiring needed — `DispatchWorker` already emits it for every job type). The organizer
+reaches `/organizer/competitions/{id}/dispatch` via a new link on the monitor screen (shown only
+once `Finalized`), which loads `GET .../dispatch` for per-participant status and joins the same
+`competition:{id}:organizers` group `CompetitionMonitorComponent` already established a subscriber
+pattern for, to receive live `DispatchProgress`. Downloading calls `GET .../results/archive`, which
+either streams the persisted `ResultsArchive.ZipBytes` (`200`) or reports the `BundleZip` job's
+current status (`202`) — the frontend already knows to fetch this as a `Blob` via `HttpClient`
+rather than a plain link, since only `HttpClient` requests carry the auth token. A failed
+participant email is retried via `POST .../dispatch/retries`, which resets that participant's
+`SendResultEmail` job to a fresh `Pending` attempt, picked up by `DispatchWorker`'s existing
+safety-net poll — no new retry mechanism, just reuse of what T016 already built.
 
 ## Recorded debt / immediate next steps
 

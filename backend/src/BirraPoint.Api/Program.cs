@@ -10,6 +10,7 @@ using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Features.Catalog;
 using BirraPoint.Api.Features.Competitions;
+using BirraPoint.Api.Features.Dispatch;
 using BirraPoint.Api.Features.Evaluations;
 using BirraPoint.Api.Features.Import;
 using BirraPoint.Api.Features.Judges;
@@ -18,6 +19,9 @@ using BirraPoint.Api.Features.Tables;
 using BirraPoint.Api.Features.TastingOrder;
 using BirraPoint.Api.Realtime;
 using Microsoft.EntityFrameworkCore;
+
+// Community license (T074) — required before the first document generation or QuestPDF throws.
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -73,6 +77,12 @@ builder.Services.AddScoped<IEmailSender, MailKitEmailSender>();
 
 // First DispatchJobHandler (T041): SendInvitation, auto-discovered by DispatchWorker.
 builder.Services.AddScoped<IDispatchJobHandler, SendInvitationHandler>();
+
+// Results dispatch pipeline (T075/FR-036/FR-040/FR-041): GeneratePdfs -> BundleZip -> SendResultEmail,
+// each enqueuing the next on success, auto-discovered by DispatchWorker like SendInvitation above.
+builder.Services.AddScoped<IDispatchJobHandler, GeneratePdfsHandler>();
+builder.Services.AddScoped<IDispatchJobHandler, BundleZipHandler>();
+builder.Services.AddScoped<IDispatchJobHandler, SendResultEmailHandler>();
 
 // The Angular dev server runs on a different origin (:4200) than the API (:5121/:7075) — the
 // browser needs this to call REST/hub endpoints directly (T020). Development only; production
@@ -140,6 +150,9 @@ app.MapEvaluationsEndpoints();
 
 // Organizer dashboard: table progress snapshot, per-entry audit drill-down (T068-T069).
 app.MapMonitoringEndpoints();
+
+// Results archive download, per-participant email status, manual retry (T072-T076).
+app.MapDispatchEndpoints();
 
 // EF migrations apply on startup in Development only (T009); production migrates at deploy time.
 if (app.Environment.IsDevelopment())

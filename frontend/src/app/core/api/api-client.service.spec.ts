@@ -68,4 +68,56 @@ describe('ApiClient', () => {
     expect(error.status).toBe(0);
     expect(error.urn).toBeNull();
   });
+
+  describe('getBlob()', () => {
+    it('resolves the full HttpResponse with a 200 blob body', async () => {
+      const result = firstValueFrom(client.getBlob('/competitions/c1/results/archive'));
+
+      const req = httpMock.expectOne(
+        `${environment.apiBaseUrl}/api/v1/competitions/c1/results/archive`,
+      );
+      expect(req.request.method).toBe('GET');
+      expect(req.request.responseType).toBe('blob');
+      req.flush(new Blob(['zip-bytes'], { type: 'application/zip' }));
+
+      const response = await result;
+      expect(response.status).toBe(200);
+      expect(response.body).toBeInstanceOf(Blob);
+    });
+
+    it('resolves the full HttpResponse for a non-200 status (e.g. 202) without throwing', async () => {
+      const result = firstValueFrom(client.getBlob('/competitions/c1/results/archive'));
+
+      const req = httpMock.expectOne(
+        `${environment.apiBaseUrl}/api/v1/competitions/c1/results/archive`,
+      );
+      req.flush(new Blob([JSON.stringify({ status: 'Running' })], { type: 'application/json' }), {
+        status: 202,
+        statusText: 'Accepted',
+      });
+
+      const response = await result;
+      expect(response.status).toBe(202);
+      expect(response.body).toBeInstanceOf(Blob);
+    });
+
+    it('rejects with an ApiError parsed from the blob-wrapped ProblemDetails body on a 4xx/5xx', async () => {
+      const result = firstValueFrom(client.getBlob('/competitions/c1/results/archive'));
+
+      const req = httpMock.expectOne(
+        `${environment.apiBaseUrl}/api/v1/competitions/c1/results/archive`,
+      );
+      req.flush(
+        new Blob([JSON.stringify({ type: 'urn:birrapoint:validation', title: 'Bad request' })], {
+          type: 'application/problem+json',
+        }),
+        { status: 400, statusText: 'Bad Request' },
+      );
+
+      const error = (await result.catch((e: unknown) => e)) as ApiError;
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(400);
+      expect(error.urn).toBe('urn:birrapoint:validation');
+    });
+  });
 });
