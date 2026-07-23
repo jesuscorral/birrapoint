@@ -26,11 +26,12 @@ public sealed record SubmitEvaluationCommand(
     : IRequest<SubmitEvaluationResult?>;
 
 /// <summary>contracts/rest-api.md §Judge workspace success shape: `{ evaluationId, status, total,
-/// discrepancy? }`. <see cref="Status"/> is always "Confirmed" for now — discrepancy detection
-/// (which can also produce "PendingConsensus") activates in US11, out of this task's scope.
-/// <see cref="IsNewSubmission"/> is not part of the wire contract; the endpoint reads it to choose
-/// 201 (fresh insert) vs 200 (idempotent replay, FR-029/R-07) and then it's excluded from the body.</summary>
-public sealed record SubmitEvaluationResult(Guid EvaluationId, string Status, int Total, object? Discrepancy)
+/// discrepancy? }`. <see cref="Status"/> is "Confirmed" or "PendingConsensus" depending on whether
+/// this submission's total lands within 7 points of every other submitted total for the same
+/// sample (FR-031). <see cref="IsNewSubmission"/> is not part of the wire contract; the endpoint
+/// reads it to choose 201 (fresh insert) vs 200 (idempotent replay, FR-029/R-07) and then it's
+/// excluded from the body.</summary>
+public sealed record SubmitEvaluationResult(Guid EvaluationId, string Status, int Total, DiscrepancyView? Discrepancy)
 {
     [JsonIgnore]
     public bool IsNewSubmission { get; init; }
@@ -93,8 +94,12 @@ public sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurr
             .SingleOrDefaultAsync(e => e.JudgeId == judgeId && e.BeerEntryId == request.BeerEntryId, cancellationToken);
         if (existingEvaluation is not null)
         {
+            // No new reconciliation here — it already ran when this row was first inserted; a
+            // replay only needs to reflect whatever discrepancy state resulted from that.
+            var replayDiscrepancy = await BuildDiscrepancyViewIfPendingAsync(
+                existingEvaluation, request.TableId, judgeId.Value, cancellationToken);
             return new SubmitEvaluationResult(
-                existingEvaluation.Id, existingEvaluation.Status.ToString(), existingEvaluation.Total, Discrepancy: null)
+                existingEvaluation.Id, existingEvaluation.Status.ToString(), existingEvaluation.Total, replayDiscrepancy)
             {
                 IsNewSubmission = false,
             };
@@ -190,11 +195,24 @@ public sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurr
             var existing = await dbContext.Evaluations
                 .SingleAsync(e => e.JudgeId == judgeId && e.BeerEntryId == request.BeerEntryId, cancellationToken);
 
-            return new SubmitEvaluationResult(existing.Id, existing.Status.ToString(), existing.Total, Discrepancy: null)
+            // Same "no new reconciliation, just reflect current state" reasoning as the early
+            // idempotent-replay path above — whichever insert actually won the race already
+            // triggered reconciliation for this (table, entry) pair.
+            var raceDiscrepancy = await BuildDiscrepancyViewIfPendingAsync(existing, request.TableId, judgeId.Value, cancellationToken);
+
+            return new SubmitEvaluationResult(existing.Id, existing.Status.ToString(), existing.Total, raceDiscrepancy)
             {
                 IsNewSubmission = false,
             };
         }
+
+        // FR-031: compare this submission's total against every other already-submitted total for
+        // the same (table, sample); EF identity-maps the reconciler's query back to the `evaluation`
+        // instance already tracked above, so evaluation.Status reflects the reconciled state below
+        // without needing to re-fetch it. ReconcileAndSaveAsync owns its own save (and a retry if a
+        // concurrent submission for a different judge races the DiscrepancyAlert insert) — see its
+        // doc comment for why a bare catch-and-detach isn't enough here.
+        var outcome = await DiscrepancyReconciler.ReconcileAndSaveAsync(dbContext, request.TableId, request.BeerEntryId, cancellationToken);
 
         var tableProgress = await ComputeTableProgressAsync(request.TableId, cancellationToken);
         var blindCode = await dbContext.BeerEntries
@@ -211,10 +229,59 @@ public sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurr
             new { tableId = request.TableId, blindCode, judgeDisplayName, tableProgress },
             CancellationToken.None);
 
-        return new SubmitEvaluationResult(evaluation.Id, evaluation.Status.ToString(), evaluation.Total, Discrepancy: null)
+        // Events describe the entry as a whole (any judge involved) — contracts/signalr-hub.md's
+        // DiscrepancyRaised/Resolved are entry-level notifications, not judge-scoped.
+        if (outcome.InvolvedJudgeIds.Count > 0)
+        {
+            var payload = new { alertId = outcome.AlertId, tableId = request.TableId, blindCode, involvedJudgeIds = outcome.InvolvedJudgeIds };
+            await eventPublisher.PublishToTableAsync(request.TableId, CompetitionEvents.DiscrepancyRaised, payload, CancellationToken.None);
+            await eventPublisher.PublishToOrganizersAsync(table.CompetitionId, CompetitionEvents.DiscrepancyRaised, payload, CancellationToken.None);
+        }
+        else if (outcome.AlertResolved)
+        {
+            var payload = new { alertId = outcome.AlertId, tableId = request.TableId, blindCode };
+            await eventPublisher.PublishToTableAsync(request.TableId, CompetitionEvents.DiscrepancyResolved, payload, CancellationToken.None);
+            await eventPublisher.PublishToOrganizersAsync(table.CompetitionId, CompetitionEvents.DiscrepancyResolved, payload, CancellationToken.None);
+        }
+
+        // Unlike the events above, the response body's `discrepancy` field reflects the ACTING
+        // judge's own situation — mirrors GET .../discrepancies' "involving the caller" semantics.
+        // A judge landing cleanly between two already-divergent totals gets Confirmed + null here,
+        // even though an alert remains open for this entry.
+        var discrepancy = outcome.InvolvedJudgeIds.Contains(judgeId.Value)
+            ? await DiscrepancyViewBuilder.BuildAsync(
+                dbContext, outcome.AlertId!.Value, request.TableId, request.BeerEntryId, judgeId.Value, cancellationToken)
+            : null;
+
+        return new SubmitEvaluationResult(evaluation.Id, evaluation.Status.ToString(), evaluation.Total, discrepancy)
         {
             IsNewSubmission = true,
         };
+    }
+
+    /// <summary>Builds the discrepancy view for an idempotent-replay/race-caught early-return path
+    /// (no new reconciliation — it already ran when the row was first inserted) by looking up the
+    /// Open alert for this (table, entry) when the stored row is currently PendingConsensus.</summary>
+    private async Task<DiscrepancyView?> BuildDiscrepancyViewIfPendingAsync(
+        Evaluation storedEvaluation, Guid tableId, Guid callerJudgeId, CancellationToken cancellationToken)
+    {
+        if (storedEvaluation.Status != EvaluationStatus.PendingConsensus)
+        {
+            return null;
+        }
+
+        var alertId = await dbContext.DiscrepancyAlerts
+            .Where(a => a.TastingTableId == tableId && a.BeerEntryId == storedEvaluation.BeerEntryId && a.Status == DiscrepancyStatus.Open)
+            .Select(a => (Guid?)a.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (alertId is null)
+        {
+            return null;
+        }
+
+        return await DiscrepancyViewBuilder.BuildAsync(
+            dbContext, alertId.Value, tableId, storedEvaluation.BeerEntryId, callerJudgeId, cancellationToken);
     }
 
     private async Task<object> ComputeTableProgressAsync(Guid tableId, CancellationToken cancellationToken)

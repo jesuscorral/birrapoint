@@ -153,6 +153,22 @@ describe('EvaluationSheetComponent', () => {
     expect(fixture.nativeElement.querySelector('form')).toBeNull();
   });
 
+  it('shows a discrepancy notice with a link to resolve it for a PendingConsensus sample', async () => {
+    fakeTastingOrderApi.getTableSamples.mockReturnValue(
+      of([sampleFixture({ evaluationStatus: 'PendingConsensus' })]),
+    );
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('scoring discrepancy');
+    expect(fixture.nativeElement.textContent).not.toContain('already been evaluated');
+    expect(fixture.nativeElement.querySelector('form')).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('a[href="/judge/tables/t1/discrepancies"]'),
+    ).not.toBeNull();
+  });
+
   it('hydrates the form from an existing draft (offline-resume)', async () => {
     fakeSync.loadDraft.mockResolvedValue({
       beerEntryId: 'e1',

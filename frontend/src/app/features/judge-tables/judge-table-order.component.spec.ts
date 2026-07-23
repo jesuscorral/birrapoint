@@ -6,9 +6,13 @@ import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 import { ApiError } from '../../core/api/api-error';
 import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
 import type {
+  DiscrepancyRaisedEvent,
+  DiscrepancyResolvedEvent,
   TableClosedEvent,
   TableOrderFixedEvent,
 } from '../../core/realtime/competition-hub.events';
+import { DiscrepancyApiService } from '../discrepancy/discrepancy-api.service';
+import type { DiscrepancyView } from '../discrepancy/discrepancy-api.service';
 import { JudgeTableOrderComponent } from './judge-table-order.component';
 import { TastingOrderApiService } from './tasting-order-api.service';
 import type { JudgeSample, JudgeTableSummary } from './tasting-order-api.service';
@@ -83,6 +87,18 @@ function findButtonWithText(root: Element, text: string): HTMLButtonElement | un
   return buttons.find((button) => button.textContent?.trim() === text);
 }
 
+function discrepancyFixture(overrides: Partial<DiscrepancyView> = {}): DiscrepancyView {
+  return {
+    alertId: 'a1',
+    blindCode: 'AB12',
+    totals: [
+      { judgeDisplayName: 'Ada Lovelace', total: 40, isMine: true, evaluationId: 'e1' },
+      { judgeDisplayName: 'Grace Hopper', total: 28, isMine: false, evaluationId: 'e2' },
+    ],
+    ...overrides,
+  };
+}
+
 describe('JudgeTableOrderComponent', () => {
   let fakeApi: {
     getMyTables: jest.Mock;
@@ -90,6 +106,7 @@ describe('JudgeTableOrderComponent', () => {
     fixOrder: jest.Mock;
     closeTable: jest.Mock;
   };
+  let fakeDiscrepancyApi: { getDiscrepancies: jest.Mock };
   let fakeHub: {
     start: jest.Mock;
     joinTable: jest.Mock;
@@ -98,16 +115,21 @@ describe('JudgeTableOrderComponent', () => {
   };
   let orderFixedSubject: Subject<TableOrderFixedEvent>;
   let tableClosedSubject: Subject<TableClosedEvent>;
+  let discrepancyRaisedSubject: Subject<DiscrepancyRaisedEvent>;
+  let discrepancyResolvedSubject: Subject<DiscrepancyResolvedEvent>;
 
   beforeEach(() => {
     orderFixedSubject = new Subject<TableOrderFixedEvent>();
     tableClosedSubject = new Subject<TableClosedEvent>();
+    discrepancyRaisedSubject = new Subject<DiscrepancyRaisedEvent>();
+    discrepancyResolvedSubject = new Subject<DiscrepancyResolvedEvent>();
     fakeApi = {
       getMyTables: jest.fn().mockReturnValue(of([tableFixture()])),
       getTableSamples: jest.fn().mockReturnValue(of(samplesFixture())),
       fixOrder: jest.fn(),
       closeTable: jest.fn(),
     };
+    fakeDiscrepancyApi = { getDiscrepancies: jest.fn().mockReturnValue(of([])) };
     fakeHub = {
       start: jest.fn().mockResolvedValue(undefined),
       joinTable: jest.fn().mockResolvedValue(undefined),
@@ -116,6 +138,12 @@ describe('JudgeTableOrderComponent', () => {
         if (event === 'TableClosed') {
           return tableClosedSubject.asObservable();
         }
+        if (event === 'DiscrepancyRaised') {
+          return discrepancyRaisedSubject.asObservable();
+        }
+        if (event === 'DiscrepancyResolved') {
+          return discrepancyResolvedSubject.asObservable();
+        }
         return orderFixedSubject.asObservable();
       }),
     };
@@ -123,6 +151,7 @@ describe('JudgeTableOrderComponent', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: TastingOrderApiService, useValue: fakeApi },
+        { provide: DiscrepancyApiService, useValue: fakeDiscrepancyApi },
         { provide: CompetitionHubService, useValue: fakeHub },
         {
           provide: ActivatedRoute,
@@ -723,6 +752,130 @@ describe('JudgeTableOrderComponent', () => {
 
       expect(fixture.nativeElement.textContent).toContain('Table closed');
       expect(findButtonWithText(fixture.nativeElement, 'Close table')).toBeUndefined();
+    });
+  });
+
+  describe('discrepancy alerts (T082)', () => {
+    it('shows no banner when there are no open discrepancies', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).not.toContain('open discrepancy alert');
+    });
+
+    it('shows a banner linking to the discrepancy page when open discrepancies exist', async () => {
+      fakeDiscrepancyApi.getDiscrepancies.mockReturnValue(of([discrepancyFixture()]));
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain(
+        '1 open discrepancy alert on this table.',
+      );
+      expect(
+        fixture.nativeElement.querySelector('a[href="/judge/tables/t1/discrepancies"]'),
+      ).not.toBeNull();
+    });
+
+    it('pluralizes the banner text for more than one open discrepancy', async () => {
+      fakeDiscrepancyApi.getDiscrepancies.mockReturnValue(
+        of([discrepancyFixture(), discrepancyFixture({ alertId: 'a2', blindCode: 'CD34' })]),
+      );
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain(
+        '2 open discrepancy alerts on this table.',
+      );
+    });
+
+    it('re-fetches and updates the banner count on a live DiscrepancyRaised event for this table', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      fakeDiscrepancyApi.getDiscrepancies.mockReturnValue(of([discrepancyFixture()]));
+      discrepancyRaisedSubject.next({
+        alertId: 'a1',
+        tableId: 't1',
+        blindCode: 'AB12',
+        involvedJudgeIds: ['j1', 'j2'],
+      });
+      await flush();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain(
+        '1 open discrepancy alert on this table.',
+      );
+    });
+
+    it('re-fetches and updates the banner count on a live DiscrepancyResolved event for this table', async () => {
+      fakeDiscrepancyApi.getDiscrepancies.mockReturnValue(of([discrepancyFixture()]));
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain(
+        '1 open discrepancy alert on this table.',
+      );
+
+      fakeDiscrepancyApi.getDiscrepancies.mockReturnValue(of([]));
+      discrepancyResolvedSubject.next({ alertId: 'a1', tableId: 't1', blindCode: 'AB12' });
+      await flush();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).not.toContain('open discrepancy alert');
+    });
+
+    it('ignores a DiscrepancyRaised event for a different table', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      fakeDiscrepancyApi.getDiscrepancies.mockReturnValue(of([discrepancyFixture()]));
+      discrepancyRaisedSubject.next({
+        alertId: 'a1',
+        tableId: 'other-table',
+        blindCode: 'AB12',
+        involvedJudgeIds: ['j1', 'j2'],
+      });
+      await flush();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).not.toContain('open discrepancy alert');
+    });
+
+    it('shows a link to resolve discrepancies on a 409 discrepancy-open close error', async () => {
+      fakeApi.getMyTables.mockReturnValue(
+        of([tableFixture({ orderFixed: true, orderFixedBy: 'Ada Lovelace' })]),
+      );
+      fakeApi.getTableSamples.mockReturnValue(of(doneSamplesFixture()));
+      fakeApi.closeTable.mockReturnValue(
+        throwError(
+          () =>
+            new ApiError({
+              status: 409,
+              title: 'Discrepancy open',
+              urn: 'urn:birrapoint:discrepancy-open',
+              extensions: { blindCodes: ['CD34'] },
+            }),
+        ),
+      );
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      buttonWithText(fixture.nativeElement, 'Close table').click();
+      fixture.detectChanges();
+      buttonWithText(fixture.nativeElement, 'Confirm close table').click();
+      fixture.detectChanges();
+      await flush();
+      fixture.detectChanges();
+
+      expect(
+        fixture.nativeElement.querySelector('a[href="/judge/tables/t1/discrepancies"]'),
+      ).not.toBeNull();
     });
   });
 });

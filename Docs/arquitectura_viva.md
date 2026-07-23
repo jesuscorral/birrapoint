@@ -5,7 +5,7 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-23 · after T072–T078 — **Phase 12 (US10, Event Closing with Automated Results Dispatch) complete**
+**Last updated:** 2026-07-23 · after T079–T083 — **Phase 13 (US11, Discrepancy Consensus Alert) complete**
 
 ## Global status
 
@@ -66,8 +66,8 @@ this really is the last P1 story**, so every priority-1 user story in the MVP sp
 Backend: `CloseTable.cs` (`POST /me/tables/{tableId}/close`, JUDGE, any active member) gates on
 completeness (every active judge × sample must have a submitted `Evaluation`, else
 `409 evaluations-incomplete { missing: [blindCode] }`) and zero open `DiscrepancyAlert`s (else
-`409 discrepancy-open { blindCodes }` — always empty today, same forward-declared-but-real pattern
-as everywhere else discrepancy detection (US11) hasn't landed yet), then flips
+`409 discrepancy-open { blindCodes }` — always empty at this point in the build, since discrepancy
+detection didn't land until Phase 13/US11, see below), then flips
 `TastingTable.State`/`ClosedAt` and emits **two different `TableClosed` payloads** — `{ tableId }`
 to the judge group, `{ tableId, consolidatedScores: [{ blindCode, mean }] }` (FR-042) to the
 organizer group — from one handler, matching contracts/signalr-hub.md exactly rather than
@@ -185,6 +185,48 @@ That work sat uncommitted and was preserved via `git stash` while Phase 3 was im
 merged first; this update is that stashed work reconciled onto the post-Phase-3 `main` (mainly:
 `app.routes.ts`'s wizard routes now nest under T024's `organizer` parent instead of predating its
 route restructure) plus the one genuinely new piece, T030.
+
+**Phase 13 (User Story 11 — Discrepancy Consensus Alert, T079–T083)** is now **complete**, closing
+out the two forward-declared gaps Phase 9/10 left on purpose (`SubmitEvaluation`'s `Status` always
+`Confirmed`, `CloseTable`'s `discrepancy-open` check vacuously empty). Backend: a new pure
+`DiscrepancyRules.ComputeInvolvedJudgeIds` (FR-031) — a judge is "involved" iff their total differs
+by **strictly more than 7** from at least one *other* judge's total for the same (table, sample),
+not "the group's spread exceeds 7" — the distinction matters for 3+ judges, where a middle judge
+within 7 of everyone can sit outside an alert two outliers are in. `Discrepancy.cs` holds everything
+else: an internal `DiscrepancyReconciler.ReconcileAsync` (stages `Evaluation.Status` flips and
+opens/resolves the single `DiscrepancyAlert` row per (table, entry) on the change tracker, no
+`SaveChangesAsync` of its own — same "stage then let the caller save" split as `CorrectEvaluation`'s
+audit write) shared by `SubmitEvaluation` (now actually calls it, in a second `SaveChangesAsync`
+after the insert commits, since `Evaluation.Total` is a DB-computed column not known before that)
+and the new `AdjustEvaluationCommand` (`PUT /me/tables/{tableId}/evaluations/{evaluationId}`,
+JUDGE-only, Clarification Q2's only sheet-reopening path — 409 `evaluation-locked` unless an open
+alert currently involves the caller). `GetMyDiscrepanciesQuery` (`GET
+/me/tables/{tableId}/discrepancies`) filters to alerts the caller is currently part of, per
+`DiscrepancyViewBuilder`. One deliberate per-judge distinction worth remembering: the response's
+`discrepancy` field (on both submit and adjust) reflects **the acting judge's own involvement**, not
+whether the entry has any open alert at all — a third judge landing cleanly between two already-
+divergent judges gets `status: "Confirmed"`, `discrepancy: null` in their own response, even though
+an alert stays open for that sample; the SignalR `DiscrepancyRaised`/`DiscrepancyResolved` events
+(both audiences, per contracts/signalr-hub.md) are entry-level instead, firing whenever the
+*global* involved set is non-empty/just emptied, regardless of which judge triggered the
+reconciliation. `contracts/rest-api.md`'s discrepancies-endpoint row gained one additive field,
+`evaluationId` per total row, needed by the frontend to address the `PUT`. Frontend:
+`features/discrepancy/discrepancy-alert.component.ts` (route `/judge/tables/:tableId/
+discrepancies`) lists open alerts involving the caller — blind code, a totals comparison table
+marking the caller's own row — with an "Adjust my evaluation" action revealing a duplicated (not
+shared, same-convention-as-the-backend's validators) copy of the five-section score/comment form;
+not routed through `SyncService`'s offline outbox, since this repair flow is framed by the spec as
+online-only ("shown to each involved judge as soon as they are next online"). `judge-table-order.
+component.ts` gained a live open-discrepancy-count banner (re-fetched, not derived, on
+`DiscrepancyRaised`/`DiscrepancyResolved` — same "events are notifications" convention as every
+other hub consumer here) and a link out to the discrepancy page from its pre-existing
+`discrepancy-open` close-error branch; `evaluation-sheet.component.ts`'s "already evaluated" locked
+message now branches for `PendingConsensus` specifically, linking to the discrepancy page instead of
+a dead end. E2E (`us11-discrepancy.spec.ts`) proves the full loop across two independent judge
+sessions: 15-point-apart submission → both provisional + alert reaches both sessions (one live via
+the hub within ~1s, matching this codebase's other realtime-propagation budgets) → close blocked
+(`409 discrepancy-open`) → adjustment within 7 points → resolved (live on the other session too) →
+close succeeds.
 
 ## Local topology (.NET Aspire — `dotnet run --project backend/src/BirraPoint.AppHost`)
 
@@ -516,9 +558,10 @@ route restructure) plus the one genuinely new piece, T030.
   concurrent-race loser's body might legitimately differ from the winner's. A dedicated integration
   test fires two simultaneous submits for the same (judge, entry) via `Task.WhenAll` and asserts
   exactly one row exists — the same "prove it under a real race, not just sequential replay"
-  standard `FixOrder`'s test set. `Status` is unconditionally `Confirmed` for now — discrepancy
-  detection (>7-point spread → `PendingConsensus` + `DiscrepancyAlert`) activates in US11 (Phase
-  13), left as a one-line comment rather than a premature pluggable-hook abstraction. Emits
+  standard `FixOrder`'s test set. `Status` was unconditionally `Confirmed` at this point in the
+  build — discrepancy detection (>7-point spread → `PendingConsensus` + `DiscrepancyAlert`) didn't
+  activate until Phase 13/US11 (see below), left as a one-line comment rather than a premature
+  pluggable-hook abstraction at the time. Emits
   `EvaluationCompleted` (organizer group, after commit) with a freshly-computed `tableProgress`
   (completed/expected/percent across the whole table, not just this judge).
 - **`Features/Catalog/GetStyleDetail.cs`** (T059B, US7, FR-049): `GET /styles/{code}`, any
@@ -535,8 +578,9 @@ route restructure) plus the one genuinely new piece, T030.
   already-closed (`409 table-closed`, reusing the existing urn rather than inventing a
   double-close-specific one), completeness (every active `TableJudge` × `TableSample` must have a
   submitted `Evaluation`, else `409 evaluations-incomplete { missing: [blindCode] }`), open
-  `DiscrepancyAlert`s (`409 discrepancy-open { blindCodes }` — vacuously empty today, US11 isn't
-  built). On success, one handler emits **two different `TableClosed` payloads** to two different
+  `DiscrepancyAlert`s (`409 discrepancy-open { blindCodes }` — vacuously empty at this point in the
+  build, Phase 13/US11 not landed yet). On success, one handler emits **two different `TableClosed`
+  payloads** to two different
   SignalR groups — `{ tableId }` to judges, `{ tableId, consolidatedScores }` to organizers,
   matching contracts/signalr-hub.md's per-audience rows exactly rather than sending one shape to
   both. `CorrectEvaluation` is explicitly ungated by table state (the contract's whole point) —
@@ -1017,6 +1061,25 @@ route restructure) plus the one genuinely new piece, T030.
   render inline with the missing blind codes/discrepant codes from the ProblemDetails extension
   data; `table-closed` (a race — another judge's close request landed first) is treated as a
   success, not an error, since the table is closed either way and that's what the caller wanted.
+  **T082 (US11)** added a live open-discrepancy-count banner (a `forkJoin`'d `getDiscrepancies`
+  call alongside the existing tables/samples fetch, kept current by a third hub subscription —
+  merged `DiscrepancyRaised`/`DiscrepancyResolved`, filtered to this table, re-fetching the count
+  rather than deriving it from the event payload) and a link out to the discrepancy page from the
+  `discrepancy-open` branch above.
+- **`features/discrepancy/`** (T082, US11): `discrepancy-api.service.ts` wraps `GET
+  /me/tables/{tableId}/discrepancies` and `PUT /me/tables/{tableId}/evaluations/{evaluationId}` —
+  deliberately not routed through `SyncService`'s Dexie outbox, since the spec frames this repair
+  flow as inherently online-only ("shown to each involved judge as soon as they are next online").
+  `discrepancy-alert.component.ts` (route `/judge/tables/:tableId/discrepancies`) lists open alerts
+  involving the caller — blind code, a totals-comparison table marking the caller's own row — each
+  with an "Adjust my evaluation" action revealing a duplicated copy of `evaluation-sheet.component.
+  ts`'s five-section form (same caps/20-char minimum; duplicated rather than shared, matching the
+  backend's own validator-duplication convention for two otherwise-unrelated slices). A resolved
+  adjustment (`discrepancy: null` in the `PUT` response) swaps the card for a confirmation and drops
+  it from the open list; a still-open one updates the totals table in place. Joins the table's
+  SignalR group and re-fetches on `DiscrepancyRaised`/`DiscrepancyResolved`, same convention as the
+  banner above. `evaluation-sheet.component.ts`'s locked-sample message now branches on
+  `PendingConsensus` specifically, linking here instead of the generic "already evaluated" dead end.
 - **`core/api/`** (T020): the typed HTTP client + ProblemDetails→UI error mapping.
   - `problem-details.model.ts`: `ProblemDetails`/`ValidationProblemDetails` interfaces plus
     `BIRRAPOINT_ERROR_URNS` — the 14 `urn:birrapoint:*` values from contracts/rest-api.md §Error
@@ -1124,9 +1187,9 @@ route restructure) plus the one genuinely new piece, T030.
 
 | Suite | Command | Current state |
 |---|---|---|
-| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 179 unit tests (was 177; +2 **T072** `Dispatch/DispatchPathsTests.cs`: the FR-040 ZIP path scheme, incl. a competition name with "awkward" characters, proving no sanitization is needed for a ZIP entry name) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15) + T045 `Tables/` (13) + T050 `TastingOrder/` (10) + T055 `Evaluations/SubmitEvaluationTests.cs` (37) + T062-T063 `Evaluations/CloseTableTests.cs` (9); 150 integration tests (was 144; +6 **T073** `Dispatch/DispatchApiTests.cs`: the pre-existing-but-previously-untested `tables-still-open` Finalize gate exercised at the HTTP level for the first time, Finalize enqueuing `GeneratePdfs`, a real end-to-end run of the full `GeneratePdfs→BundleZip→SendResultEmail` pipeline against the live `DispatchWorker`/`FakeEmailSender` asserting the ZIP's exact entry paths and every participant's email attachment, `202` before the archive is ready, retry resetting a failed job and it being reprocessed by the worker's safety-net poll — the slowest test in the suite by a wide margin (~35s, deterministic, not flaky) since it waits out that same poll interval on purpose, and three-endpoint 404 ownership scoping) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) + T046 `Tables/` (22) + T051 `TastingOrder/` (9) + T056 `Evaluations/SubmitEvaluationApiTests.cs` (12) + T057B `Catalog/GetStyleDetailTests.cs` (2) + T062-T065 `Evaluations/CloseTableApiTests.cs` (9) + T068 `Monitoring/MonitoringApiTests.cs` (8) |
-| Frontend unit | `cd frontend && npx jest` | green — 290 tests (was 262; +28 **T077**: new `core/api/blob-text.spec.ts` (2), `core/api/dispatch-api.service.spec.ts` (5), `features/results-dispatch/results-dispatch.component.spec.ts` (15: status table rendering, retry/retry-all gating, download success/not-ready/error, live `DispatchProgress` pipeline-stage text), `core/api/api-client.service.spec.ts`'s `getBlob()` extension (3), plus `competition-monitor.component.spec.ts`'s new "Results & Dispatch" link coverage (2, shown/hidden by `Finalized` state)) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (13) + T029 `features/competition-wizard/` (24) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12) + T048 `features/table-management/` (46) + T053 `features/judge-tables/` (23) + T100/T102 `features/dashboard/` (19) + T057/T059/T060/T060B/T061 US7 work (48) + T066-T067 US8 work (13) + T070 US9 work (16). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
-| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), `us5-tables.spec.ts` (1), `us6-order.spec.ts` (1), `us13-dashboard.spec.ts` (3), `us7-offline.spec.ts` (1), `us8-close.spec.ts` (1), `us9-dashboard.spec.ts` (1), and new **T078 `us10-dispatch.spec.ts`** (1: full US10 setup through the real dashboard/UI — finalizes a competition with a closed table, confirms the badge updates immediately with no wait on the background pipeline (Acceptance Scenario 1's "stays responsive"), polls the new dispatch screen until all three of the fixture's participants — including the one never assigned to any table, proving dispatch scope is competition-wide not table-wide — reach `Completed`, downloads the ZIP via a captured Playwright `download` event and inspects its entries with `adm-zip` (new test-only devDependency, Node has no built-in ZIP reader) against the exact FR-040 path, and confirms every participant's Mailpit message has the right PDF attachment; the retry button's *positive* case — correctly absent once everything is `Completed` — is asserted here, while the retry *mechanism* itself is covered at the integration level by `DispatchApiTests.cs` rather than forcing a contrived real-SMTP failure) — all green against a live, fully-warmed Aspire stack (also re-verified alongside `us6-order.spec.ts`/`us8-close.spec.ts`/`us9-dashboard.spec.ts`/`us13-dashboard.spec.ts` as a regression spot-check), but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated: `login-required` races `page.goto('/')`). **Gap still open**: no judge- or organizer-facing route, including the evaluation sheet and all three dashboard/results screens, is in the axe-core sweep yet — `a11y/home.a11y.spec.ts` only covers the placeholder app shell; a full-suite sweep is Phase 15/T089 territory. See Recorded debt below. Chromium only |
+| Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 184 unit tests (was 179; +5 **T079** `Evaluations/DiscrepancyTests.cs`: pairwise >7 detection incl. the 3-judge "middle judge not involved" edge case, resolution when all totals converge) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15) + T045 `Tables/` (13) + T050 `TastingOrder/` (10) + T055 `Evaluations/SubmitEvaluationTests.cs` (37) + T062-T063 `Evaluations/CloseTableTests.cs` (9) + T072 `Dispatch/DispatchPathsTests.cs` (2); 157 integration tests (+6 **T080** `Evaluations/DiscrepancyApiTests.cs`: divergent submit → `PendingConsensus` + alert, the 3-judge outlier-only-involved case incl. asserting the uninvolved judge's own response carries `discrepancy: null`, `PUT` adjustment resolving an alert, `PUT` outside an open alert → `409 evaluation-locked`, `PUT` on someone else's evaluation → `404`, close blocked then succeeding after resolution — plus one pre-existing `CloseTableApiTests.cs` test's fixture adjusted from an 11-point judge score gap to 5, since it now trips the newly-active >7pt gate) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) + T046 `Tables/` (22) + T051 `TastingOrder/` (9) + T056 `Evaluations/SubmitEvaluationApiTests.cs` (12) + T057B `Catalog/GetStyleDetailTests.cs` (2) + T062-T065 `Evaluations/CloseTableApiTests.cs` (9) + T068 `Monitoring/MonitoringApiTests.cs` (8) + T073 `Dispatch/DispatchApiTests.cs` (6) |
+| Frontend unit | `cd frontend && npx jest` | green — 312 tests across 44 suites (was 290; +22 **T082**: `features/discrepancy/discrepancy-api.service.spec.ts` + `discrepancy-alert.component.spec.ts` (new, fake-collaborator style matching `judge-table-order.component.spec.ts`'s harness), plus new cases in `judge-table-order.component.spec.ts` (open-discrepancy banner + pluralization, hub re-fetch/filtering, the close-error link) and `evaluation-sheet.component.spec.ts` (the `PendingConsensus` branch); was 262; +28 **T077**: new `core/api/blob-text.spec.ts` (2), `core/api/dispatch-api.service.spec.ts` (5), `features/results-dispatch/results-dispatch.component.spec.ts` (15: status table rendering, retry/retry-all gating, download success/not-ready/error, live `DispatchProgress` pipeline-stage text), `core/api/api-client.service.spec.ts`'s `getBlob()` extension (3), plus `competition-monitor.component.spec.ts`'s new "Results & Dispatch" link coverage (2, shown/hidden by `Finalized` state)) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (13) + T029 `features/competition-wizard/` (24) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12) + T048 `features/table-management/` (46) + T053 `features/judge-tables/` (23) + T100/T102 `features/dashboard/` (19) + T057/T059/T060/T060B/T061 US7 work (48) + T066-T067 US8 work (13) + T070 US9 work (16). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
+| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), `us5-tables.spec.ts` (1), `us6-order.spec.ts` (1), `us13-dashboard.spec.ts` (3), `us7-offline.spec.ts` (1), `us8-close.spec.ts` (1), `us9-dashboard.spec.ts` (1), **T078 `us10-dispatch.spec.ts`** (1: full US10 setup through the real dashboard/UI — finalizes a competition with a closed table, confirms the badge updates immediately with no wait on the background pipeline (Acceptance Scenario 1's "stays responsive"), polls the new dispatch screen until all three of the fixture's participants — including the one never assigned to any table, proving dispatch scope is competition-wide not table-wide — reach `Completed`, downloads the ZIP via a captured Playwright `download` event and inspects its entries with `adm-zip` (new test-only devDependency, Node has no built-in ZIP reader) against the exact FR-040 path, and confirms every participant's Mailpit message has the right PDF attachment; the retry button's *positive* case — correctly absent once everything is `Completed` — is asserted here, while the retry *mechanism* itself is covered at the integration level by `DispatchApiTests.cs` rather than forcing a contrived real-SMTP failure), and new **T083 `us11-discrepancy.spec.ts`** (1: two independent judge sessions on one shared table/sample — a 15-point-apart submission goes `PendingConsensus` on both evaluations with the alert visible to both sessions (one via a live `DiscrepancyRaised` within a ~1s bounded timeout, matching this suite's other realtime-propagation budgets), close blocked with `409 discrepancy-open`, an adjustment within 7 points resolves it (`DiscrepancyResolved` reaching the other session live too), close then succeeds — verified against real HTTP response bodies throughout, not just UI text; 3/3 consecutive runs clean, no flakiness) — all green against a live, fully-warmed Aspire stack (also re-verified alongside `us6-order.spec.ts`/`us8-close.spec.ts`/`us9-dashboard.spec.ts`/`us13-dashboard.spec.ts` as a regression spot-check), but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated: `login-required` races `page.goto('/')`). **Gap still open**: no judge- or organizer-facing route, including the evaluation sheet and all three dashboard/results screens, is in the axe-core sweep yet — `a11y/home.a11y.spec.ts` only covers the placeholder app shell; a full-suite sweep is Phase 15/T089 territory. See Recorded debt below. Chromium only |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
 ## Data flows

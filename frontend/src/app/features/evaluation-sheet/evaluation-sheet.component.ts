@@ -147,7 +147,14 @@ function buildForm(): FormGroup {
         [styleName]="currentSample.styleName"
       />
 
-      @if (currentSample.evaluationStatus !== 'NotStarted') {
+      @if (currentSample.evaluationStatus === 'PendingConsensus') {
+        <p role="status">
+          There is a scoring discrepancy on this sample.
+          <a [routerLink]="['/judge', 'tables', tableId, 'discrepancies']">
+            Resolve the discrepancy
+          </a>
+        </p>
+      } @else if (currentSample.evaluationStatus !== 'NotStarted') {
         <p role="status">This sample has already been evaluated.</p>
       } @else {
         <form [formGroup]="form" (ngSubmit)="onSubmit()">

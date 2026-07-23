@@ -5,6 +5,7 @@ import { homeRedirectGuard } from './core/auth/home-redirect.guard';
 import { judgeGuard, organizerGuard } from './core/auth/role.guard';
 import { CompetitionMonitorComponent } from './features/dashboard/competition-monitor.component';
 import { CompetitionWizardComponent } from './features/competition-wizard/competition-wizard.component';
+import { DiscrepancyAlertComponent } from './features/discrepancy/discrepancy-alert.component';
 import { EntryImportComponent } from './features/entry-import/entry-import.component';
 import { EvaluationSheetComponent } from './features/evaluation-sheet/evaluation-sheet.component';
 import { JudgeManagementComponent } from './features/judge-management/judge-management.component';
@@ -51,6 +52,7 @@ export const routes: Routes = [
         path: 'tables/:tableId/samples/:beerEntryId',
         component: EvaluationSheetComponent,
       },
+      { path: 'tables/:tableId/discrepancies', component: DiscrepancyAlertComponent },
       { path: '', pathMatch: 'full', redirectTo: 'tables' },
     ],
   },
