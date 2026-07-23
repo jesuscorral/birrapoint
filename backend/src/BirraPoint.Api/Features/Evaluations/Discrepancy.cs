@@ -7,6 +7,7 @@ using BirraPoint.Api.Realtime;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace BirraPoint.Api.Features.Evaluations;
 
@@ -19,22 +20,87 @@ public sealed record DiscrepancyTotalDto(string JudgeDisplayName, int Total, boo
 public sealed record DiscrepancyView(Guid AlertId, string BlindCode, IReadOnlyList<DiscrepancyTotalDto> Totals);
 
 /// <summary>
-/// Re-derives which judges are involved for one (table, sample) and stages the resulting
-/// Evaluation.Status / DiscrepancyAlert open-or-resolve transitions on the change tracker. Does
-/// NOT call SaveChangesAsync — the caller's responsibility (same "stage on the change tracker, one
-/// save" convention as CorrectEvaluation.cs's audit write), because callers (SubmitEvaluation,
-/// AdjustEvaluation) have their own scores mutation to persist in the same round trip.
+/// Re-derives which judges are involved for one (table, sample), stages the resulting
+/// Evaluation.Status / DiscrepancyAlert open-or-resolve transitions, and saves — retrying once if
+/// a concurrent reconciliation for the same pair wins the race to insert the DiscrepancyAlert
+/// (DiscrepancyAlertConfiguration's partial unique index on (TastingTableId, BeerEntryId, Status =
+/// Open)). Callers (SubmitEvaluation, AdjustEvaluation) call this AFTER their own scores mutation
+/// has already been saved — this method owns its own SaveChangesAsync round trip(s), unlike
+/// CorrectEvaluation.cs's audit write, which only stages and lets the caller's save pick it up.
 /// </summary>
 internal static class DiscrepancyReconciler
 {
     public sealed record DiscrepancyReconciliationOutcome(
         IReadOnlyCollection<Guid> InvolvedJudgeIds, Guid? AlertId, bool AlertOpened, bool AlertResolved);
 
-    public static async Task<DiscrepancyReconciliationOutcome> ReconcileAsync(
+    /// <summary>
+    /// This is the analogous race to Evaluation's own (JudgeId, BeerEntryId) idempotency backstop
+    /// (SubmitEvaluation.cs's IsUniqueViolation catch around its insert) — two judges submitting
+    /// divergent totals for the same (table, entry) near-simultaneously can both see "no Open alert
+    /// yet" and both try to insert one. Unlike that simpler case, this SaveChangesAsync batch also
+    /// stages both evaluations' Status flips in the same transaction as the alert insert: when the
+    /// insert fails, the WHOLE batch rolls back server-side, but the in-memory Status mutations —
+    /// plain C# property sets, not SQL — are still sitting on the tracked entities, now describing a
+    /// state that was never persisted. Recovery can't just detach the failed alert and move on: it
+    /// must discard every entity this attempt staged (<see cref="DiscardStagedChangesAsync"/>) and
+    /// re-derive from what the winning transaction actually committed before retrying — the retry's
+    /// own reconciliation only ever UPDATEs the now-existing Open alert (or nothing), so it cannot
+    /// hit the same unique index again.
+    /// </summary>
+    public static async Task<DiscrepancyReconciliationOutcome> ReconcileAndSaveAsync(
         AppDbContext dbContext, Guid tableId, Guid beerEntryId, CancellationToken cancellationToken)
     {
-        // Tracked entities (not a projection) — mutating .Status below must stick when the
-        // caller's own SaveChangesAsync runs.
+        var outcome = await ReconcileAsync(dbContext, tableId, beerEntryId, cancellationToken);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return outcome;
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            await DiscardStagedChangesAsync(dbContext, tableId, beerEntryId, cancellationToken);
+
+            var retryOutcome = await ReconcileAsync(dbContext, tableId, beerEntryId, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return retryOutcome;
+        }
+    }
+
+    /// <summary>Reverts this attempt's speculative Evaluation.Status mutations and discards its
+    /// never-persisted DiscrepancyAlert insert — the entities this method's own failed
+    /// SaveChangesAsync touched, not a blanket "reload everything" (other unrelated changes on the
+    /// same DbContext, if any, must survive). The two need different treatment: ReloadAsync is a
+    /// documented no-op for an entity in the Added state (there is no DB row to reload — leaving it
+    /// tracked as Added would make the retry's own new DiscrepancyAlert collide with THIS stale one
+    /// in the same batch, not with any other transaction), so the alert must be explicitly detached
+    /// instead; the Modified evaluations, by contrast, DO have a persisted row to reload — that's
+    /// what pulls in whatever the winning transaction actually committed for their Status.</summary>
+    private static async Task DiscardStagedChangesAsync(
+        AppDbContext dbContext, Guid tableId, Guid beerEntryId, CancellationToken cancellationToken)
+    {
+        foreach (var entry in dbContext.ChangeTracker.Entries<Evaluation>()
+            .Where(e => e.State == EntityState.Modified && e.Entity.TastingTableId == tableId && e.Entity.BeerEntryId == beerEntryId)
+            .ToList())
+        {
+            await entry.ReloadAsync(cancellationToken);
+        }
+
+        foreach (var entry in dbContext.ChangeTracker.Entries<DiscrepancyAlert>()
+            .Where(a => a.State == EntityState.Added && a.Entity.TastingTableId == tableId && a.Entity.BeerEntryId == beerEntryId)
+            .ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
+    }
+
+    private static async Task<DiscrepancyReconciliationOutcome> ReconcileAsync(
+        AppDbContext dbContext, Guid tableId, Guid beerEntryId, CancellationToken cancellationToken)
+    {
+        // Tracked entities (not a projection) — mutating .Status below must stick when
+        // ReconcileAndSaveAsync's own SaveChangesAsync runs. The identity map means a retry's
+        // ToListAsync reuses the same tracked instances the prior attempt reloaded, rather than
+        // creating duplicates.
         var evaluations = await dbContext.Evaluations
             .Where(e => e.TastingTableId == tableId && e.BeerEntryId == beerEntryId)
             .ToListAsync(cancellationToken);
@@ -75,6 +141,14 @@ internal static class DiscrepancyReconciler
 
         return new DiscrepancyReconciliationOutcome(involved, AlertId: null, AlertOpened: false, AlertResolved: false);
     }
+
+    /// <summary>Same detection as SubmitEvaluation.cs's IsUniqueViolation (Npgsql wraps a
+    /// unique-constraint violation in a DbUpdateException whose InnerException is a
+    /// PostgresException with SqlState 23505) — duplicated rather than shared since it's a
+    /// one-line predicate and the two call sites already duplicate comparable small helpers
+    /// (e.g. the FluentValidation score-cap rules).</summary>
+    private static bool IsUniqueViolation(DbUpdateException ex) =>
+        ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
 }
 
 /// <summary>Builds the judge-facing view of one alert's totals — used both by the response of the
@@ -191,9 +265,8 @@ public sealed class AdjustEvaluationCommandHandler(AppDbContext dbContext, ICurr
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var outcome = await DiscrepancyReconciler.ReconcileAsync(
+        var outcome = await DiscrepancyReconciler.ReconcileAndSaveAsync(
             dbContext, request.TableId, evaluation.BeerEntryId, cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
 
         var blindCode = await dbContext.BeerEntries
             .Where(e => e.Id == evaluation.BeerEntryId)

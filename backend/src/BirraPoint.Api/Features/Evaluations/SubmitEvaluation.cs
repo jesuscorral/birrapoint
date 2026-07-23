@@ -209,9 +209,10 @@ public sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurr
         // FR-031: compare this submission's total against every other already-submitted total for
         // the same (table, sample); EF identity-maps the reconciler's query back to the `evaluation`
         // instance already tracked above, so evaluation.Status reflects the reconciled state below
-        // without needing to re-fetch it.
-        var outcome = await DiscrepancyReconciler.ReconcileAsync(dbContext, request.TableId, request.BeerEntryId, cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        // without needing to re-fetch it. ReconcileAndSaveAsync owns its own save (and a retry if a
+        // concurrent submission for a different judge races the DiscrepancyAlert insert) — see its
+        // doc comment for why a bare catch-and-detach isn't enough here.
+        var outcome = await DiscrepancyReconciler.ReconcileAndSaveAsync(dbContext, request.TableId, request.BeerEntryId, cancellationToken);
 
         var tableProgress = await ComputeTableProgressAsync(request.TableId, cancellationToken);
         var blindCode = await dbContext.BeerEntries

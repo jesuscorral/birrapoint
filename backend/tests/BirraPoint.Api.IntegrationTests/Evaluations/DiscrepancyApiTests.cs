@@ -157,6 +157,16 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
             a => a.TastingTableId == tableId && a.BeerEntryId == beerEntryId && a.Status == DiscrepancyStatus.Open);
     }
 
+    private async Task<List<EvaluationStatus>> GetEvaluationStatusesAsync(Guid tableId, Guid beerEntryId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.Evaluations
+            .Where(e => e.TastingTableId == tableId && e.BeerEntryId == beerEntryId)
+            .Select(e => e.Status)
+            .ToListAsync();
+    }
+
     private static object Scores(int aroma, int appearance, int flavor, int mouthfeel, int overall) =>
         new { aroma, appearance, flavor, mouthfeel, overall };
 
@@ -395,5 +405,36 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
         var close = await CloseAsync(judgeA, fixture.TableId);
 
         Assert.Equal(HttpStatusCode.OK, close.StatusCode);
+    }
+
+    // ---- Concurrency race on the alert insert itself, not just the evaluation insert -------------
+
+    [Fact]
+    public async Task Two_different_judges_submitting_divergent_totals_concurrently_leave_exactly_one_open_alert()
+    {
+        // Regression test for a real race PR review caught: two DIFFERENT judges (so the
+        // evaluation's own (JudgeId, BeerEntryId) unique index never engages — SubmitEvaluationApiTests'
+        // existing race test only covers the SAME judge racing itself) can both reach
+        // DiscrepancyReconciler seeing no existing Open alert and both try to insert one, hitting
+        // DiscrepancyAlertConfiguration's partial unique index. Before the fix this surfaced as an
+        // unhandled 500 for whichever request lost the race; DiscrepancyReconciler.ReconcileAndSaveAsync
+        // now retries against what the winner actually persisted.
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
+
+        using var judgeA = JudgeClient(fixture.Judges[0].JudgeSub);
+        using var judgeB = JudgeClient(fixture.Judges[1].JudgeSub);
+
+        var taskA = SubmitAsync(judgeA, fixture.TableId, fixture.EntryId, Scores(10, 2, 16, 4, 8)); // 40
+        var taskB = SubmitAsync(judgeB, fixture.TableId, fixture.EntryId, Scores(5, 1, 10, 2, 2)); // 20, diff 20 -> both involved
+        var responses = await Task.WhenAll(taskA, taskB);
+
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.Created, r.StatusCode));
+
+        Assert.Equal(1, await CountOpenAlertsAsync(fixture.TableId, fixture.EntryId));
+
+        var statuses = await GetEvaluationStatusesAsync(fixture.TableId, fixture.EntryId);
+        Assert.Equal(2, statuses.Count);
+        Assert.All(statuses, s => Assert.Equal(EvaluationStatus.PendingConsensus, s));
     }
 }
