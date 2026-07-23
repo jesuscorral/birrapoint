@@ -307,7 +307,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
         using var judgeBClient = JudgeClient(fixture.Judges[1].JudgeSub);
 
         var scoresA = new { aroma = 10, appearance = 2, flavor = 15, mouthfeel = 4, overall = 8 }; // total 39
-        var scoresB = new { aroma = 12, appearance = 3, flavor = 20, mouthfeel = 5, overall = 10 }; // total 50
+        var scoresB = new { aroma = 11, appearance = 3, flavor = 17, mouthfeel = 4, overall = 9 }; // total 44, within 7 of scoresA (FR-031) so no discrepancy blocks the close below
 
         Assert.Equal(HttpStatusCode.Created, (await SubmitAsync(judgeAClient, fixture.TableId, entryId, scoresA)).StatusCode);
         Assert.Equal(HttpStatusCode.Created, (await SubmitAsync(judgeBClient, fixture.TableId, entryId, scoresB)).StatusCode);

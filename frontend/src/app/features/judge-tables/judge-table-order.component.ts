@@ -5,14 +5,17 @@ import type { OnDestroy, OnInit } from '@angular/core';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import type { Subscription } from 'rxjs';
-import { filter, forkJoin } from 'rxjs';
+import { filter, forkJoin, merge } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
 import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
 import type {
+  DiscrepancyRaisedEvent,
+  DiscrepancyResolvedEvent,
   TableClosedEvent,
   TableOrderFixedEvent,
 } from '../../core/realtime/competition-hub.events';
+import { DiscrepancyApiService } from '../discrepancy/discrepancy-api.service';
 import { TastingOrderApiService } from './tasting-order-api.service';
 import type { JudgeSample, JudgeTableSummary } from './tasting-order-api.service';
 
@@ -60,6 +63,16 @@ function swap<T>(items: T[], a: number, b: number): T[] {
     }
 
     @if (!loadError()) {
+      @if (openDiscrepancyCount() > 0) {
+        <p role="status" class="discrepancy-banner">
+          {{ openDiscrepancyCount() }} open discrepancy alert{{
+            openDiscrepancyCount() === 1 ? '' : 's'
+          }}
+          on this table.
+          <a [routerLink]="['/judge', 'tables', tableId, 'discrepancies']">Resolve now</a>
+        </p>
+      }
+
       @if (tableClosed()) {
         <p role="status" class="order-status order-status--closed">
           Table closed. Scores are now permanently locked.
@@ -79,7 +92,14 @@ function swap<T>(items: T[], a: number, b: number): T[] {
       }
 
       @if (closeError(); as message) {
-        <p role="alert">{{ message }}</p>
+        <p role="alert">
+          {{ message }}
+          @if (closeErrorDiscrepancy()) {
+            <a [routerLink]="['/judge', 'tables', tableId, 'discrepancies']">
+              Resolve discrepancies
+            </a>
+          }
+        </p>
       }
 
       @if (samples().length === 0) {
@@ -216,6 +236,14 @@ function swap<T>(items: T[], a: number, b: number): T[] {
     }
   `,
   styles: `
+    .discrepancy-banner {
+      background: #fee2e2;
+      color: #991b1b;
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.5rem;
+      font-weight: 600;
+    }
+
     .order-status {
       margin: 0.5rem 0;
     }
@@ -322,17 +350,20 @@ function swap<T>(items: T[], a: number, b: number): T[] {
 export class JudgeTableOrderComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(TastingOrderApiService);
+  private readonly discrepancyApi = inject(DiscrepancyApiService);
   private readonly hub = inject(CompetitionHubService);
 
   protected readonly tableId = this.route.snapshot.paramMap.get('tableId')!;
   private hubSubscription: Subscription | null = null;
   private tableClosedSubscription: Subscription | null = null;
+  private discrepancySubscription: Subscription | null = null;
 
   protected readonly tableSummary = signal<JudgeTableSummary | null>(null);
   protected readonly samples = signal<JudgeSample[]>([]);
   protected readonly orderFixed = signal(false);
   protected readonly fixedByDisplayName = signal<string | null>(null);
   protected readonly loadError = signal<string | null>(null);
+  protected readonly openDiscrepancyCount = signal(0);
 
   protected readonly confirmingFix = signal(false);
   protected readonly fixing = signal(false);
@@ -346,6 +377,7 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
   protected readonly confirmingClose = signal(false);
   protected readonly closing = signal(false);
   protected readonly closeError = signal<string | null>(null);
+  protected readonly closeErrorDiscrepancy = signal(false);
 
   protected readonly tableName = computed(() => this.tableSummary()?.name ?? 'Table');
 
@@ -382,6 +414,7 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.hubSubscription?.unsubscribe();
     this.tableClosedSubscription?.unsubscribe();
+    this.discrepancySubscription?.unsubscribe();
     void this.hub.leaveTable(this.tableId).catch(() => {
       // Best-effort: leaving on navigation-away is a courtesy, not a functional requirement.
     });
@@ -495,6 +528,14 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
         .on('TableClosed')
         .pipe(filter((event: TableClosedEvent) => event.tableId === this.tableId))
         .subscribe(() => this.tableClosed.set(true));
+      this.discrepancySubscription = merge(
+        this.hub
+          .on('DiscrepancyRaised')
+          .pipe(filter((event: DiscrepancyRaisedEvent) => event.tableId === this.tableId)),
+        this.hub
+          .on('DiscrepancyResolved')
+          .pipe(filter((event: DiscrepancyResolvedEvent) => event.tableId === this.tableId)),
+      ).subscribe(() => this.refreshDiscrepancyCount());
     } catch {
       // Realtime is a best-effort notification channel (contracts/signalr-hub.md): the samples
       // view stays fully functional over REST without it — a judge just won't see another
@@ -507,16 +548,30 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
     forkJoin({
       tables: this.api.getMyTables(),
       samples: this.api.getTableSamples(this.tableId),
+      discrepancies: this.discrepancyApi.getDiscrepancies(this.tableId),
     }).subscribe({
-      next: ({ tables, samples }) => {
+      next: ({ tables, samples, discrepancies }) => {
         const summary = tables.find((table) => table.tableId === this.tableId) ?? null;
         this.tableSummary.set(summary);
         this.samples.set(samples);
         this.orderFixed.set(summary?.orderFixed ?? false);
         this.fixedByDisplayName.set(summary?.orderFixedBy ?? null);
         this.tableClosed.set(summary?.tableState === 'Closed');
+        this.openDiscrepancyCount.set(discrepancies.length);
       },
       error: (error: unknown) => this.loadError.set(errorMessage(toGenericApiError(error))),
+    });
+  }
+
+  // On a live DiscrepancyRaised/DiscrepancyResolved event: re-fetch rather than derive the count
+  // from the event payload — same "events are notifications, not the source of truth" convention
+  // as everywhere else in this component.
+  private refreshDiscrepancyCount(): void {
+    this.discrepancyApi.getDiscrepancies(this.tableId).subscribe({
+      next: (discrepancies) => this.openDiscrepancyCount.set(discrepancies.length),
+      error: () => {
+        // Best-effort: a failure here only leaves the banner's count stale until next load.
+      },
     });
   }
 
@@ -590,6 +645,7 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
 
   private handleCloseError(error: unknown): void {
     const apiError = toGenericApiError(error);
+    this.closeErrorDiscrepancy.set(false);
 
     if (apiError.urn === 'urn:birrapoint:table-closed') {
       // We lost the race: someone else at this table closed it first. That's the outcome this
@@ -607,6 +663,7 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
     if (apiError.urn === 'urn:birrapoint:discrepancy-open') {
       const blindCodes = (apiError.extensions['blindCodes'] as string[] | undefined) ?? [];
       this.closeError.set(`Unresolved discrepancies on: ${blindCodes.join(', ')}.`);
+      this.closeErrorDiscrepancy.set(true);
       return;
     }
 

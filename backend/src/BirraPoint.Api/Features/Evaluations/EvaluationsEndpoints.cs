@@ -5,11 +5,15 @@ namespace BirraPoint.Api.Features.Evaluations;
 
 public sealed record SubmitEvaluationRequest(Guid BeerEntryId, EvaluationScoresDto Scores, EvaluationCommentsDto Comments);
 
+public sealed record AdjustEvaluationRequest(EvaluationScoresDto Scores, EvaluationCommentsDto Comments);
+
 public sealed record CorrectEvaluationRequest(EvaluationScoresDto Scores, EvaluationCommentsDto Comments);
 
 /// <summary>Maps POST /me/tables/{tableId}/evaluations (contracts/rest-api.md §Judge workspace,
-/// T055-T058), POST /me/tables/{tableId}/close (T062-T063, FR-033/FR-042) — both JUDGE-only — and
-/// PUT /competitions/{id}/evaluations/{evaluationId} (T064-T065, FR-035) — ORGANIZER-only.</summary>
+/// T055-T058), PUT /me/tables/{tableId}/evaluations/{evaluationId} and
+/// GET /me/tables/{tableId}/evaluations/discrepancies (T081, FR-031), POST /me/tables/{tableId}/close
+/// (T062-T063, FR-033/FR-042) — all JUDGE-only — and PUT /competitions/{id}/evaluations/{evaluationId}
+/// (T064-T065, FR-035) — ORGANIZER-only.</summary>
 public static class EvaluationsEndpoints
 {
     public static IEndpointRouteBuilder MapEvaluationsEndpoints(this IEndpointRouteBuilder endpoints)
@@ -52,6 +56,19 @@ public static class EvaluationsEndpoints
         .Produces(StatusCodes.Status404NotFound)
         .Produces(StatusCodes.Status409Conflict);
 
+        group.MapPut("/{evaluationId:guid}", async (
+            Guid tableId, Guid evaluationId, AdjustEvaluationRequest request, ISender sender, CancellationToken cancellationToken) =>
+        {
+            var command = new AdjustEvaluationCommand(tableId, evaluationId, request.Scores, request.Comments);
+            var result = await sender.Send(command, cancellationToken);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        })
+        .WithName("AdjustEvaluation")
+        .Produces<AdjustEvaluationResult>(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status400BadRequest)
+        .Produces(StatusCodes.Status404NotFound)
+        .Produces(StatusCodes.Status409Conflict);
+
         // Different path shape than the /evaluations group above — a sibling resource under the
         // same /me/tables/{tableId} prefix, same JUDGE-only convention (mirrors how
         // Features/Tables/TablesEndpoints.cs maps a second, differently-shaped "entries" group from
@@ -73,6 +90,17 @@ public static class EvaluationsEndpoints
         .Produces<object>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status404NotFound)
         .Produces(StatusCodes.Status409Conflict);
+
+        // Path matches contracts/rest-api.md §Judge workspace exactly: GET /me/tables/{tableId}/discrepancies
+        // (a sibling of /evaluations, not nested under it).
+        closeGroup.MapGet("/discrepancies", async (Guid tableId, ISender sender, CancellationToken cancellationToken) =>
+        {
+            var result = await sender.Send(new GetMyDiscrepanciesQuery(tableId), cancellationToken);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        })
+        .WithName("GetMyDiscrepancies")
+        .Produces<IReadOnlyList<DiscrepancyView>>(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status404NotFound);
 
         var correctionGroup = endpoints.MapGroup("/api/v1/competitions/{id:guid}/evaluations")
             .RequireAuthorization("ORGANIZER")
