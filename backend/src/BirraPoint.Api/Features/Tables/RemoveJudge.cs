@@ -5,6 +5,7 @@ using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.Features.Evaluations;
 using BirraPoint.Api.Realtime;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -26,7 +27,12 @@ namespace BirraPoint.Api.Features.Tables;
 /// slices: JudgeTableAccess.FindActiveMembershipAsync (already filtering on RemovedAt == null and
 /// reused by every one of them) starts rejecting the removed judge the instant this handler sets
 /// RemovedAt. Already-submitted evaluations are left untouched — TableJudge rows are never
-/// hard-deleted once evaluations exist (data-model.md).</summary>
+/// hard-deleted once evaluations exist (data-model.md). Once RemovedAt is flushed, every open
+/// DiscrepancyAlert at this table is re-reconciled (DiscrepancyReconciler.ReconcileAsync, which
+/// excludes removed judges from the involvement math) — otherwise an alert the removed judge was
+/// party to could never resolve: the only other paths that call reconciliation (SubmitEvaluation,
+/// AdjustEvaluation) both require an active table membership the removed judge no longer has, and
+/// CloseTable hard-blocks on any Open alert, so without this the table could never close.</summary>
 public sealed record RemoveJudgeCommand(Guid CompetitionId, Guid TableId, Guid JudgeId) : IRequest<RemoveJudgeResult?>;
 
 public sealed record RemoveJudgeResult(Guid TableId, Guid JudgeId);
@@ -105,7 +111,34 @@ public sealed class RemoveJudgeCommandHandler(
             before: new { tableId = request.TableId, judgeId = request.JudgeId, removedAt = (DateTimeOffset?)null },
             after: new { tableId = request.TableId, judgeId = request.JudgeId, removedAt = lockedTableJudge.RemovedAt });
 
+        // Flush the removal (and the audit row above) BEFORE reconciling — DiscrepancyReconciler.
+        // ReconcileAsync's removed-judge exclusion runs a fresh DB query, not a change-tracker
+        // lookup, so it can only see this judge as removed once RemovedAt has actually reached the
+        // database (still inside this transaction, so nothing is visible to anyone else yet).
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        // Re-derive every open discrepancy at this table now that this judge's evaluations no
+        // longer count toward involvement: one they were party to may now resolve if the remaining
+        // judges converge; one they weren't involved in is untouched; one where the remaining judges
+        // still diverge stays open (FR-039 — see this handler's own doc comment for why this is
+        // necessary at all). Collected here, inside the transaction, so the events below only fire
+        // for alerts that are actually committed as resolved.
+        var openAlertEntryIds = await dbContext.DiscrepancyAlerts
+            .Where(a => a.TastingTableId == request.TableId && a.Status == DiscrepancyStatus.Open)
+            .Select(a => a.BeerEntryId)
+            .ToListAsync(cancellationToken);
+
+        var resolvedAlerts = new List<(Guid AlertId, Guid BeerEntryId)>();
+        foreach (var beerEntryId in openAlertEntryIds)
+        {
+            var outcome = await DiscrepancyReconciler.ReconcileAndSaveAsync(
+                dbContext, request.TableId, beerEntryId, cancellationToken);
+            if (outcome.AlertResolved)
+            {
+                resolvedAlerts.Add((outcome.AlertId!.Value, beerEntryId));
+            }
+        }
+
         await transaction.CommitAsync(cancellationToken);
 
         // Emitted only after the transaction above commits (contracts/signalr-hub.md §Delivery
@@ -114,13 +147,32 @@ public sealed class RemoveJudgeCommandHandler(
         // two-audience TableClosed emit: the removed judge's own client ejects on the table group;
         // the organizer group also gets the judge's display name (confirmation echo for the dashboard).
         await eventPublisher.PublishToTableAsync(
-            request.TableId, "JudgeRemoved", new { tableId = request.TableId, judgeId = request.JudgeId }, CancellationToken.None);
+            request.TableId, CompetitionEvents.JudgeRemoved, new { tableId = request.TableId, judgeId = request.JudgeId }, CancellationToken.None);
 
         await eventPublisher.PublishToOrganizersAsync(
             request.CompetitionId,
-            "JudgeRemoved",
+            CompetitionEvents.JudgeRemoved,
             new { tableId = request.TableId, judgeId = request.JudgeId, judgeDisplayName },
             CancellationToken.None);
+
+        // One DiscrepancyResolved pair per alert this removal resolved — same wire shape and
+        // dual-audience routing as AdjustEvaluation.cs's PublishDiscrepancyEventAsync
+        // (contracts/signalr-hub.md's DiscrepancyResolved rows).
+        foreach (var (alertId, beerEntryId) in resolvedAlerts)
+        {
+            var blindCode = await dbContext.BeerEntries
+                .Where(be => be.Id == beerEntryId)
+                .Select(be => be.BlindCode)
+                .SingleAsync(cancellationToken);
+
+            var payload = new { alertId, tableId = request.TableId, blindCode };
+
+            await eventPublisher.PublishToTableAsync(
+                request.TableId, CompetitionEvents.DiscrepancyResolved, payload, CancellationToken.None);
+
+            await eventPublisher.PublishToOrganizersAsync(
+                request.CompetitionId, CompetitionEvents.DiscrepancyResolved, payload, CancellationToken.None);
+        }
 
         return new RemoveJudgeResult(request.TableId, request.JudgeId);
     }

@@ -234,7 +234,19 @@ judges/{judgeId}`, ORGANIZER-only) scopes the target `TableJudge` row through `T
 CompetitionId` (the composite-key `TableJudge` has no `CompetitionId` of its own) so a table/judge id
 from a different competition can't be addressed via a route naming a competition the caller does own,
 then soft-revokes by setting `RemovedAt` — rows are never hard-deleted once evaluations exist
-(data-model.md), so already-submitted evaluations stay untouched and readable. Removal is gated to
+(data-model.md), so already-submitted evaluations stay untouched and readable. Once that `RemovedAt`
+flush is committed, the handler re-reconciles every `Open` `DiscrepancyAlert` at the table (looping
+`DiscrepancyReconciler.ReconcileAndSaveAsync` per affected `BeerEntryId`, inside the same transaction)
+— without this, an alert the removed judge was party to could never resolve, since the only other
+callers of reconciliation (`SubmitEvaluation`, `AdjustEvaluation`) both require an active table
+membership the removed judge no longer has, and `CloseTable` hard-blocks on any `Open` alert, so the
+table could otherwise never close again. `DiscrepancyReconciler.ReconcileAsync` itself now excludes
+removed judges' totals from the involvement math entirely (fetched fresh from `TableJudges` inside the
+same call, benefiting all three call sites, not just this new one) and leaves a removed judge's own
+`Evaluation.Status` untouched rather than flipping it to `Confirmed` — reconciling toward consensus is
+a live-table concept that no longer applies to someone who has left. A `DiscrepancyResolved` event
+(same wire shape and dual-audience routing as `AdjustEvaluation.cs`'s equivalent) is published, after
+commit, for each alert this removal actually resolved. Removal is gated to
 competition state `InEvaluation` only (`409 invalid-state-transition` otherwise, FR-039 scopes this to
 "the live event"). That gate also closes a real data-integrity hole: `TableAssignmentApplier` (behind
 `UpdateTable`'s Draft/Active `PUT`) filters on `RemovedAt == null` to compute who to re-add, so a

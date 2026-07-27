@@ -188,6 +188,35 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
     private static Task<HttpResponseMessage> GetEntryEvaluationsAsync(HttpClient client, Guid competitionId, Guid entryId) =>
         client.GetAsync($"/api/v1/competitions/{competitionId}/entries/{entryId}/evaluations");
 
+    // ---- Discrepancy-reconciliation-on-removal helpers (mirrors DiscrepancyApiTests.cs) -----------
+
+    private static object Scores(int aroma, int appearance, int flavor, int mouthfeel, int overall) =>
+        new { aroma, appearance, flavor, mouthfeel, overall };
+
+    private static Task<HttpResponseMessage> GetDiscrepanciesAsync(HttpClient client, Guid tableId) =>
+        client.GetAsync($"/api/v1/me/tables/{tableId}/discrepancies");
+
+    private static Task<HttpResponseMessage> CloseAsync(HttpClient client, Guid tableId) =>
+        client.PostAsync($"/api/v1/me/tables/{tableId}/close", content: null);
+
+    private async Task<int> CountOpenAlertsAsync(Guid tableId, Guid beerEntryId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.DiscrepancyAlerts.CountAsync(
+            a => a.TastingTableId == tableId && a.BeerEntryId == beerEntryId && a.Status == DiscrepancyStatus.Open);
+    }
+
+    private async Task<List<EvaluationStatus>> GetEvaluationStatusesAsync(Guid tableId, Guid beerEntryId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.Evaluations
+            .Where(e => e.TastingTableId == tableId && e.BeerEntryId == beerEntryId)
+            .Select(e => e.Status)
+            .ToListAsync();
+    }
+
     /// <summary>Seeds a competition, one table with <paramref name="sampleCount"/> samples, and
     /// <paramref name="judgeCount"/> actively-assigned judges. Competition state and order-fixed-ness
     /// are left to the caller.</summary>
@@ -382,5 +411,119 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
         using var document = JsonDocument.Parse(await evaluationsResponse.Content.ReadAsStringAsync());
         var evaluations = document.RootElement.GetProperty("evaluations").EnumerateArray().ToList();
         Assert.Contains(evaluations, e => e.GetProperty("total").GetInt32() == 39); // aroma 10 + appearance 2 + flavor 15 + mouthfeel 4 + overall 8
+    }
+
+    // ---- Removal reconciles open discrepancies at the table (FR-039 — see RemoveJudge.cs doc) ------
+
+    [Fact]
+    public async Task Removing_the_common_outlier_resolves_an_open_discrepancy_once_the_remaining_judges_converge()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 3);
+        var entryId = fixture.EntryIds[0];
+
+        using var judgeA = JudgeClient(fixture.Judges[0].JudgeSub);
+        using var judgeB = JudgeClient(fixture.Judges[1].JudgeSub);
+        using var judgeC = JudgeClient(fixture.Judges[2].JudgeSub);
+
+        Assert.Equal(HttpStatusCode.Created, (await SubmitAsync(judgeA, fixture.TableId, entryId, Scores(10, 2, 16, 4, 8))).StatusCode); // 40
+        var opening = await SubmitAsync(judgeB, fixture.TableId, entryId, Scores(5, 1, 10, 2, 2)); // 20, diff 20 -> A & B involved
+        Assert.Equal(HttpStatusCode.Created, opening.StatusCode);
+        Assert.Equal(
+            "PendingConsensus", (await opening.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
+        Assert.Equal(HttpStatusCode.Created, (await SubmitAsync(judgeC, fixture.TableId, entryId, Scores(11, 3, 17, 4, 9))).StatusCode); // 44, diff to B 24 -> C involved too
+
+        Assert.Equal(1, await CountOpenAlertsAsync(fixture.TableId, entryId));
+
+        var blockedClose = await CloseAsync(judgeA, fixture.TableId);
+        Assert.Equal(HttpStatusCode.Conflict, blockedClose.StatusCode);
+        using var blockedDocument = JsonDocument.Parse(await blockedClose.Content.ReadAsStringAsync());
+        Assert.Contains("discrepancy-open", blockedDocument.RootElement.GetProperty("type").GetString());
+
+        // Removing judge B leaves A (40) and C (44) — only 4 points apart, so the alert should now
+        // resolve even though nobody called AdjustEvaluation.
+        var removeResponse = await RemoveJudgeAsync(organizer, fixture.CompetitionId, fixture.TableId, fixture.Judges[1].JudgeId);
+        Assert.Equal(HttpStatusCode.OK, removeResponse.StatusCode);
+
+        Assert.Equal(0, await CountOpenAlertsAsync(fixture.TableId, entryId));
+
+        var discrepanciesForA = await GetDiscrepanciesAsync(judgeA, fixture.TableId);
+        using var forA = JsonDocument.Parse(await discrepanciesForA.Content.ReadAsStringAsync());
+        Assert.Empty(forA.RootElement.EnumerateArray());
+
+        var discrepanciesForC = await GetDiscrepanciesAsync(judgeC, fixture.TableId);
+        using var forC = JsonDocument.Parse(await discrepanciesForC.Content.ReadAsStringAsync());
+        Assert.Empty(forC.RootElement.EnumerateArray());
+
+        var close = await CloseAsync(judgeA, fixture.TableId);
+        Assert.Equal(HttpStatusCode.OK, close.StatusCode);
+    }
+
+    [Fact]
+    public async Task Removing_a_judge_uninvolved_in_an_open_discrepancy_leaves_it_open_and_blocks_close()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 3);
+        var entryId = fixture.EntryIds[0];
+
+        using var judgeA = JudgeClient(fixture.Judges[0].JudgeSub);
+        using var judgeB = JudgeClient(fixture.Judges[1].JudgeSub);
+
+        Assert.Equal(HttpStatusCode.Created, (await SubmitAsync(judgeA, fixture.TableId, entryId, Scores(10, 2, 16, 4, 8))).StatusCode); // 40
+        var opening = await SubmitAsync(judgeB, fixture.TableId, entryId, Scores(5, 1, 10, 2, 2)); // 20, diff 20 -> both involved
+        Assert.Equal(HttpStatusCode.Created, opening.StatusCode);
+        Assert.Equal(1, await CountOpenAlertsAsync(fixture.TableId, entryId));
+
+        // Judge C never submitted anything for this entry and is unrelated to the A/B discrepancy.
+        var removeResponse = await RemoveJudgeAsync(organizer, fixture.CompetitionId, fixture.TableId, fixture.Judges[2].JudgeId);
+        Assert.Equal(HttpStatusCode.OK, removeResponse.StatusCode);
+
+        Assert.Equal(1, await CountOpenAlertsAsync(fixture.TableId, entryId));
+        Assert.All(
+            await GetEvaluationStatusesAsync(fixture.TableId, entryId),
+            s => Assert.Equal(EvaluationStatus.PendingConsensus, s));
+
+        var discrepanciesForA = await GetDiscrepanciesAsync(judgeA, fixture.TableId);
+        using var forA = JsonDocument.Parse(await discrepanciesForA.Content.ReadAsStringAsync());
+        Assert.Single(forA.RootElement.EnumerateArray());
+
+        var close = await CloseAsync(judgeA, fixture.TableId);
+        Assert.Equal(HttpStatusCode.Conflict, close.StatusCode);
+        using var closeDocument = JsonDocument.Parse(await close.Content.ReadAsStringAsync());
+        Assert.Contains("discrepancy-open", closeDocument.RootElement.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task Removing_one_of_three_mutually_divergent_judges_leaves_the_alert_open_when_the_remaining_two_still_diverge()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 3);
+        var entryId = fixture.EntryIds[0];
+
+        using var judgeA = JudgeClient(fixture.Judges[0].JudgeSub);
+        using var judgeB = JudgeClient(fixture.Judges[1].JudgeSub);
+        using var judgeC = JudgeClient(fixture.Judges[2].JudgeSub);
+
+        Assert.Equal(HttpStatusCode.Created, (await SubmitAsync(judgeA, fixture.TableId, entryId, Scores(1, 0, 2, 1, 1))).StatusCode); // 5
+        Assert.Equal(HttpStatusCode.Created, (await SubmitAsync(judgeB, fixture.TableId, entryId, Scores(6, 1, 12, 3, 3))).StatusCode); // 25, diff to A 20 -> both involved
+        Assert.Equal(HttpStatusCode.Created, (await SubmitAsync(judgeC, fixture.TableId, entryId, Scores(11, 3, 17, 5, 9))).StatusCode); // 45, diff to A 40, diff to B 20 -> all three involved
+
+        Assert.Equal(1, await CountOpenAlertsAsync(fixture.TableId, entryId));
+
+        // Removing judge A leaves B (25) and C (45) — still 20 points apart, so the alert must stay
+        // open; it is not force-resolved just because one party left.
+        var removeResponse = await RemoveJudgeAsync(organizer, fixture.CompetitionId, fixture.TableId, fixture.Judges[0].JudgeId);
+        Assert.Equal(HttpStatusCode.OK, removeResponse.StatusCode);
+
+        Assert.Equal(1, await CountOpenAlertsAsync(fixture.TableId, entryId));
+
+        var discrepanciesForB = await GetDiscrepanciesAsync(judgeB, fixture.TableId);
+        using var forB = JsonDocument.Parse(await discrepanciesForB.Content.ReadAsStringAsync());
+        Assert.Single(forB.RootElement.EnumerateArray());
+
+        var close = await CloseAsync(judgeB, fixture.TableId);
+        Assert.Equal(HttpStatusCode.Conflict, close.StatusCode);
+        using var closeDocument = JsonDocument.Parse(await close.Content.ReadAsStringAsync());
+        Assert.Contains("discrepancy-open", closeDocument.RootElement.GetProperty("type").GetString());
     }
 }
