@@ -57,7 +57,8 @@ public static class TablesEndpoints
         })
         .WithName("RemoveJudge")
         .Produces<RemoveJudgeResult>()
-        .Produces(StatusCodes.Status404NotFound);
+        .Produces(StatusCodes.Status404NotFound)
+        .Produces(StatusCodes.Status409Conflict);
 
         endpoints.MapGroup("/api/v1/competitions/{competitionId:guid}/entries")
             .RequireAuthorization("ORGANIZER")

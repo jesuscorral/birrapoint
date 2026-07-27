@@ -403,7 +403,7 @@ describe('EvaluationSheetComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('not the next one');
   });
 
-  it('maps a 404 submit rejection (removed from the table mid-session) to a tailored message and does not navigate', async () => {
+  it('ejects directly on a 404 submit rejection (removed from the table mid-session), without waiting for the hub event', async () => {
     fakeSync.submit.mockRejectedValue(new ApiError({ status: 404, title: 'Not found', urn: null }));
     const fixture = createComponent();
     await flush();
@@ -422,10 +422,11 @@ describe('EvaluationSheetComponent', () => {
     });
 
     await fixture.componentInstance.onSubmit();
-    fixture.detectChanges();
 
-    expect(navigateSpy).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.textContent).toContain('You were removed from this table.');
+    expect(fakeSync.rejectOutboxForTable).toHaveBeenCalledWith('t1');
+    expect(navigateSpy).toHaveBeenCalledWith(['/judge', 'tables'], {
+      state: { ejected: true, tableName: 'Table 3' },
+    });
   });
 
   it('shows a distinct message for a non-ApiError (local storage) submit failure', async () => {

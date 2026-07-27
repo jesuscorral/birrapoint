@@ -268,6 +268,54 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
         Assert.Equal(nameof(TableJudge), auditLog.EntityType);
     }
 
+    // ---- Competition state gate (FR-039 scopes removal to "the live event") ------------------------
+
+    [Fact]
+    public async Task Remove_while_the_competition_is_still_Draft_returns_409_invalid_state_transition()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedTableWithSamplesAsync(organizer, judgeCount: 1);
+
+        var response = await RemoveJudgeAsync(organizer, fixture.CompetitionId, fixture.TableId, fixture.Judges[0].JudgeId);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("urn:birrapoint:invalid-state-transition", document.RootElement.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task Remove_while_the_competition_is_Active_but_not_yet_InEvaluation_returns_409_invalid_state_transition()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedTableWithSamplesAsync(organizer, judgeCount: 1);
+        await TransitionStateAsync(organizer, fixture.CompetitionId, "Active");
+
+        var response = await RemoveJudgeAsync(organizer, fixture.CompetitionId, fixture.TableId, fixture.Judges[0].JudgeId);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("urn:birrapoint:invalid-state-transition", document.RootElement.GetProperty("type").GetString());
+    }
+
+    // ---- Concurrency: the FOR UPDATE lock must survive a real race, not just sequential replay -----
+
+    [Fact]
+    public async Task Fifty_concurrent_removals_of_the_same_judge_yield_exactly_one_success_and_no_exceptions()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 1);
+        var judgeId = fixture.Judges[0].JudgeId;
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 50)
+            .Select(_ => RemoveJudgeAsync(organizer, fixture.CompetitionId, fixture.TableId, judgeId)));
+
+        Assert.Equal(1, results.Count(r => r.StatusCode == HttpStatusCode.OK));
+        Assert.Equal(49, results.Count(r => r.StatusCode == HttpStatusCode.NotFound));
+
+        var auditLog = await GetAuditLogAsync(RemoveJudgeRules.ComputeAuditEntityId(fixture.TableId, judgeId));
+        Assert.Equal("JudgeRemoved", auditLog.Action);
+    }
+
     // ---- Never leaks existence (plain 404s) ---------------------------------------------------------
 
     [Fact]

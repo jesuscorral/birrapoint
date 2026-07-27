@@ -234,51 +234,64 @@ judges/{judgeId}`, ORGANIZER-only) scopes the target `TableJudge` row through `T
 CompetitionId` (the composite-key `TableJudge` has no `CompetitionId` of its own) so a table/judge id
 from a different competition can't be addressed via a route naming a competition the caller does own,
 then soft-revokes by setting `RemovedAt` — rows are never hard-deleted once evaluations exist
-(data-model.md), so already-submitted evaluations stay untouched and readable. No new membership guard
-was needed anywhere: `JudgeTableAccess.FindActiveMembershipAsync`, already filtering `RemovedAt ==
-null` and reused by every judge-workspace slice (`SubmitEvaluation`, `FixOrder`, `GetTableSamples`,
-`GetMyTables`, both `Discrepancy.cs` handlers, `CloseTable`) plus `CompetitionHub.JoinTable`'s own
-independent filter, starts rejecting the removed judge everywhere the instant this handler commits.
-The read-then-flip is guarded against a double-removal race the same way `CloseTable.cs` guards its
-one-shot state flip (that exact class of bug was a real senior-code-reviewer finding on `CloseTable.cs`
-in PR #23 — see Recorded debt below): a transaction re-fetches the row with `FromSqlInterpolated(...
-FOR UPDATE)`, scoped by both halves of the composite key (`TastingTableId`, `JudgeId`, since there's no
-single `Id` column to lock by), and re-checks `RemovedAt` after acquiring the lock before mutating —
-stress-tested directly with 50 concurrent `DELETE`s against the same pair (1x200, 49x404, exactly one
-audit row, zero exceptions). Audit/SignalR ordering matches `CloseTable.cs` exactly: stage the audit
-record (entity id is a SHA-256 hash of `"{tableId}:{judgeId}"` truncated to 40 hex chars —
-`RemoveJudgeRules.ComputeAuditEntityId` — since `AuditLog.EntityId` is capped at 50 chars and the
-composite key has no single Guid), `SaveChangesAsync`, `CommitAsync`, only then publish two
+(data-model.md), so already-submitted evaluations stay untouched and readable. Removal is gated to
+competition state `InEvaluation` only (`409 invalid-state-transition` otherwise, FR-039 scopes this to
+"the live event"). That gate also closes a real data-integrity hole: `TableAssignmentApplier` (behind
+`UpdateTable`'s Draft/Active `PUT`) filters on `RemovedAt == null` to compute who to re-add, so a
+soft-removed judge re-added via a Draft/Active `PUT` would otherwise collide with the still-tracked row
+on `TableJudge`'s composite PK — since `UpdateTable` already refuses writes once the competition reaches
+`InEvaluation`, gating removal to that same state makes the two paths mutually exclusive. No new
+membership guard was needed anywhere: `JudgeTableAccess.FindActiveMembershipAsync`, already filtering
+`RemovedAt == null` and reused by every judge-workspace slice (`SubmitEvaluation`, `FixOrder`,
+`GetTableSamples`, `GetMyTables`, both `Discrepancy.cs` handlers, `CloseTable`) plus
+`CompetitionHub.JoinTable`'s own independent filter, starts rejecting the removed judge everywhere the
+instant this handler commits. The read-then-flip is guarded against a double-removal race the same way
+`CloseTable.cs` guards its one-shot state flip (that exact class of bug was a real senior-code-reviewer
+finding on `CloseTable.cs` in PR #23 — see Recorded debt below): a transaction re-fetches the row with
+`FromSqlInterpolated(... FOR UPDATE)`, scoped by both halves of the composite key (`TastingTableId`,
+`JudgeId`, since there's no single `Id` column to lock by), and re-checks `RemovedAt` after acquiring
+the lock before mutating — stress-tested directly with 50 concurrent `DELETE`s against the same pair
+(1x200, 49x404, exactly one audit row, zero exceptions). Audit/SignalR ordering matches `CloseTable.cs`
+exactly: stage the audit record (entity id is a SHA-256 hash of `"{tableId}:{judgeId}"` truncated to 40
+hex chars — `RemoveJudgeRules.ComputeAuditEntityId` — since `AuditLog.EntityId` is capped at 50 chars
+and the composite key has no single Guid), `SaveChangesAsync`, `CommitAsync`, only then publish two
 `JudgeRemoved` events (contracts/signalr-hub.md): `{ tableId, judgeId }` to the `table:{tableId}` group
 so the removed judge's own client ejects, `{ tableId, judgeId, judgeDisplayName }` to the
 `competition:{id}:organizers` group as a confirmation echo. Frontend: `core/api/tables-api.service.ts`
 (promoted to `core/` immediately, since both the dashboard and table-management features consume it)
 adds `removeJudge()`; `competition-monitor.component.ts` lists each table's judges with a Remove action
 behind a confirm modal, applying the response optimistically to local state (no refetch — the `DELETE`
-response is the source of truth). `core/offline/sync.service.ts` gained two purge paths for "outbox
-items for this table surfaced as rejected": `rejectOutboxForTable(tastingTableId)`, called once a
-judge's own session confirms a live `JudgeRemoved` means them, deletes every outbox/draft row for that
-table and records what was lost in a new `rejectedSubmissions` signal; and a lazy path inside
-`replayOutbox()`'s background sweep that purges the same way when a queued row 404s having missed the
-live event entirely (app closed/offline at removal time) — `submit()`'s foreground path also now
-treats a `404` as a definitive rejection alongside the existing `400`/`409` set. Both
-`judge-table-order.component.ts` and `evaluation-sheet.component.ts` subscribe to `JudgeRemoved`
-filtered to their own `tableId` via the same generic `CompetitionHubService.on<K>` pattern every other
-hub event uses; since the judge-facing event payload never carries the current session's own judgeId
-(anonymity-adjacent constraint — same reasoning as the blind-DTO invariant elsewhere), each re-verifies
-by calling its own `GET .../samples` again — a `404` means *this* judge was the one removed (a
-different outcome means it was someone else at the same table, a no-op) — then calls
-`rejectOutboxForTable` and navigates to `/judge/tables` with `{ ejected: true, tableName }` in route
-state, identical shape in both components. `judge-tables-list.component.ts` reads that one-shot
-`history.state` pair and shows a dismissible "You were removed from {tableName} by the organizer."
-banner, falling back to generic wording only when `tableName` is genuinely unavailable.
-`evaluation-sheet.component.ts`'s submit-error mapping also gained an explicit `404` branch ("You were
-removed from this table.") alongside its existing `order-not-fixed`/`out-of-sequence`/`table-closed`
-cases, instead of falling through to a generic ProblemDetails message. E2E (`us12-removal.spec.ts`)
-proves the full loop with two independent judge sessions: judge A submits one evaluation and leaves a
-second in progress, the organizer removes them via the real dashboard UI, judge A's session ejects
-within ~1s to the named banner and a subsequent request 404s, the organizer's dashboard drops judge A's
-row (judge B's stays) and the audit drill-down still shows judge A's earlier submitted total.
+response is the source of truth). `core/offline/db.ts` gained a Dexie schema v2 migration indexing
+`drafts` by `tastingTableId` (previously keyed only by `beerEntryId`), so a table's drafts can be looked
+up directly rather than only through a matching outbox row. `core/offline/sync.service.ts` gained two
+purge paths for "outbox items for this table surfaced as rejected":
+`rejectOutboxForTable(tastingTableId)`, called once a judge's own session confirms a live
+`JudgeRemoved` means them, deletes every outbox row for that table *and*, via the new index, every
+draft for that table even when it has no matching outbox row (a sample still mid-edit, never
+submitted — previously such drafts leaked forever since nothing else ever revisited them) — and records
+what was lost in a new `rejectedSubmissions` signal; a lazy path inside `replayOutbox()`'s background
+sweep purges the same way when a queued row 404s having missed the live event entirely (app
+closed/offline at removal time). `submit()`'s foreground path treats a `404` as a definitive rejection
+alongside the existing `400`/`409` set, and `evaluation-sheet.component.ts`'s `onSubmit` now calls
+`handleEjected()` immediately on that `404` — navigate + purge right away — instead of only surfacing an
+inert error message and relying solely on the live `JudgeRemoved` hub event to eventually catch it,
+since that event may never arrive on a dropped/reconnecting connection; the submit-error mapping's old
+dedicated 404 message branch was removed as redundant now that the 404 path ejects instead of rendering
+text. Both `judge-table-order.component.ts` and `evaluation-sheet.component.ts` also still subscribe to
+`JudgeRemoved` directly (filtered to their own `tableId` via the same generic
+`CompetitionHubService.on<K>` pattern every other hub event uses) as the primary live-eject path; since
+the judge-facing event payload never carries the current session's own judgeId (anonymity-adjacent
+constraint — same reasoning as the blind-DTO invariant elsewhere), each re-verifies by calling its own
+`GET .../samples` again — a `404` means *this* judge was the one removed (a different outcome means it
+was someone else at the same table, a no-op) — then calls `rejectOutboxForTable` and navigates to
+`/judge/tables` with `{ ejected: true, tableName }` in route state, identical shape in both components.
+`judge-tables-list.component.ts` reads that one-shot `history.state` pair and shows a dismissible "You
+were removed from {tableName} by the organizer." banner, falling back to generic wording only when
+`tableName` is genuinely unavailable. E2E (`us12-removal.spec.ts`) proves the full loop with two
+independent judge sessions: judge A submits one evaluation and leaves a second in progress, the
+organizer removes them via the real dashboard UI, judge A's session ejects within ~1s to the named
+banner and a subsequent request 404s, the organizer's dashboard drops judge A's row (judge B's stays)
+and the audit drill-down still shows judge A's earlier submitted total.
 
 ## Local topology (.NET Aspire — `dotnet run --project backend/src/BirraPoint.AppHost`)
 

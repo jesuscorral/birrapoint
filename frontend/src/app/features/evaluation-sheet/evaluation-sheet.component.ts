@@ -336,6 +336,19 @@ export class EvaluationSheetComponent implements OnInit, OnDestroy {
       await this.router.navigate(['/judge', 'tables', this.tableId]);
     } catch (error) {
       this.submitting.set(false);
+
+      // T087/US12: submitting after this judge was removed mid-session hits the same
+      // JudgeTableAccess membership guard as every other judge-workspace endpoint, which 404s (no
+      // dedicated urn) the instant RemovedAt is set server-side. Eject immediately rather than
+      // just showing an inert error message and relying solely on the live JudgeRemoved hub event
+      // (handleJudgeRemovedEvent below) to eventually catch it — that event may never arrive (a
+      // dropped/reconnecting connection), whereas a 404'd submit is itself definitive proof of
+      // removal, right now.
+      if (error instanceof ApiError && error.status === 404) {
+        await this.handleEjected();
+        return;
+      }
+
       this.submitError.set(this.describeSubmitError(error));
     }
   }
@@ -378,13 +391,6 @@ export class EvaluationSheetComponent implements OnInit, OnDestroy {
       case 'urn:birrapoint:invalid-state-transition':
         return 'This competition is not currently open for evaluation.';
       default:
-        // T087/US12: submitting after this judge was removed mid-session hits the same
-        // JudgeTableAccess membership guard as every other judge-workspace endpoint, which
-        // 404s (no dedicated urn) the instant RemovedAt is set server-side — see
-        // handleJudgeRemovedEvent's comment below for why a bare 404 means removal here.
-        if (error.status === 404) {
-          return 'You were removed from this table.';
-        }
         return errorMessage(error);
     }
   }
@@ -483,8 +489,10 @@ export class EvaluationSheetComponent implements OnInit, OnDestroy {
         .subscribe(() => this.handleJudgeRemovedEvent());
     } catch {
       // Realtime is a best-effort notification channel (contracts/signalr-hub.md): a judge who
-      // never gets this live notification while mid-sheet is only caught later by the offline
-      // engine's lazy-discovery 404 purge (SyncService.attemptOne) once they try to submit/sync.
+      // never gets this live notification while mid-sheet is still caught the moment they try to
+      // submit (onSubmit's own 404 handling above ejects directly, without waiting on this
+      // channel at all) or, failing that, by the offline engine's lazy-discovery 404 purge
+      // (SyncService.attemptOne) on a later background replay.
     }
   }
 

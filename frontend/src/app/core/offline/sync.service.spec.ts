@@ -554,5 +554,31 @@ describe('SyncService', () => {
       expect(purged).toEqual([]);
       expect(service.rejectedSubmissions()).toEqual([]);
     });
+
+    it('also purges a draft that has no matching outbox row (still mid-editing, never submitted)', async () => {
+      const service = await createService();
+      await db.drafts.bulkPut([
+        {
+          beerEntryId: 'entry-1',
+          tastingTableId: 'table-1',
+          scores: scoresFixture(),
+          comments: commentsFixture(),
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          beerEntryId: 'entry-2',
+          tastingTableId: 'table-2',
+          scores: scoresFixture(),
+          comments: commentsFixture(),
+          updatedAt: new Date().toISOString(),
+        },
+      ]);
+
+      const purged = await service.rejectOutboxForTable('table-1');
+
+      expect(purged).toEqual([]);
+      expect(await db.drafts.get('entry-1')).toBeUndefined();
+      expect(await db.drafts.get('entry-2')).toBeDefined();
+    });
   });
 });

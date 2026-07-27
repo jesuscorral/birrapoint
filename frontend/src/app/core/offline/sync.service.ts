@@ -139,11 +139,17 @@ export class SyncService {
    * Proactive purge (T087): called once a live `JudgeRemoved` event has been confirmed to mean
    * "this judge" — drops every outbox row (and its matching draft) for `tastingTableId` immediately
    * rather than waiting for the next backoff-scheduled replay attempt (up to 60s away, too slow for
-   * "revoked at once"). Returns what was purged so the caller can report it.
+   * "revoked at once"). Also purges every *draft* for this table directly, including ones with no
+   * outbox row at all (a sample the judge was still mid-editing, never yet submitted) — otherwise
+   * those would linger in Dexie forever, since nothing else ever revisits or clears a draft that
+   * was never submitted. Returns the purged outbox rows so the caller can report them.
    */
   async rejectOutboxForTable(tastingTableId: string): Promise<OutboxRow[]> {
     const rows = await db.outbox.where('tastingTableId').equals(tastingTableId).toArray();
-    await Promise.all(rows.map((row) => this.purgeOutboxRow(row)));
+    await Promise.all([
+      ...rows.map((row) => this.purgeOutboxRow(row)),
+      db.drafts.where('tastingTableId').equals(tastingTableId).delete(),
+    ]);
     if (rows.length > 0) {
       this.recordRejectedSubmissions(rows);
     }

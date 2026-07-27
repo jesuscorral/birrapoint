@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using BirraPoint.Api.Common.Audit;
 using BirraPoint.Api.Common.Auth;
+using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Realtime;
@@ -14,11 +15,18 @@ namespace BirraPoint.Api.Features.Tables;
 /// §Tables, T086, FR-039): live removal of a judge from an actively-assigned table. Returns null
 /// when the competition isn't owned by the caller, the table doesn't belong to it, or the judge
 /// has no active (non-removed) TableJudge row at that table — the endpoint maps all three to a
-/// plain 404, never leaking existence (same convention as CreateTable/CorrectEvaluation). No new
-/// guard is added to the judge-workspace slices: JudgeTableAccess.FindActiveMembershipAsync
-/// (already filtering on RemovedAt == null and reused by every one of them) starts rejecting the
-/// removed judge the instant this handler sets RemovedAt. Already-submitted evaluations are left
-/// untouched — TableJudge rows are never hard-deleted once evaluations exist (data-model.md).</summary>
+/// plain 404, never leaking existence (same convention as CreateTable/CorrectEvaluation). Throws
+/// a 409 invalid-state-transition when the competition isn't InEvaluation (FR-039 scopes this to
+/// "the live event"; same convention as UpdateTable.cs's Draft/Active gate). Also closes a
+/// data-integrity hole UpdateTable.cs would otherwise hit: TableAssignmentApplier filters on
+/// RemovedAt == null to compute who to re-add, so a soft-removed judge re-added via a Draft/Active
+/// PUT would collide with the still-tracked row on TableJudge's composite PK — but UpdateTable
+/// already refuses writes once the competition reaches InEvaluation, so gating removal to that
+/// same state means the two can never overlap. No new guard is added to the judge-workspace
+/// slices: JudgeTableAccess.FindActiveMembershipAsync (already filtering on RemovedAt == null and
+/// reused by every one of them) starts rejecting the removed judge the instant this handler sets
+/// RemovedAt. Already-submitted evaluations are left untouched — TableJudge rows are never
+/// hard-deleted once evaluations exist (data-model.md).</summary>
 public sealed record RemoveJudgeCommand(Guid CompetitionId, Guid TableId, Guid JudgeId) : IRequest<RemoveJudgeResult?>;
 
 public sealed record RemoveJudgeResult(Guid TableId, Guid JudgeId);
@@ -29,9 +37,11 @@ public sealed class RemoveJudgeCommandHandler(
 {
     public async Task<RemoveJudgeResult?> Handle(RemoveJudgeCommand request, CancellationToken cancellationToken)
     {
-        var competitionExists = await dbContext.Competitions
-            .AnyAsync(c => c.Id == request.CompetitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
-        if (!competitionExists)
+        var competitionState = await dbContext.Competitions
+            .Where(c => c.Id == request.CompetitionId && c.CreatedByUserId == currentUser.Sub)
+            .Select(c => (CompetitionState?)c.State)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (competitionState is null)
         {
             return null;
         }
@@ -52,6 +62,15 @@ public sealed class RemoveJudgeCommandHandler(
         if (!tableJudgeExists)
         {
             return null;
+        }
+
+        // FR-039 scopes live removal to "the live event" — same Draft/Active-only gate shape as
+        // UpdateTable.cs/CreateTable.cs, just inverted to the one state this endpoint allows.
+        if (competitionState != CompetitionState.InEvaluation)
+        {
+            throw new DomainException(
+                DomainErrorType.InvalidStateTransition,
+                "Judges can only be removed from a table while the competition is in InEvaluation state.");
         }
 
         var judgeDisplayName = await dbContext.Judges

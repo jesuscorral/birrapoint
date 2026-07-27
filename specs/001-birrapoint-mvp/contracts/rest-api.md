@@ -56,7 +56,7 @@ Conventions: `404` for resources outside the caller's scope (never reveal existe
 | `POST /competitions/{id}/tables` | ORGANIZER | Body: `{ name, judgeIds: [], beerEntryIds: [] }`. Competition must be `Draft`/`Active` (`409 invalid-state-transition` otherwise, same gate as `POST .../imports` — data-model.md §Competition state gates). COI violation → `409 conflict-of-interest` `{ conflicts: [{ judgeId, beerEntryIds }] }`, nothing persisted (FR-017). Success → `201`; response includes `bosFlaggedEntryIds` when FR-018 fired. |
 | `PUT /competitions/{id}/tables/{tableId}` | ORGANIZER | Same body, COI semantics, and `Draft`/`Active` state gate as `POST`. `409 table-closed` if the table itself is closed. |
 | `GET /competitions/{id}/tables` | ORGANIZER | Tables with judges, samples, progress, state. |
-| `DELETE /competitions/{id}/tables/{tableId}/judges/{judgeId}` | ORGANIZER | Live removal (FR-039). `200`; sets `RemovedAt`, revokes access, emits `JudgeRemoved`, audit-logged. Already-submitted evaluations stay valid. |
+| `DELETE /competitions/{id}/tables/{tableId}/judges/{judgeId}` | ORGANIZER | Live removal (FR-039 — "during the live event"). Competition must be `InEvaluation` (`409 invalid-state-transition` otherwise). `200`; sets `RemovedAt`, revokes access, emits `JudgeRemoved`, audit-logged. Already-submitted evaluations stay valid. |
 
 ## Judge workspace
 
