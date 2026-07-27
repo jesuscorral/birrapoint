@@ -1,14 +1,16 @@
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
 import { CatalogApiService } from '../../core/api/catalog-api.service';
 import { SyncService } from '../../core/offline/sync.service';
 import type { EvaluationComments, EvaluationScores } from '../../core/offline/db';
+import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
+import type { JudgeRemovedEvent } from '../../core/realtime/competition-hub.events';
 import { EvaluationSheetComponent } from './evaluation-sheet.component';
 import { TastingOrderApiService } from '../judge-tables/tasting-order-api.service';
-import type { JudgeSample } from '../judge-tables/tasting-order-api.service';
+import type { JudgeSample, JudgeTableSummary } from '../judge-tables/tasting-order-api.service';
 
 function sampleFixture(overrides: Partial<JudgeSample> = {}): JudgeSample {
   return {
@@ -18,6 +20,18 @@ function sampleFixture(overrides: Partial<JudgeSample> = {}): JudgeSample {
     styleName: 'American IPA',
     sequenceOrder: 1,
     evaluationStatus: 'NotStarted',
+    ...overrides,
+  };
+}
+
+function tableSummaryFixture(overrides: Partial<JudgeTableSummary> = {}): JudgeTableSummary {
+  return {
+    tableId: 't1',
+    name: 'Table 3',
+    competitionState: 'InEvaluation',
+    tableState: 'Open',
+    orderFixed: true,
+    orderFixedBy: 'Jane',
     ...overrides,
   };
 }
@@ -37,27 +51,46 @@ function validComments(): EvaluationComments {
 }
 
 describe('EvaluationSheetComponent', () => {
-  let fakeTastingOrderApi: { getTableSamples: jest.Mock };
-  let fakeSync: { loadDraft: jest.Mock; saveDraft: jest.Mock; submit: jest.Mock };
+  let fakeTastingOrderApi: { getTableSamples: jest.Mock; getMyTables: jest.Mock };
+  let fakeSync: {
+    loadDraft: jest.Mock;
+    saveDraft: jest.Mock;
+    submit: jest.Mock;
+    rejectOutboxForTable: jest.Mock;
+  };
   let fakeCatalog: { getStyleDetail: jest.Mock };
+  let fakeHub: { start: jest.Mock; joinTable: jest.Mock; leaveTable: jest.Mock; on: jest.Mock };
+  let judgeRemovedSubject: Subject<JudgeRemovedEvent>;
   let navigateSpy: jest.SpiedFunction<Router['navigate']>;
 
   beforeEach(() => {
     Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
 
-    fakeTastingOrderApi = { getTableSamples: jest.fn().mockReturnValue(of([sampleFixture()])) };
+    fakeTastingOrderApi = {
+      getTableSamples: jest.fn().mockReturnValue(of([sampleFixture()])),
+      getMyTables: jest.fn().mockReturnValue(of([tableSummaryFixture()])),
+    };
     fakeSync = {
       loadDraft: jest.fn().mockResolvedValue(undefined),
       saveDraft: jest.fn().mockResolvedValue(undefined),
       submit: jest.fn().mockResolvedValue({ status: 'confirmed' }),
+      rejectOutboxForTable: jest.fn().mockResolvedValue([]),
     };
     fakeCatalog = { getStyleDetail: jest.fn().mockReturnValue(of(null)) };
+    judgeRemovedSubject = new Subject<JudgeRemovedEvent>();
+    fakeHub = {
+      start: jest.fn().mockResolvedValue(undefined),
+      joinTable: jest.fn().mockResolvedValue(undefined),
+      leaveTable: jest.fn().mockResolvedValue(undefined),
+      on: jest.fn(() => judgeRemovedSubject.asObservable()),
+    };
 
     TestBed.configureTestingModule({
       providers: [
         { provide: TastingOrderApiService, useValue: fakeTastingOrderApi },
         { provide: SyncService, useValue: fakeSync },
         { provide: CatalogApiService, useValue: fakeCatalog },
+        { provide: CompetitionHubService, useValue: fakeHub },
         provideRouter([]),
         {
           provide: ActivatedRoute,
@@ -370,6 +403,32 @@ describe('EvaluationSheetComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('not the next one');
   });
 
+  it('ejects directly on a 404 submit rejection (removed from the table mid-session), without waiting for the hub event', async () => {
+    fakeSync.submit.mockRejectedValue(new ApiError({ status: 404, title: 'Not found', urn: null }));
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+    fixture.componentInstance.form.setValue({
+      aromaScore: validScores().aroma,
+      aromaComment: validComments().aroma,
+      appearanceScore: validScores().appearance,
+      appearanceComment: validComments().appearance,
+      flavorScore: validScores().flavor,
+      flavorComment: validComments().flavor,
+      mouthfeelScore: validScores().mouthfeel,
+      mouthfeelComment: validComments().mouthfeel,
+      overallScore: validScores().overall,
+      overallComment: validComments().overall,
+    });
+
+    await fixture.componentInstance.onSubmit();
+
+    expect(fakeSync.rejectOutboxForTable).toHaveBeenCalledWith('t1');
+    expect(navigateSpy).toHaveBeenCalledWith(['/judge', 'tables'], {
+      state: { ejected: true, tableName: 'Table 3' },
+    });
+  });
+
   it('shows a distinct message for a non-ApiError (local storage) submit failure', async () => {
     fakeSync.submit.mockRejectedValue(new Error('QuotaExceededError'));
     const fixture = createComponent();
@@ -418,5 +477,81 @@ describe('EvaluationSheetComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).not.toContain('Offline mode');
+  });
+
+  describe('live judge removal (T087/US12)', () => {
+    it('joins the table SignalR group on init and leaves it on destroy', async () => {
+      const fixture = createComponent();
+      await flush();
+
+      expect(fakeHub.joinTable).toHaveBeenCalledWith('t1');
+
+      fixture.destroy();
+      await flush();
+
+      expect(fakeHub.leaveTable).toHaveBeenCalledWith('t1');
+    });
+
+    it('when this judge is the one removed: purges the outbox and navigates away, mid-sheet', async () => {
+      fakeTastingOrderApi.getTableSamples
+        .mockReturnValueOnce(of([sampleFixture()]))
+        .mockReturnValue(
+          throwError(() => new ApiError({ status: 404, title: 'Not found', urn: null })),
+        );
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      judgeRemovedSubject.next({ tableId: 't1', judgeId: 'some-judge' });
+      await flush();
+
+      expect(fakeSync.rejectOutboxForTable).toHaveBeenCalledWith('t1');
+      expect(navigateSpy).toHaveBeenCalledWith(['/judge', 'tables'], {
+        state: { ejected: true, tableName: 'Table 3' },
+      });
+    });
+
+    it('falls back to a generic table name when the table summary could not be loaded', async () => {
+      fakeTastingOrderApi.getMyTables.mockReturnValue(throwError(() => new Error('network down')));
+      fakeTastingOrderApi.getTableSamples
+        .mockReturnValueOnce(of([sampleFixture()]))
+        .mockReturnValue(
+          throwError(() => new ApiError({ status: 404, title: 'Not found', urn: null })),
+        );
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      judgeRemovedSubject.next({ tableId: 't1', judgeId: 'some-judge' });
+      await flush();
+
+      expect(navigateSpy).toHaveBeenCalledWith(['/judge', 'tables'], {
+        state: { ejected: true, tableName: 'Table' },
+      });
+    });
+
+    it('when a different judge at this table is removed: this session stays put, no-op', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      judgeRemovedSubject.next({ tableId: 't1', judgeId: 'some-other-judge' });
+      await flush();
+
+      expect(fakeSync.rejectOutboxForTable).not.toHaveBeenCalled();
+      expect(navigateSpy).not.toHaveBeenCalled();
+    });
+
+    it('ignores a JudgeRemoved event for a different table', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      judgeRemovedSubject.next({ tableId: 'other-table', judgeId: 'some-judge' });
+      await flush();
+
+      expect(fakeSync.rejectOutboxForTable).not.toHaveBeenCalled();
+      expect(navigateSpy).not.toHaveBeenCalled();
+    });
   });
 });

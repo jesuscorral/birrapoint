@@ -3,18 +3,23 @@ import {
   Component,
   OnDestroy,
   OnInit,
+  computed,
   inject,
   signal,
 } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import type { Subscription } from 'rxjs';
+import { filter } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
 import type { EvaluationComments, EvaluationScores } from '../../core/offline/db';
 import { SyncService } from '../../core/offline/sync.service';
+import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
+import type { JudgeRemovedEvent } from '../../core/realtime/competition-hub.events';
 import { StyleReferencePanelComponent } from './style-reference/style-reference-panel.component';
 import { TastingOrderApiService } from '../judge-tables/tasting-order-api.service';
-import type { JudgeSample } from '../judge-tables/tasting-order-api.service';
+import type { JudgeSample, JudgeTableSummary } from '../judge-tables/tasting-order-api.service';
 
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError
@@ -243,6 +248,7 @@ export class EvaluationSheetComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly api = inject(TastingOrderApiService);
   private readonly syncService = inject(SyncService);
+  private readonly hub = inject(CompetitionHubService);
 
   protected readonly tableId = this.route.snapshot.paramMap.get('tableId')!;
   protected readonly beerEntryId = this.route.snapshot.paramMap.get('beerEntryId')!;
@@ -257,8 +263,16 @@ export class EvaluationSheetComponent implements OnInit, OnDestroy {
   protected readonly submitError = signal<string | null>(null);
   protected readonly isOffline = signal(!navigator.onLine);
 
+  // Best-effort, consulted only for the ejection notice's table name (see handleEjected below) —
+  // nothing else in this component displays or depends on the table's name. Mirrors
+  // judge-table-order.component.ts's own tableName fallback exactly, for ejection-notice parity
+  // between the two judge-facing screens a JudgeRemoved event can strike.
+  protected readonly tableSummary = signal<JudgeTableSummary | null>(null);
+  protected readonly tableName = computed(() => this.tableSummary()?.name ?? 'Table');
+
   private readonly onlineListener = () => this.isOffline.set(false);
   private readonly offlineListener = () => this.isOffline.set(true);
+  private judgeRemovedSubscription: Subscription | null = null;
 
   constructor() {
     void this.initialize();
@@ -267,11 +281,16 @@ export class EvaluationSheetComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     window.addEventListener('online', this.onlineListener);
     window.addEventListener('offline', this.offlineListener);
+    void this.connectToHub();
   }
 
   ngOnDestroy(): void {
     window.removeEventListener('online', this.onlineListener);
     window.removeEventListener('offline', this.offlineListener);
+    this.judgeRemovedSubscription?.unsubscribe();
+    void this.hub.leaveTable(this.tableId).catch(() => {
+      // Best-effort: leaving on navigation-away is a courtesy, not a functional requirement.
+    });
   }
 
   protected remainingChars(key: EvaluationSectionConfig['key']): number {
@@ -317,6 +336,19 @@ export class EvaluationSheetComponent implements OnInit, OnDestroy {
       await this.router.navigate(['/judge', 'tables', this.tableId]);
     } catch (error) {
       this.submitting.set(false);
+
+      // T087/US12: submitting after this judge was removed mid-session hits the same
+      // JudgeTableAccess membership guard as every other judge-workspace endpoint, which 404s (no
+      // dedicated urn) the instant RemovedAt is set server-side. Eject immediately rather than
+      // just showing an inert error message and relying solely on the live JudgeRemoved hub event
+      // (handleJudgeRemovedEvent below) to eventually catch it — that event may never arrive (a
+      // dropped/reconnecting connection), whereas a 404'd submit is itself definitive proof of
+      // removal, right now.
+      if (error instanceof ApiError && error.status === 404) {
+        await this.handleEjected();
+        return;
+      }
+
       this.submitError.set(this.describeSubmitError(error));
     }
   }
@@ -365,6 +397,7 @@ export class EvaluationSheetComponent implements OnInit, OnDestroy {
 
   private async initialize(): Promise<void> {
     this.loadSample();
+    this.loadTableSummary();
 
     const draft = await this.syncService.loadDraft(this.beerEntryId);
     if (draft) {
@@ -428,6 +461,64 @@ export class EvaluationSheetComponent implements OnInit, OnDestroy {
         }
         this.loadError.set(errorMessage(apiError));
       },
+    });
+  }
+
+  // Best-effort: this component otherwise never needs the table's display name — only the
+  // ejection notice on /judge/tables does (see handleEjected below), so a failure here just
+  // leaves that notice with the generic fallback rather than blocking anything on this screen.
+  private loadTableSummary(): void {
+    this.api.getMyTables().subscribe({
+      next: (tables) => {
+        const summary = tables.find((table) => table.tableId === this.tableId) ?? null;
+        this.tableSummary.set(summary);
+      },
+      error: () => {
+        // Best-effort: see comment above.
+      },
+    });
+  }
+
+  private async connectToHub(): Promise<void> {
+    try {
+      await this.hub.start();
+      await this.hub.joinTable(this.tableId);
+      this.judgeRemovedSubscription = this.hub
+        .on('JudgeRemoved')
+        .pipe(filter((event: JudgeRemovedEvent) => event.tableId === this.tableId))
+        .subscribe(() => this.handleJudgeRemovedEvent());
+    } catch {
+      // Realtime is a best-effort notification channel (contracts/signalr-hub.md): a judge who
+      // never gets this live notification while mid-sheet is still caught the moment they try to
+      // submit (onSubmit's own 404 handling above ejects directly, without waiting on this
+      // channel at all) or, failing that, by the offline engine's lazy-discovery 404 purge
+      // (SyncService.attemptOne) on a later background replay.
+    }
+  }
+
+  // T087/US12 — same reasoning as judge-table-order.component.ts's handler: this DTO never carries
+  // this session's own judgeId, so a JudgeRemoved event for this table can't be matched directly.
+  // Re-verify membership instead; a 404 means it was this judge, anything else means it wasn't.
+  private handleJudgeRemovedEvent(): void {
+    this.api.getTableSamples(this.tableId).subscribe({
+      next: () => {
+        // Still a member — the removed judge was someone else at this table. No-op.
+      },
+      error: (error: unknown) => {
+        if (toGenericApiError(error).status === 404) {
+          void this.handleEjected();
+        }
+      },
+    });
+  }
+
+  private async handleEjected(): Promise<void> {
+    void this.syncService.rejectOutboxForTable(this.tableId).catch(() => {
+      // Best-effort: a failure here only leaves the stale row for the next lazy-discovery 404
+      // purge in SyncService's background replay to clean up instead.
+    });
+    await this.router.navigate(['/judge', 'tables'], {
+      state: { ejected: true, tableName: this.tableName() },
     });
   }
 }

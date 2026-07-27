@@ -105,11 +105,31 @@ internal static class DiscrepancyReconciler
             .Where(e => e.TastingTableId == tableId && e.BeerEntryId == beerEntryId)
             .ToListAsync(cancellationToken);
 
-        var totalsByJudge = evaluations.ToDictionary(e => e.JudgeId, e => e.Total);
+        // A removed judge's total must never keep an alert open (FR-039): once they're gone, their
+        // score no longer represents anyone still tasting at this table, so it can't be allowed to
+        // block the remaining judges from converging. RemoveJudge.cs flushes RemovedAt before
+        // triggering reconciliation, so this DB-level filter sees the removal that prompted this call.
+        var removedJudgeIds = await dbContext.TableJudges
+            .Where(tj => tj.TastingTableId == tableId && tj.RemovedAt != null)
+            .Select(tj => tj.JudgeId)
+            .ToListAsync(cancellationToken);
+        var removedJudgeIdSet = removedJudgeIds.ToHashSet();
+
+        var totalsByJudge = evaluations
+            .Where(e => !removedJudgeIdSet.Contains(e.JudgeId))
+            .ToDictionary(e => e.JudgeId, e => e.Total);
         var involved = DiscrepancyRules.ComputeInvolvedJudgeIds(totalsByJudge);
 
         foreach (var evaluation in evaluations)
         {
+            // A removed judge's evaluation is left untouched, not flipped to Confirmed — reconciling
+            // toward consensus is a live-table concept that no longer applies once they've left
+            // (same "already-submitted evaluations stay untouched" convention as RemoveJudge.cs).
+            if (removedJudgeIdSet.Contains(evaluation.JudgeId))
+            {
+                continue;
+            }
+
             evaluation.Status = involved.Contains(evaluation.JudgeId)
                 ? EvaluationStatus.PendingConsensus
                 : EvaluationStatus.Confirmed;

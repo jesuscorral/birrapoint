@@ -3,15 +3,17 @@ import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 import { CdkDrag, CdkDragHandle, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
 import type { OnDestroy, OnInit } from '@angular/core';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import type { Subscription } from 'rxjs';
 import { filter, forkJoin, merge } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
+import { SyncService } from '../../core/offline/sync.service';
 import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
 import type {
   DiscrepancyRaisedEvent,
   DiscrepancyResolvedEvent,
+  JudgeRemovedEvent,
   TableClosedEvent,
   TableOrderFixedEvent,
 } from '../../core/realtime/competition-hub.events';
@@ -349,14 +351,17 @@ function swap<T>(items: T[], a: number, b: number): T[] {
 })
 export class JudgeTableOrderComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly api = inject(TastingOrderApiService);
   private readonly discrepancyApi = inject(DiscrepancyApiService);
   private readonly hub = inject(CompetitionHubService);
+  private readonly syncService = inject(SyncService);
 
   protected readonly tableId = this.route.snapshot.paramMap.get('tableId')!;
   private hubSubscription: Subscription | null = null;
   private tableClosedSubscription: Subscription | null = null;
   private discrepancySubscription: Subscription | null = null;
+  private judgeRemovedSubscription: Subscription | null = null;
 
   protected readonly tableSummary = signal<JudgeTableSummary | null>(null);
   protected readonly samples = signal<JudgeSample[]>([]);
@@ -415,6 +420,7 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
     this.hubSubscription?.unsubscribe();
     this.tableClosedSubscription?.unsubscribe();
     this.discrepancySubscription?.unsubscribe();
+    this.judgeRemovedSubscription?.unsubscribe();
     void this.hub.leaveTable(this.tableId).catch(() => {
       // Best-effort: leaving on navigation-away is a courtesy, not a functional requirement.
     });
@@ -536,6 +542,10 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
           .on('DiscrepancyResolved')
           .pipe(filter((event: DiscrepancyResolvedEvent) => event.tableId === this.tableId)),
       ).subscribe(() => this.refreshDiscrepancyCount());
+      this.judgeRemovedSubscription = this.hub
+        .on('JudgeRemoved')
+        .pipe(filter((event: JudgeRemovedEvent) => event.tableId === this.tableId))
+        .subscribe(() => this.handleJudgeRemovedEvent());
     } catch {
       // Realtime is a best-effort notification channel (contracts/signalr-hub.md): the samples
       // view stays fully functional over REST without it — a judge just won't see another
@@ -668,5 +678,36 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
     }
 
     this.closeError.set(errorMessage(apiError));
+  }
+
+  // T087/US12: a JudgeRemoved event for this table doesn't say whether it was *this* judge — the
+  // anonymity-driven judge-facing DTOs never carry this session's own judgeId (BR-01/FR-019
+  // adjacent), so there's nothing to compare the event's judgeId against. Instead, re-verify this
+  // session's own membership: once RemovedAt is set server-side, every judge-workspace endpoint for
+  // that judge/table starts 404ing (a pre-existing membership guard) — if that happens now, it was
+  // this judge; otherwise it was someone else at the same table and this session is unaffected.
+  private handleJudgeRemovedEvent(): void {
+    this.api.getTableSamples(this.tableId).subscribe({
+      next: () => {
+        // Still a member — the removed judge was someone else at this table. No-op.
+      },
+      error: (error: unknown) => {
+        if (toGenericApiError(error).status === 404) {
+          void this.handleEjected();
+        }
+      },
+    });
+  }
+
+  private async handleEjected(): Promise<void> {
+    // Fire-and-forget the purge from this judge's own perspective: navigation away must not wait
+    // on it, and a failure here only leaves the stale rows for the next lazy-discovery 404 purge
+    // in SyncService's background replay to clean up instead.
+    void this.syncService.rejectOutboxForTable(this.tableId).catch(() => {
+      // Best-effort: see comment above.
+    });
+    await this.router.navigate(['/judge', 'tables'], {
+      state: { ejected: true, tableName: this.tableName() },
+    });
   }
 }

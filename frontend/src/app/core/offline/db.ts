@@ -20,7 +20,9 @@ export interface EvaluationComments {
 /**
  * In-progress evaluation-sheet fields (data-model.md §Client-side stores), written ≤300 ms after
  * each change (SC-003) and deleted on successful submit. `tastingTableId` isn't part of the key
- * but is needed to know where the draft eventually submits.
+ * but is needed to know where the draft eventually submits — and, like `OutboxRow`'s own
+ * `tastingTableId` index, is indexed (v2) because T087 needs to look up "drafts for this table"
+ * directly when a judge is removed, not only the ones that happen to have a matching outbox row.
  */
 export interface DraftRow {
   beerEntryId: string;
@@ -57,6 +59,12 @@ export class BirraPointDb extends Dexie {
     this.version(1).stores({
       drafts: 'beerEntryId',
       outbox: 'idempotencyKey, tastingTableId',
+    });
+    // v2 (T087): index drafts by tastingTableId too, so rejectOutboxForTable() can purge every
+    // draft for a table directly — not only the ones that happen to already have a matching
+    // outbox row.
+    this.version(2).stores({
+      drafts: 'beerEntryId, tastingTableId',
     });
   }
 }

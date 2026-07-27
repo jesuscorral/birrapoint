@@ -320,14 +320,14 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 ### Tests for User Story 12 (MANDATORY — write first, must fail) ⚠️
 
-- [ ] T084 [P] [US12] Unit tests: removal sets `RemovedAt` (no hard delete with evaluations), submitted evaluations remain valid, hub group ejection call in `backend/tests/BirraPoint.Api.UnitTests/Tables/RemoveJudgeTests.cs`
-- [ ] T085 [P] [US12] Contract tests: `DELETE .../tables/{tableId}/judges/{judgeId}` → subsequent judge requests for that table 404, pending sync rejected, AuditLog row written in `backend/tests/BirraPoint.Api.IntegrationTests/Tables/RemoveJudgeApiTests.cs`
+- [x] T084 [P] [US12] Unit tests: removal sets `RemovedAt` (no hard delete with evaluations), submitted evaluations remain valid, hub group ejection call in `backend/tests/BirraPoint.Api.UnitTests/Tables/RemoveJudgeTests.cs`
+- [x] T085 [P] [US12] Contract tests: `DELETE .../tables/{tableId}/judges/{judgeId}` → subsequent judge requests for that table 404, pending sync rejected, AuditLog row written in `backend/tests/BirraPoint.Api.IntegrationTests/Tables/RemoveJudgeApiTests.cs`
 
 ### Implementation for User Story 12
 
-- [ ] T086 [US12] Slice RemoveJudgeFromTable (revocation, `JudgeRemoved` emit to both groups, audit) + membership guard applied in every judge-workspace slice in `backend/src/BirraPoint.Api/Features/Tables/RemoveJudge.cs`
-- [ ] T087 [US12] Frontend: removal action on dashboard; judge client handles `JudgeRemoved` (immediate eject, outbox items for that table surfaced as rejected) in `frontend/src/app/features/dashboard/` and `frontend/src/app/core/offline/`
-- [ ] T088 [US12] E2E scenario 12 in `frontend/e2e/us12-removal.spec.ts`
+- [x] T086 [US12] Slice RemoveJudgeFromTable (revocation, `JudgeRemoved` emit to both groups, audit) + membership guard applied in every judge-workspace slice in `backend/src/BirraPoint.Api/Features/Tables/RemoveJudge.cs`
+- [x] T087 [US12] Frontend: removal action on dashboard; judge client handles `JudgeRemoved` (immediate eject, outbox items for that table surfaced as rejected) in `frontend/src/app/features/dashboard/` and `frontend/src/app/core/offline/`
+- [x] T088 [US12] E2E scenario 12 in `frontend/e2e/us12-removal.spec.ts`
 
 **Checkpoint**: All 12 user stories independently functional
 

@@ -15,6 +15,8 @@ import type {
   EntryEvaluationsResult,
   TableProgressSummary,
 } from '../../core/api/monitoring-api.service';
+import { TablesApiService } from '../../core/api/tables-api.service';
+import type { TableSummary } from '../../core/api/tables-api.service';
 import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
 import type {
   EvaluationCompletedEvent,
@@ -93,6 +95,17 @@ function entriesFixture(): EntryListItem[] {
   ];
 }
 
+// Deliberately not "Ada Lovelace" — evaluationsResultFixture below already uses that name for the
+// drill-down judge, and several existing tests assert its absence once the drill-down is closed.
+function tableSummaryFixture(overrides: Partial<TableSummary> = {}): TableSummary {
+  return {
+    id: 't1',
+    name: 'Mesa 1',
+    judges: [{ id: 'j1', email: 'grace@example.com', displayName: 'Grace Hopper' }],
+    ...overrides,
+  };
+}
+
 function evaluationsResultFixture(
   overrides: Partial<EntryEvaluationsResult> = {},
 ): EntryEvaluationsResult {
@@ -131,6 +144,7 @@ describe('CompetitionMonitorComponent', () => {
   let fakeCompetitionsApi: { getById: jest.Mock };
   let fakeMonitoringApi: { getProgress: jest.Mock; getEntryEvaluations: jest.Mock };
   let fakeEntriesApi: { getEntries: jest.Mock };
+  let fakeTablesApi: { getTables: jest.Mock; removeJudge: jest.Mock };
   let fakeHub: {
     start: jest.Mock;
     joinCompetitionAsOrganizer: jest.Mock;
@@ -153,6 +167,10 @@ describe('CompetitionMonitorComponent', () => {
       getEntryEvaluations: jest.fn().mockReturnValue(of(evaluationsResultFixture())),
     };
     fakeEntriesApi = { getEntries: jest.fn().mockReturnValue(of(entriesFixture())) };
+    fakeTablesApi = {
+      getTables: jest.fn().mockReturnValue(of([tableSummaryFixture()])),
+      removeJudge: jest.fn(),
+    };
     fakeHub = {
       start: jest.fn().mockResolvedValue(undefined),
       joinCompetitionAsOrganizer: jest.fn().mockResolvedValue(undefined),
@@ -178,6 +196,7 @@ describe('CompetitionMonitorComponent', () => {
         { provide: CompetitionsApiService, useValue: fakeCompetitionsApi },
         { provide: MonitoringApiService, useValue: fakeMonitoringApi },
         { provide: EntriesApiService, useValue: fakeEntriesApi },
+        { provide: TablesApiService, useValue: fakeTablesApi },
         { provide: CompetitionHubService, useValue: fakeHub },
         {
           provide: ActivatedRoute,
@@ -413,6 +432,119 @@ describe('CompetitionMonitorComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).not.toContain('Ada Lovelace');
+  });
+
+  describe('judge removal (T087/US12)', () => {
+    it('shows the judges assigned to each table', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Grace Hopper');
+    });
+
+    it('shows a Remove button for an Open table but not for a Closed one', async () => {
+      fakeMonitoringApi.getProgress.mockReturnValue(
+        of([
+          progressFixture({ tableId: 't1', state: 'Open' }),
+          progressFixture({ tableId: 't2', name: 'Mesa 2', state: 'Closed' }),
+        ]),
+      );
+      fakeTablesApi.getTables.mockReturnValue(
+        of([
+          tableSummaryFixture({ id: 't1' }),
+          tableSummaryFixture({
+            id: 't2',
+            name: 'Mesa 2',
+            judges: [{ id: 'j2', email: 'ada@example.com', displayName: 'Ada Lovelace' }],
+          }),
+        ]),
+      );
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      const openRow = fixture.nativeElement.querySelector('[data-table-id="t1"]') as Element;
+      const closedRow = fixture.nativeElement.querySelector('[data-table-id="t2"]') as Element;
+      expect(openRow.querySelector('[data-judge-id="j1"] .remove-judge-action')).not.toBeNull();
+      expect(closedRow.querySelector('[data-judge-id="j2"] .remove-judge-action')).toBeNull();
+    });
+
+    it('removes a judge only after the confirm step, updating the list without a refetch', async () => {
+      fakeTablesApi.removeJudge.mockReturnValue(of({ tableId: 't1', judgeId: 'j1' }));
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+      fakeTablesApi.getTables.mockClear();
+
+      (
+        fixture.nativeElement.querySelector(
+          '[data-judge-id="j1"] .remove-judge-action',
+        ) as HTMLButtonElement
+      ).click();
+      fixture.detectChanges();
+
+      expect(fakeTablesApi.removeJudge).not.toHaveBeenCalled();
+      expect(fixture.nativeElement.textContent).toContain('cannot be undone');
+
+      buttonWithText(fixture.nativeElement, 'Confirm remove judge').click();
+      fixture.detectChanges();
+      await flush();
+      fixture.detectChanges();
+
+      expect(fakeTablesApi.removeJudge).toHaveBeenCalledWith('c1', 't1', 'j1');
+      expect(fixture.nativeElement.textContent).not.toContain('Grace Hopper');
+      expect(fakeTablesApi.getTables).not.toHaveBeenCalled();
+    });
+
+    it('cancelling the confirm step does not call removeJudge', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      (
+        fixture.nativeElement.querySelector(
+          '[data-judge-id="j1"] .remove-judge-action',
+        ) as HTMLButtonElement
+      ).click();
+      fixture.detectChanges();
+      buttonWithText(fixture.nativeElement, 'Cancel').click();
+      fixture.detectChanges();
+
+      expect(fakeTablesApi.removeJudge).not.toHaveBeenCalled();
+      expect(fixture.nativeElement.textContent).toContain('Grace Hopper');
+    });
+
+    it('surfaces an error message when removeJudge fails, keeping the judge listed', async () => {
+      fakeTablesApi.removeJudge.mockReturnValue(
+        throwError(
+          () =>
+            new ApiError({
+              status: 404,
+              title: 'Not found',
+              urn: null,
+              detail: 'Table or judge not found.',
+            }),
+        ),
+      );
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      (
+        fixture.nativeElement.querySelector(
+          '[data-judge-id="j1"] .remove-judge-action',
+        ) as HTMLButtonElement
+      ).click();
+      fixture.detectChanges();
+      buttonWithText(fixture.nativeElement, 'Confirm remove judge').click();
+      fixture.detectChanges();
+      await flush();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Table or judge not found.');
+      expect(fixture.nativeElement.textContent).toContain('Grace Hopper');
+    });
   });
 
   it('surfaces a load error message when any initial request fails', async () => {

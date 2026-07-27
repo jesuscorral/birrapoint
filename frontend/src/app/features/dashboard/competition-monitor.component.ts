@@ -1,3 +1,4 @@
+import { CdkTrapFocus } from '@angular/cdk/a11y';
 import type { OnDestroy, OnInit } from '@angular/core';
 import {
   ChangeDetectionStrategy,
@@ -22,6 +23,8 @@ import type {
   EntryEvaluationsResult,
   TableProgressSummary,
 } from '../../core/api/monitoring-api.service';
+import { TablesApiService } from '../../core/api/tables-api.service';
+import type { TableJudge, TableSummary } from '../../core/api/tables-api.service';
 import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
 import type {
   EvaluationCompletedEvent,
@@ -50,7 +53,7 @@ function errorMessage(error: ApiError): string {
 // consolidatedScores payload — simpler, and correctness only depends on one round trip per click.
 @Component({
   selector: 'app-competition-monitor',
-  imports: [RouterLink],
+  imports: [RouterLink, CdkTrapFocus],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <p><a routerLink="/organizer/dashboard">&larr; Competitions</a></p>
@@ -70,6 +73,10 @@ function errorMessage(error: ApiError): string {
             >
           </p>
         }
+      }
+
+      @if (removeJudgeError(); as message) {
+        <p role="alert">{{ message }}</p>
       }
 
       <ul class="table-progress-list">
@@ -100,9 +107,52 @@ function errorMessage(error: ApiError): string {
                 </li>
               }
             </ul>
+
+            <ul class="judge-list" [attr.aria-label]="'Judges at ' + row.name">
+              @for (judge of judgesByTable().get(row.tableId) ?? []; track judge.id) {
+                <li class="judge-row" [attr.data-judge-id]="judge.id">
+                  <span class="judge-name">{{ judge.displayName }}</span>
+                  @if (row.state === 'Open') {
+                    <button
+                      type="button"
+                      class="remove-judge-action"
+                      (click)="onRequestRemoveJudge(row.tableId, row.name, judge)"
+                    >
+                      Remove
+                    </button>
+                  }
+                </li>
+              }
+            </ul>
           </li>
         }
       </ul>
+    }
+
+    @if (confirmingRemoveJudge(); as target) {
+      <div class="modal-backdrop" role="presentation" (click)="onCancelRemoveJudge()">
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-label="Confirm remove judge"
+          class="modal-panel"
+          cdkTrapFocus
+          cdkTrapFocusAutoCapture
+          (click)="$event.stopPropagation()"
+          (keydown.escape)="onCancelRemoveJudge()"
+        >
+          <h2>Remove judge</h2>
+          <p>
+            This immediately revokes {{ target.judgeDisplayName }}'s access to
+            {{ target.tableName }} and cannot be undone. Their already-submitted evaluations stay
+            valid. Continue?
+          </p>
+          <button type="button" [disabled]="removingJudge()" (click)="onConfirmRemoveJudge()">
+            Confirm remove judge
+          </button>
+          <button type="button" (click)="onCancelRemoveJudge()">Cancel</button>
+        </div>
+      </div>
     }
 
     @if (selectedEntry(); as entry) {
@@ -222,6 +272,42 @@ function errorMessage(error: ApiError): string {
       padding-top: 0.75rem;
       margin-top: 0.75rem;
     }
+
+    .judge-list {
+      list-style: none;
+      margin: 0.5rem 0 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .judge-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .remove-judge-action {
+      margin-left: auto;
+      color: #991b1b;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgb(0 0 0 / 50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-panel {
+      background: #fff;
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      min-width: 20rem;
+    }
   `,
 })
 export class CompetitionMonitorComponent implements OnInit, OnDestroy {
@@ -229,6 +315,7 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
   private readonly competitionsApi = inject(CompetitionsApiService);
   private readonly monitoringApi = inject(MonitoringApiService);
   private readonly entriesApi = inject(EntriesApiService);
+  private readonly tablesApi = inject(TablesApiService);
   private readonly hub = inject(CompetitionHubService);
 
   private readonly competitionId = this.route.snapshot.paramMap.get('id')!;
@@ -240,8 +327,18 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
   protected readonly competition = signal<CompetitionDetail | null>(null);
   protected readonly tableRows = signal<TableProgressSummary[]>([]);
   protected readonly entries = signal<EntryListItem[]>([]);
+  protected readonly tables = signal<TableSummary[]>([]);
   protected readonly loadError = signal<string | null>(null);
   protected readonly orderFixedNotes = signal<Map<string, string>>(new Map());
+
+  protected readonly confirmingRemoveJudge = signal<{
+    tableId: string;
+    tableName: string;
+    judgeId: string;
+    judgeDisplayName: string;
+  } | null>(null);
+  protected readonly removingJudge = signal(false);
+  protected readonly removeJudgeError = signal<string | null>(null);
 
   protected readonly selectedEntry = signal<EntryListItem | null>(null);
   protected readonly entryEvaluations = signal<EntryEvaluationsResult | null>(null);
@@ -257,6 +354,14 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
       const list = map.get(entry.tastingTableId) ?? [];
       list.push(entry);
       map.set(entry.tastingTableId, list);
+    }
+    return map;
+  });
+
+  protected readonly judgesByTable = computed(() => {
+    const map = new Map<string, TableJudge[]>();
+    for (const table of this.tables()) {
+      map.set(table.id, table.judges);
     }
     return map;
   });
@@ -325,17 +430,64 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
     this.entryEvaluationsError.set(null);
   }
 
+  protected onRequestRemoveJudge(tableId: string, tableName: string, judge: TableJudge): void {
+    this.removeJudgeError.set(null);
+    this.confirmingRemoveJudge.set({
+      tableId,
+      tableName,
+      judgeId: judge.id,
+      judgeDisplayName: judge.displayName,
+    });
+  }
+
+  protected onCancelRemoveJudge(): void {
+    this.confirmingRemoveJudge.set(null);
+  }
+
+  // T087/US12: optimistic on success — the DELETE response is the source of truth for whether the
+  // removal happened at all (a 404 rejects it below), so once it succeeds there's nothing left to
+  // reconcile by re-fetching the whole table list just to drop one judge from one row.
+  protected onConfirmRemoveJudge(): void {
+    const target = this.confirmingRemoveJudge();
+    if (!target || this.removingJudge()) {
+      return;
+    }
+    this.removingJudge.set(true);
+    this.removeJudgeError.set(null);
+
+    this.tablesApi.removeJudge(this.competitionId, target.tableId, target.judgeId).subscribe({
+      next: () => {
+        this.removingJudge.set(false);
+        this.confirmingRemoveJudge.set(null);
+        this.tables.update((tables) =>
+          tables.map((table) =>
+            table.id === target.tableId
+              ? { ...table, judges: table.judges.filter((judge) => judge.id !== target.judgeId) }
+              : table,
+          ),
+        );
+      },
+      error: (error: unknown) => {
+        this.removingJudge.set(false);
+        this.confirmingRemoveJudge.set(null);
+        this.removeJudgeError.set(errorMessage(toGenericApiError(error)));
+      },
+    });
+  }
+
   private loadAll(): void {
     this.loadError.set(null);
     forkJoin({
       competition: this.competitionsApi.getById(this.competitionId),
       progress: this.monitoringApi.getProgress(this.competitionId),
       entries: this.entriesApi.getEntries(this.competitionId),
+      tables: this.tablesApi.getTables(this.competitionId),
     }).subscribe({
-      next: ({ competition, progress, entries }) => {
+      next: ({ competition, progress, entries, tables }) => {
         this.competition.set(competition);
         this.tableRows.set(progress);
         this.entries.set(entries);
+        this.tables.set(tables);
       },
       error: (error: unknown) => this.loadError.set(errorMessage(toGenericApiError(error))),
     });

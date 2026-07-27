@@ -443,5 +443,142 @@ describe('SyncService', () => {
 
       expect(await db.outbox.get('table-1:entry-1')).toBeUndefined();
     });
+
+    it('purges the outbox row (and its draft) on a 404, instead of recording a failed attempt (T087 lazy-discovery)', async () => {
+      const service = await createService();
+      await seedOutboxRow();
+      await db.drafts.put({
+        beerEntryId: 'entry-1',
+        tastingTableId: 'table-1',
+        scores: scoresFixture(),
+        comments: commentsFixture(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      const replay = service.replayOutbox();
+      await flush();
+      httpMock
+        .expectOne(`${API_URL}/me/tables/table-1/evaluations`)
+        .flush(null, { status: 404, statusText: 'Not Found' });
+      await replay;
+
+      expect(await db.outbox.get('table-1:entry-1')).toBeUndefined();
+      expect(await db.drafts.get('entry-1')).toBeUndefined();
+      expect(service.rejectedSubmissions()).toEqual([
+        { tastingTableId: 'table-1', beerEntryId: 'entry-1' },
+      ]);
+    });
+  });
+
+  describe('submit() 404 handling (T087)', () => {
+    it('propagates a definitive 404 from an immediate online attempt (e.g. this judge was just removed), same as 400/409', async () => {
+      const service = await createService();
+
+      const outcome = service.submit(
+        'table-1:entry-1',
+        'table-1',
+        'entry-1',
+        scoresFixture(),
+        commentsFixture(),
+      );
+      await flush();
+      httpMock
+        .expectOne(`${API_URL}/me/tables/table-1/evaluations`)
+        .flush(null, { status: 404, statusText: 'Not Found' });
+
+      await expect(outcome).rejects.toMatchObject({ status: 404 });
+      // The foreground attempt only records the failed attempt (same as 400/409) — it's the
+      // background sweep's attemptOne() that actually purges a 404'd row (see the "lazy-discovery"
+      // test above), not this immediate online attempt.
+      expect(await db.outbox.get('table-1:entry-1')).toBeDefined();
+    });
+  });
+
+  describe('rejectOutboxForTable() (T087)', () => {
+    it('purges every outbox row (and its matching draft) for the given table, leaving other tables untouched', async () => {
+      const service = await createService();
+      await db.outbox.bulkPut([
+        {
+          idempotencyKey: 'table-1:entry-1',
+          tastingTableId: 'table-1',
+          beerEntryId: 'entry-1',
+          scores: scoresFixture(),
+          comments: commentsFixture(),
+          attempts: 0,
+        },
+        {
+          idempotencyKey: 'table-1:entry-2',
+          tastingTableId: 'table-1',
+          beerEntryId: 'entry-2',
+          scores: scoresFixture(),
+          comments: commentsFixture(),
+          attempts: 2,
+        },
+        {
+          idempotencyKey: 'table-2:entry-3',
+          tastingTableId: 'table-2',
+          beerEntryId: 'entry-3',
+          scores: scoresFixture(),
+          comments: commentsFixture(),
+          attempts: 0,
+        },
+      ]);
+      await db.drafts.put({
+        beerEntryId: 'entry-1',
+        tastingTableId: 'table-1',
+        scores: scoresFixture(),
+        comments: commentsFixture(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      const purged = await service.rejectOutboxForTable('table-1');
+
+      expect(purged.map((row) => row.beerEntryId).sort()).toEqual(['entry-1', 'entry-2']);
+      expect(await db.outbox.get('table-1:entry-1')).toBeUndefined();
+      expect(await db.outbox.get('table-1:entry-2')).toBeUndefined();
+      expect(await db.outbox.get('table-2:entry-3')).toBeDefined();
+      expect(await db.drafts.get('entry-1')).toBeUndefined();
+      expect(service.rejectedSubmissions()).toEqual(
+        expect.arrayContaining([
+          { tastingTableId: 'table-1', beerEntryId: 'entry-1' },
+          { tastingTableId: 'table-1', beerEntryId: 'entry-2' },
+        ]),
+      );
+    });
+
+    it('is a no-op (and records nothing) when the table has no queued rows', async () => {
+      const service = await createService();
+
+      const purged = await service.rejectOutboxForTable('table-1');
+
+      expect(purged).toEqual([]);
+      expect(service.rejectedSubmissions()).toEqual([]);
+    });
+
+    it('also purges a draft that has no matching outbox row (still mid-editing, never submitted)', async () => {
+      const service = await createService();
+      await db.drafts.bulkPut([
+        {
+          beerEntryId: 'entry-1',
+          tastingTableId: 'table-1',
+          scores: scoresFixture(),
+          comments: commentsFixture(),
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          beerEntryId: 'entry-2',
+          tastingTableId: 'table-2',
+          scores: scoresFixture(),
+          comments: commentsFixture(),
+          updatedAt: new Date().toISOString(),
+        },
+      ]);
+
+      const purged = await service.rejectOutboxForTable('table-1');
+
+      expect(purged).toEqual([]);
+      expect(await db.drafts.get('entry-1')).toBeUndefined();
+      expect(await db.drafts.get('entry-2')).toBeDefined();
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom, timeout } from 'rxjs';
 
 import { ApiClient } from '../api/api-client.service';
@@ -66,6 +66,14 @@ export class SyncService {
   private readonly draftWaiters = new Map<string, DraftWaiter[]>();
   private replaying = false;
 
+  /**
+   * Outbox rows purged because the server no longer accepts them for this judge (T087: removed
+   * from the table) — appended by both `rejectOutboxForTable()` (the live-event path) and
+   * `attemptOne()`'s 404 handling (the lazy-discovery path). A read-only log for callers that want
+   * to report what was lost; this service never clears it itself.
+   */
+  readonly rejectedSubmissions = signal<{ tastingTableId: string; beerEntryId: string }[]>([]);
+
   constructor() {
     window.addEventListener('online', () => void this.replayOutbox());
     // "App start" trigger — see class doc. Fire-and-forget: nothing in the constructor path can
@@ -125,6 +133,27 @@ export class SyncService {
 
   clearDraft(beerEntryId: string): Promise<void> {
     return db.drafts.delete(beerEntryId);
+  }
+
+  /**
+   * Proactive purge (T087): called once a live `JudgeRemoved` event has been confirmed to mean
+   * "this judge" — drops every outbox row (and its matching draft) for `tastingTableId` immediately
+   * rather than waiting for the next backoff-scheduled replay attempt (up to 60s away, too slow for
+   * "revoked at once"). Also purges every *draft* for this table directly, including ones with no
+   * outbox row at all (a sample the judge was still mid-editing, never yet submitted) — otherwise
+   * those would linger in Dexie forever, since nothing else ever revisits or clears a draft that
+   * was never submitted. Returns the purged outbox rows so the caller can report them.
+   */
+  async rejectOutboxForTable(tastingTableId: string): Promise<OutboxRow[]> {
+    const rows = await db.outbox.where('tastingTableId').equals(tastingTableId).toArray();
+    await Promise.all([
+      ...rows.map((row) => this.purgeOutboxRow(row)),
+      db.drafts.where('tastingTableId').equals(tastingTableId).delete(),
+    ]);
+    if (rows.length > 0) {
+      this.recordRejectedSubmissions(rows);
+    }
+    return rows;
   }
 
   /**
@@ -228,12 +257,34 @@ export class SyncService {
 
   // Used by replayOutbox()'s background sweep, where a single row's failure must never interrupt
   // the loop over the rest of the outbox — errors are recorded (attempts/backoff), not rethrown.
+  //
+  // A 404 here (T087) is the lazy-discovery path: this judge was removed from the table while
+  // offline (or with the app closed) and only finds out now that connectivity/replay has resumed,
+  // without ever having received the live JudgeRemoved hub event. That row can never succeed —
+  // purge it (and its draft) instead of recording just another failed attempt and backing off.
   private async attemptOne(row: OutboxRow): Promise<void> {
     try {
       await this.sendOne(row);
     } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        await this.purgeOutboxRow(row);
+        this.recordRejectedSubmissions([row]);
+        return;
+      }
       await this.recordFailedAttempt(row, error);
     }
+  }
+
+  private async purgeOutboxRow(row: OutboxRow): Promise<void> {
+    await db.outbox.delete(row.idempotencyKey);
+    await db.drafts.delete(row.beerEntryId);
+  }
+
+  private recordRejectedSubmissions(rows: OutboxRow[]): void {
+    this.rejectedSubmissions.update((current) => [
+      ...current,
+      ...rows.map((row) => ({ tastingTableId: row.tastingTableId, beerEntryId: row.beerEntryId })),
+    ]);
   }
 
   // The actual POST (contracts/rest-api.md §Judge workspace) plus its on-success cleanup. Shared
@@ -266,11 +317,16 @@ export class SyncService {
   }
 
   // A request the server actively refused because the payload/request is invalid for its current
-  // state (validation, or a domain conflict like out-of-sequence/order-not-fixed) — submit()'s
-  // foreground attempt surfaces this to the caller immediately rather than silently reporting
-  // "enqueued", even though the row still stays queued for a later background retry regardless
-  // (see submit()'s doc comment). Everything else (no response at all, 5xx, timeout) is transient.
+  // state (validation, or a domain conflict like out-of-sequence/order-not-fixed), or because this
+  // judge no longer has access to the table at all (404 — T087, e.g. removed mid-evaluation) —
+  // submit()'s foreground attempt surfaces this to the caller immediately rather than silently
+  // reporting "enqueued", even though the row still stays queued for a later background retry
+  // regardless (see submit()'s doc comment; attemptOne()'s background sweep is what actually purges
+  // a 404'd row). Everything else (no response at all, 5xx, timeout) is transient.
   private isDefinitiveRejection(error: unknown): boolean {
-    return error instanceof ApiError && (error.status === 400 || error.status === 409);
+    return (
+      error instanceof ApiError &&
+      (error.status === 400 || error.status === 409 || error.status === 404)
+    );
   }
 }
