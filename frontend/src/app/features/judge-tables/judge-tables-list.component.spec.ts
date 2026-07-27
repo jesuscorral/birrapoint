@@ -84,4 +84,42 @@ describe('JudgeTablesListComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('An unexpected error occurred.');
   });
+
+  describe('ejection banner (T087/US12)', () => {
+    afterEach(() => {
+      history.replaceState(null, '');
+    });
+
+    it('shows no banner by default', () => {
+      const fixture = createComponent();
+
+      expect(fixture.nativeElement.querySelector('[role="status"]')).toBeNull();
+    });
+
+    it('shows a banner naming the table when redirected here after an ejection', () => {
+      history.replaceState({ ejected: true, tableName: 'Table 1' }, '');
+      const fixture = createComponent();
+
+      const banner = fixture.nativeElement.querySelector('[role="status"]');
+      expect(banner?.textContent).toContain('You were removed from Table 1 by the organizer.');
+    });
+
+    it('falls back to generic wording when no table name was passed', () => {
+      history.replaceState({ ejected: true }, '');
+      const fixture = createComponent();
+
+      const banner = fixture.nativeElement.querySelector('[role="status"]');
+      expect(banner?.textContent).toContain('You were removed from a table by the organizer.');
+    });
+
+    it('dismisses the banner on click', () => {
+      history.replaceState({ ejected: true, tableName: 'Table 1' }, '');
+      const fixture = createComponent();
+
+      ([...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[])[0].click();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('[role="status"]')).toBeNull();
+    });
+  });
 });

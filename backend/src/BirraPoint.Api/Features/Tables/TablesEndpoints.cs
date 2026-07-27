@@ -4,7 +4,8 @@ namespace BirraPoint.Api.Features.Tables;
 
 public sealed record TableAssignmentRequest(string Name, IReadOnlyList<Guid> JudgeIds, IReadOnlyList<Guid> BeerEntryIds);
 
-/// <summary>Maps CreateTable/UpdateTable/ListTables (contracts/rest-api.md §Tables, T047) — ORGANIZER-only.</summary>
+/// <summary>Maps CreateTable/UpdateTable/ListTables (contracts/rest-api.md §Tables, T047) and
+/// RemoveJudge (contracts/rest-api.md §Tables, T086, FR-039) — ORGANIZER-only.</summary>
 public static class TablesEndpoints
 {
     public static IEndpointRouteBuilder MapTablesEndpoints(this IEndpointRouteBuilder endpoints)
@@ -46,6 +47,17 @@ public static class TablesEndpoints
         .Produces(StatusCodes.Status400BadRequest)
         .Produces(StatusCodes.Status404NotFound)
         .Produces(StatusCodes.Status409Conflict);
+
+        group.MapDelete("/{tableId:guid}/judges/{judgeId:guid}", async (
+            Guid competitionId, Guid tableId, Guid judgeId, ISender sender, CancellationToken cancellationToken) =>
+        {
+            var command = new RemoveJudgeCommand(competitionId, tableId, judgeId);
+            var result = await sender.Send(command, cancellationToken);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        })
+        .WithName("RemoveJudge")
+        .Produces<RemoveJudgeResult>()
+        .Produces(StatusCodes.Status404NotFound);
 
         endpoints.MapGroup("/api/v1/competitions/{competitionId:guid}/entries")
             .RequireAuthorization("ORGANIZER")

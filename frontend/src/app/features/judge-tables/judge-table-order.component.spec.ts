@@ -1,13 +1,15 @@
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import { of, Subject, throwError } from 'rxjs';
 import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 
 import { ApiError } from '../../core/api/api-error';
+import { SyncService } from '../../core/offline/sync.service';
 import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
 import type {
   DiscrepancyRaisedEvent,
   DiscrepancyResolvedEvent,
+  JudgeRemovedEvent,
   TableClosedEvent,
   TableOrderFixedEvent,
 } from '../../core/realtime/competition-hub.events';
@@ -107,6 +109,7 @@ describe('JudgeTableOrderComponent', () => {
     closeTable: jest.Mock;
   };
   let fakeDiscrepancyApi: { getDiscrepancies: jest.Mock };
+  let fakeSync: { rejectOutboxForTable: jest.Mock };
   let fakeHub: {
     start: jest.Mock;
     joinTable: jest.Mock;
@@ -117,12 +120,15 @@ describe('JudgeTableOrderComponent', () => {
   let tableClosedSubject: Subject<TableClosedEvent>;
   let discrepancyRaisedSubject: Subject<DiscrepancyRaisedEvent>;
   let discrepancyResolvedSubject: Subject<DiscrepancyResolvedEvent>;
+  let judgeRemovedSubject: Subject<JudgeRemovedEvent>;
+  let navigateSpy: jest.SpiedFunction<Router['navigate']>;
 
   beforeEach(() => {
     orderFixedSubject = new Subject<TableOrderFixedEvent>();
     tableClosedSubject = new Subject<TableClosedEvent>();
     discrepancyRaisedSubject = new Subject<DiscrepancyRaisedEvent>();
     discrepancyResolvedSubject = new Subject<DiscrepancyResolvedEvent>();
+    judgeRemovedSubject = new Subject<JudgeRemovedEvent>();
     fakeApi = {
       getMyTables: jest.fn().mockReturnValue(of([tableFixture()])),
       getTableSamples: jest.fn().mockReturnValue(of(samplesFixture())),
@@ -130,6 +136,7 @@ describe('JudgeTableOrderComponent', () => {
       closeTable: jest.fn(),
     };
     fakeDiscrepancyApi = { getDiscrepancies: jest.fn().mockReturnValue(of([])) };
+    fakeSync = { rejectOutboxForTable: jest.fn().mockResolvedValue([]) };
     fakeHub = {
       start: jest.fn().mockResolvedValue(undefined),
       joinTable: jest.fn().mockResolvedValue(undefined),
@@ -144,6 +151,9 @@ describe('JudgeTableOrderComponent', () => {
         if (event === 'DiscrepancyResolved') {
           return discrepancyResolvedSubject.asObservable();
         }
+        if (event === 'JudgeRemoved') {
+          return judgeRemovedSubject.asObservable();
+        }
         return orderFixedSubject.asObservable();
       }),
     };
@@ -152,7 +162,9 @@ describe('JudgeTableOrderComponent', () => {
       providers: [
         { provide: TastingOrderApiService, useValue: fakeApi },
         { provide: DiscrepancyApiService, useValue: fakeDiscrepancyApi },
+        { provide: SyncService, useValue: fakeSync },
         { provide: CompetitionHubService, useValue: fakeHub },
+        provideRouter([]),
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: convertToParamMap({ tableId: 't1' }) } },
@@ -163,6 +175,7 @@ describe('JudgeTableOrderComponent', () => {
 
   function createComponent() {
     const fixture = TestBed.createComponent(JudgeTableOrderComponent);
+    navigateSpy = jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     fixture.detectChanges();
     return fixture;
   }
@@ -876,6 +889,64 @@ describe('JudgeTableOrderComponent', () => {
       expect(
         fixture.nativeElement.querySelector('a[href="/judge/tables/t1/discrepancies"]'),
       ).not.toBeNull();
+    });
+  });
+
+  describe('live judge removal (T087/US12)', () => {
+    it('joins the table SignalR group on init and leaves it on destroy', async () => {
+      const fixture = createComponent();
+      await flush();
+
+      expect(fakeHub.joinTable).toHaveBeenCalledWith('t1');
+
+      fixture.destroy();
+      await flush();
+
+      expect(fakeHub.leaveTable).toHaveBeenCalledWith('t1');
+    });
+
+    it('when this judge is the one removed: purges the outbox and navigates away with an ejection notice', async () => {
+      fakeApi.getTableSamples
+        .mockReturnValueOnce(of(samplesFixture()))
+        .mockReturnValue(
+          throwError(() => new ApiError({ status: 404, title: 'Not found', urn: null })),
+        );
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      judgeRemovedSubject.next({ tableId: 't1', judgeId: 'some-judge' });
+      await flush();
+
+      expect(fakeSync.rejectOutboxForTable).toHaveBeenCalledWith('t1');
+      expect(navigateSpy).toHaveBeenCalledWith(['/judge', 'tables'], {
+        state: { ejected: true, tableName: 'Table 1' },
+      });
+    });
+
+    it('when a different judge at this table is removed: this session stays put, no-op', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      judgeRemovedSubject.next({ tableId: 't1', judgeId: 'some-other-judge' });
+      await flush();
+
+      expect(fakeSync.rejectOutboxForTable).not.toHaveBeenCalled();
+      expect(navigateSpy).not.toHaveBeenCalled();
+    });
+
+    it('ignores a JudgeRemoved event for a different table', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      judgeRemovedSubject.next({ tableId: 'other-table', judgeId: 'some-judge' });
+      await flush();
+
+      expect(fakeApi.getTableSamples).toHaveBeenCalledTimes(1);
+      expect(fakeSync.rejectOutboxForTable).not.toHaveBeenCalled();
+      expect(navigateSpy).not.toHaveBeenCalled();
     });
   });
 });

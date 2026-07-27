@@ -1,0 +1,122 @@
+using System.Security.Cryptography;
+using System.Text;
+using BirraPoint.Api.Common.Audit;
+using BirraPoint.Api.Common.Auth;
+using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Domain;
+using BirraPoint.Api.Realtime;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
+
+namespace BirraPoint.Api.Features.Tables;
+
+/// <summary>DELETE /competitions/{id}/tables/{tableId}/judges/{judgeId} (contracts/rest-api.md
+/// §Tables, T086, FR-039): live removal of a judge from an actively-assigned table. Returns null
+/// when the competition isn't owned by the caller, the table doesn't belong to it, or the judge
+/// has no active (non-removed) TableJudge row at that table — the endpoint maps all three to a
+/// plain 404, never leaking existence (same convention as CreateTable/CorrectEvaluation). No new
+/// guard is added to the judge-workspace slices: JudgeTableAccess.FindActiveMembershipAsync
+/// (already filtering on RemovedAt == null and reused by every one of them) starts rejecting the
+/// removed judge the instant this handler sets RemovedAt. Already-submitted evaluations are left
+/// untouched — TableJudge rows are never hard-deleted once evaluations exist (data-model.md).</summary>
+public sealed record RemoveJudgeCommand(Guid CompetitionId, Guid TableId, Guid JudgeId) : IRequest<RemoveJudgeResult?>;
+
+public sealed record RemoveJudgeResult(Guid TableId, Guid JudgeId);
+
+public sealed class RemoveJudgeCommandHandler(
+    AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter, IEventPublisher eventPublisher)
+    : IRequestHandler<RemoveJudgeCommand, RemoveJudgeResult?>
+{
+    public async Task<RemoveJudgeResult?> Handle(RemoveJudgeCommand request, CancellationToken cancellationToken)
+    {
+        var competitionExists = await dbContext.Competitions
+            .AnyAsync(c => c.Id == request.CompetitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
+        if (!competitionExists)
+        {
+            return null;
+        }
+
+        // Scoped through TastingTable.CompetitionId (TableJudge has no CompetitionId of its own) —
+        // this also prevents a table/judge id from a different competition being addressed via a
+        // route that happens to name a competition the caller does own. AsNoTracking: this row is
+        // only used for the pre-transaction existence check below — leaving it untracked means the
+        // FOR UPDATE re-fetch under the transaction is this DbContext's first tracked instance of
+        // the row, so its RemovedAt reflects the true post-lock state rather than EF's identity
+        // resolution silently handing back this (potentially stale) pre-lock instance.
+        var tableJudgeExists = await dbContext.TableJudges
+            .AsNoTracking()
+            .Where(tj => tj.TastingTableId == request.TableId && tj.JudgeId == request.JudgeId && tj.RemovedAt == null)
+            .Join(dbContext.TastingTables, tj => tj.TastingTableId, t => t.Id, (tj, t) => new { t.CompetitionId })
+            .AnyAsync(x => x.CompetitionId == request.CompetitionId, cancellationToken);
+
+        if (!tableJudgeExists)
+        {
+            return null;
+        }
+
+        var judgeDisplayName = await dbContext.Judges
+            .Where(j => j.Id == request.JudgeId)
+            .Select(j => j.DisplayName)
+            .SingleAsync(cancellationToken);
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        // Row lock to serialize concurrent removals of the same (table, judge) pair — two DELETE
+        // requests racing the same instant must not both read RemovedAt == null and both commit a
+        // removal (which would also double-write the audit log and double-emit JudgeRemoved). Same
+        // pattern as Features/Evaluations/CloseTable.cs's one-shot table-state flip; TableJudge's
+        // composite (TastingTableId, JudgeId) key stands in for CloseTable's single Id column.
+        var lockedTableJudge = await dbContext.TableJudges
+            .FromSqlInterpolated(
+                $"SELECT * FROM \"TableJudges\" WHERE \"TastingTableId\" = {request.TableId} AND \"JudgeId\" = {request.JudgeId} FOR UPDATE")
+            .SingleAsync(cancellationToken);
+
+        if (lockedTableJudge.RemovedAt is not null)
+        {
+            return null;
+        }
+
+        lockedTableJudge.RemovedAt = DateTimeOffset.UtcNow;
+
+        var entityId = RemoveJudgeRules.ComputeAuditEntityId(request.TableId, request.JudgeId);
+        auditWriter.Record(
+            "JudgeRemoved",
+            nameof(TableJudge),
+            entityId,
+            before: new { tableId = request.TableId, judgeId = request.JudgeId, removedAt = (DateTimeOffset?)null },
+            after: new { tableId = request.TableId, judgeId = request.JudgeId, removedAt = lockedTableJudge.RemovedAt });
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        // Emitted only after the transaction above commits (contracts/signalr-hub.md §Delivery
+        // semantics). Two separate publishes with different payload shapes per audience
+        // (contracts/signalr-hub.md's JudgeRemoved rows), same pattern as CloseTable.cs's
+        // two-audience TableClosed emit: the removed judge's own client ejects on the table group;
+        // the organizer group also gets the judge's display name (confirmation echo for the dashboard).
+        await eventPublisher.PublishToTableAsync(
+            request.TableId, "JudgeRemoved", new { tableId = request.TableId, judgeId = request.JudgeId }, CancellationToken.None);
+
+        await eventPublisher.PublishToOrganizersAsync(
+            request.CompetitionId,
+            "JudgeRemoved",
+            new { tableId = request.TableId, judgeId = request.JudgeId, judgeDisplayName },
+            CancellationToken.None);
+
+        return new RemoveJudgeResult(request.TableId, request.JudgeId);
+    }
+}
+
+/// <summary>Pure helper for RemoveJudgeCommandHandler — no EF/DB dependency, so it's unit-testable
+/// directly (same "pure rule class beside the DB-touching handler" pattern as
+/// Features/Evaluations/CloseTableRules and Features/Evaluations/SubmitEvaluationRules).</summary>
+public static class RemoveJudgeRules
+{
+    /// <summary>Composite (TastingTableId, JudgeId) PK has no single Guid id to key the audit row
+    /// on, and AuditLog.EntityId is capped at 50 chars (AuditLogConfiguration.cs) — too short for
+    /// both GUIDs verbatim, so a SHA-256 hash of "{tableId}:{judgeId}" (same hex-digest idiom as
+    /// BjcpStyleCatalogLoader), truncated to 40 hex chars (160 bits) to stay well within the cap,
+    /// gives a deterministic, effectively-unique key for this pair.</summary>
+    public static string ComputeAuditEntityId(Guid tableId, Guid judgeId) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{tableId}:{judgeId}")))[..40];
+}

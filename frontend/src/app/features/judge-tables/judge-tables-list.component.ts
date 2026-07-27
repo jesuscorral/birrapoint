@@ -5,6 +5,19 @@ import { ApiError } from '../../core/api/api-error';
 import { TastingOrderApiService } from './tasting-order-api.service';
 import type { JudgeTableSummary } from './tasting-order-api.service';
 
+interface EjectionNavigationState {
+  ejected?: boolean;
+  tableName?: string;
+}
+
+function readEjectionNotice(): { tableName: string | null } | null {
+  const state = history.state as EjectionNavigationState | null;
+  if (!state?.ejected) {
+    return null;
+  }
+  return { tableName: state.tableName ?? null };
+}
+
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError
     ? error
@@ -24,6 +37,13 @@ function errorMessage(error: ApiError): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <h1>My tables</h1>
+
+    @if (ejectionNotice(); as notice) {
+      <p role="status" class="ejection-banner">
+        You were removed from {{ notice.tableName ?? 'a table' }} by the organizer.
+        <button type="button" (click)="dismissEjectionNotice()">Dismiss</button>
+      </p>
+    }
 
     @if (loadError(); as message) {
       <p role="alert">{{ message }}</p>
@@ -52,6 +72,17 @@ function errorMessage(error: ApiError): string {
     </ul>
   `,
   styles: `
+    .ejection-banner {
+      background: #fef3c7;
+      color: #92400e;
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
     .table-list {
       list-style: none;
       margin: 1rem 0 0;
@@ -105,8 +136,17 @@ export class JudgeTablesListComponent {
   protected readonly tables = signal<JudgeTableSummary[]>([]);
   protected readonly loadError = signal<string | null>(null);
 
+  // T087/US12: a one-time notice read off `history.state`, set by a component that redirected
+  // here after this judge was live-removed from a table (judge-table-order.component.ts,
+  // evaluation-sheet.component.ts). Doesn't need to survive a reload — read once at construction.
+  protected readonly ejectionNotice = signal(readEjectionNotice());
+
   constructor() {
     this.loadTables();
+  }
+
+  protected dismissEjectionNotice(): void {
+    this.ejectionNotice.set(null);
   }
 
   private loadTables(): void {
