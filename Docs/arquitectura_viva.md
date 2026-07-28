@@ -5,7 +5,8 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-27 · after T084–T088 — **Phase 14 (US12, Live Judge Removal) complete**
+**Last updated:** 2026-07-28 · after T089–T091, T094 — **Phase 15 (Polish & Cross-Cutting Concerns)
+in progress**
 
 ## Global status
 
@@ -43,6 +44,15 @@ behind an explicit irreversible-action confirm), calling the already-existing
 `POST /competitions/{id}/state` (T028) for the first time from real UI. Two E2E specs
 (`us6-order.spec.ts`, `us13-dashboard.spec.ts`) that had been working around the missing button
 with a captured-bearer-token direct API call now drive the real button instead.
+
+**Phase 15 (Polish & Cross-Cutting Concerns, T089–T094)** started 2026-07-28, after Phase 14 (US12)
+merged (PR #27) with all 13 user stories functionally complete. **T089** (accessibility), **T090**
+(k6 + SC-006 scale E2E), **T091** (bundle/perf budgets), and **T094** (security pass) are done — see
+Testing & quality gates and Recorded debt below for exactly what each closed. **T092** (run all 13
+quickstart scenarios, fix doc drift) and **T093** (this file, `README.md`, `CLAUDE.md`) are in
+progress in this same change. T092's SC-010 usability gate ("≥5 first-time judges complete an
+evaluation sheet unaided in under 10 minutes") is a human user study — no amount of automation
+satisfies it; it remains an explicit outstanding manual/team action, not something this phase closes.
 
 **Phase 9 (User Story 7 — Offline-First Validated Evaluation Sheet, T055–T061)** is now **complete**
 (**correction**: an earlier revision of this line claimed this was "the last P1 story" — wrong,
@@ -1266,7 +1276,8 @@ and the audit drill-down still shows judge A's earlier submitted total.
 |---|---|---|
 | Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 184 unit tests (was 179; +5 **T079** `Evaluations/DiscrepancyTests.cs`: pairwise >7 detection incl. the 3-judge "middle judge not involved" edge case, resolution when all totals converge) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15) + T045 `Tables/` (13) + T050 `TastingOrder/` (10) + T055 `Evaluations/SubmitEvaluationTests.cs` (37) + T062-T063 `Evaluations/CloseTableTests.cs` (9) + T072 `Dispatch/DispatchPathsTests.cs` (2); 157 integration tests (+6 **T080** `Evaluations/DiscrepancyApiTests.cs`: divergent submit → `PendingConsensus` + alert, the 3-judge outlier-only-involved case incl. asserting the uninvolved judge's own response carries `discrepancy: null`, `PUT` adjustment resolving an alert, `PUT` outside an open alert → `409 evaluation-locked`, `PUT` on someone else's evaluation → `404`, close blocked then succeeding after resolution — plus one pre-existing `CloseTableApiTests.cs` test's fixture adjusted from an 11-point judge score gap to 5, since it now trips the newly-active >7pt gate) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) + T046 `Tables/` (22) + T051 `TastingOrder/` (9) + T056 `Evaluations/SubmitEvaluationApiTests.cs` (12) + T057B `Catalog/GetStyleDetailTests.cs` (2) + T062-T065 `Evaluations/CloseTableApiTests.cs` (9) + T068 `Monitoring/MonitoringApiTests.cs` (8) + T073 `Dispatch/DispatchApiTests.cs` (6) |
 | Frontend unit | `cd frontend && npx jest` | green — 312 tests across 44 suites (was 290; +22 **T082**: `features/discrepancy/discrepancy-api.service.spec.ts` + `discrepancy-alert.component.spec.ts` (new, fake-collaborator style matching `judge-table-order.component.spec.ts`'s harness), plus new cases in `judge-table-order.component.spec.ts` (open-discrepancy banner + pluralization, hub re-fetch/filtering, the close-error link) and `evaluation-sheet.component.spec.ts` (the `PendingConsensus` branch); was 262; +28 **T077**: new `core/api/blob-text.spec.ts` (2), `core/api/dispatch-api.service.spec.ts` (5), `features/results-dispatch/results-dispatch.component.spec.ts` (15: status table rendering, retry/retry-all gating, download success/not-ready/error, live `DispatchProgress` pipeline-stage text), `core/api/api-client.service.spec.ts`'s `getBlob()` extension (3), plus `competition-monitor.component.spec.ts`'s new "Results & Dispatch" link coverage (2, shown/hidden by `Finalized` state)) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (13) + T029 `features/competition-wizard/` (24) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12) + T048 `features/table-management/` (46) + T053 `features/judge-tables/` (23) + T100/T102 `features/dashboard/` (19) + T057/T059/T060/T060B/T061 US7 work (48) + T066-T067 US8 work (13) + T070 US9 work (16). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
-| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **mixed, unchanged shape from T024** — `us1-auth.spec.ts` (3), `us2-wizard.spec.ts` (1), `us3-import.spec.ts` (1), `us4-judges.spec.ts` (1), `us5-tables.spec.ts` (1), `us6-order.spec.ts` (1), `us13-dashboard.spec.ts` (3), `us7-offline.spec.ts` (1), `us8-close.spec.ts` (1), `us9-dashboard.spec.ts` (1), **T078 `us10-dispatch.spec.ts`** (1: full US10 setup through the real dashboard/UI — finalizes a competition with a closed table, confirms the badge updates immediately with no wait on the background pipeline (Acceptance Scenario 1's "stays responsive"), polls the new dispatch screen until all three of the fixture's participants — including the one never assigned to any table, proving dispatch scope is competition-wide not table-wide — reach `Completed`, downloads the ZIP via a captured Playwright `download` event and inspects its entries with `adm-zip` (new test-only devDependency, Node has no built-in ZIP reader) against the exact FR-040 path, and confirms every participant's Mailpit message has the right PDF attachment; the retry button's *positive* case — correctly absent once everything is `Completed` — is asserted here, while the retry *mechanism* itself is covered at the integration level by `DispatchApiTests.cs` rather than forcing a contrived real-SMTP failure), and new **T083 `us11-discrepancy.spec.ts`** (1: two independent judge sessions on one shared table/sample — a 15-point-apart submission goes `PendingConsensus` on both evaluations with the alert visible to both sessions (one via a live `DiscrepancyRaised` within a ~1s bounded timeout, matching this suite's other realtime-propagation budgets), close blocked with `409 discrepancy-open`, an adjustment within 7 points resolves it (`DiscrepancyResolved` reaching the other session live too), close then succeeds — verified against real HTTP response bodies throughout, not just UI text; 3/3 consecutive runs clean, no flakiness) — all green against a live, fully-warmed Aspire stack (also re-verified alongside `us6-order.spec.ts`/`us8-close.spec.ts`/`us9-dashboard.spec.ts`/`us13-dashboard.spec.ts` as a regression spot-check), but `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` still fail deterministically (pre-existing since T024, unrelated: `login-required` races `page.goto('/')`). **Gap still open**: no judge- or organizer-facing route, including the evaluation sheet and all three dashboard/results screens, is in the axe-core sweep yet — `a11y/home.a11y.spec.ts` only covers the placeholder app shell; a full-suite sweep is Phase 15/T089 territory. See Recorded debt below. Chromium only |
+| E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **green — T089 closed the long-open a11y gap**: `us1-auth.spec.ts` through `us13-dashboard.spec.ts` (the full per-story set, unchanged) plus two new specs — **T089 `e2e/a11y/routes.a11y.spec.ts`** (a single journey test logging in as both organizer and judge and axe-scanning all 12 routes in `app.routes.ts`: every organizer screen (dashboard, wizard incl. import/judges/tables/monitor/dispatch) and every judge screen (tables list, order, evaluation sheet, discrepancies) — found and fixed 2 real WCAG 2.1 A/AA violations in `features/table-management/` (see Recorded debt below for detail), zero violations remain), and **T090 `e2e/us3-import-scale.spec.ts`** (SC-006: a 500-row `.xlsx` fixture with 100 rows/20% BJCP-style errors, hand-built as minimal real OOXML via `adm-zip` since no xlsx-writing library existed in this repo at this scale, resolves all 100 through the real per-row UI action and consolidates in one session — `Imported: 400 / Excluded: 100`). The old `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` (both dating to T004, pre-Keycloak) were **removed** — both asserted an unauthenticated `/` renders app content, which has been false since the auth guard landed; `us1-auth.spec.ts`'s existing redirect assertion and the new `routes.a11y.spec.ts` sweep already fully subsume what they were checking. All green against a live, fully-warmed Aspire stack. Chromium only |
+| Performance & bundle budgets (Principle IX) | `k6 run infra/perf/api-budgets.js` · `cd frontend && npm run build:budget` | **T090/T091, new**. `infra/perf/api-budgets.js` (k6): read/write p95 thresholds (`<200ms`/`<500ms`) against representative endpoints; authored and validated for correctness but not run in CI yet — needs a pre-obtained ORGANIZER/JUDGE bearer token (neither Keycloak client here supports a non-interactive grant: `birrapoint-spa` has `directAccessGrantsEnabled: false`, the admin service-account token is Keycloak-Admin-API-scoped only) and the `k6` binary, which isn't installed in the dev sandbox this was authored in. Dashboard ≤1s and draft-save ≤300ms budgets are already covered — the former by `us9-dashboard.spec.ts`'s bounded-timeout live-update assertion, the latter more precisely by `sync.service.spec.ts`'s Jest fake-timer coverage than any E2E wall-clock wait could be. `frontend/scripts/check-bundle-budget.mjs` (new, zero new deps — only `node:zlib`): parses the built `index.html`'s initial `<script>`/`<link>` refs, gzips each for real, fails over 500 KB — `angular.json`'s own budget only checks *raw* bytes (typically 3-4x the gzipped size), so it stays as a cheap early warning while this script is the actual gate. Current real number: **201.44 kB gzip** (694.16 kB raw) — 60% under budget. Lighthouse TTI (<3s/4G) was genuinely attempted (`npx lighthouse` ran real headless Chrome successfully) but is structurally blocked: this app has no anonymous route at all (`/` always redirects to Keycloak-hosted login before anything renders), so a single-navigation `lighthouse <url>` can never get past the redirect — a real measurement needs a Puppeteer-driven Lighthouse user-flow that logs in first, same as every E2E spec's `submitKeycloakLogin` helper; tracked as a small follow-up, not forced through here. |
 | Lint / format | `ng lint` (angular-eslint flat config incl. template accessibility rules), `npm run format:check` (Prettier), `dotnet format --verify-no-changes` (backend/.editorconfig) | clean — T007 set Prettier `endOfLine: "auto"`: the gate had been red on every Windows checkout because git autocrlf smudges the tree to CRLF while Prettier defaults to `lf` |
 
 ## Data flows
@@ -1453,11 +1464,22 @@ safety-net poll — no new retry mechanism, just reuse of what T016 already buil
   `Features/Evaluations/CloseTable.cs`/`CloseTableRules.cs` and the Data flows section above for the
   post-fix behavior; `CloseTableApiTests.cs`'s happy-path test was reworked to assert the minimal
   response shape instead of the now-absent field.
-- **New**: `/organizer/dashboard` (T100), the evaluation sheet (T059), and every other organizer/
-  judge route are not yet covered by the axe-core accessibility sweep — `frontend/e2e/a11y/
-  home.a11y.spec.ts` only exercises the placeholder app shell today. Same gap category as the
-  pre-existing `smoke.spec.ts`/`home.a11y.spec.ts` `login-required`-race failures noted below; a
-  real organizer- and judge-route sweep is Phase 15/T089's job, not done piecemeal per story so far.
+- **Resolved 2026-07-28 (T089)**: every organizer/judge route is now covered by the axe-core sweep
+  (`frontend/e2e/a11y/routes.a11y.spec.ts`) — closed with 2 real fixes, not just new coverage.
+  (1) `WCAG 1.3.1` (`only-listitems`): `<ul cdkDropList>` in `mesa-card.component.ts` and
+  `unassigned-column.component.ts` had `<app-judge-seat>`/`<app-beer-token>` custom elements as
+  direct children instead of `<li>`. Fixed by changing those two leaf components' template root
+  from `<li>` to `<div>` (identical attributes/directives/styles) plus `:host { display: contents }`
+  so the host element stays invisible to layout, then wrapping each call site in a real `<li>`
+  (the `mesa-seat` positioning class/inline-styles moved onto the new `<li>`). The `display:
+  contents` addition wasn't cosmetic — without it, the host custom-element intercepted pointer
+  events and broke real drag-and-drop, caught by re-running `us5-tables.spec.ts`, not by the a11y
+  suite itself; 4 Jest specs asserting `HTMLLIElement` on these two components were updated to
+  `HTMLDivElement` accordingly. (2) `WCAG 1.4.3` (contrast): `beer-token`'s white-on-`#d97706`
+  (amber-600) was 3.18:1, below the 4.5:1 minimum — changed to `#92400e` (amber-800, ~7.09:1),
+  including the matching focus-outline color. The old `smoke.spec.ts`/`home.a11y.spec.ts`
+  `login-required`-race failures noted below are also resolved, by removing both specs entirely
+  (see the E2E row in Testing & quality gates above for why).
 - **Fixed 2026-07-22 (senior-code-reviewer, PR #22), narrows the item below**: idempotent replay
   didn't hold once a table closed or its competition moved past `InEvaluation` — `SubmitEvaluation`
   gated on table/competition state *before* checking for an already-persisted `(judge, entry)` row,
@@ -1565,12 +1587,26 @@ safety-net poll — no new retry mechanism, just reuse of what T016 already buil
   local/test path goes through Aspire or a test-config override), but will need a real value wired
   into whatever non-Aspire deployment Phase 16 (`azd`) produces, or the job will fail every time in
   that environment. Flagged during T039 review; not fixed here since Phase 16 doesn't exist yet.
-- **New**: `frontend/e2e/smoke.spec.ts` and `frontend/e2e/a11y/home.a11y.spec.ts` fail
-  deterministically against a live Keycloak stack with `login-required` active — discovered while
-  verifying T024, confirmed pre-existing (reproduces identically on the pre-T024 baseline via
-  `git stash`), not caused by Phase 3. Both need to either drive a real login first or assert
-  against the Keycloak redirect itself, mirroring `us1-auth.spec.ts`'s pattern; unfixed as of this
-  update since it's outside T021–T024's scope.
+- **Resolved 2026-07-28 (T089)**: `frontend/e2e/smoke.spec.ts` and `frontend/e2e/a11y/
+  home.a11y.spec.ts` (both dating to T004, before Keycloak's `login-required` existed) — removed
+  rather than fixed. `us1-auth.spec.ts` already asserts the Keycloak redirect `smoke.spec.ts` was
+  crudely checking, and the new comprehensive `routes.a11y.spec.ts` supersedes scanning `/` (which
+  has never rendered app content since `login-required` landed — nothing left to scan there).
+- **T094 (2026-07-28), audit only, no findings**: security pass over deny-by-default authorization
+  (every endpoint's role check cross-referenced against `contracts/rest-api.md`'s role matrix,
+  including `CompetitionHub`'s independent DB-backed ownership/membership guards beyond the
+  role-claim check), secrets handling (only the already-documented FR-046 local-dev Keycloak
+  placeholders found, correctly scoped), `AuditLog`/logger call sites (no credentials, tokens, or
+  entrant-identity leakage — moot for judges regardless, since no endpoint exposes `AuditLog` to a
+  `JUDGE`-authorized route), and EF Core query construction (`FromSqlInterpolated` only, zero
+  `FromSqlRaw`/string-concatenated SQL anywhere). All four checks passed with zero code changes.
+- **New (2026-07-28, found during T091 validation, not caused by Phase 15 work)**: `frontend/src/
+  styles.css` has unrelated, uncommitted, broken design-token CSS (`Cannot apply unknown utility
+  class 'border-1.5'`) that fails `ng build`/Tailwind compilation outright — first noticed mid-PR
+  #27 as inert dirty-tree noise, now an active blocker for anyone who builds this branch. Stashed
+  aside (`git stash`, not discarded) to unblock Phase 15's own build/budget validation; still sitting
+  in the stash, unresolved, and will keep blocking builds for whoever's working tree it lands back
+  in until the `border-1.5` utility class (or whatever it was meant to be) is fixed.
 - **ADR-0003**: decide zoneless change detection before further frontend work.
 - **ADR-0004**: domain state/status enums are stored as strings in PostgreSQL (T009).
 - **ADR-0006**: `CompetitionHub`'s DB-backed join-authorization (ownership/membership checks) still

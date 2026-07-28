@@ -12,23 +12,26 @@ discrepancy consensus, a real-time organizer dashboard, and immutable closing wi
 PDF/ZIP/email dispatch. Best of Show and tie-breaks are out of scope (only the `NotValidForBos`
 flag is recorded).
 
-**Status: Phase 1 (Setup, T001–T007) complete.** Both stack skeletons, the test harnesses, and
-the one-command Aspire local topology exist and run; there is no domain model, authentication,
-or business endpoint yet — implementation continues at `tasks.md` Phase 2 (Foundational,
-T008–T020). `Docs/arquitectura_viva.md` tracks the actual current system state. `Docs/` holds
-the original product definition (in Spanish); the English spec supersedes it.
+**Status: all 13 user stories (US1–US13, `tasks.md` Phases 3–14 + 17) are implemented and
+independently functional**, including US13 (organizer competition selection, P2, implemented ahead
+of Phase 16 per its own dependency note — it only needed `GET /competitions` from US2). Phase 15
+(Polish & Cross-Cutting Concerns, T089–T094 — accessibility sweep, performance budgets, bundle
+budget enforcement, full quickstart validation, this file, security pass) is in progress. Phase 16
+(Deployment & Operations — Dockerfiles, Bicep/`azd`, backups, ops verification) has not started.
+`Docs/arquitectura_viva.md` tracks the actual current system state in detail. `Docs/` holds the
+original product definition (in Spanish); the English spec supersedes it.
 
 ## Source of truth (in priority order)
 
 1. `.specify/memory/constitution.md` — v1.2.0, ten principles. Supersedes everything, including
    this file. Stack deviations require a constitution amendment, not a per-feature choice.
-2. `specs/001-birrapoint-mvp/spec.md` — user stories US1–US12, FR-001–FR-048, clarifications,
+2. `specs/001-birrapoint-mvp/spec.md` — user stories US1–US13, FR-001–FR-051, clarifications,
    edge cases, success criteria SC-001–SC-011.
 3. `specs/001-birrapoint-mvp/plan.md` — technical approach, project structure, constitution gate.
-4. `specs/001-birrapoint-mvp/tasks.md` — 16 phases, dependency-ordered, grouped by user story.
+4. `specs/001-birrapoint-mvp/tasks.md` — 17 phases, dependency-ordered, grouped by user story.
 5. Supporting design: `research.md` (decisions R-01–R-19 with rationale), `data-model.md`
    (entities, state machines, indexes, Dexie stores), `contracts/` (`rest-api.md`,
-   `signalr-hub.md`, `import-file.md`), `quickstart.md` (validation scenarios 1–12, one per story).
+   `signalr-hub.md`, `import-file.md`), `quickstart.md` (validation scenarios 1–13, one per story).
 
 Never implement functionality without an approved spec, plan, and task. Requirement changes
 discovered mid-implementation flow back into the spec first — never silently overridden in code.
@@ -104,11 +107,12 @@ Verified against the running system at Phase 1 close (T007); keep in sync with `
 
 ```bash
 # Full local topology, one command (FR-044): PostgreSQL 16, Keycloak 26 (realm auto-import),
-# Mailpit, API, Angular frontend. EF migrations + BJCP seed arrive with T009/T010.
+# Mailpit, API, Angular frontend.
 dotnet run --project backend/src/BirraPoint.AppHost
 # Aspire dashboard https://localhost:17202 (login URL printed on startup)
-# API http://localhost:5121 · https://localhost:7075 — HTTP surface today: /health + /alive
-#   (Development-only), /openapi/v1.json, and GET /api/v1/styles (T017, any authenticated caller)
+# API http://localhost:5121 · https://localhost:7075 — full endpoint surface documented in
+#   contracts/rest-api.md (Competitions, Catalog, Import, Judges, Tables, TastingOrder,
+#   Evaluations, Monitoring, Dispatch); plus /health + /alive (Development-only), /openapi/v1.json
 # PWA http://localhost:4200 · Keycloak http://localhost:8081 (realm `birrapoint`)
 # Mailpit UI: dynamic port — open it from the Aspire dashboard
 
@@ -120,10 +124,18 @@ dotnet format backend/BirraPoint.sln --verify-no-changes      # backend format g
 
 cd frontend && npm ci && npm start     # frontend-only iteration (ng serve on :4200)
 cd frontend && npx jest                # unit (jest-preset-angular)
-cd frontend && npm run e2e             # Playwright E2E incl. e2e/a11y (axe) suite — config in e2e/,
+cd frontend && npm run e2e             # Playwright E2E incl. e2e/a11y/ (axe) suite — config in e2e/,
                                        #   so plain `npx playwright test` does NOT work
 cd frontend && npx ng lint             # angular-eslint
 cd frontend && npm run format:check    # Prettier gate (`npm run format` to fix)
+cd frontend && npm run build:budget    # production build + gzip initial-bundle budget gate
+                                       #   (500 KB, Principle IX — angular.json's own raw-byte
+                                       #   budget is a secondary, cheaper early warning only)
+k6 run infra/perf/api-budgets.js       # API p95 budgets (reads <200ms, writes <500ms) — needs a
+                                       #   pre-obtained ORGANIZER/JUDGE bearer token, see the
+                                       #   script's header comment for exact env vars and how to
+                                       #   get one (neither Keycloak client here supports
+                                       #   non-interactive token grants)
 
 azd up   # cloud deploy — NOT yet real: azure.yaml + infra/bicep/ land in Phase 16
 ```
@@ -141,8 +153,10 @@ backend/src/BirraPoint.Api/             # single deployable modular monolith
 └── Realtime/      # CompetitionHub + emit-after-commit event publisher
 backend/tests/     # BirraPoint.Api.UnitTests + BirraPoint.Api.IntegrationTests
 frontend/src/app/  # Feature-Sliced Design: core/ (auth, api, realtime, offline), features/, shared/
-frontend/e2e/      # Playwright suites
-infra/             # bicep/, backup/ (pg_dump job + RESTORE.md), keycloak/birrapoint-realm.json
+frontend/e2e/      # Playwright suites, incl. e2e/a11y/ (axe-core WCAG gate)
+frontend/scripts/  # build-time checks (bundle gzip budget) not owned by any one feature
+infra/             # bicep/, backup/ (pg_dump job + RESTORE.md), keycloak/birrapoint-realm.json,
+                   #   perf/ (k6 API-budget scripts)
 azure.yaml         # azd project definition
 ```
 

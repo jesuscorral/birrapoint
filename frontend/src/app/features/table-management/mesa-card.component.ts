@@ -56,13 +56,13 @@ function seatPosition(index: number, count: number): SeatPosition {
           (cdkDropListDropped)="judgesDropped.emit($event)"
         >
           @for (judge of table().judges; track judge.id; let i = $index) {
-            <app-judge-seat
+            <li
               class="mesa-seat"
-              [judge]="judge"
               [style.left.%]="seatPositionOf(i).left"
               [style.top.%]="seatPositionOf(i).top"
-              (activated)="judgeActivated.emit(judge.id)"
-            />
+            >
+              <app-judge-seat [judge]="judge" (activated)="judgeActivated.emit(judge.id)" />
+            </li>
           }
         </ul>
 
@@ -75,14 +75,16 @@ function seatPosition(index: number, count: number): SeatPosition {
           (cdkDropListDropped)="beersDropped.emit($event)"
         >
           @for (sample of table().samples; track sample.beerEntryId) {
-            <app-beer-token
-              [beer]="{
-                id: sample.beerEntryId,
-                blindCode: sample.blindCode,
-                notValidForBos: sample.notValidForBos,
-              }"
-              (activated)="beerActivated.emit(sample.beerEntryId)"
-            />
+            <li>
+              <app-beer-token
+                [beer]="{
+                  id: sample.beerEntryId,
+                  blindCode: sample.blindCode,
+                  notValidForBos: sample.notValidForBos,
+                }"
+                (activated)="beerActivated.emit(sample.beerEntryId)"
+              />
+            </li>
           }
         </ul>
       </div>

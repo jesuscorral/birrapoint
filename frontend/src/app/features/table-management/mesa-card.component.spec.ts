@@ -70,7 +70,7 @@ describe('MesaCardComponent', () => {
     const activated = jest.fn();
     fixture.componentInstance.judgeActivated.subscribe(activated);
 
-    const seat = fixture.nativeElement.querySelector('[data-judge-id="j1"]') as HTMLLIElement;
+    const seat = fixture.nativeElement.querySelector('[data-judge-id="j1"]') as HTMLDivElement;
     seat.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
 
     expect(activated).toHaveBeenCalledWith('j1');
@@ -81,7 +81,7 @@ describe('MesaCardComponent', () => {
     const activated = jest.fn();
     fixture.componentInstance.beerActivated.subscribe(activated);
 
-    const token = fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLLIElement;
+    const token = fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLDivElement;
     token.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
 
     expect(activated).toHaveBeenCalledWith('e1');

@@ -3,9 +3,8 @@
 **Plan**: [plan.md](./plan.md) · **Contracts**: [contracts/](./contracts/) ·
 **Data model**: [data-model.md](./data-model.md)
 
-This is the end-to-end validation guide for the feature. Commands assume the structure defined in
-plan.md §Project Structure; they become real once the setup tasks land and MUST then be mirrored
-into `CLAUDE.md` (Principle X).
+This is the end-to-end validation guide for the feature. Commands mirror `CLAUDE.md` (Principle X)
+— keep both in sync when either changes.
 
 ## Prerequisites
 
@@ -20,12 +19,12 @@ into `CLAUDE.md` (Principle X).
 # Full local topology with one command (FR-044): .NET Aspire AppHost starts PostgreSQL,
 # Keycloak (birrapoint realm auto-imported: roles ORGANIZER/JUDGE, seeded organizer),
 # Mailpit (SMTP sink), the backend API (EF migrations incl. BJCP 2021 seed applied on
-# startup in Development — lands with T009/T010) and the Angular frontend.
+# startup in Development) and the Angular frontend.
 dotnet run --project backend/src/BirraPoint.AppHost
 # Aspire dashboard (resources, logs, traces, health): https://localhost:17202, login URL
 # printed on startup
-# API: http://localhost:5121 · https://localhost:7075 (OpenAPI at /openapi/v1.json; first
-# business endpoint GET /api/v1/styles, T017) · PWA: http://localhost:4200 · Keycloak: http://localhost:8081
+# API: http://localhost:5121 · https://localhost:7075 (OpenAPI at /openapi/v1.json; full
+# endpoint surface in contracts/rest-api.md) · PWA: http://localhost:4200 · Keycloak: http://localhost:8081
 
 # Frontend-only iteration (optional, API already running):
 cd frontend && npm ci && npm start
@@ -59,6 +58,15 @@ dotnet test backend/tests/BirraPoint.Api.UnitTests --filter "FullyQualifiedName~
 # Frontend unit / E2E (incl. offline + axe accessibility suites)
 cd frontend && npx jest
 cd frontend && npm run e2e   # = playwright test -c e2e (config lives in e2e/)
+cd frontend && npx ng lint
+cd frontend && npm run format:check
+
+# Bundle size gate (Principle IX, 500 KB gzipped initial bundle)
+cd frontend && npm run build:budget
+
+# API performance budgets (Principle IX, reads p95 <200ms / writes p95 <500ms) — needs a
+# pre-obtained ORGANIZER/JUDGE bearer token; see the script's header comment
+k6 run infra/perf/api-budgets.js
 ```
 
 ## End-to-end validation scenarios
@@ -85,10 +93,12 @@ Each scenario maps to a spec user story (US) and must pass before that story is 
 
 - All endpoints exercised by contract tests asserting status codes, ProblemDetails `type` URNs,
   and — for judge-facing payloads — the **absence** of entrant fields (BR-01 structural test).
-- `npm run e2e -- a11y` runs axe-core on every judge-facing route as it lands (WCAG 2.1 AA,
-  SC-009); today the suite covers the placeholder app shell only.
-- Performance spot-checks: dashboard latency (scenario 9) and draft-save timing (scenario 7)
-  asserted in E2E; API p95 budgets verified with a k6/`dotnet-counters` pass before release.
+- `npm run e2e -- a11y` runs axe-core (`frontend/e2e/a11y/routes.a11y.spec.ts`) against every
+  organizer and judge route in `app.routes.ts` (WCAG 2.1 AA, SC-009) — a merge gate.
+- Performance: dashboard latency (scenario 9) and draft-save timing (Jest fake-timer coverage in
+  `sync.service.spec.ts`, more precise than an E2E wall-clock assertion) both within budget; API
+  p95 budgets verified with `k6 run infra/perf/api-budgets.js`; initial bundle gzip size gated by
+  `npm run build:budget` (500 KB, Principle IX).
 - Operations: health endpoints + OpenTelemetry visible for every service in the Aspire dashboard
   and in ACA (FR-048); a fresh `azd up` into a clean resource group completes with zero manual
   steps (SC-011); backup/restore procedure exercised once per `infra/backup/RESTORE.md` (FR-047).

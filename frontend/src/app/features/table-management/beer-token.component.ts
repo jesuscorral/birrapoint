@@ -19,7 +19,7 @@ export interface BeerTokenData {
   imports: [CdkDrag, ClickVsDragDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <li
+    <div
       cdkDrag
       [cdkDragData]="beer().id"
       class="beer-token"
@@ -32,9 +32,13 @@ export interface BeerTokenData {
       (appClickVsDrag)="activated.emit()"
     >
       {{ beer().blindCode }}
-    </li>
+    </div>
   `,
   styles: `
+    :host {
+      display: contents;
+    }
+
     .beer-token {
       display: flex;
       align-items: center;
@@ -44,13 +48,12 @@ export interface BeerTokenData {
       min-width: 64px;
       min-height: 64px;
       border-radius: 0.5rem;
-      background: #d97706;
+      background: #92400e;
       color: #fff;
       font-size: 0.8rem;
       font-weight: 700;
       cursor: grab;
       user-select: none;
-      list-style: none;
       text-align: center;
       padding: 0.25rem;
     }
@@ -60,7 +63,7 @@ export interface BeerTokenData {
     }
 
     .beer-token:focus-visible {
-      outline: 2px solid #d97706;
+      outline: 2px solid #92400e;
       outline-offset: 2px;
     }
   `,

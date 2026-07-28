@@ -58,10 +58,10 @@ describe('UnassignedColumnComponent', () => {
     fixture.componentInstance.judgeActivated.subscribe(judgeActivated);
     fixture.componentInstance.beerActivated.subscribe(beerActivated);
 
-    (fixture.nativeElement.querySelector('[data-judge-id="j1"]') as HTMLLIElement).dispatchEvent(
+    (fixture.nativeElement.querySelector('[data-judge-id="j1"]') as HTMLDivElement).dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Enter' }),
     );
-    (fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLLIElement).dispatchEvent(
+    (fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLDivElement).dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Enter' }),
     );
 

@@ -29,7 +29,9 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
         (cdkDropListDropped)="judgesDropped.emit($event)"
       >
         @for (judge of judges(); track judge.id) {
-          <app-judge-seat [judge]="judge" (activated)="judgeActivated.emit(judge.id)" />
+          <li>
+            <app-judge-seat [judge]="judge" (activated)="judgeActivated.emit(judge.id)" />
+          </li>
         }
       </ul>
 
@@ -42,10 +44,16 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
         (cdkDropListDropped)="beersDropped.emit($event)"
       >
         @for (beer of beers(); track beer.id) {
-          <app-beer-token
-            [beer]="{ id: beer.id, blindCode: beer.blindCode, notValidForBos: beer.notValidForBos }"
-            (activated)="beerActivated.emit(beer.id)"
-          />
+          <li>
+            <app-beer-token
+              [beer]="{
+                id: beer.id,
+                blindCode: beer.blindCode,
+                notValidForBos: beer.notValidForBos,
+              }"
+              (activated)="beerActivated.emit(beer.id)"
+            />
+          </li>
         }
       </ul>
     </section>

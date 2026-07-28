@@ -14,7 +14,7 @@ describe('BeerTokenComponent', () => {
   it('renders the blind code and a data-entry-id attribute', () => {
     const fixture = createComponent({ id: 'e1', blindCode: 'AB12', notValidForBos: false });
 
-    const token = fixture.nativeElement.querySelector('li') as HTMLLIElement;
+    const token = fixture.nativeElement.querySelector('div') as HTMLDivElement;
     expect(token.textContent?.trim()).toBe('AB12');
     expect(token.getAttribute('data-entry-id')).toBe('e1');
   });
@@ -22,7 +22,7 @@ describe('BeerTokenComponent', () => {
   it('marks a BOS-flagged entry with the flagged class', () => {
     const fixture = createComponent({ id: 'e1', blindCode: 'AB12', notValidForBos: true });
 
-    const token = fixture.nativeElement.querySelector('li') as HTMLLIElement;
+    const token = fixture.nativeElement.querySelector('div') as HTMLDivElement;
     expect(token.classList.contains('beer-token--bos-flagged')).toBe(true);
   });
 
@@ -31,7 +31,7 @@ describe('BeerTokenComponent', () => {
     const activated = jest.fn();
     fixture.componentInstance.activated.subscribe(activated);
 
-    const token = fixture.nativeElement.querySelector('li') as HTMLLIElement;
+    const token = fixture.nativeElement.querySelector('div') as HTMLDivElement;
     token.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
 
     expect(activated).toHaveBeenCalledTimes(1);

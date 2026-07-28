@@ -18,7 +18,7 @@ describe('JudgeSeatComponent', () => {
       displayName: 'Ada Lovelace',
     });
 
-    const seat = fixture.nativeElement.querySelector('li') as HTMLLIElement;
+    const seat = fixture.nativeElement.querySelector('div') as HTMLDivElement;
     expect(seat.textContent?.trim()).toBe('AL');
     expect(seat.getAttribute('data-judge-id')).toBe('j1');
     expect(seat.getAttribute('role')).toBe('button');
@@ -27,7 +27,7 @@ describe('JudgeSeatComponent', () => {
   it('handles a single-word display name', () => {
     const fixture = createComponent({ id: 'j2', email: 'ada@example.com', displayName: 'Ada' });
 
-    const seat = fixture.nativeElement.querySelector('li') as HTMLLIElement;
+    const seat = fixture.nativeElement.querySelector('div') as HTMLDivElement;
     expect(seat.textContent?.trim()).toBe('A');
   });
 
@@ -40,7 +40,7 @@ describe('JudgeSeatComponent', () => {
     const activated = jest.fn();
     fixture.componentInstance.activated.subscribe(activated);
 
-    const seat = fixture.nativeElement.querySelector('li') as HTMLLIElement;
+    const seat = fixture.nativeElement.querySelector('div') as HTMLDivElement;
     seat.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
 
     expect(activated).toHaveBeenCalledTimes(1);
