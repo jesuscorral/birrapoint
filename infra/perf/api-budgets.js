@@ -30,10 +30,20 @@ import { check } from 'k6';
 //   TABLE_ID         a tastingTable id JUDGE_TOKEN's judge is actually assigned to, with its
 //                    order already fixed
 //   JUDGE_ID         JUDGE_TOKEN's own judge id (used to build the idempotency key)
-//   BEER_ENTRY_ID    a beerEntryId on TABLE_ID that is (or was) JUDGE_TOKEN's *first* reachable
-//                    sample in the fixed order — see the writes() comment below for why reusing
-//                    an already-submitted sample, not a fresh one, is what makes this safely
-//                    repeatable under load
+//   BEER_ENTRY_ID    a beerEntryId on TABLE_ID that JUDGE_TOKEN's judge has *already submitted* an
+//                    evaluation for (evaluations lock permanently on first submit — invariant
+//                    5/FR-035, no undo) — see the writes() and setup() comments below for why this
+//                    must be an already-submitted sample, not a fresh one, and how that's enforced
+//
+// ## What writes() actually measures
+//
+// Every iteration — including the first, gated by setup() below — replays the *same* deterministic
+// idempotency key (FR-029/R-07), so this measures the idempotent-replay path (validation, the
+// duplicate-key lookup, response marshaling), not a fresh INSERT. That's a deliberate, safety-first
+// trade-off: a true first-time-write benchmark would need a brand-new, never-submitted sample on
+// every run, which isn't safely repeatable against a real environment without a teardown/reset step
+// this script doesn't have. Treat the write budget below as a proxy for the write path's
+// non-persistence overhead, not a literal proof of first-insert latency.
 //
 // ## Run
 //
@@ -77,6 +87,13 @@ export const options = {
     },
   },
   thresholds: {
+    // Guards the p95 budgets below from a false-green: an expired/invalid bearer token yields fast
+    // 401s, which would otherwise satisfy 'p(95)<200'/'p(95)<500' while measuring nothing but
+    // auth-middleware rejection latency. responseCallback: http.expectedStatuses(...) on every
+    // request below marks anything outside the expected 2xx as a failure for this metric, so a
+    // broken token (or any other systemic non-2xx) fails the whole run loudly instead of silently
+    // passing.
+    http_req_failed: ['rate<0.01'],
     // Principle IX: API p95 reads < 200ms, writes < 500ms — tagged per request below so the two
     // budgets are checked independently rather than pooled into one misleading aggregate.
     'http_req_duration{endpoint:read}': ['p(95)<200'],
@@ -98,6 +115,33 @@ export function setup() {
         'file for how to obtain them.',
     );
   }
+
+  // Safety guard (invariant 5/FR-035 — evaluations lock permanently on first submit, no undo):
+  // refuse to run writes() at all against a BEER_ENTRY_ID that hasn't already been submitted for
+  // this judge, since that would fire a genuine first-time, permanently-locking write into
+  // whatever environment this targets on iteration 1, rather than the safe idempotent replay
+  // writes() is designed around. This is a read-only check — it never mutates anything itself.
+  const samplesRes = http.get(`${API_BASE_URL}/me/tables/${TABLE_ID}/samples`, {
+    headers: authHeaders(JUDGE_TOKEN),
+  });
+  if (samplesRes.status !== 200) {
+    throw new Error(
+      `setup() could not verify BEER_ENTRY_ID's evaluation status: GET .../samples returned ` +
+        `${samplesRes.status} for TABLE_ID=${TABLE_ID}.`,
+    );
+  }
+  const target = samplesRes.json().find((sample) => sample.beerEntryId === BEER_ENTRY_ID);
+  if (!target) {
+    throw new Error(`BEER_ENTRY_ID ${BEER_ENTRY_ID} is not one of TABLE_ID ${TABLE_ID}'s samples.`);
+  }
+  if (target.evaluationStatus !== 'Submitted' && target.evaluationStatus !== 'PendingConsensus') {
+    throw new Error(
+      `BEER_ENTRY_ID ${BEER_ENTRY_ID} has evaluationStatus "${target.evaluationStatus}" — ` +
+        'writes() must only ever replay an *already-submitted* evaluation. Submit it once through ' +
+        'the real app first (or point this script at a different, already-submitted sample), then ' +
+        're-run.',
+    );
+  }
 }
 
 export function reads() {
@@ -105,6 +149,7 @@ export function reads() {
   const competitionsRes = http.get(`${API_BASE_URL}/competitions`, {
     headers: authHeaders(ORGANIZER_TOKEN),
     tags: { endpoint: 'read', name: 'GET /competitions' },
+    responseCallback: http.expectedStatuses(200),
   });
   check(competitionsRes, { 'GET /competitions -> 200': (r) => r.status === 200 });
 
@@ -112,6 +157,7 @@ export function reads() {
   const samplesRes = http.get(`${API_BASE_URL}/me/tables/${TABLE_ID}/samples`, {
     headers: authHeaders(JUDGE_TOKEN),
     tags: { endpoint: 'read', name: 'GET /me/tables/{tableId}/samples' },
+    responseCallback: http.expectedStatuses(200),
   });
   check(samplesRes, { 'GET /me/tables/{tableId}/samples -> 200': (r) => r.status === 200 });
 }
@@ -119,11 +165,10 @@ export function reads() {
 export function writes() {
   // POST /me/tables/{tableId}/evaluations — JUDGE write. The idempotency key is the same
   // deterministic value on every iteration (contracts/rest-api.md's
-  // `{competitionId}:{tableId}:{judgeId}:{entryId}`, FR-029/R-07): the first call is a fresh
-  // insert, every call after that is a stored-result replay (`200`, not `201`) rather than a
-  // fresh write attempt against FR-022's strict-sequencing/order-fixed preconditions — which is
-  // exactly what makes this endpoint safely repeatable at load without corrupting the fixture or
-  // needing a fresh never-evaluated sample per iteration.
+  // `{competitionId}:{tableId}:{judgeId}:{entryId}`, FR-029/R-07). setup()'s guard above ensures
+  // BEER_ENTRY_ID is always already-submitted before this ever runs, so every iteration —
+  // including the first — hits the stored-result replay branch (`200`), never a fresh insert
+  // (`201`) — see the "What writes() actually measures" header note.
   const idempotencyKey = `${COMPETITION_ID}:${TABLE_ID}:${JUDGE_ID}:${BEER_ENTRY_ID}`;
   const payload = JSON.stringify({
     beerEntryId: BEER_ENTRY_ID,
@@ -144,6 +189,7 @@ export function writes() {
       'X-Idempotency-Key': idempotencyKey,
     },
     tags: { endpoint: 'write', name: 'POST /me/tables/{tableId}/evaluations' },
+    responseCallback: http.expectedStatuses(200, 201),
   });
   check(res, {
     'POST /me/tables/{tableId}/evaluations -> 200/201': (r) => r.status === 200 || r.status === 201,

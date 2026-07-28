@@ -1,5 +1,5 @@
 import { CdkDrag } from '@angular/cdk/drag-drop';
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 import { ClickVsDragDirective } from './click-vs-drag.directive';
 
@@ -28,11 +28,18 @@ export interface BeerTokenData {
       role="button"
       tabindex="0"
       [attr.aria-label]="'Beer ' + beer().blindCode + ' — view details'"
+      [attr.aria-describedby]="beer().notValidForBos ? bosNoteId() : null"
       appClickVsDrag
       (appClickVsDrag)="activated.emit()"
     >
       {{ beer().blindCode }}
+      @if (beer().notValidForBos) {
+        <span class="bos-marker" aria-hidden="true">&#9888;</span>
+      }
     </div>
+    @if (beer().notValidForBos) {
+      <span [id]="bosNoteId()" class="sr-only">Not valid for Best of Show</span>
+    }
   `,
   styles: `
     :host {
@@ -40,6 +47,7 @@ export interface BeerTokenData {
     }
 
     .beer-token {
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -59,16 +67,51 @@ export interface BeerTokenData {
     }
 
     .beer-token--bos-flagged {
-      box-shadow: 0 0 0 2px #dc2626 inset;
+      /* #fbbf24 (amber-400) against this token's #92400e background is ~4.24:1 -- the previous
+         #dc2626 ring was ~1.47:1, well under WCAG 1.4.11's 3:1 non-text contrast minimum. */
+      box-shadow: 0 0 0 2px #fbbf24 inset;
     }
 
     .beer-token:focus-visible {
       outline: 2px solid #92400e;
       outline-offset: 2px;
     }
+
+    .bos-marker {
+      position: absolute;
+      top: -0.35rem;
+      right: -0.35rem;
+      color: #fbbf24;
+      background: #1f2937;
+      border-radius: 9999px;
+      width: 1rem;
+      height: 1rem;
+      line-height: 1rem;
+      font-size: 0.7rem;
+      text-align: center;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
   `,
 })
 export class BeerTokenComponent {
   readonly beer = input.required<BeerTokenData>();
   readonly activated = output<void>();
+
+  // WCAG 1.4.1 (Use of Color): the BOS-flagged state must not be conveyed by the ring color alone
+  // (aria-describedby here, plus the visible aria-hidden marker glyph in the template) — the base
+  // aria-label deliberately stays exactly "Beer {code} — view details" regardless of flag state,
+  // since several E2E specs (us5/us6/us9-tables/-order/-dashboard) locate a flagged beer by that
+  // exact accessible name; describedby adds information without changing the name they match on.
+  protected readonly bosNoteId = computed(() => `bos-note-${this.beer().id}`);
 }

@@ -37,19 +37,43 @@ try {
   process.exit(1);
 }
 
-// Every file the browser actually fetches on first paint: <script src="…"> and
-// <link rel="stylesheet" href="…"> in the built index.html (a Set dedupes the <noscript>
-// fallback's duplicate stylesheet link).
-const initialFiles = new Set();
-for (const match of indexHtml.matchAll(/<script[^>]*\ssrc="([^"]+)"/g)) {
-  initialFiles.add(match[1]);
+// Reads a single named attribute out of one already-isolated tag string, independent of where it
+// falls among the tag's other attributes — a fixed-order regex across the whole tag (e.g.
+// requiring `rel` before `href`) silently misses a tag the moment attribute order differs, which
+// is exactly the kind of failure that should be loud, not a quietly-under-counted budget.
+function readAttr(tag, attrName) {
+  const match = new RegExp(`\\s${attrName}="([^"]*)"`, 'i').exec(tag);
+  return match ? match[1] : null;
 }
-for (const match of indexHtml.matchAll(/<link[^>]*\srel="stylesheet"[^>]*\shref="([^"]+)"/g)) {
-  initialFiles.add(match[1]);
+
+// Every file the browser actually fetches on first paint: <script src="…"> and
+// <link rel="stylesheet"|"modulepreload" href="…"> in the built index.html (a Set dedupes the
+// <noscript> fallback's duplicate stylesheet link). `modulepreload` is included alongside
+// `stylesheet` since Angular can emit it for eagerly-needed chunks — today's build has none (this
+// app has zero lazy routes), but the parsing has to hold up the day that changes, not just today.
+const initialFiles = new Set();
+for (const tagMatch of indexHtml.matchAll(/<script\b[^>]*>/gi)) {
+  const src = readAttr(tagMatch[0], 'src');
+  if (src) {
+    initialFiles.add(src);
+  }
+}
+for (const tagMatch of indexHtml.matchAll(/<link\b[^>]*>/gi)) {
+  const tag = tagMatch[0];
+  const rel = (readAttr(tag, 'rel') ?? '').toLowerCase();
+  if (rel !== 'stylesheet' && rel !== 'modulepreload') {
+    continue;
+  }
+  const href = readAttr(tag, 'href');
+  if (href) {
+    initialFiles.add(href);
+  }
 }
 
 if (initialFiles.size === 0) {
-  console.error(`No <script src> / <link rel="stylesheet"> references found in ${indexHtmlPath}.`);
+  console.error(
+    `No <script src> / <link rel="stylesheet"|"modulepreload"> references found in ${indexHtmlPath}.`,
+  );
   process.exit(1);
 }
 
