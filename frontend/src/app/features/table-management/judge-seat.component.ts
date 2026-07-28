@@ -23,7 +23,7 @@ function initialsOf(displayName: string): string {
   imports: [CdkDrag, ClickVsDragDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <li
+    <div
       cdkDrag
       [cdkDragData]="judge().id"
       class="judge-seat"
@@ -35,9 +35,13 @@ function initialsOf(displayName: string): string {
       (appClickVsDrag)="activated.emit()"
     >
       {{ initials() }}
-    </li>
+    </div>
   `,
   styles: `
+    :host {
+      display: contents;
+    }
+
     .judge-seat {
       display: flex;
       align-items: center;
@@ -53,7 +57,6 @@ function initialsOf(displayName: string): string {
       font-weight: 600;
       cursor: grab;
       user-select: none;
-      list-style: none;
     }
 
     .judge-seat:focus-visible {

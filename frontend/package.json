@@ -5,6 +5,7 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
+    "build:budget": "ng build && node scripts/check-bundle-budget.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "jest",
     "e2e": "playwright test -c e2e",
