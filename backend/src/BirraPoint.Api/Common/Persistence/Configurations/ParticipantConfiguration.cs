@@ -10,6 +10,8 @@ public sealed class ParticipantConfiguration : IEntityTypeConfiguration<Particip
     {
         builder.Property(p => p.Name).HasMaxLength(200);
         builder.Property(p => p.Email).HasMaxLength(320);
+        builder.Property(p => p.AcceMemberNumber).HasMaxLength(50);
+        builder.Property(p => p.Phone).HasMaxLength(30);
 
         builder.HasIndex(p => new { p.CompetitionId, p.Email }).IsUnique();
 

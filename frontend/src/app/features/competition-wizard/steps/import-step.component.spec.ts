@@ -1,0 +1,386 @@
+import { TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
+import { of, throwError } from 'rxjs';
+
+import { CatalogApiService } from '../../../core/api/catalog-api.service';
+import type { StyleSummary } from '../../../core/api/catalog-api.service';
+import { CompetitionsApiService } from '../../../core/api/competitions-api.service';
+import type { CompetitionCategoriesResponse } from '../../../core/api/competitions-api.service';
+import { ImportApiService } from '../../../core/api/import-api.service';
+import type { ImportBatch, ImportRow, ImportRowData } from '../../../core/api/import-api.service';
+import { ImportStepComponent } from './import-step.component';
+
+function rowDataFixture(overrides: Partial<ImportRowData> = {}): ImportRowData {
+  return {
+    participantName: 'José Deza Prieto',
+    participantEmail: 'dezaprieto@gmail.com',
+    acceMemberNumber: '1423',
+    dateOfBirth: null,
+    phone: '699989612',
+    category: 'Estilos clásicos',
+    competitionCategoryId: 'cat-1',
+    style: '21C. Hazy IPA',
+    resolvedStyleCode: '21C',
+    submittedAt: '2025-09-01T09:21:16Z',
+    abvPercent: 7.6,
+    brewDate: '2025-08-12',
+    bottlingDate: '2025-08-28',
+    malts: 'Pale Ale, Trigo',
+    hops: 'Citra, Mosaic',
+    yeast: 'White Lab WL-001-P',
+    otherIngredients: null,
+    entryInstructions: null,
+    beerName: null,
+    ...overrides,
+  };
+}
+
+function rowFixture(overrides: Partial<ImportRow> = {}): ImportRow {
+  return {
+    rowNumber: 1,
+    status: 'Valid',
+    data: rowDataFixture(),
+    error: null,
+    ...overrides,
+  };
+}
+
+function batchFixture(rows: ImportRow[]): ImportBatch {
+  return { importId: 'i1', rows };
+}
+
+function categoriesResponseFixture(
+  overrides: Partial<CompetitionCategoriesResponse> = {},
+): CompetitionCategoriesResponse {
+  return {
+    categories: [{ id: 'cat-1', name: 'Estilos clásicos', displayOrder: 0, styleCodes: ['21C'] }],
+    ...overrides,
+  };
+}
+
+function styleFixture(): StyleSummary[] {
+  return [{ code: '21C', name: 'Hazy IPA', categoryNumber: '21', categoryName: 'IPA' }];
+}
+
+describe('ImportStepComponent', () => {
+  let fakeImportApi: {
+    upload: jest.Mock;
+    getImport: jest.Mock;
+    editRow: jest.Mock;
+    excludeRow: jest.Mock;
+    consolidate: jest.Mock;
+    revalidate: jest.Mock;
+  };
+  let fakeCatalogApi: { getStyles: jest.Mock };
+  let fakeCompetitionsApi: { getCategories: jest.Mock };
+
+  beforeEach(() => {
+    fakeImportApi = {
+      upload: jest.fn(),
+      getImport: jest.fn(),
+      editRow: jest.fn(),
+      excludeRow: jest.fn(),
+      consolidate: jest.fn(),
+      revalidate: jest.fn(),
+    };
+    fakeCatalogApi = { getStyles: jest.fn().mockReturnValue(of(styleFixture())) };
+    fakeCompetitionsApi = {
+      getCategories: jest.fn().mockReturnValue(of(categoriesResponseFixture())),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ImportApiService, useValue: fakeImportApi },
+        { provide: CatalogApiService, useValue: fakeCatalogApi },
+        { provide: CompetitionsApiService, useValue: fakeCompetitionsApi },
+        provideRouter([]),
+      ],
+    });
+  });
+
+  function createComponent(importId: string | null = null) {
+    const fixture = TestBed.createComponent(ImportStepComponent);
+    fixture.componentRef.setInput('competitionId', 'c1');
+    if (importId) {
+      fixture.componentRef.setInput('importId', importId);
+    }
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  function selectFile(fixture: ReturnType<typeof TestBed.createComponent>, file: File): void {
+    const input = fixture.nativeElement.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { value: [file], writable: false, configurable: true });
+    input.dispatchEvent(new Event('change'));
+  }
+
+  function buttonWithText(root: Element, text: string): HTMLButtonElement {
+    const buttons = [...root.querySelectorAll('button')] as HTMLButtonElement[];
+    const match = buttons.find((button) => button.textContent?.trim() === text);
+    if (!match) {
+      throw new Error(`No button with text "${text}" found`);
+    }
+    return match;
+  }
+
+  function uploadedFixture(rows: ImportRow[]) {
+    fakeImportApi.upload.mockReturnValue(of(batchFixture(rows)));
+    const fixture = createComponent();
+    selectFile(fixture, new File(['data'], 'entries.xlsx'));
+    fixture.detectChanges();
+    fixture.componentInstance['onUpload']();
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('shows an empty-state alert and disables the upload control when the competition has zero categories', () => {
+    fakeCompetitionsApi.getCategories.mockReturnValue(
+      of(categoriesResponseFixture({ categories: [] })),
+    );
+    const fixture = createComponent();
+
+    expect(fixture.nativeElement.textContent).toContain('crea al menos una categoría');
+    const fileInput = fixture.nativeElement.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput.disabled).toBe(true);
+  });
+
+  it('binds the native form submit event to onUpload via ngSubmit (regression: FormsModule must be imported, or a submit click falls through to a real page navigation)', () => {
+    fakeImportApi.upload.mockReturnValue(of(batchFixture([rowFixture({ rowNumber: 1 })])));
+    const fixture = createComponent();
+    selectFile(fixture, new File(['data'], 'entries.xlsx'));
+    fixture.detectChanges();
+
+    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    fixture.detectChanges();
+
+    expect(fakeImportApi.upload).toHaveBeenCalledWith('c1', expect.any(File));
+  });
+
+  it('uploads a file and renders every row after success', () => {
+    fakeImportApi.upload.mockReturnValue(
+      of(
+        batchFixture([
+          rowFixture({ rowNumber: 1 }),
+          rowFixture({
+            rowNumber: 2,
+            status: 'CategoryMismatch',
+            data: rowDataFixture({
+              participantName: 'Grace Hopper',
+              category: 'Estilos experimentales',
+              competitionCategoryId: null,
+            }),
+          }),
+        ]),
+      ),
+    );
+    const fixture = createComponent();
+
+    selectFile(fixture, new File(['data'], 'entries.xlsx'));
+    fixture.detectChanges();
+    fixture.componentInstance['onUpload']();
+    fixture.detectChanges();
+
+    expect(fakeImportApi.upload).toHaveBeenCalledWith('c1', expect.any(File));
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('José Deza Prieto');
+    expect(text).toContain('Grace Hopper');
+  });
+
+  it('expands a row, corrects its category and style, and saves it', () => {
+    const fixture = uploadedFixture([
+      rowFixture({
+        rowNumber: 1,
+        status: 'CategoryMismatch',
+        data: rowDataFixture({
+          competitionCategoryId: null,
+          resolvedStyleCode: null,
+          style: '99Z. X',
+        }),
+      }),
+    ]);
+
+    buttonWithText(fixture.nativeElement, 'Editar').click();
+    fixture.detectChanges();
+
+    const categorySelect = fixture.nativeElement.querySelector(
+      '.import-row__editor select',
+    ) as HTMLSelectElement;
+    categorySelect.value = 'cat-1';
+    categorySelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    const stylePicker = fixture.nativeElement.querySelector('app-style-picker') as Element;
+    const styleSelect = stylePicker.querySelector('select') as HTMLSelectElement;
+    styleSelect.value = '21C';
+    styleSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    buttonWithText(stylePicker, 'Assign style').click();
+    fixture.detectChanges();
+
+    fakeImportApi.editRow.mockReturnValue(of(rowFixture({ rowNumber: 1, status: 'Valid' })));
+    buttonWithText(fixture.nativeElement, 'Guardar fila').click();
+    fixture.detectChanges();
+
+    expect(fakeImportApi.editRow).toHaveBeenCalledWith(
+      'c1',
+      'i1',
+      1,
+      expect.objectContaining({ competitionCategoryId: 'cat-1', styleCode: '21C' }),
+    );
+    expect(fixture.nativeElement.querySelector('.import-row__editor')).toBeFalsy();
+    expect(fixture.nativeElement.textContent).toContain('Válida');
+  });
+
+  it('excludes a row', () => {
+    const fixture = uploadedFixture([rowFixture({ rowNumber: 1, status: 'Invalid', error: 'x' })]);
+
+    buttonWithText(fixture.nativeElement, 'Editar').click();
+    fixture.detectChanges();
+
+    fakeImportApi.excludeRow.mockReturnValue(of(rowFixture({ rowNumber: 1, status: 'Excluded' })));
+    buttonWithText(fixture.nativeElement, 'Excluir').click();
+    fixture.detectChanges();
+
+    expect(fakeImportApi.excludeRow).toHaveBeenCalledWith('c1', 'i1', 1);
+    expect(fixture.nativeElement.textContent).toContain('Excluida');
+    expect(
+      [...fixture.nativeElement.querySelectorAll('button')].some(
+        (button: HTMLButtonElement) => button.textContent?.trim() === 'Editar',
+      ),
+    ).toBe(false);
+  });
+
+  it('keeps Consolidar disabled while any row is unresolved, and enables it once every row is resolved', () => {
+    const fixture = uploadedFixture([
+      rowFixture({ rowNumber: 1, status: 'Valid' }),
+      rowFixture({
+        rowNumber: 2,
+        status: 'Invalid',
+        error: 'x',
+        data: rowDataFixture({ participantName: null }),
+      }),
+    ]);
+
+    const consolidateButton = buttonWithText(fixture.nativeElement, 'Consolidar');
+    expect(consolidateButton.disabled).toBe(true);
+
+    const row2 = fixture.nativeElement.querySelectorAll('.import-row')[1] as Element;
+    buttonWithText(row2, 'Editar').click();
+    fixture.detectChanges();
+
+    fakeImportApi.excludeRow.mockReturnValue(of(rowFixture({ rowNumber: 2, status: 'Excluded' })));
+    buttonWithText(fixture.nativeElement, 'Excluir').click();
+    fixture.detectChanges();
+
+    const consolidateButtonAfter = buttonWithText(fixture.nativeElement, 'Consolidar');
+    expect(consolidateButtonAfter.disabled).toBe(false);
+  });
+
+  it('consolidates successfully, shows the summary, and only navigates once the organizer confirms', () => {
+    const fixture = uploadedFixture([rowFixture({ rowNumber: 1, status: 'Valid' })]);
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
+
+    fakeImportApi.consolidate.mockReturnValue(
+      of({
+        imported: 1,
+        excluded: 0,
+        entries: [{ id: 'e1', blindCode: 'AB12', styleCode: '21C' }],
+      }),
+    );
+    buttonWithText(fixture.nativeElement, 'Consolidar').click();
+    fixture.detectChanges();
+
+    expect(fakeImportApi.consolidate).toHaveBeenCalledWith('c1', 'i1');
+    expect(fixture.nativeElement.textContent).toContain('Importadas: 1');
+    expect(navigateSpy).not.toHaveBeenCalled();
+    const buttons = [...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[];
+    expect(buttons.some((button) => button.textContent?.trim() === 'Consolidar')).toBe(false);
+
+    buttonWithText(fixture.nativeElement, 'Ir al panel de organizador').click();
+    fixture.detectChanges();
+
+    expect(navigateSpy).toHaveBeenCalledWith('/organizer/dashboard');
+  });
+
+  it('emits back when "← Volver" is clicked', () => {
+    const fixture = createComponent();
+    const emitted: void[] = [];
+    fixture.componentInstance.back.subscribe(() => emitted.push(undefined));
+
+    buttonWithText(fixture.nativeElement, '← Volver').click();
+
+    expect(emitted.length).toBe(1);
+  });
+
+  it('revalidates and shows the rows list when an importId is already set (returning from another wizard step)', () => {
+    fakeImportApi.revalidate.mockReturnValue(
+      of(batchFixture([rowFixture({ rowNumber: 1, status: 'Valid' })])),
+    );
+    const fixture = createComponent('i1');
+
+    expect(fakeImportApi.revalidate).toHaveBeenCalledWith('c1', 'i1');
+    expect(fixture.nativeElement.querySelector('input[type="file"]')).toBeFalsy();
+    expect(fixture.nativeElement.textContent).toContain('José Deza Prieto');
+  });
+
+  it('shows the upload form and does not call revalidate when no importId is set', () => {
+    const fixture = createComponent();
+
+    expect(fakeImportApi.revalidate).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelector('input[type="file"]')).toBeTruthy();
+  });
+
+  it('shows a load error banner when revalidate fails', () => {
+    fakeImportApi.revalidate.mockReturnValue(throwError(() => new Error('boom')));
+    const fixture = createComponent('i1');
+
+    expect(fixture.nativeElement.textContent).toContain('No hemos podido cargar los datos');
+  });
+
+  it('emits importIdChange with the new batch id after a successful upload', () => {
+    fakeImportApi.upload.mockReturnValue(of(batchFixture([rowFixture({ rowNumber: 1 })])));
+    const fixture = createComponent();
+    const emitted: string[] = [];
+    fixture.componentInstance.importIdChange.subscribe((id) => emitted.push(id));
+
+    selectFile(fixture, new File(['data'], 'entries.xlsx'));
+    fixture.detectChanges();
+    fixture.componentInstance['onUpload']();
+    fixture.detectChanges();
+
+    expect(emitted).toEqual(['i1']);
+  });
+
+  it('renders the row-specific error reason for an unresolved row', () => {
+    const fixture = uploadedFixture([
+      rowFixture({
+        rowNumber: 1,
+        status: 'CategoryStyleMismatch',
+        error: 'El estilo no está asignado a esta categoría.',
+        data: rowDataFixture({ competitionCategoryId: 'cat-1', resolvedStyleCode: '21C' }),
+      }),
+    ]);
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'El estilo no está asignado a esta categoría.',
+    );
+  });
+
+  it('does not render an error line for a Valid row', () => {
+    const fixture = uploadedFixture([rowFixture({ rowNumber: 1, status: 'Valid', error: null })]);
+
+    expect(fixture.nativeElement.querySelector('.import-row__error')).toBeFalsy();
+  });
+
+  it('treats CategoryStyleMismatch rows as unresolved, blocking consolidation', () => {
+    const fixture = uploadedFixture([
+      rowFixture({ rowNumber: 1, status: 'CategoryStyleMismatch', error: 'x' }),
+    ]);
+
+    const consolidateButton = buttonWithText(fixture.nativeElement, 'Consolidar');
+    expect(consolidateButton.disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('1 fila(s) necesitan corrección');
+  });
+});

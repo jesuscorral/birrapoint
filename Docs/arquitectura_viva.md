@@ -365,7 +365,24 @@ and the audit drill-down still shows judge A's earlier submitted total.
   `ClaimTypes.Role` claims so `[Authorize(Roles=...)]`/`IsInRole` work; it is idempotent since
   ASP.NET Core may invoke a claims transformation more than once per request.
   `ICurrentUser`/`CurrentUser` expose `Sub`/`Email`/`Roles` for the authenticated caller via
-  `IHttpContextAccessor`. Since T015, `AddKeycloakAuthentication` also wires
+  `IHttpContextAccessor`.
+  **Organizer table (2026-07-29)**: new `Domain/Organizer.cs` (`KeycloakUserId`/`Email` unique,
+  `FirstName`/`LastName`) models one-organizer-to-many-competitions explicitly, resolved-or-created
+  lazily via `IOrganizerResolver`/`OrganizerResolver` (`Common/Auth/OrganizerResolver.cs`, mirrors
+  `JudgeResolver`'s shape but *creates* rather than only backfills, since organizers self-register —
+  no row can pre-exist before their first authenticated write). `ICurrentUser`/`CurrentUser` gained
+  `GivenName`/`FamilyName` (Keycloak's `given_name`/`family_name` claims, read pattern identical to
+  `Email`) and `GetOrganizerAsync(ct)`. `Competition` gained a new **nullable** `OrganizerId` FK
+  (`OnDelete(DeleteBehavior.Restrict)`), populated going forward by `CreateCompetitionCommandHandler`
+  alongside — not instead of — the existing `CreatedByUserId` claim string, which stays the source
+  of truth for every one of the ~25 existing `c.CreatedByUserId == currentUser.Sub` ownership checks
+  across the codebase; none of those were touched. Deliberately scoped this way (additive FK, no
+  migration of existing call sites) to avoid a large, hard-to-verify blast radius. The
+  `AddOrganizers` EF Core migration (`Migrations/20260729154727_AddOrganizers.cs`) has since been
+  generated and verified: `Organizers` table with unique indexes on `KeycloakUserId` and `Email`,
+  nullable `OrganizerId` + FK/index on `Competitions` (`ON DELETE RESTRICT`); full unit suite and
+  `OrganizerResolverTests` pass against a real Postgres via Testcontainers. Since T015,
+  `AddKeycloakAuthentication` also wires
   `JwtBearerEvents.OnMessageReceived` to read the token from `?access_token=` on the
   `/hubs/competition` path only (browser WebSocket handshakes can't set an `Authorization` header)
   — every other endpoint is unaffected and still requires the header (ADR-0006).
@@ -478,6 +495,29 @@ and the audit drill-down still shows judge A's earlier submitted total.
   defaults to `Draft` at the entity level (`Domain/Competition.cs`), so `CreateCompetitionCommandHandler`
   never sets it explicitly — every created competition already satisfies FR-008 ("save as Draft at
   any step") the moment it exists, with no separate draft-persistence mechanism needed.
+  **`GetCompetitionCategories.cs`/`SetCompetitionCategories.cs`** (T104, FR-052): a brand-new,
+  organizer-defined grouping layer bolted onto this same slice — `CompetitionCategory` (free-text
+  `Name` chosen by the organizer, e.g. "Estilos clásicos") and the join `CompetitionCategoryStyle`,
+  both under `Domain/`, distinct from `BjcpStyle.CategoryName`/`CategoryNumber` (the BJCP
+  taxonomy's own official category — XML doc comments on both entities call this out explicitly to
+  head off confusion). `CompetitionCategoryStyle` carries a denormalized `CompetitionId` alongside
+  its real FK path through `CompetitionCategoryId`, purely so `IX_CompetitionCategoryStyles_
+  CompetitionId_StyleCode` (unique) can enforce "a style belongs to at most one category per
+  competition" at the DB level without a cross-table subquery constraint; that second FK is
+  `DeleteBehavior.NoAction` (not `Cascade`) since the `CompetitionCategory→Competition` cascade
+  path already handles cleanup and Postgres/EF reject two independent cascade paths converging on
+  the same ancestor from one descendant table. `SetCompetitionCategoriesCommand` is a full-replace
+  `PUT` (same convention as `UpdateCompetition`) — deletes every existing category for the
+  competition and re-inserts the submitted set inside one `SaveChangesAsync`; its validator layers
+  `Cascade(CascadeMode.Stop)` + `DependentRules` (mirroring `ResolveRowCommandValidator`'s own
+  DB-backed `MustAsync` pattern) so the async "do these style codes exist in `BjcpStyles`" check
+  never runs once a cheaper sync rule (non-empty categories, ≥1 style assigned overall, unique
+  category names, no style repeated across categories in the payload) has already failed. Both
+  handlers share ownership/state-gate semantics with `UpdateCompetition` (`404` on a scope miss,
+  `409 invalid-state-transition` outside `Draft`/`Active`) and reuse the existing 14-entry error
+  catalog — no new `DomainErrorType` was needed, every failure here is a plain FluentValidation
+  `400`. **T106 (FR-053)** later wired this allow-list into `Features/Import`'s own validation —
+  see below.
 - **`Features/Import/`** (T031–T035, US3): the `.xlsx` bulk-entry import + in-flow correction
   slice, `ORGANIZER`-only, under `/api/v1/competitions/{id}/imports`. `ImportBatch`/`ImportRow`
   (T033) are slice-owned staging entities — deliberately not in `Domain/`, since they exist only
@@ -518,6 +558,20 @@ and the audit drill-down still shows judge A's earlier submitted total.
   `CompetitionsEndpoints`'s route-group/`RequireAuthorization("ORGANIZER")` shape; the multipart
   upload endpoint binds `IFormFile` directly and carries `.DisableAntiforgery()` (no cookie-based
   auth on this API, Principle VII, so CSRF protection is moot for a bearer-token endpoint).
+  **T106-T108 (FR-053/FR-054)**: closed the deferral above. A fifth `ImportRowStatus.
+  CategoryStyleMismatch` covers a row whose category and style each resolve individually but
+  aren't an allowed pair under that competition's `CompetitionCategoryStyle` allow-list — checked
+  at parse time (`WorkbookParser`, loading the pairs alongside styles/categories in
+  `UploadImport`), at the full-row edit (`EditImportRow`'s completeness check), and at consolidation
+  (`ConsolidateImport`'s unresolved-row gate now includes it). New `POST .../imports/{importId}/
+  revalidate` (`RevalidateImport.cs`) re-resolves every non-`Invalid`/`Excluded` row against the
+  competition's *current* categories/allow-list without re-uploading the file — needed because
+  `SetCompetitionCategories`'s full-replace `PUT` deletes and recreates `CompetitionCategory` rows,
+  so a staged row's already-resolved `CompetitionCategoryId` can go stale even when a same-named
+  category still exists; it re-matches by the row's original raw cell text in that case instead of
+  trusting the stale id, and deliberately does *not* clear an already-resolved style just because
+  its category needs re-resolving (preserves the organizer's prior correction work). No-op once the
+  batch is `Consolidated`.
 - **`Common/Keycloak/`** (T040, R-10): `IKeycloakAdminClient`/`KeycloakAdminClient` — kept to the
   two calls this codebase actually needs, not a general Admin SDK wrapper. Client-credentials
   grant against `{Keycloak:Authority}/protocol/openid-connect/token` using
@@ -920,16 +974,29 @@ and the audit drill-down still shows judge A's earlier submitted total.
     to `/` → Keycloak-hosted login (PKCE `code_challenge_method=S256` visible) → seeded `organizer`
     login → `/organizer/dashboard` renders → `/judge` (same organizer session, no JUDGE role)
     redirects to `/judge/tables` → clean console throughout.
-- **`features/competition-wizard/`** (T029, US2): a 2-step organizer wizard —
-  `BasicsStepComponent` (name/venue/startDate/endDate, the FR-007 required fields, `endDate >=
-  startDate` cross-field validator, `Next` disabled until valid) →
+- **`features/competition-wizard/`** (T029, US2; step 3 added T105, FR-052): a 3-step organizer
+  wizard — `BasicsStepComponent` (name/venue/startDate/endDate, the FR-007 required fields,
+  `endDate >= startDate` cross-field validator, `Next` disabled until valid) →
   `DetailsStepComponent` (description/logoUrl/entryLimit/registrationStart/registrationEnd, all
-  optional, `Save Draft` disabled until the entry-limit/registration-window validators pass).
+  optional, `Save Draft` disabled until the entry-limit/registration-window validators pass) →
+  `CategoriesStepComponent` (T105, terminal step — organizer-defined categories + BJCP style
+  assignment, FR-052). Steps 1 and 2 both already had (T029) their own "Volver al listado" escape
+  hatch: a hand-rolled `role="alertdialog"` + `cdkTrapFocus` confirm dialog (save-as-draft vs.
+  discard, no CDK Dialog/Overlay service used — same inline pattern as the dashboard's advance-state
+  confirm) rather than navigating away immediately; step 3 copies the identical pattern (its
+  "Guardar y finalizar"/"Guardar borrador" both gate on `canFinish()` — at least one named category
+  with at least one style assigned, since FR-052 makes the step mandatory). Because step 3 is now
+  the terminal step, `DetailsStepComponent`'s save action was reverted back to emit-and-let-parent-
+  advance (it had briefly navigated straight to the dashboard on save, before step 3 existed);
+  `CategoriesStepComponent` owns the dashboard-navigation responsibility now.
   `CompetitionWizardComponent` (`competition-wizard.component.ts`) drives the step switch off a
-  `currentStep` signal and owns the create-vs-resume branch: with no `:id` route param it starts
-  at step 1 with an empty form; with one, its constructor calls `CompetitionsApiService.getById`
-  and passes the result down as `initialValue` to both steps (each has its own `effect()` that
-  `patchValue`s the form when that input arrives). Deliberately **no client-side draft store** —
+  `currentStep` signal (widened `1 | 2 | 3`) and owns the create-vs-resume branch: with no `:id`
+  route param it starts at step 1 with an empty form; with one, its constructor calls
+  `CompetitionsApiService.getById` and passes the result down as `initialValue` to steps 1/2 (each
+  has its own `effect()` that `patchValue`s the form when that input arrives) — step 3 instead
+  fetches its own data (`CatalogApiService.getStyles()` + `CompetitionsApiService.getCategories()`)
+  in `ngOnInit`, since a category list isn't part of `CompetitionDetail`. Deliberately **no
+  client-side draft store** —
   `Competition.State` already defaults to `Draft` server-side (`Domain/Competition.cs`), so step
   1's "Next" (`create`/`update` via `CompetitionsApiService`) *is* the save point FR-008 asks for;
   `Location.replaceState` swaps the URL from `/organizer/competitions/new` to
@@ -946,25 +1013,115 @@ and the audit drill-down still shows judge A's earlier submitted total.
   and banner (`bannerError`) display, and an `input.required<string>()`/`input<T | null>()` +
   `output<CompetitionDetail>()` contract so the parent wizard never reaches into child state
   directly.
-- **`features/entry-import/`** (T036, US3): one signal-driven view swap — upload → row
-  results/correction → consolidate summary — rather than a full stepper, since the three views
-  never need independent back-and-forth navigation beyond the natural upload-once,
-  correct-until-clean, consolidate-once flow. `EntryImportApiService`
-  (`entry-import-api.service.ts`) mirrors `CompetitionsApiService`'s thin-wrapper shape; `upload()`
-  builds a `FormData` (field name `file`) and leaves the multipart `Content-Type` to `HttpClient`.
-  `StylePickerComponent` is a small filter-as-you-type catalog picker (plain Signals, no
-  `ReactiveFormsModule` needed for two local text/select values) used inline in the correction
-  table for `StyleMismatch`/`Invalid` rows, alongside an `Exclude` button; row resolution updates
-  local state directly from the `PUT` response (no refetch). Route: `competitions/:id/import`
-  under the existing `organizer` guard, reachable only by direct navigation (no dashboard link
-  yet, matching how `us2-wizard.spec.ts` already reaches the wizard). **Bug found by its own E2E
-  spec, fixed same-day**: the upload `<form (ngSubmit)="onUpload()">` initially shipped without
-  `FormsModule` in the component's `imports`, so Angular never bound `NgForm` to intercept the
-  native `submit` event — clicking "Upload" did a real browser GET form submission, reloading the
-  page and, under this app's Keycloak `login-required` init, re-triggering the entire OIDC
-  redirect and wiping all state. Invisible to the original Jest spec (it called `onUpload()`
-  directly, bypassing the form); caught only by T037's real-browser E2E run. Fixed by adding
-  `FormsModule`; a regression test dispatching a real `submit` event now guards it.
+  - **Click-to-jump stepper navigation (FR-007 amendment)**: the stepper's three markers are now
+    `<button>`s (`canJumpTo(step)`/`goToStep(step)` on `CompetitionWizardComponent`) instead of
+    inert `<span>`s. Step 1 is always reachable; steps 2/3 are gated on `competitionId() !== null`
+    (they render `DetailsStepComponent`/`CategoriesStepComponent`, both of which declare
+    `competitionId = input.required<string>()` and simply cannot render without one) — so jumping
+    ahead is only possible once the competition has been saved at least once, which for an existing
+    (edit) competition is immediately on load. Jumping away from a step discards unsaved in-step
+    edits with no confirm dialog, identical to the pre-existing "← Volver" behavior. The active
+    button carries `aria-current="step"`.
+  - **Bulk BJCP-group style assignment (FR-052 amendment)**: each `<fieldset class="style-group">`
+    in `CategoriesStepComponent` (one per BJCP catalog category, e.g. "Standard American Beer") now
+    has a group-level `<select>` above its per-style rows; choosing an organizer category there
+    calls `onBulkAssignGroup`, which loops `onAssignStyle` over every style in that BJCP group —
+    reusing the existing single-style assignment path rather than duplicating its
+    remove-from-all-rows-then-add-to-target logic. This overwrites any of the group's styles that
+    were already individually assigned elsewhere (confirmed product behavior: the group selector
+    always wins). The control is a stateless one-shot action, not bound state — it resets to its
+    placeholder option after firing, since a group's own styles can be split across categories and
+    have no single "current value" to display.
+  - **Bug fix — per-style category selects showing "Sin asignar" for previously-saved
+    assignments**: reported as "the assignment isn't kept after editing again". Root-caused with
+    the running Aspire stack (real Postgres query on the reporter's own test competition + Chrome
+    devtools inspection of the live component's signals), not just static reading — the DB and
+    `CategoriesStepComponent.categories()` both held the correct data the whole time; only the
+    rendered `<select>` was wrong. Cause: each per-style `<select class="style-row__select">` set
+    its selection via `[value]="styleSelectValue(style.code)"` on the `<select>` host element,
+    while the matching `<option>` came from a nested `@for` over `categories()`. On the style
+    step's first render (right after the async catalog+categories load resolves), Angular applies
+    the host's `[value]` binding before that `@for`'s `<option>` elements exist in the DOM, so the
+    browser silently fails to select anything; since `styleSelectValue()`'s result never changes
+    afterward, Angular's change-detection dirty-check skips re-applying the (unchanged) binding
+    forever, leaving the select stuck on "Sin asignar" even though the model was always correct.
+    Fixed by moving the selection onto each `<option>`'s own `[selected]="styleCategoryIndex(style.code) === ci"`
+    binding instead (each option's binding runs against an element that already exists, so it isn't
+    subject to the same host-vs-children ordering issue). Reproduced first in Jest (jsdom hits the
+    same ordering quirk) with a new regression test asserting the rendered `<select>`'s own
+    `.value`/`.selectedOptions`, not just the underlying signals — the prior bulk-assign tests only
+    checked `categories()`/`styleSelectValue()`, which is exactly why they didn't already catch
+    this. While auditing the same `--color-bp-*` design-token pattern that turned out to matter
+    here, also found and fixed two more silently-broken tokens referenced by CSS but never defined
+    in `styles.css`: `--color-bp-exito-600` (made the wizard stepper's own "done" checkmark circle
+    invisible — white check on a background that resolved to transparent) and
+    `--color-bp-info-600` (same latent gap, on the dashboard's "In Evaluation" status badge).
+  - **Step 4 — ACCE-format entry import (ADR 0011, replaces the old `features/entry-import/`
+    standalone screen entirely)**: `ImportStepComponent`
+    (`steps/import-step.component.ts`) is now the wizard's terminal step, reached once
+    `CategoriesStepComponent`'s "Continuar" (renamed from "Guardar y finalizar" — that step is no
+    longer terminal, its `onFinish()` now `saved.emit()`s and lets the wizard advance instead of
+    navigating away itself) advances `currentStep` to 4; step 3 now gets the same `is-done`
+    checkmark treatment as steps 1–2. `canJumpTo(4)` uses the same `competitionId() !== null` rule
+    as steps 2/3 — no extra "categories must exist" wizard-level gate; the step itself shows an
+    inline `bp-alert` and disables upload when the competition has zero categories yet.
+    - Upload → row list → per-row edit → consolidate, all against the rewritten
+      `Features/Import/` backend contract (`core/api/import-api.service.ts`): every ACCE column
+      (participant contact/ACCE#/DOB/phone, category, style, ABV, brew/bottling dates,
+      malts/hops/yeast/other, entry instructions, organizer-typed beer name) is editable per row,
+      not just style as before. Row editing reuses `CategoriesStepComponent`'s exact
+      `editingIndex` expand/collapse pattern rather than a wide table — click "Editar" to expand a
+      full field form, "Guardar fila" PUTs the complete row (full-replace, same convention as
+      `UpdateCompetition`/`SetCompetitionCategories`), "Excluir" is a separate one-way action.
+      Category correction is a plain `<select>` (a competition typically has a handful of
+      categories, unlike the ~100+ BJCP styles that justify `StylePickerComponent`, still reused
+      here for style correction). One wire-shape asymmetry worth remembering:
+      `ImportRowDataDto`'s resolved style field serializes as `resolvedStyleCode` (ASP.NET
+      camelCase only lowercases the first letter of `ResolvedStyleCode`), while the *request* body
+      field for the same concept is `styleCode` — the TS types in `import-api.service.ts` encode
+      this asymmetry explicitly rather than reusing one interface for both directions.
+    - Consolidate no longer auto-navigates on success. It shows the "Imported: N. Excluded: N."
+      summary and waits for an explicit "Ir al panel de organizador" button — an earlier version
+      set the result signal and called `router.navigateByUrl` in the same tick, so the summary was
+      never actually visible before the redirect fired (a self-contradictory instruction in the
+      build brief: "show the summary" + "navigate like step 3's old terminal behavior", which
+      doesn't compose). Fixed post-hoc with its own regression test asserting the confirm button
+      appears and no navigation happens until it's clicked.
+    - **Bug found and fixed during live verification, not by any test**: `ImportStepComponent`'s
+      `imports` array initially omitted `FormsModule` — the *exact* regression already documented
+      above for the old `entry-import.component.ts` (T036/T037): without it, `<form
+      (ngSubmit)="onUpload()">` has no `NgForm` directive to intercept the native `submit` event,
+      so clicking "Subir archivo" does a real browser form submission — full page reload,
+      re-triggering this app's Keycloak `login-required` OIDC redirect and wiping all wizard
+      state. It looked exactly like a Keycloak token-expiry race at first (the URL grows a
+      `#state=...&code=...` fragment after every attempt) until cross-referencing this very
+      changelog entry made the actual cause obvious. Invisible to Jest for the identical reason as
+      the original 2026 bug: the existing spec called `onUpload()` directly, never dispatching a
+      real `submit` event on the `<form>` element. Fixed by adding `FormsModule`; ported the exact
+      same regression test pattern (`form.dispatchEvent(new Event('submit', ...))`) that caught it
+      the first time. Verified end-to-end afterward against the live Aspire stack with a real
+      generated `.xlsx` (the organizer's own example data): upload → StyleMismatch/CategoryMismatch
+      correction → consolidate produced exactly 5 `BeerEntry` rows with correct blind
+      codes/styles/categories/ABV, `BeerName` correctly `null`, `EntryInstructions` present only on
+      the rows that had it, and exactly 2 deduplicated `Participant` rows with every new field
+      populated.
+    - **T109 (FR-054)**: the wizard's `@switch (currentStep())` destroys/recreates the non-active
+      step's component instance, so `ImportStepComponent`'s local signal state used to reset every
+      time the organizer left step 4 (e.g. "← Volver" to step 3 to fix a category/style assignment)
+      and came back — the pending import looked gone, forcing a re-upload. Fixed by hoisting just
+      the pending batch's `importId` (not the whole batch — the row data must be refetched anyway
+      since categories may have changed) onto `CompetitionWizardComponent` itself as a signal,
+      which — unlike its `@switch`-managed children — is never destroyed by step navigation; passed
+      down as `[importId]`/`(importIdChange)`. On mount with a non-null `importId` input,
+      `ImportStepComponent` calls the new `ImportApiService.revalidate()` instead of showing the
+      upload form, so returning to step 4 both restores and re-checks the import in one call. Also
+      fixed: `row.error` (the specific per-row failure reason, always returned by the API) was
+      computed server-side but never rendered — the screen only ever showed the coarse status
+      badge. Now shown inline per unresolved row. Deliberately out of scope: surviving a full page
+      reload (the wizard already resets to step 1 on reload for all four steps today, a pre-existing
+      gap this task didn't extend or fix) and filtering the style picker to only a row's resolved
+      category's assigned styles (kept showing the full BJCP catalog, per FR-011's existing
+      "searchable catalog list" wording).
 - **`features/judge-management/`** (T043, US4): another single signal-driven container (no
   stepper) — a paste-list registration form (textarea split on newline or comma, trimmed, empties
   dropped) always shown together with a delivery-status table, since the two are meant to stay
@@ -1275,7 +1432,7 @@ and the audit drill-down still shows judge A's earlier submitted total.
 | Suite | Command | Current state |
 |---|---|---|
 | Backend unit + integration | `dotnet test backend/BirraPoint.sln` | green — 184 unit tests (was 179; +5 **T079** `Evaluations/DiscrepancyTests.cs`: pairwise >7 detection incl. the 3-judge "middle judge not involved" edge case, resolution when all totals converge) against smoke + T010 `BjcpStyleSeedDataTests` (5) + T011 `Common/Auth` (6) + T012 `Common/Errors` (6) + T013 `Common/Behaviors` (7) + T015 `Realtime` (4) + T016 `Common/Jobs` (10) + T021 `Auth` + T025 `Competitions/CompetitionValidatorsTests` (23) + T031 `Import/` (22) + T038 `Judges/` (15) + T045 `Tables/` (13) + T050 `TastingOrder/` (10) + T055 `Evaluations/SubmitEvaluationTests.cs` (37) + T062-T063 `Evaluations/CloseTableTests.cs` (9) + T072 `Dispatch/DispatchPathsTests.cs` (2); 157 integration tests (+6 **T080** `Evaluations/DiscrepancyApiTests.cs`: divergent submit → `PendingConsensus` + alert, the 3-judge outlier-only-involved case incl. asserting the uninvolved judge's own response carries `discrepancy: null`, `PUT` adjustment resolving an alert, `PUT` outside an open alert → `409 evaluation-locked`, `PUT` on someone else's evaluation → `404`, close blocked then succeeding after resolution — plus one pre-existing `CloseTableApiTests.cs` test's fixture adjusted from an 11-point judge score gap to 5, since it now trips the newly-active >7pt gate) against a real Testcontainers PostgreSQL: smoke + 6 schema tests (T009) + 5 catalog-seed tests (T010) + T014 `AuditWriterTests` (3) + T018 `Catalog/GetStylesTests` (2) + T021 `Auth/AuthPolicyTests` (4) + T023 `Auth/JudgeResolverTests` (4) + T026 `Competitions/CompetitionsApiTests` (14) + T032 `Import/ImportApiTests` (26) + T039 `Judges/JudgesApiTests` (16) + T046 `Tables/` (22) + T051 `TastingOrder/` (9) + T056 `Evaluations/SubmitEvaluationApiTests.cs` (12) + T057B `Catalog/GetStyleDetailTests.cs` (2) + T062-T065 `Evaluations/CloseTableApiTests.cs` (9) + T068 `Monitoring/MonitoringApiTests.cs` (8) + T073 `Dispatch/DispatchApiTests.cs` (6) |
-| Frontend unit | `cd frontend && npx jest` | green — 312 tests across 44 suites (was 290; +22 **T082**: `features/discrepancy/discrepancy-api.service.spec.ts` + `discrepancy-alert.component.spec.ts` (new, fake-collaborator style matching `judge-table-order.component.spec.ts`'s harness), plus new cases in `judge-table-order.component.spec.ts` (open-discrepancy banner + pluralization, hub re-fetch/filtering, the close-error link) and `evaluation-sheet.component.spec.ts` (the `PendingConsensus` branch); was 262; +28 **T077**: new `core/api/blob-text.spec.ts` (2), `core/api/dispatch-api.service.spec.ts` (5), `features/results-dispatch/results-dispatch.component.spec.ts` (15: status table rendering, retry/retry-all gating, download success/not-ready/error, live `DispatchProgress` pipeline-stage text), `core/api/api-client.service.spec.ts`'s `getBlob()` extension (3), plus `competition-monitor.component.spec.ts`'s new "Results & Dispatch" link coverage (2, shown/hidden by `Finalized` state)) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (13) + T029 `features/competition-wizard/` (24) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12) + T048 `features/table-management/` (46) + T053 `features/judge-tables/` (23) + T100/T102 `features/dashboard/` (19) + T057/T059/T060/T060B/T061 US7 work (48) + T066-T067 US8 work (13) + T070 US9 work (16). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
+| Frontend unit | `cd frontend && npx jest` | 481 tests across 52 suites total (6 pre-existing failures unrelated to this row — `keycloak.providers.spec.ts`/`bp-alert.component.spec.ts`/`welcome.component.spec.ts`, from untracked auth-flow work; everything below this point is green). +13 **T105**: `features/competition-wizard/steps/categories-step.component.spec.ts` (12, new wizard step 3) + 1 new `competition-wizard.component.spec.ts` case (2→3 step transition) — `T029 features/competition-wizard/` below is now 37, not 24 (intermediate deltas between T102 and T105 went untracked in this row). Historical breakdown (was 312 tests across 44 suites; was 290; +22 **T082**: `features/discrepancy/discrepancy-api.service.spec.ts` + `discrepancy-alert.component.spec.ts` (new, fake-collaborator style matching `judge-table-order.component.spec.ts`'s harness), plus new cases in `judge-table-order.component.spec.ts` (open-discrepancy banner + pluralization, hub re-fetch/filtering, the close-error link) and `evaluation-sheet.component.spec.ts` (the `PendingConsensus` branch); was 262; +28 **T077**: new `core/api/blob-text.spec.ts` (2), `core/api/dispatch-api.service.spec.ts` (5), `features/results-dispatch/results-dispatch.component.spec.ts` (15: status table rendering, retry/retry-all gating, download success/not-ready/error, live `DispatchProgress` pipeline-stage text), `core/api/api-client.service.spec.ts`'s `getBlob()` extension (3), plus `competition-monitor.component.spec.ts`'s new "Results & Dispatch" link coverage (2, shown/hidden by `Finalized` state)) against smoke (2) + T019 `core/auth` (10) + T020 `core/api` (8) + T020 `core/realtime` (5) + T020 `core/offline` (3) + T024 `core/auth`/`features/auth` (13) + T029 `features/competition-wizard/` (24) + T036 `features/entry-import/` (19) + T043 `features/judge-management/` (12) + T048 `features/table-management/` (46) + T053 `features/judge-tables/` (23) + T100/T102 `features/dashboard/` (19) + T057/T059/T060/T060B/T061 US7 work (48) + T066-T067 US8 work (13) + T070 US9 work (16). jest-preset-angular 17, jsdom, TS config via Node 24 native type stripping (no ts-node); Karma fully removed (R-13) |
 | E2E + accessibility | `cd frontend && npm run e2e` (`playwright test -c e2e`) | **green — T089 closed the long-open a11y gap**: `us1-auth.spec.ts` through `us13-dashboard.spec.ts` (the full per-story set, unchanged) plus two new specs — **T089 `e2e/a11y/routes.a11y.spec.ts`** (a single journey test logging in as both organizer and judge and axe-scanning all 12 routes in `app.routes.ts`: every organizer screen (dashboard, wizard incl. import/judges/tables/monitor/dispatch) and every judge screen (tables list, order, evaluation sheet, discrepancies) — found and fixed 3 real WCAG 2.1 A/AA violations in `features/table-management/` (see Recorded debt below for detail), zero violations remain), and **T090 `e2e/us3-import-scale.spec.ts`** (SC-006: a 500-row `.xlsx` fixture with 100 rows/20% BJCP-style errors, hand-built as minimal real OOXML via `adm-zip` since no xlsx-writing library existed in this repo at this scale, resolves all 100 through the real per-row UI action and consolidates in one session — `Imported: 400 / Excluded: 100`). The old `smoke.spec.ts` and `e2e/a11y/home.a11y.spec.ts` (both dating to T004, pre-Keycloak) were **removed** — both asserted an unauthenticated `/` renders app content, which has been false since the auth guard landed; `us1-auth.spec.ts`'s existing redirect assertion and the new `routes.a11y.spec.ts` sweep already fully subsume what they were checking. All green against a live, fully-warmed Aspire stack. Chromium only |
 | Performance & bundle budgets (Principle IX) | `k6 run infra/perf/api-budgets.js` · `cd frontend && npm run build:budget` | **T090/T091, new**. `infra/perf/api-budgets.js` (k6): read/write p95 thresholds (`<200ms`/`<500ms`) against representative endpoints; authored and validated for correctness but not run in CI yet — needs a pre-obtained ORGANIZER/JUDGE bearer token (neither Keycloak client here supports a non-interactive grant: `birrapoint-spa` has `directAccessGrantsEnabled: false`, the admin service-account token is Keycloak-Admin-API-scoped only) and the `k6` binary, which isn't installed in the dev sandbox this was authored in. Hardened after senior-code-reviewer findings on PR #28: an `http_req_failed` threshold plus `responseCallback: http.expectedStatuses(...)` on every request now fails the run loudly on a bad token instead of an expired/invalid token's fast 401s falsely satisfying both p95 budgets; a `setup()` guard refuses to run `writes()` at all unless `BEER_ENTRY_ID` already has a `Submitted`/`PendingConsensus` evaluation, since a first-time write would permanently lock a real evaluation (invariant 5/FR-035, no undo) — `writes()` therefore measures the idempotent-replay path, not a fresh insert, documented explicitly in the script's header rather than left implicit. Dashboard ≤1s and draft-save ≤300ms budgets are already covered — the former by `us9-dashboard.spec.ts`'s bounded-timeout live-update assertion, the latter more precisely by `sync.service.spec.ts`'s Jest fake-timer coverage than any E2E wall-clock wait could be. `frontend/scripts/check-bundle-budget.mjs` (new, zero new deps — only `node:zlib`): parses the built `index.html`'s initial `<script>`/`<link>` refs, gzips each for real, fails over 500 KB — `angular.json`'s own budget only checks *raw* bytes (typically 3-4x the gzipped size), so it stays as a cheap early warning while this script is the actual gate. Current real number: **202.03 kB gzip** (696.80 kB raw) — 60% under budget. The parsing itself was
 hardened after a senior-code-reviewer finding (PR #28): the original fixed-attribute-order regexes
@@ -1435,6 +1592,12 @@ safety-net poll — no new retry mechanism, just reuse of what T016 already buil
 
 ## Recorded debt / immediate next steps
 
+- **Resolved 2026-07-29**: the `Organizer` table/`Competition.OrganizerId` FK
+  (`Domain/Organizer.cs`, `OrganizerResolver`, `data-model.md`) now has its EF Core migration
+  (`Migrations/20260729154727_AddOrganizers.cs`) — generated, applied against a real Postgres via
+  Testcontainers, and verified: full `BirraPoint.Api.UnitTests` suite (189 tests) and
+  `BirraPoint.Api.IntegrationTests` (including `OrganizerResolverTests` and every test that
+  creates a `Competition`) pass.
 - **Resolved 2026-07-22 (T102)**: `features/dashboard/organizer-dashboard.component.ts`'s
   feature→feature import of `CompetitionsApiService` (flagged by senior-code-reviewer on PR #21)
   is fixed — the service now lives in `core/api/`, both consuming features import it from there.

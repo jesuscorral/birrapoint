@@ -42,12 +42,20 @@ export interface StyleDetail {
   description: StyleDescription;
 }
 
+// GET /styles response shape (contracts/rest-api.md §Catalog) — the lightweight catalog list,
+// also used by the entry-import wizard step's style picker/correction UI.
+export interface StyleSummary {
+  code: string;
+  name: string;
+  categoryNumber: string;
+  categoryName: string;
+}
+
 /**
  * BJCP 2021 catalog reference data (FR-049) — cross-cutting, not owned by any one feature:
- * `GET /styles` (lightweight list) already lives in entry-import's own API service for the
- * organizer-side import picker; `GET /styles/{code}` (full detail) lands here because it's
- * consumed judge-side too (the evaluation-sheet style reference panel), the same reasoning that
- * put CompetitionsApiService in core/api rather than a single feature folder.
+ * `GET /styles/{code}` (full detail) lands here because it's consumed judge-side too (the
+ * evaluation-sheet style reference panel). `GET /styles` (lightweight list) is used by both the
+ * competition-wizard's step-3 category picker and its step-4 entry-import style picker.
  */
 @Injectable({ providedIn: 'root' })
 export class CatalogApiService {
@@ -69,5 +77,9 @@ export class CatalogApiService {
     return this.apiClient
       .get<StyleDetail>(`/styles/${code}`)
       .pipe(tap((detail) => this.cache.set(code, detail)));
+  }
+
+  getStyles(): Observable<StyleSummary[]> {
+    return this.apiClient.get<StyleSummary[]>('/styles');
   }
 }

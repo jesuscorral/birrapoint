@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 
 import { StylePickerComponent } from './style-picker.component';
-import type { StyleSummary } from './entry-import-api.service';
+import type { StyleSummary } from '../../core/api/catalog-api.service';
 
 describe('StylePickerComponent', () => {
   const styles: StyleSummary[] = [

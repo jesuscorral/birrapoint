@@ -10,11 +10,22 @@ var db = postgres.AddDatabase("db", "birrapoint");
 // Keycloak 26 (constitution: 25+) with the birrapoint realm auto-imported.
 // Bootstrap admin + realm seed credentials are LOCAL-DEV placeholders only;
 // production injects real secrets at deploy time (FR-046).
+// Realm import uses the IGNORE_EXISTING strategy, so it only seeds the realm once — the bind
+// mount below is what makes runtime state (self-registered organizers, judges provisioned via
+// the Admin API) survive container recreation instead of vanishing on every `dotnet run`. A named
+// Docker volume was tried first (matching the Postgres pattern above) but a fresh named volume is
+// created root-owned, and the Keycloak image's dev-mode H2 store runs as its non-root "keycloak"
+// user, which threw AccessDeniedException on keycloakdb.mv.db — a host bind mount avoids that,
+// consistent with the other two bind mounts here. Re-importing birrapoint-realm.json edits
+// therefore requires clearing "infra/keycloak/.data" first.
 var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26.2")
     .WithArgs("start-dev", "--import-realm")
     .WithEnvironment("KC_BOOTSTRAP_ADMIN_USERNAME", "admin")
     .WithEnvironment("KC_BOOTSTRAP_ADMIN_PASSWORD", "admin")
     .WithBindMount("../../../infra/keycloak", "/opt/keycloak/data/import", isReadOnly: true)
+    .WithBindMount("../../../infra/keycloak/themes/birrapoint", "/opt/keycloak/themes/birrapoint", isReadOnly: true)
+    .WithBindMount("../../../infra/keycloak/.data/h2", "/opt/keycloak/data/h2")
+    .WithLifetime(ContainerLifetime.Persistent)
     .WithHttpEndpoint(port: 8081, targetPort: 8080, name: "http")
     .WithExternalHttpEndpoints();
 var keycloakHttp = keycloak.GetEndpoint("http");

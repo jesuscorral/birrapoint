@@ -1,4 +1,3 @@
-using System.Text.Json;
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
@@ -44,8 +43,18 @@ public sealed class UploadImportCommandHandler(AppDbContext dbContext, ICurrentU
             .Select(style => new StyleCatalogEntry(style.Code, style.Name))
             .ToListAsync(cancellationToken);
 
+        var categories = await dbContext.CompetitionCategories
+            .Where(category => category.CompetitionId == competition.Id)
+            .Select(category => new CategoryCatalogEntry(category.Id, category.Name))
+            .ToListAsync(cancellationToken);
+
+        var allowedPairs = await dbContext.CompetitionCategoryStyles
+            .Where(pair => pair.CompetitionId == competition.Id)
+            .Select(pair => new CategoryStyleCatalogEntry(pair.CompetitionCategoryId, pair.StyleCode))
+            .ToListAsync(cancellationToken);
+
         await using var stream = request.File.OpenReadStream();
-        var parsedRows = WorkbookParser.Parse(stream, styles);
+        var parsedRows = WorkbookParser.Parse(stream, styles, categories, allowedPairs);
 
         // Single active batch per competition (contracts/import-file.md §Semantics): a new upload
         // discards whatever was left unconsolidated from a previous one.
@@ -69,10 +78,22 @@ public sealed class UploadImportCommandHandler(AppDbContext dbContext, ICurrentU
                 Status = parsedRow.Status,
                 ParticipantName = parsedRow.ParticipantName,
                 ParticipantEmail = parsedRow.ParticipantEmail,
-                BeerName = parsedRow.BeerName,
+                AcceMemberNumberText = parsedRow.AcceMemberNumber,
+                DateOfBirth = parsedRow.DateOfBirth,
+                Phone = parsedRow.Phone,
+                CategoryText = parsedRow.CategoryText,
+                ResolvedCompetitionCategoryId = parsedRow.ResolvedCompetitionCategoryId,
                 StyleText = parsedRow.StyleText,
-                CollaboratorsJson = JsonSerializer.Serialize(parsedRow.Collaborators),
                 ResolvedStyleCode = parsedRow.ResolvedStyleCode,
+                SubmittedAt = parsedRow.SubmittedAt,
+                AbvPercent = parsedRow.AbvPercent,
+                BrewDate = parsedRow.BrewDate,
+                BottlingDate = parsedRow.BottlingDate,
+                Malts = parsedRow.Malts,
+                Hops = parsedRow.Hops,
+                Yeast = parsedRow.Yeast,
+                OtherIngredients = parsedRow.OtherIngredients,
+                EntryInstructions = parsedRow.EntryInstructions,
                 ErrorMessage = parsedRow.ErrorMessage,
             });
         }

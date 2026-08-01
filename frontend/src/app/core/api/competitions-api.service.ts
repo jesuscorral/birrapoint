@@ -44,6 +44,24 @@ export interface CompetitionSummary {
   state: CompetitionState;
 }
 
+// GET/PUT /competitions/{id}/categories (contracts/rest-api.md §Competitions — wizard step 3).
+export interface CompetitionCategory {
+  id: string;
+  name: string;
+  displayOrder: number;
+  styleCodes: string[];
+}
+
+export interface CompetitionCategoriesResponse {
+  categories: CompetitionCategory[];
+}
+
+export interface CompetitionCategoryPayload {
+  name: string;
+  displayOrder: number;
+  styleCodes: string[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class CompetitionsApiService {
   private readonly apiClient = inject(ApiClient);
@@ -71,6 +89,19 @@ export class CompetitionsApiService {
   changeState(id: string, target: CompetitionState): Observable<{ state: CompetitionState }> {
     return this.apiClient.post<{ state: CompetitionState }>(`/competitions/${id}/state`, {
       target,
+    });
+  }
+
+  getCategories(id: string): Observable<CompetitionCategoriesResponse> {
+    return this.apiClient.get<CompetitionCategoriesResponse>(`/competitions/${id}/categories`);
+  }
+
+  setCategories(
+    id: string,
+    categories: CompetitionCategoryPayload[],
+  ): Observable<CompetitionCategoriesResponse> {
+    return this.apiClient.put<CompetitionCategoriesResponse>(`/competitions/${id}/categories`, {
+      categories,
     });
   }
 }

@@ -32,6 +32,9 @@ appsettings.*.Local.json
 # Azure Developer CLI
 .azure/
 
+# Keycloak dev-mode H2 store (bind-mounted for persistence across `dotnet run`; runtime data only)
+infra/keycloak/.data/
+
 # CodeGraph — local, regenerable code-intelligence index
 .codegraph/
 

@@ -15,6 +15,11 @@ public sealed class CompetitionConfiguration : IEntityTypeConfiguration<Competit
         builder.Property(c => c.CreatedByUserId).HasMaxLength(255);
         builder.Property(c => c.State).HasConversion<string>().HasMaxLength(20);
 
+        builder.HasOne<Organizer>()
+            .WithMany()
+            .HasForeignKey(c => c.OrganizerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.ToTable(t =>
         {
             t.HasCheckConstraint("CK_Competitions_EndDate", "\"EndDate\" >= \"StartDate\"");

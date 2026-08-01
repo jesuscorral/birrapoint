@@ -22,7 +22,7 @@ internal static class TableProjector
         var entryIds = table.Samples.Select(s => s.BeerEntryId).ToList();
         var entries = await dbContext.BeerEntries
             .Where(e => entryIds.Contains(e.Id))
-            .Select(e => new { e.Id, e.BlindCode, e.StyleCode, e.NotValidForBos })
+            .Select(e => new { e.Id, e.BlindCode, e.StyleCode, e.NotValidForBos, e.EntryInstructions })
             .ToListAsync(cancellationToken);
 
         var styleCodes = entries.Select(e => e.StyleCode).Distinct().ToList();
@@ -36,7 +36,9 @@ internal static class TableProjector
             .Select(e =>
             {
                 styleByCode.TryGetValue(e.StyleCode, out var style);
-                return new TableSampleDto(e.Id, e.BlindCode, e.StyleCode, style?.Name ?? e.StyleCode, style?.ABVLow, style?.ABVHigh, e.NotValidForBos);
+                return new TableSampleDto(
+                    e.Id, e.BlindCode, e.StyleCode, style?.Name ?? e.StyleCode, style?.ABVLow, style?.ABVHigh,
+                    e.NotValidForBos, e.EntryInstructions);
             })
             .ToList();
 

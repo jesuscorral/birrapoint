@@ -26,7 +26,7 @@ internal static class JudgeSampleProjector
         var entryIds = samples.Select(s => s.BeerEntryId).ToList();
         var entries = await dbContext.BeerEntries
             .Where(e => entryIds.Contains(e.Id))
-            .Select(e => new { e.Id, e.BlindCode, e.StyleCode })
+            .Select(e => new { e.Id, e.BlindCode, e.StyleCode, e.EntryInstructions })
             .ToListAsync(cancellationToken);
 
         var styleCodes = entries.Select(e => e.StyleCode).Distinct().ToList();
@@ -43,7 +43,8 @@ internal static class JudgeSampleProjector
                 e.StyleCode,
                 styleNameByCode.GetValueOrDefault(e.StyleCode, e.StyleCode),
                 sequenceByEntryId[e.Id],
-                MapEvaluationStatus(evaluationStatusByEntryId, e.Id)))
+                MapEvaluationStatus(evaluationStatusByEntryId, e.Id),
+                e.EntryInstructions))
             .OrderBy(dto => dto.SequenceOrder ?? int.MaxValue)
             .ThenBy(dto => dto.BlindCode, StringComparer.Ordinal)
             .ToList();

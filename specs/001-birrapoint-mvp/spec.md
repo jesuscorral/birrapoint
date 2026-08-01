@@ -35,6 +35,14 @@
 
 - Q: FR-006 already defines the competition lifecycle state machine, but no requirement says where an organizer actually triggers a transition — after shipping US13's dashboard, there is still no UI control anywhere to advance a competition past `Draft`. In scope now? → A: Yes — the dashboard (US13) is the right home for it; added as Acceptance Scenario 5 / FR-051.
 
+### Session 2026-07-30
+
+- Q: Organizers need to restrict which BJCP styles brewers may enter for a given competition, and group the allowed subset under free-text, organizer-chosen labels (e.g. "Estilos clásicos") — a new wizard step. In scope? → A: Yes — added as FR-052. Scoped to persistence only for this pass (organizer defines categories + allowed styles, stored per competition); wiring this allow-list into beer-entry import/consolidation validation (FR-010/FR-011) is deliberately deferred to a later requirement. A style may belong to at most one organizer-defined category per competition; not every BJCP style needs to be assigned to one (an unassigned style is simply not part of that competition). This is distinct from the Session 2026-07-21 rejection of a per-competition scoring-standard choice — FR-052 doesn't touch scoring (still BJCP-only, fixed section caps) or the BJCP catalog itself (still the single read-only FR-012 source); it only restricts and labels which of its styles apply to one competition.
+
+### Session 2026-08-01
+
+- Q: The Session 2026-07-30 deferral left FR-052's allow-list unwired from import validation, and the organizer had no way to fix a rejected row's root cause (missing/misconfigured category) without losing the in-progress import. In scope now? → A: Yes — closes that deferral. Added FR-053 (an imported row whose style is BJCP-valid but not assigned to its resolved category is now routed to the correction screen, same as an unrecognized style) and FR-054 (the pending import survives navigating to another wizard step and back — e.g. to fix categories/style assignments in step 3 — without re-uploading the file, and is automatically re-validated against the competition's current categories/allow-list on return, with each failing row showing its specific reason). This supersedes the Out-of-Scope bullet on FR-052's import/entry-time enforcement.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Secure Access with Role-Based Entry (Priority: P1)
@@ -95,6 +103,7 @@ resolve every failure in the correction screen and consolidate.
 2. **Given** a file containing rows whose style code/name does not exactly match the BJCP 2021 catalog, **When** validation runs row by row, **Then** the load is not aborted and the failing rows appear in a correction screen where the organizer assigns the right style from a searchable catalog list.
 3. **Given** unresolved failing rows, **When** the organizer attempts to consolidate the import, **Then** consolidation is blocked until every failing row is either corrected or explicitly excluded.
 4. **Given** a consolidated import, **When** entries are persisted, **Then** each entry receives a unique alphanumeric blind code.
+5. **Given** a row rejected because its resolved category no longer exists or its style isn't assigned to it, **When** the organizer navigates to the categories step, fixes the category/style assignment, and returns to this step, **Then** the pending import is still there (no re-upload needed), the affected rows are automatically re-validated, and each still-failing row shows the specific reason why.
 
 ---
 
@@ -319,6 +328,7 @@ state, then separately start and complete creating a brand-new competition from 
 - A judge's offline sync arrives after the table was closed: the sync is rejected (immutability), the judge is notified, and the held data is surfaced to the organizer for manual resolution rather than silently discarded.
 - Two judges press "Fix Order" almost simultaneously: exactly one wins; the loser is refreshed to the winning order (User Story 6, scenario 4).
 - The imported file is empty, malformed, or not a spreadsheet: the upload is rejected with a clear reason before row validation starts.
+- The organizer edits categories/style assignments (FR-052) after uploading an import and returns to the correction screen: previously valid rows may become unresolved and vice versa; the screen re-validates automatically and shows updated statuses/reasons without requiring re-upload (FR-054).
 - An invitation email address is invalid or bounces: the profile still exists; the organizer sees the delivery failure and can correct the address and resend.
 - Removing a judge leaves a table with no judges or below the minimum needed: the organizer is warned that the table cannot produce results until staffed.
 - A discrepancy involves three or more judges: the alert includes every judge whose total is more than 7 points from any other total for that sample.
@@ -343,6 +353,10 @@ state, then separately start and complete creating a brand-new competition from 
 - **FR-050**: After login, the organizer dashboard MUST list every competition owned by the caller (name, venue, dates, current lifecycle state) and let the organizer open any of them into the screen appropriate for its state, or start creating a new one; this MUST NOT require knowing or typing an internal address for an existing competition.
 - **FR-051**: The organizer dashboard MUST let the organizer advance a listed competition to its next lifecycle state, showing only the single valid next transition per FR-006 (never a menu of all four states) and requiring an explicit confirmation step before the change takes effect, since the transition is forward-only and cannot be undone. Advancing to `Finalized` while any of the competition's tables remain open MUST be blocked with the blocking tables identified to the organizer (FR-036).
 
+**Competition Categories & Allowed Styles**
+
+- **FR-052**: The competition creation wizard MUST offer a third step letting the organizer define one or more free-text categories (organizer-chosen names, distinct from the BJCP catalog's own style categories) and assign a subset of BJCP 2021 styles to them, restricting which styles brewers may enter for that competition. A style MUST belong to at most one category per competition; not every catalog style needs to be assigned to one — an unassigned style is not part of that competition. This step MUST require at least one category with at least one assigned style before it can be completed. This configuration MUST persist per competition, editable while `Draft`/`Active` (same as the rest of the wizard, FR-006), and is validated against at import time (FR-053). To speed up assigning many BJCP sub-styles at once, the style-assignment UI MUST also let the organizer assign an entire BJCP catalog group (e.g. all sub-styles under "Standard American Beer") to one category in a single action; this overwrites any of that group's styles already individually assigned to a different category.
+
 **Competition Lifecycle**
 
 - **FR-006**: A competition MUST move through the states `Draft` → `Active` → `In Evaluation` → `Finalized`; transitions are organizer-only, forward-only, and skip-free. Each state gates capabilities:
@@ -350,7 +364,7 @@ state, then separately start and complete creating a brand-new competition from 
   - `Active`: judges see their table assignments and the tasting order can be fixed; evaluation sheets remain locked; the organizer can still adjust setup (imports, tables, judges).
   - `In Evaluation`: evaluation sheets unlock (still subject to the fixed-order precondition of FR-022); entry imports and wizard edits are no longer allowed; live monitoring and judge removal apply.
   - `Finalized`: everything becomes read-only and results generation/dispatch runs (FR-036, FR-040, FR-041).
-- **FR-007**: The creation wizard MUST validate the required fields of each step and keep the "Next" action disabled until the current step is valid. Required fields: competition name, venue/location, start date, and end date (end date must not precede start date); all other fields (description, logo, entry limit, registration window start/end) are optional.
+- **FR-007**: The creation wizard MUST validate the required fields of each step and keep the "Next" action disabled until the current step is valid. Required fields: competition name, venue/location, start date, and end date (end date must not precede start date); all other fields (description, logo, entry limit, registration window start/end) are optional. The stepper indicator MUST also let the organizer jump directly to any step whose prerequisite data already exists (a step becomes reachable once the competition has been saved at least once — immediate when editing an existing competition); jumping to another step discards unsaved edits in the step being left, the same as the existing "Back" action.
 - **FR-008**: The wizard MUST allow saving as `Draft` at any step and resuming later with all entered data intact.
 
 **Entry Import**
@@ -360,6 +374,8 @@ state, then separately start and complete creating a brand-new competition from 
 - **FR-011**: The correction screen MUST let the organizer resolve each failing row by picking a style from the catalog or explicitly excluding the row; consolidation MUST be blocked while unresolved rows remain.
 - **FR-012**: The official BJCP 2021 style catalog MUST be preloaded in the system as read-only master data.
 - **FR-013**: On consolidation, every imported entry MUST receive a unique alphanumeric blind code.
+- **FR-053**: A row whose resolved style is valid in the BJCP 2021 catalog but not assigned to its resolved category under that competition's FR-052 configuration MUST be routed to the correction screen the same as an unrecognized style, with a message distinguishing this cause ("style not assigned to this category") from a plain style/category mismatch. This check MUST apply at initial parse, at manual row edits (FR-011), and at the FR-054 revalidation.
+- **FR-054**: The correction screen's pending import (its rows and their statuses) MUST survive the organizer navigating away to another wizard step — e.g. to create/edit categories or adjust style assignments per FR-052 — and back, without re-uploading the file. On returning to this step the system MUST automatically re-validate every row not already excluded or blocked by a plain field error against the competition's current categories and BJCP allow-list (FR-010/FR-053), updating each row's status accordingly (a previously valid row may become unresolved, and vice versa). Each unresolved row MUST show the specific reason it failed, not only a coarse status label.
 
 **Judge Provisioning**
 

@@ -8,6 +8,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 {
     public DbSet<Competition> Competitions => Set<Competition>();
 
+    public DbSet<Organizer> Organizers => Set<Organizer>();
+
+    public DbSet<CompetitionCategory> CompetitionCategories => Set<CompetitionCategory>();
+
+    public DbSet<CompetitionCategoryStyle> CompetitionCategoryStyles => Set<CompetitionCategoryStyle>();
+
     public DbSet<BjcpStyle> BjcpStyles => Set<BjcpStyle>();
 
     public DbSet<Participant> Participants => Set<Participant>();

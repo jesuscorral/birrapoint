@@ -26,4 +26,12 @@ public class Competition : Entity
 
     /// <summary>Keycloak subject of the organizer.</summary>
     public required string CreatedByUserId { get; set; }
+
+    /// <summary>
+    /// FK to the owning <see cref="Organizer"/> row (one organizer, many competitions). Nullable
+    /// and populated only going forward by <c>CreateCompetitionCommandHandler</c> — the existing
+    /// <see cref="CreatedByUserId"/> claim-based ownership check stays the source of truth for
+    /// pre-existing rows and every current authorization call site; this FK is additive.
+    /// </summary>
+    public Guid? OrganizerId { get; set; }
 }

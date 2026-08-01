@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
 import { ApiError } from '../../../core/api/api-error';
@@ -27,15 +28,10 @@ describe('DetailsStepComponent', () => {
   let fakeApi: { create: jest.Mock; update: jest.Mock; getById: jest.Mock };
 
   beforeEach(() => {
-    jest.useFakeTimers();
     fakeApi = { create: jest.fn(), update: jest.fn(), getById: jest.fn() };
     TestBed.configureTestingModule({
-      providers: [{ provide: CompetitionsApiService, useValue: fakeApi }],
+      providers: [{ provide: CompetitionsApiService, useValue: fakeApi }, provideRouter([])],
     });
-  });
-
-  afterEach(() => {
-    jest.useRealTimers();
   });
 
   function createComponent(initialValue: CompetitionDetail | null = detailFixture()) {
@@ -76,7 +72,11 @@ describe('DetailsStepComponent', () => {
     fakeApi.update.mockReturnValue(of(detailFixture()));
     const fixture = createComponent();
 
-    const button = fixture.nativeElement.querySelector('button') as HTMLButtonElement;
+    // The step now also renders a "Volver" (back) button before the submit button — target the
+    // submit button specifically rather than the first <button> in DOM order.
+    const button = fixture.nativeElement.querySelector(
+      'button[type="submit"]',
+    ) as HTMLButtonElement;
     expect(button.disabled).toBe(false);
 
     fixture.componentInstance.onSaveDraft();
@@ -99,7 +99,9 @@ describe('DetailsStepComponent', () => {
     fixture.componentInstance.form.patchValue({ entryLimit: 0 });
     fixture.detectChanges();
 
-    const button = fixture.nativeElement.querySelector('button') as HTMLButtonElement;
+    const button = fixture.nativeElement.querySelector(
+      'button[type="submit"]',
+    ) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
   });
 
@@ -111,21 +113,21 @@ describe('DetailsStepComponent', () => {
     });
     fixture.detectChanges();
 
-    const button = fixture.nativeElement.querySelector('button') as HTMLButtonElement;
+    const button = fixture.nativeElement.querySelector(
+      'button[type="submit"]',
+    ) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
   });
 
-  it('shows a Saved confirmation after a successful save, cleared after a few seconds', () => {
+  it('emits saved instead of navigating directly — the wizard shell now owns advancing past this step', () => {
     fakeApi.update.mockReturnValue(of(detailFixture()));
     const fixture = createComponent();
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
 
     fixture.componentInstance.onSaveDraft();
-    fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('Saved');
 
-    jest.advanceTimersByTime(3000);
-    fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).not.toContain('Saved');
+    expect(navigateSpy).not.toHaveBeenCalled();
   });
 
   it('emits saved with the API response on success', () => {
@@ -140,17 +142,19 @@ describe('DetailsStepComponent', () => {
     expect(emitted).toEqual([detail]);
   });
 
-  it('surfaces an ApiError banner without showing a Saved confirmation', () => {
+  it('surfaces an ApiError banner and stays on the page instead of navigating away', () => {
     fakeApi.update.mockReturnValue(
       throwError(() => new ApiError({ status: 500, title: 'Something went wrong', urn: null })),
     );
     const fixture = createComponent();
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
 
     fixture.componentInstance.onSaveDraft();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Something went wrong');
-    expect(fixture.nativeElement.textContent).not.toContain('Saved');
+    expect(navigateSpy).not.toHaveBeenCalled();
   });
 
   it('prefills the form from initialValue (resume-with-data)', () => {

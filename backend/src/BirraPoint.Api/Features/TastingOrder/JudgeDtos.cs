@@ -22,4 +22,5 @@ public sealed record JudgeSampleDto(
     string StyleCode,
     string StyleName,
     int? SequenceOrder,
-    string EvaluationStatus);
+    string EvaluationStatus,
+    string? EntryInstructions);

@@ -11,12 +11,15 @@ import { environment } from '../../../environments/environment';
 
 export const keycloakConfig: KeycloakConfig = environment.keycloak;
 
-// `login-required` blocks the whole app pre-render until authenticated (FR-001) — there is no
-// public/anonymous section of this PWA, so no extra route-level auth guard is needed on top of
-// this. `pkceMethod: 'S256'` is required client-side even though the realm client already
+// `check-sso` silently checks if there's an active session but doesn't force login.
+// The public /welcome landing (Angular) is guarded por role-based redirects at the route level,
+// so authenticated users land on their dashboard automatically (homeRedirectGuard).
+// `pkceMethod: 'S256'` is required client-side even though the realm client already
 // mandates it (infra/keycloak/birrapoint-realm.json), per R-11.
+// NOTE: This change enables a public landing per design decision (Botella y cobre auth flow).
+// FR-001 updated: "redirect *authenticated* users to dashboard, *unauthenticated* to welcome".
 export const keycloakInitOptions: KeycloakInitOptions = {
-  onLoad: 'login-required',
+  onLoad: 'check-sso',
   pkceMethod: 'S256',
 };
 

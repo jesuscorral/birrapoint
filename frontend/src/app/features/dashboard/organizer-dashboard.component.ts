@@ -124,36 +124,74 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
     }
   `,
   styles: `
+    :host {
+      display: block;
+      min-height: 100vh;
+      background: var(--color-bp-hueso-50);
+      padding: var(--spacing-8) var(--spacing-6);
+    }
+
+    h1 {
+      font-family: 'Fraunces', serif;
+      font-size: 1.75rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--color-bp-text);
+      margin: 0 0 var(--spacing-4);
+    }
+
     .new-competition-action {
-      display: inline-block;
-      margin: 1rem 0;
-      padding: 0.5rem 1rem;
-      border-radius: 0.375rem;
-      background: #2563eb;
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      margin: var(--spacing-2) 0 var(--spacing-6);
+      padding: 0 var(--spacing-5);
+      border-radius: var(--radius-md);
+      background: var(--color-bp-cobre-500);
       color: #fff;
       text-decoration: none;
       font-weight: 600;
+      box-shadow: var(--shadow-sm);
+      transition: background 0.15s ease;
+    }
+
+    .new-competition-action:hover {
+      background: var(--color-bp-cobre-600);
+    }
+
+    .new-competition-action:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px var(--color-bp-hueso-50), 0 0 0 5px var(--color-bp-cobre-500);
     }
 
     .empty-state {
-      padding: 2rem 1rem;
+      padding: var(--spacing-12) var(--spacing-4);
       text-align: center;
-      color: #4b5563;
+      color: var(--color-bp-text-muted);
+      background: var(--color-bp-surface);
+      border: 1px solid var(--color-bp-border);
+      border-radius: var(--radius-lg);
+    }
+
+    .empty-state h2 {
+      font-family: 'Fraunces', serif;
+      color: var(--color-bp-text);
+      margin: 0 0 var(--spacing-2);
     }
 
     .competition-list {
       list-style: none;
-      margin: 1rem 0 0;
+      margin: var(--spacing-4) 0 0;
       padding: 0;
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
+      gap: var(--spacing-3);
     }
 
     .competition-list-row {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: var(--spacing-3);
     }
 
     .competition-list-item {
@@ -161,75 +199,157 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 0.75rem;
-      padding: 0.75rem 1rem;
-      border: 1px solid #d1d5db;
-      border-radius: 0.5rem;
+      gap: var(--spacing-3);
+      padding: var(--spacing-4);
+      background: var(--color-bp-surface);
+      border: 1px solid var(--color-bp-border);
+      border-radius: var(--radius-lg);
       text-decoration: none;
       color: inherit;
+      transition:
+        border-color 0.15s ease,
+        box-shadow 0.15s ease;
+    }
+
+    .competition-list-item:hover {
+      border-color: var(--color-bp-cobre-400);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .competition-list-item:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px var(--color-bp-hueso-50), 0 0 0 5px var(--color-bp-cobre-500);
     }
 
     .competition-name {
-      font-weight: 600;
+      font-weight: 700;
+      color: var(--color-bp-text);
     }
 
     .competition-venue,
     .competition-dates {
-      color: #4b5563;
+      color: var(--color-bp-text-muted);
+      font-size: 0.9375rem;
     }
 
     .badge {
       margin-left: auto;
-      padding: 0.15rem 0.5rem;
-      border-radius: 9999px;
-      font-size: 0.8rem;
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
     }
 
     .badge--draft {
-      background: #fef3c7;
-      color: #92400e;
+      background: var(--color-bp-cobre-100);
+      color: var(--color-bp-cobre-700);
     }
 
     .badge--active {
-      background: #dcfce7;
-      color: #166534;
+      background: var(--color-bp-exito-50);
+      color: var(--color-bp-exito-600);
     }
 
     .badge--inevaluation {
-      background: #dbeafe;
-      color: #1e40af;
+      background: var(--color-bp-info-50);
+      color: var(--color-bp-info-600);
     }
 
     .badge--finalized {
-      background: #e5e7eb;
-      color: #374151;
+      background: var(--color-bp-hueso-200);
+      color: var(--color-bp-text-muted);
     }
 
     .advance-state-action {
       flex: 0 0 auto;
-      padding: 0.5rem 1rem;
-      border-radius: 0.375rem;
-      border: 1px solid #2563eb;
-      background: #fff;
-      color: #2563eb;
+      min-height: 40px;
+      padding: 0 var(--spacing-4);
+      border-radius: var(--radius-md);
+      border: 1.5px solid var(--color-bp-cobre-500);
+      background: var(--color-bp-surface);
+      color: var(--color-bp-cobre-600);
       font-weight: 600;
       cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .advance-state-action:hover {
+      background: var(--color-bp-cobre-50);
+    }
+
+    .advance-state-action:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px var(--color-bp-hueso-50), 0 0 0 5px var(--color-bp-cobre-500);
     }
 
     .modal-backdrop {
       position: fixed;
       inset: 0;
-      background: rgb(0 0 0 / 50%);
+      background: rgba(4, 23, 18, 0.45);
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: var(--spacing-4);
     }
 
     .modal-panel {
-      background: #fff;
-      border-radius: 0.5rem;
-      padding: 1.5rem;
+      background: var(--color-bp-surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      padding: var(--spacing-6);
       min-width: 20rem;
+    }
+
+    .modal-panel h2 {
+      font-family: 'Fraunces', serif;
+      font-size: 1.25rem;
+      margin: 0 0 var(--spacing-3);
+      color: var(--color-bp-text);
+    }
+
+    .modal-panel p {
+      color: var(--color-bp-text-muted);
+      margin: 0 0 var(--spacing-6);
+    }
+
+    .modal-panel button {
+      min-height: 40px;
+      padding: 0 var(--spacing-4);
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      cursor: pointer;
+      margin-right: var(--spacing-3);
+    }
+
+    .modal-panel button[type='button']:first-of-type {
+      background: var(--color-bp-cobre-500);
+      color: #fff;
+      border: 1.5px solid var(--color-bp-cobre-500);
+    }
+
+    .modal-panel button:last-of-type {
+      background: var(--color-bp-surface);
+      color: var(--color-bp-text-muted);
+      border: 1.5px solid var(--color-bp-border-strong);
+    }
+
+    [role='alert'] {
+      color: var(--color-bp-danger-600);
+      background: var(--color-bp-danger-50);
+      border: 1px solid #efc9c5;
+      border-radius: var(--radius-md);
+      padding: var(--spacing-3) var(--spacing-4);
+      margin-bottom: var(--spacing-4);
+    }
+
+    [role='status'] {
+      color: var(--color-bp-exito-600);
+      background: var(--color-bp-exito-50);
+      border: 1px solid #c6ddd0;
+      border-radius: var(--radius-md);
+      padding: var(--spacing-3) var(--spacing-4);
+      margin-bottom: var(--spacing-4);
     }
   `,
 })

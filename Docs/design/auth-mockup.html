@@ -1,0 +1,1700 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BirraPoint · Mockup de autenticación</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* =====================================================================
+         BIRRAPOINT · DESIGN TOKENS
+         Paleta "Botella y cobre": verde vidrio de botella + cobre de equipo de
+         cervecería sobre neutros hueso. Deliberadamente lejos del ámbar/marrón
+         que usa casi toda app cervecera.
+         Estos tokens son la fuente que luego se traslada a Tailwind v4 (@theme).
+         ===================================================================== */
+      :root {
+        /* --- Color: verde botella (marca / superficies oscuras) --------- */
+        --bp-verde-50: #eef4f1;
+        --bp-verde-100: #d8e5df;
+        --bp-verde-200: #b0cabf;
+        --bp-verde-300: #6e9c8b;
+        --bp-verde-400: #2e6b57;
+        --bp-verde-500: #17513f;
+        --bp-verde-600: #0b3b2e; /* panel de marca — 10.98:1 con hueso */
+        --bp-verde-700: #072720;
+        --bp-verde-800: #041712;
+
+        /* --- Color: cobre (acción) -------------------------------------- */
+        --bp-cobre-50: #fbf0ea;
+        --bp-cobre-100: #f5dccd;
+        --bp-cobre-200: #e9bca1;
+        --bp-cobre-300: #e2a277; /* acento sobre verde — 5.76:1 */
+        --bp-cobre-400: #d07a4c;
+        --bp-cobre-500: #b85c33; /* botón primario — 4.55:1 con blanco (AA) */
+        --bp-cobre-600: #9a4b27; /* hover, enlaces — 6.16:1 sobre blanco */
+        --bp-cobre-700: #7c3b1e; /* :active */
+
+        /* --- Color: neutros hueso --------------------------------------- */
+        --bp-hueso-50: #fbfaf6; /* fondo de página */
+        --bp-hueso-100: #f5f3ec;
+        --bp-hueso-200: #e8e5da;
+
+        /* --- Color: semántico ------------------------------------------ */
+        --bp-exito-600: #2c6e49; /* más saturado que el verde de marca */
+        --bp-exito-50: #e9f2ec;
+        --bp-danger-600: #a3271f;
+        --bp-danger-50: #fbebea;
+        --bp-info-600: #2a5c77;
+        --bp-info-50: #e9f1f5;
+
+        /* --- Color: superficie y texto --------------------------------- */
+        --bp-surface: #ffffff;
+        --bp-surface-sunken: var(--bp-hueso-100);
+        --bp-border: #dfdccf; /* separadores decorativos */
+        --bp-border-strong: #7a8c85; /* borde de control — 3.55:1 (WCAG 1.4.11) */
+        --bp-text: #14201b; /* 16.8:1 sobre blanco */
+        --bp-text-muted: #54655d; /* 6.2:1 sobre blanco */
+        --bp-text-subtle: #63756e; /* 4.7:1 — placeholders */
+        --bp-text-on-dark: #eaf2ee;
+        --bp-text-on-cobre: #ffffff;
+
+        /* --- Tipografía ------------------------------------------------ */
+        --bp-font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+        --bp-font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+        --bp-text-xs: 0.75rem; /* 12 */
+        --bp-text-sm: 0.875rem; /* 14 */
+        --bp-text-base: 1rem; /* 16 — mínimo en inputs (evita zoom iOS) */
+        --bp-text-lg: 1.125rem;
+        --bp-text-xl: 1.375rem;
+        --bp-text-2xl: 1.75rem;
+        --bp-text-3xl: 2.25rem;
+        --bp-text-4xl: 3rem;
+
+        /* --- Espaciado (base 4) ---------------------------------------- */
+        --bp-space-1: 0.25rem;
+        --bp-space-2: 0.5rem;
+        --bp-space-3: 0.75rem;
+        --bp-space-4: 1rem;
+        --bp-space-5: 1.25rem;
+        --bp-space-6: 1.5rem;
+        --bp-space-8: 2rem;
+        --bp-space-10: 2.5rem;
+        --bp-space-12: 3rem;
+        --bp-space-16: 4rem;
+
+        /* --- Radio, sombra, foco --------------------------------------- */
+        --bp-radius-sm: 6px;
+        --bp-radius-md: 10px;
+        --bp-radius-lg: 16px;
+        --bp-radius-xl: 24px;
+        --bp-radius-full: 999px;
+
+        --bp-shadow-sm: 0 1px 2px rgba(4, 23, 18, 0.07);
+        --bp-shadow-md: 0 4px 12px rgba(4, 23, 18, 0.09);
+        --bp-shadow-lg: 0 18px 40px -12px rgba(4, 23, 18, 0.24);
+
+        --bp-focus-ring: 0 0 0 3px var(--bp-hueso-50), 0 0 0 5px var(--bp-cobre-500);
+        --bp-focus-ring-dark: 0 0 0 3px var(--bp-verde-800), 0 0 0 5px var(--bp-cobre-300);
+
+        /* --- Layout ----------------------------------------------------- */
+        --bp-auth-card: 27rem; /* ancho máximo del panel de formulario */
+        --bp-tap: 44px; /* objetivo táctil mínimo (WCAG 2.5.5) */
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background: #d9e2dd;
+        color: var(--bp-text);
+        font-family: var(--bp-font-sans);
+        font-size: var(--bp-text-base);
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* =====================================================================
+         CHROME DEL MOCKUP (no forma parte del diseño de producto)
+         ===================================================================== */
+      .mock-bar {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--bp-space-3);
+        align-items: center;
+        padding: var(--bp-space-3) var(--bp-space-5);
+        background: var(--bp-verde-700);
+        color: #c3d5cd;
+        border-bottom: 1px solid #123a2e;
+      }
+      .mock-bar__title {
+        font-family: var(--bp-font-display);
+        font-weight: 600;
+        font-size: var(--bp-text-sm);
+        letter-spacing: 0.02em;
+        margin-right: var(--bp-space-2);
+        white-space: nowrap;
+      }
+      .mock-bar__group {
+        display: flex;
+        gap: 2px;
+        background: var(--bp-verde-800);
+        border-radius: var(--bp-radius-full);
+        padding: 3px;
+      }
+      .mock-tab {
+        appearance: none;
+        border: 0;
+        background: transparent;
+        color: #96b0a6;
+        font: inherit;
+        font-size: var(--bp-text-xs);
+        font-weight: 500;
+        padding: 6px 12px;
+        border-radius: var(--bp-radius-full);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .mock-tab:hover {
+        color: #e2efe9;
+      }
+      .mock-tab[aria-selected='true'] {
+        background: var(--bp-cobre-500);
+        color: #ffffff;
+      }
+      .mock-tab:focus-visible {
+        outline: 2px solid var(--bp-cobre-300);
+        outline-offset: 2px;
+      }
+      .mock-bar__spacer {
+        flex: 1;
+      }
+
+      .stage {
+        padding: var(--bp-space-6);
+        display: flex;
+        justify-content: center;
+      }
+      .stage__frame {
+        width: 100%;
+        max-width: 1180px;
+        background: var(--bp-hueso-50);
+        border-radius: var(--bp-radius-xl);
+        box-shadow: var(--bp-shadow-lg);
+        overflow: hidden;
+        transition: max-width 0.25s ease;
+      }
+      .stage[data-viewport='mobile'] .stage__frame {
+        max-width: 400px;
+      }
+
+      .screen[hidden] {
+        display: none;
+      }
+
+      .layer-badge {
+        position: absolute;
+        top: var(--bp-space-4);
+        right: var(--bp-space-4);
+        z-index: 5;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: var(--bp-text-xs);
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        padding: 5px 10px;
+        border-radius: var(--bp-radius-full);
+        background: rgba(255, 255, 255, 0.88);
+        border: 1px solid var(--bp-border);
+        color: var(--bp-text-muted);
+        backdrop-filter: blur(4px);
+      }
+      .layer-badge::before {
+        content: '';
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--bp-cobre-500);
+      }
+      .layer-badge--kc::before {
+        background: var(--bp-verde-400);
+      }
+
+      /* =====================================================================
+         AUTH SHELL — layout partido: panel de marca + panel de formulario
+         ===================================================================== */
+      .auth {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1.05fr 1fr;
+        min-height: 660px;
+      }
+      .stage[data-viewport='mobile'] .auth {
+        grid-template-columns: 1fr;
+        min-height: 0;
+      }
+
+      /* --- Panel de marca -------------------------------------------- */
+      .brand-panel {
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: var(--bp-space-10);
+        color: var(--bp-text-on-dark);
+        background:
+          radial-gradient(120% 90% at 12% 8%, rgba(184, 92, 51, 0.32) 0%, transparent 55%),
+          radial-gradient(100% 80% at 88% 100%, rgba(46, 107, 87, 0.45) 0%, transparent 62%),
+          linear-gradient(160deg, var(--bp-verde-600) 0%, var(--bp-verde-800) 100%);
+      }
+      .stage[data-viewport='mobile'] .brand-panel {
+        padding: var(--bp-space-8) var(--bp-space-6);
+        gap: var(--bp-space-6);
+      }
+      .brand-panel__bubbles {
+        position: absolute;
+        inset: 0;
+        opacity: 0.35;
+        pointer-events: none;
+      }
+      .brand-panel > *:not(.brand-panel__bubbles) {
+        position: relative;
+        z-index: 1;
+      }
+
+      .logo {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--bp-space-3);
+        font-family: var(--bp-font-display);
+        font-weight: 700;
+        font-size: var(--bp-text-xl);
+        letter-spacing: -0.01em;
+      }
+      .logo__mark {
+        width: 40px;
+        height: 40px;
+        flex: none;
+        border-radius: 12px;
+        background: linear-gradient(150deg, var(--bp-cobre-400), var(--bp-cobre-600));
+        display: grid;
+        place-items: center;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32);
+      }
+      .logo--dark {
+        color: var(--bp-text);
+      }
+
+      .brand-panel__claim {
+        font-family: var(--bp-font-display);
+        font-size: var(--bp-text-4xl);
+        line-height: 1.1;
+        font-weight: 600;
+        margin: 0 0 var(--bp-space-4);
+        letter-spacing: -0.02em;
+        max-width: 14ch;
+      }
+      .stage[data-viewport='mobile'] .brand-panel__claim {
+        font-size: var(--bp-text-2xl);
+      }
+      .brand-panel__lead {
+        margin: 0;
+        max-width: 42ch;
+        color: rgba(234, 242, 238, 0.8);
+        font-size: var(--bp-text-lg);
+      }
+      .stage[data-viewport='mobile'] .brand-panel__lead {
+        font-size: var(--bp-text-base);
+      }
+
+      .feature-list {
+        list-style: none;
+        margin: var(--bp-space-8) 0 0;
+        padding: 0;
+        display: grid;
+        gap: var(--bp-space-4);
+      }
+      .feature-list li {
+        display: flex;
+        gap: var(--bp-space-3);
+        align-items: flex-start;
+        font-size: var(--bp-text-sm);
+        color: rgba(234, 242, 238, 0.84);
+      }
+      .feature-list svg {
+        flex: none;
+        margin-top: 2px;
+        color: var(--bp-cobre-300);
+      }
+
+      .brand-panel__foot {
+        display: flex;
+        gap: var(--bp-space-6);
+        font-size: var(--bp-text-xs);
+        color: rgba(234, 242, 238, 0.52);
+      }
+      .stage[data-viewport='mobile'] .brand-panel__foot,
+      .stage[data-viewport='mobile'] .feature-list {
+        display: none;
+      }
+
+      /* --- Panel de formulario ---------------------------------------- */
+      .form-panel {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: var(--bp-space-12) var(--bp-space-10);
+        background: var(--bp-surface);
+      }
+      .stage[data-viewport='mobile'] .form-panel {
+        padding: var(--bp-space-8) var(--bp-space-6) var(--bp-space-10);
+      }
+      .form-panel__inner {
+        width: 100%;
+        max-width: var(--bp-auth-card);
+        margin: 0 auto;
+      }
+
+      .eyebrow {
+        display: block;
+        font-size: var(--bp-text-xs);
+        font-weight: 600;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--bp-cobre-600);
+        margin-bottom: var(--bp-space-2);
+      }
+      h1.title {
+        font-family: var(--bp-font-display);
+        font-size: var(--bp-text-3xl);
+        line-height: 1.15;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        margin: 0 0 var(--bp-space-3);
+      }
+      .subtitle {
+        margin: 0 0 var(--bp-space-8);
+        color: var(--bp-text-muted);
+        font-size: var(--bp-text-base);
+      }
+
+      /* =====================================================================
+         COMPONENTES
+         ===================================================================== */
+
+      /* --- Botón ------------------------------------------------------ */
+      .btn {
+        --btn-bg: transparent;
+        --btn-fg: var(--bp-text);
+        --btn-border: transparent;
+        appearance: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--bp-space-2);
+        min-height: var(--bp-tap);
+        padding: 0 var(--bp-space-5);
+        font: inherit;
+        font-weight: 600;
+        font-size: var(--bp-text-base);
+        color: var(--btn-fg);
+        background: var(--btn-bg);
+        border: 1.5px solid var(--btn-border);
+        border-radius: var(--bp-radius-md);
+        cursor: pointer;
+        text-decoration: none;
+        transition:
+          background 0.15s ease,
+          border-color 0.15s ease,
+          transform 0.05s ease,
+          box-shadow 0.15s ease;
+      }
+      .btn:active {
+        transform: translateY(1px);
+      }
+      .btn:focus-visible {
+        outline: none;
+        box-shadow: var(--bp-focus-ring);
+      }
+      .btn--block {
+        width: 100%;
+      }
+      .btn--lg {
+        min-height: 52px;
+        font-size: var(--bp-text-lg);
+      }
+
+      .btn--primary {
+        --btn-bg: var(--bp-cobre-500);
+        --btn-fg: var(--bp-text-on-cobre);
+        --btn-border: var(--bp-cobre-500);
+        box-shadow: var(--bp-shadow-sm);
+      }
+      .btn--primary:hover {
+        --btn-bg: var(--bp-cobre-600);
+        --btn-border: var(--bp-cobre-600);
+      }
+      .btn--primary:active {
+        --btn-bg: var(--bp-cobre-700);
+        --btn-border: var(--bp-cobre-700);
+      }
+
+      .btn--secondary {
+        --btn-bg: var(--bp-surface);
+        --btn-fg: var(--bp-verde-600);
+        --btn-border: var(--bp-border-strong);
+      }
+      .btn--secondary:hover {
+        --btn-bg: var(--bp-verde-50);
+        --btn-border: var(--bp-verde-400);
+      }
+
+      .btn--ghost {
+        --btn-fg: var(--bp-text-muted);
+        padding: 0 var(--bp-space-3);
+      }
+      .btn--ghost:hover {
+        --btn-bg: var(--bp-hueso-100);
+        --btn-fg: var(--bp-text);
+      }
+
+      .btn--on-dark {
+        --btn-bg: rgba(255, 255, 255, 0.07);
+        --btn-fg: var(--bp-text-on-dark);
+        --btn-border: rgba(234, 242, 238, 0.38);
+      }
+      .btn--on-dark:hover {
+        --btn-bg: rgba(255, 255, 255, 0.15);
+      }
+      .btn--on-dark:focus-visible {
+        box-shadow: var(--bp-focus-ring-dark);
+      }
+
+      .btn[aria-busy='true'] {
+        pointer-events: none;
+        opacity: 0.85;
+      }
+      .btn[aria-busy='true'] .spinner {
+        display: inline-block;
+      }
+      .spinner {
+        display: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 2px solid currentColor;
+        border-top-color: transparent;
+        opacity: 0.75;
+        animation: spin 0.7s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .spinner {
+          animation-duration: 2s;
+        }
+      }
+
+      /* --- Campo de texto --------------------------------------------- */
+      .field {
+        margin-bottom: var(--bp-space-5);
+      }
+      .field__label {
+        display: block;
+        font-size: var(--bp-text-sm);
+        font-weight: 600;
+        color: var(--bp-text);
+        margin-bottom: var(--bp-space-2);
+      }
+      .field__label .req {
+        color: var(--bp-danger-600);
+        margin-left: 2px;
+      }
+      .field__control {
+        position: relative;
+        display: flex;
+        align-items: center;
+      }
+      .input {
+        width: 100%;
+        min-height: var(--bp-tap);
+        padding: 0 var(--bp-space-4);
+        font: inherit;
+        font-size: var(--bp-text-base);
+        color: var(--bp-text);
+        background: var(--bp-surface);
+        border: 1.5px solid var(--bp-border-strong);
+        border-radius: var(--bp-radius-md);
+        transition:
+          border-color 0.15s ease,
+          box-shadow 0.15s ease;
+      }
+      .input::placeholder {
+        color: var(--bp-text-subtle);
+      }
+      .input:hover {
+        border-color: var(--bp-verde-400);
+      }
+      .input:focus {
+        outline: none;
+        border-color: var(--bp-cobre-500);
+        box-shadow: 0 0 0 3px var(--bp-cobre-100);
+      }
+      .input[aria-invalid='true'] {
+        border-color: var(--bp-danger-600);
+        background: var(--bp-danger-50);
+      }
+      .input[aria-invalid='true']:focus {
+        box-shadow: 0 0 0 3px rgba(163, 39, 31, 0.18);
+      }
+      .input:disabled {
+        background: var(--bp-hueso-100);
+        color: var(--bp-text-subtle);
+        cursor: not-allowed;
+      }
+      .input--with-action {
+        padding-right: 3.25rem;
+      }
+      .field__action {
+        position: absolute;
+        right: 6px;
+        height: 34px;
+        min-height: 0;
+        padding: 0 var(--bp-space-3);
+        font-size: var(--bp-text-xs);
+        font-weight: 600;
+        color: var(--bp-text-muted);
+        background: transparent;
+        border: 0;
+        border-radius: var(--bp-radius-sm);
+        cursor: pointer;
+      }
+      .field__action:hover {
+        background: var(--bp-hueso-100);
+        color: var(--bp-text);
+      }
+      .field__action:focus-visible {
+        outline: none;
+        box-shadow: var(--bp-focus-ring);
+      }
+      .field__hint {
+        display: block;
+        margin-top: var(--bp-space-2);
+        font-size: var(--bp-text-sm);
+        color: var(--bp-text-muted);
+      }
+      .field__error {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        margin-top: var(--bp-space-2);
+        font-size: var(--bp-text-sm);
+        font-weight: 500;
+        color: var(--bp-danger-600);
+      }
+      .field__error svg {
+        flex: none;
+        margin-top: 3px;
+      }
+
+      /* --- Medidor de contraseña -------------------------------------- */
+      .meter {
+        margin-top: var(--bp-space-3);
+      }
+      .meter__track {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 4px;
+      }
+      .meter__seg {
+        height: 5px;
+        border-radius: var(--bp-radius-full);
+        background: var(--bp-hueso-200);
+      }
+      .meter[data-level='1'] .meter__seg:nth-child(-n + 1),
+      .meter[data-level='2'] .meter__seg:nth-child(-n + 2) {
+        background: var(--bp-danger-600);
+      }
+      .meter[data-level='3'] .meter__seg:nth-child(-n + 3) {
+        background: var(--bp-cobre-400);
+      }
+      .meter[data-level='4'] .meter__seg {
+        background: var(--bp-exito-600);
+      }
+      .meter__label {
+        display: block;
+        margin-top: 6px;
+        font-size: var(--bp-text-xs);
+        color: var(--bp-text-muted);
+      }
+
+      /* --- Checkbox ---------------------------------------------------- */
+      .check {
+        display: flex;
+        gap: var(--bp-space-3);
+        align-items: flex-start;
+        font-size: var(--bp-text-sm);
+        color: var(--bp-text-muted);
+        cursor: pointer;
+      }
+      .check input {
+        flex: none;
+        width: 20px;
+        height: 20px;
+        margin: 2px 0 0;
+        accent-color: var(--bp-cobre-500);
+        cursor: pointer;
+      }
+      .check input:focus-visible {
+        outline: none;
+        box-shadow: var(--bp-focus-ring);
+        border-radius: 4px;
+      }
+      .check a {
+        color: var(--bp-cobre-600);
+        font-weight: 600;
+      }
+
+      /* --- Alerta (mapea a ProblemDetails RFC 7807) -------------------- */
+      .alert {
+        display: flex;
+        gap: var(--bp-space-3);
+        padding: var(--bp-space-4);
+        border-radius: var(--bp-radius-md);
+        border: 1px solid;
+        font-size: var(--bp-text-sm);
+        margin-bottom: var(--bp-space-6);
+      }
+      .alert__icon {
+        flex: none;
+        margin-top: 1px;
+      }
+      .alert__title {
+        display: block;
+        font-weight: 700;
+        margin-bottom: 2px;
+      }
+      .alert--error {
+        background: var(--bp-danger-50);
+        border-color: #efc9c5;
+        color: #7b1e17;
+      }
+      .alert--info {
+        background: var(--bp-info-50);
+        border-color: #c4d8e2;
+        color: #22536b;
+      }
+      .alert--success {
+        background: var(--bp-exito-50);
+        border-color: #c6ddd0;
+        color: #245a3b;
+      }
+
+      /* --- Separador --------------------------------------------------- */
+      .divider {
+        display: flex;
+        align-items: center;
+        gap: var(--bp-space-4);
+        margin: var(--bp-space-6) 0;
+        color: var(--bp-text-subtle);
+        font-size: var(--bp-text-sm);
+      }
+      .divider::before,
+      .divider::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: var(--bp-border);
+      }
+
+      /* --- Enlaces / pie ----------------------------------------------- */
+      .link {
+        color: var(--bp-cobre-600);
+        font-weight: 600;
+        text-decoration: none;
+        border-radius: 3px;
+      }
+      .link:hover {
+        text-decoration: underline;
+      }
+      .link:focus-visible {
+        outline: none;
+        box-shadow: var(--bp-focus-ring);
+      }
+      .form-foot {
+        margin-top: var(--bp-space-8);
+        padding-top: var(--bp-space-6);
+        border-top: 1px solid var(--bp-border);
+        font-size: var(--bp-text-sm);
+        color: var(--bp-text-muted);
+        text-align: center;
+      }
+
+      /* --- Tarjeta de rol (landing) ------------------------------------ */
+      .role-card {
+        display: flex;
+        gap: var(--bp-space-4);
+        width: 100%;
+        text-align: left;
+        padding: var(--bp-space-5);
+        background: var(--bp-surface);
+        border: 1.5px solid var(--bp-border);
+        border-radius: var(--bp-radius-lg);
+        cursor: pointer;
+        transition:
+          border-color 0.15s ease,
+          box-shadow 0.15s ease,
+          background 0.15s ease;
+      }
+      .role-card:hover {
+        border-color: var(--bp-cobre-400);
+        background: var(--bp-cobre-50);
+        box-shadow: var(--bp-shadow-md);
+      }
+      .role-card:focus-visible {
+        outline: none;
+        box-shadow: var(--bp-focus-ring);
+      }
+      .role-card__icon {
+        flex: none;
+        width: 44px;
+        height: 44px;
+        display: grid;
+        place-items: center;
+        border-radius: var(--bp-radius-md);
+        background: var(--bp-cobre-100);
+        color: var(--bp-cobre-700);
+      }
+      .role-card__title {
+        display: block;
+        font-weight: 700;
+        font-size: var(--bp-text-base);
+        color: var(--bp-text);
+      }
+      .role-card__desc {
+        display: block;
+        margin-top: 2px;
+        font-size: var(--bp-text-sm);
+        color: var(--bp-text-muted);
+      }
+      .role-card__chev {
+        margin-left: auto;
+        align-self: center;
+        color: var(--bp-text-subtle);
+        flex: none;
+      }
+      .role-card--muted {
+        cursor: default;
+        opacity: 0.75;
+        background: var(--bp-hueso-100);
+      }
+      .role-card--muted:hover {
+        border-color: var(--bp-border);
+        background: var(--bp-hueso-100);
+        box-shadow: none;
+      }
+      .role-card--muted .role-card__icon {
+        background: var(--bp-verde-100);
+        color: var(--bp-verde-500);
+      }
+      .tag {
+        display: inline-block;
+        margin-left: var(--bp-space-2);
+        padding: 1px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        border-radius: var(--bp-radius-full);
+        background: var(--bp-verde-100);
+        color: var(--bp-verde-500);
+        vertical-align: 2px;
+      }
+
+      .stack-4 > * + * {
+        margin-top: var(--bp-space-4);
+      }
+      .stack-3 > * + * {
+        margin-top: var(--bp-space-3);
+      }
+
+      /* --- Estado de éxito / confirmación ------------------------------ */
+      .status-icon {
+        width: 64px;
+        height: 64px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--bp-verde-50);
+        color: var(--bp-verde-500);
+        margin-bottom: var(--bp-space-6);
+      }
+
+      /* --- Pantalla de traspaso a Keycloak ----------------------------- */
+      .handoff {
+        min-height: 660px;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        padding: var(--bp-space-12);
+        background: var(--bp-hueso-50);
+      }
+      .handoff .spinner {
+        display: inline-block;
+        width: 34px;
+        height: 34px;
+        border-width: 3px;
+        border-color: var(--bp-cobre-500);
+        border-top-color: transparent;
+        opacity: 1;
+      }
+
+      /* --- Panel de tokens --------------------------------------------- */
+      .tokens {
+        padding: var(--bp-space-10);
+        background: var(--bp-hueso-50);
+      }
+      .tokens h2 {
+        font-family: var(--bp-font-display);
+        font-size: var(--bp-text-2xl);
+        margin: 0 0 var(--bp-space-2);
+      }
+      .tokens h3 {
+        font-size: var(--bp-text-sm);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--bp-text-muted);
+        margin: var(--bp-space-10) 0 var(--bp-space-4);
+      }
+      .swatches {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: var(--bp-space-3);
+      }
+      .swatch {
+        border-radius: var(--bp-radius-md);
+        overflow: hidden;
+        border: 1px solid var(--bp-border);
+        background: var(--bp-surface);
+      }
+      .swatch__chip {
+        height: 56px;
+      }
+      .swatch__meta {
+        padding: var(--bp-space-2) var(--bp-space-3);
+        font-size: var(--bp-text-xs);
+      }
+      .swatch__name {
+        display: block;
+        font-weight: 700;
+      }
+      .swatch__hex {
+        color: var(--bp-text-muted);
+        font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+      }
+      .spec-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--bp-space-4);
+        align-items: flex-end;
+        padding: var(--bp-space-4);
+        background: var(--bp-surface);
+        border: 1px solid var(--bp-border);
+        border-radius: var(--bp-radius-md);
+      }
+      .tokens code {
+        font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+        font-size: var(--bp-text-xs);
+        background: var(--bp-hueso-200);
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+        border: 0;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- ================= CHROME DEL MOCKUP ================= -->
+    <header class="mock-bar">
+      <span class="mock-bar__title">BirraPoint · Auth · Botella y cobre</span>
+      <div class="mock-bar__group" role="tablist" aria-label="Pantallas">
+        <button class="mock-tab" role="tab" aria-selected="true" data-screen="landing">
+          1 · Bienvenida
+        </button>
+        <button class="mock-tab" role="tab" aria-selected="false" data-screen="handoff">
+          2 · Traspaso
+        </button>
+        <button class="mock-tab" role="tab" aria-selected="false" data-screen="login">
+          3 · Login
+        </button>
+        <button class="mock-tab" role="tab" aria-selected="false" data-screen="login-error">
+          3b · Login error
+        </button>
+        <button class="mock-tab" role="tab" aria-selected="false" data-screen="register">
+          4 · Registro
+        </button>
+        <button class="mock-tab" role="tab" aria-selected="false" data-screen="verify">
+          5 · Verifica email
+        </button>
+        <button class="mock-tab" role="tab" aria-selected="false" data-screen="tokens">
+          Tokens
+        </button>
+      </div>
+      <div class="mock-bar__spacer"></div>
+      <div class="mock-bar__group" role="group" aria-label="Viewport">
+        <button class="mock-tab" aria-selected="true" data-viewport="desktop">Escritorio</button>
+        <button class="mock-tab" aria-selected="false" data-viewport="mobile">Móvil</button>
+      </div>
+    </header>
+
+    <div class="stage" id="stage" data-viewport="desktop">
+      <div class="stage__frame">
+        <!-- ============================================================
+             1 · BIENVENIDA  —  Angular, ruta pública /welcome
+             ============================================================ -->
+        <section class="screen auth" id="screen-landing" aria-label="Bienvenida">
+          <span class="layer-badge">Angular · /welcome</span>
+
+          <aside class="brand-panel">
+            <svg class="brand-panel__bubbles" aria-hidden="true">
+              <circle cx="14%" cy="72%" r="46" fill="rgba(255,255,255,.06)" />
+              <circle cx="30%" cy="86%" r="22" fill="rgba(255,255,255,.05)" />
+              <circle cx="78%" cy="24%" r="60" fill="rgba(255,255,255,.05)" />
+              <circle cx="62%" cy="60%" r="14" fill="rgba(255,255,255,.07)" />
+              <circle cx="88%" cy="70%" r="28" fill="rgba(255,255,255,.04)" />
+            </svg>
+
+            <div class="logo">
+              <span class="logo__mark" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FBFAF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M7 8h9v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z" />
+                  <path d="M16 10h2a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-2" />
+                  <path d="M7 8a2.5 2.5 0 0 1 .6-3.6A2.5 2.5 0 0 1 11.5 5a2.5 2.5 0 0 1 4.4 1.2A2 2 0 0 1 16 8" />
+                </svg>
+              </span>
+              BirraPoint
+            </div>
+
+            <div>
+              <h2 class="brand-panel__claim">Catas a ciegas, sin fricción.</h2>
+              <p class="brand-panel__lead">
+                Organiza tu concurso cervecero de principio a fin: inscripciones, mesas, jueces y
+                resultados. Con anonimato garantizado y evaluación offline.
+              </p>
+
+              <ul class="feature-list">
+                <li>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                  Importación de inscripciones validada contra el catálogo BJCP 2021
+                </li>
+                <li>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                  Mesas con control de conflicto de interés
+                </li>
+                <li>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                  Planillas offline que sincronizan solas al recuperar cobertura
+                </li>
+              </ul>
+            </div>
+
+            <div class="brand-panel__foot">
+              <span>© 2026 BirraPoint</span>
+              <span>Privacidad</span>
+              <span>Términos</span>
+            </div>
+          </aside>
+
+          <main class="form-panel">
+            <div class="form-panel__inner">
+              <span class="eyebrow">Bienvenido</span>
+              <h1 class="title">Entra en tu concurso</h1>
+              <p class="subtitle">
+                Accede con tu cuenta o crea una nueva para empezar a organizar tu primera
+                competición.
+              </p>
+
+              <a class="btn btn--primary btn--block btn--lg" href="#" data-goto="handoff">
+                Iniciar sesión
+              </a>
+
+              <div class="divider">o</div>
+
+              <div class="stack-3">
+                <button class="role-card" type="button" data-goto="register">
+                  <span class="role-card__icon" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M22 11h-6" /></svg>
+                  </span>
+                  <span>
+                    <span class="role-card__title">Crear cuenta de organizador</span>
+                    <span class="role-card__desc">
+                      Da de alta competiciones, importa inscripciones e invita a tus jueces.
+                    </span>
+                  </span>
+                  <svg class="role-card__chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+                </button>
+
+                <div class="role-card role-card--muted">
+                  <span class="role-card__icon" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v5c0 4.4 3.4 8.3 8 9 4.6-.7 8-4.6 8-9V7z" /></svg>
+                  </span>
+                  <span>
+                    <span class="role-card__title">¿Eres juez? <span class="tag">Por invitación</span></span>
+                    <span class="role-card__desc">
+                      El organizador te da de alta y recibirás un correo con tus credenciales.
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              <p class="form-foot">
+                ¿Problemas para acceder? <a class="link" href="#">Escríbenos</a>
+              </p>
+            </div>
+          </main>
+        </section>
+
+        <!-- ============================================================
+             2 · TRASPASO A KEYCLOAK
+             ============================================================ -->
+        <section class="screen handoff" id="screen-handoff" hidden aria-label="Redirigiendo">
+          <div>
+            <div class="logo logo--dark" style="justify-content: center; margin-bottom: 1.5rem">
+              <span class="logo__mark" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FBFAF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8h9v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z" /><path d="M16 10h2a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-2" /><path d="M7 8a2.5 2.5 0 0 1 .6-3.6A2.5 2.5 0 0 1 11.5 5a2.5 2.5 0 0 1 4.4 1.2A2 2 0 0 1 16 8" /></svg>
+              </span>
+              BirraPoint
+            </div>
+            <span class="spinner" aria-hidden="true"></span>
+            <p class="subtitle" style="margin: 1rem 0 0" role="status">
+              Te llevamos al acceso seguro…
+            </p>
+            <p class="field__hint" style="max-width: 40ch; margin: 0 auto">
+              Authorization Code + PKCE. La app nunca ve tus credenciales.
+            </p>
+            <p style="margin-top: 2rem">
+              <button class="btn btn--ghost" data-goto="login">Continuar →</button>
+            </p>
+          </div>
+        </section>
+
+        <!-- ============================================================
+             3 · LOGIN  —  Keycloak, theme "birrapoint"
+             ============================================================ -->
+        <section class="screen auth" id="screen-login" hidden aria-label="Iniciar sesión">
+          <span class="layer-badge layer-badge--kc">Keycloak · theme birrapoint</span>
+
+          <aside class="brand-panel">
+            <svg class="brand-panel__bubbles" aria-hidden="true">
+              <circle cx="18%" cy="78%" r="52" fill="rgba(255,255,255,.06)" />
+              <circle cx="72%" cy="20%" r="66" fill="rgba(255,255,255,.05)" />
+              <circle cx="55%" cy="64%" r="18" fill="rgba(255,255,255,.06)" />
+            </svg>
+            <div class="logo">
+              <span class="logo__mark" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FBFAF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8h9v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z" /><path d="M16 10h2a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-2" /><path d="M7 8a2.5 2.5 0 0 1 .6-3.6A2.5 2.5 0 0 1 11.5 5a2.5 2.5 0 0 1 4.4 1.2A2 2 0 0 1 16 8" /></svg>
+              </span>
+              BirraPoint
+            </div>
+            <div>
+              <h2 class="brand-panel__claim">Cada cata, en su punto.</h2>
+              <p class="brand-panel__lead">
+                Tu sesión es gestionada por el proveedor de identidad de BirraPoint.
+              </p>
+            </div>
+            <div class="brand-panel__foot"><span>Acceso seguro · OIDC</span></div>
+          </aside>
+
+          <main class="form-panel">
+            <div class="form-panel__inner">
+              <span class="eyebrow">Acceso</span>
+              <h1 class="title">Inicia sesión</h1>
+              <p class="subtitle">Introduce tus credenciales para continuar.</p>
+
+              <form onsubmit="return false">
+                <div class="field">
+                  <label class="field__label" for="login-email">Correo electrónico</label>
+                  <div class="field__control">
+                    <input
+                      class="input"
+                      id="login-email"
+                      type="email"
+                      name="username"
+                      autocomplete="username"
+                      inputmode="email"
+                      placeholder="tu@club.com"
+                      value="ana.organiza@birraclub.es"
+                    />
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label class="field__label" for="login-pass">Contraseña</label>
+                  <div class="field__control">
+                    <input
+                      class="input input--with-action"
+                      id="login-pass"
+                      type="password"
+                      name="password"
+                      autocomplete="current-password"
+                      value="contrasena-demo"
+                    />
+                    <button class="field__action" type="button" data-toggle-pass="login-pass">
+                      Mostrar
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.5rem"
+                >
+                  <label class="check">
+                    <input type="checkbox" checked />
+                    <span>Recordarme</span>
+                  </label>
+                  <a class="link" href="#" style="font-size: var(--bp-text-sm)">
+                    ¿Olvidaste la contraseña?
+                  </a>
+                </div>
+
+                <button class="btn btn--primary btn--block btn--lg" type="submit">
+                  <span class="spinner" aria-hidden="true"></span>
+                  Entrar
+                </button>
+              </form>
+
+              <p class="form-foot">
+                ¿Aún no tienes cuenta?
+                <a class="link" href="#" data-goto="register">Regístrate como organizador</a>
+              </p>
+            </div>
+          </main>
+        </section>
+
+        <!-- ============================================================
+             3b · LOGIN CON ERROR
+             ============================================================ -->
+        <section class="screen auth" id="screen-login-error" hidden aria-label="Error de acceso">
+          <span class="layer-badge layer-badge--kc">Keycloak · estado de error</span>
+
+          <aside class="brand-panel">
+            <svg class="brand-panel__bubbles" aria-hidden="true">
+              <circle cx="18%" cy="78%" r="52" fill="rgba(255,255,255,.06)" />
+              <circle cx="72%" cy="20%" r="66" fill="rgba(255,255,255,.05)" />
+            </svg>
+            <div class="logo">
+              <span class="logo__mark" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FBFAF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8h9v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z" /><path d="M16 10h2a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-2" /><path d="M7 8a2.5 2.5 0 0 1 .6-3.6A2.5 2.5 0 0 1 11.5 5a2.5 2.5 0 0 1 4.4 1.2A2 2 0 0 1 16 8" /></svg>
+              </span>
+              BirraPoint
+            </div>
+            <div>
+              <h2 class="brand-panel__claim">Cada cata, en su punto.</h2>
+              <p class="brand-panel__lead">
+                Tu sesión es gestionada por el proveedor de identidad de BirraPoint.
+              </p>
+            </div>
+            <div class="brand-panel__foot"><span>Acceso seguro · OIDC</span></div>
+          </aside>
+
+          <main class="form-panel">
+            <div class="form-panel__inner">
+              <span class="eyebrow">Acceso</span>
+              <h1 class="title">Inicia sesión</h1>
+
+              <div class="alert alert--error" role="alert">
+                <svg class="alert__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v6M12 16.5v.01" /></svg>
+                <span>
+                  <strong class="alert__title">No hemos podido iniciar sesión</strong>
+                  El correo o la contraseña no son correctos. Te quedan 3 intentos antes de que la
+                  cuenta se bloquee temporalmente.
+                </span>
+              </div>
+
+              <form onsubmit="return false">
+                <div class="field">
+                  <label class="field__label" for="err-email">Correo electrónico</label>
+                  <div class="field__control">
+                    <input
+                      class="input"
+                      id="err-email"
+                      type="email"
+                      autocomplete="username"
+                      aria-invalid="true"
+                      aria-describedby="err-email-msg"
+                      value="ana.organiza@birraclub.es"
+                    />
+                  </div>
+                  <span class="field__error" id="err-email-msg">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v6M12 16.5v.01" /></svg>
+                    Revisa tus credenciales
+                  </span>
+                </div>
+
+                <div class="field">
+                  <label class="field__label" for="err-pass">Contraseña</label>
+                  <div class="field__control">
+                    <input
+                      class="input input--with-action"
+                      id="err-pass"
+                      type="password"
+                      autocomplete="current-password"
+                      aria-invalid="true"
+                    />
+                    <button class="field__action" type="button" data-toggle-pass="err-pass">
+                      Mostrar
+                    </button>
+                  </div>
+                </div>
+
+                <div style="margin-bottom: 1.5rem">
+                  <a class="link" href="#" style="font-size: var(--bp-text-sm)">
+                    ¿Olvidaste la contraseña?
+                  </a>
+                </div>
+
+                <button class="btn btn--primary btn--block btn--lg" type="submit" aria-busy="true">
+                  <span class="spinner" aria-hidden="true"></span>
+                  Comprobando…
+                </button>
+              </form>
+
+              <p class="form-foot">
+                ¿Aún no tienes cuenta?
+                <a class="link" href="#" data-goto="register">Regístrate como organizador</a>
+              </p>
+            </div>
+          </main>
+        </section>
+
+        <!-- ============================================================
+             4 · REGISTRO DE ORGANIZADOR
+             ============================================================ -->
+        <section class="screen auth" id="screen-register" hidden aria-label="Crear cuenta">
+          <span class="layer-badge layer-badge--kc">Keycloak · register (rol ORGANIZER)</span>
+
+          <aside class="brand-panel">
+            <svg class="brand-panel__bubbles" aria-hidden="true">
+              <circle cx="22%" cy="82%" r="58" fill="rgba(255,255,255,.06)" />
+              <circle cx="80%" cy="26%" r="44" fill="rgba(255,255,255,.05)" />
+              <circle cx="46%" cy="52%" r="16" fill="rgba(255,255,255,.06)" />
+            </svg>
+            <div class="logo">
+              <span class="logo__mark" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FBFAF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8h9v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z" /><path d="M16 10h2a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-2" /><path d="M7 8a2.5 2.5 0 0 1 .6-3.6A2.5 2.5 0 0 1 11.5 5a2.5 2.5 0 0 1 4.4 1.2A2 2 0 0 1 16 8" /></svg>
+              </span>
+              BirraPoint
+            </div>
+            <div>
+              <h2 class="brand-panel__claim">Tu primer concurso, en minutos.</h2>
+              <p class="brand-panel__lead">
+                Crea la cuenta y el asistente te guía: datos del evento, inscripciones, jueces y
+                mesas.
+              </p>
+              <ul class="feature-list">
+                <li>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                  Gratis mientras tu competición esté en borrador
+                </li>
+                <li>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                  Los datos del club se piden más tarde, al crear el evento
+                </li>
+              </ul>
+            </div>
+            <div class="brand-panel__foot"><span>Alta de organizador</span></div>
+          </aside>
+
+          <main class="form-panel">
+            <div class="form-panel__inner">
+              <span class="eyebrow">Nuevo organizador</span>
+              <h1 class="title">Crea tu cuenta</h1>
+              <p class="subtitle">
+                Solo lo imprescindible. Podrás completar tu perfil cuando crees tu primera
+                competición.
+              </p>
+
+              <form onsubmit="return false">
+                <div class="field">
+                  <label class="field__label" for="reg-name">
+                    Nombre y apellidos <span class="req" aria-hidden="true">*</span>
+                  </label>
+                  <div class="field__control">
+                    <input
+                      class="input"
+                      id="reg-name"
+                      type="text"
+                      autocomplete="name"
+                      required
+                      placeholder="Ana Fernández"
+                    />
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label class="field__label" for="reg-email">
+                    Correo electrónico <span class="req" aria-hidden="true">*</span>
+                  </label>
+                  <div class="field__control">
+                    <input
+                      class="input"
+                      id="reg-email"
+                      type="email"
+                      autocomplete="email"
+                      inputmode="email"
+                      required
+                      aria-describedby="reg-email-hint"
+                      placeholder="tu@club.com"
+                    />
+                  </div>
+                  <span class="field__hint" id="reg-email-hint">
+                    Será tu usuario y el remitente de las invitaciones a los jueces.
+                  </span>
+                </div>
+
+                <div class="field">
+                  <label class="field__label" for="reg-pass">
+                    Contraseña <span class="req" aria-hidden="true">*</span>
+                  </label>
+                  <div class="field__control">
+                    <input
+                      class="input input--with-action"
+                      id="reg-pass"
+                      type="password"
+                      autocomplete="new-password"
+                      required
+                      aria-describedby="reg-pass-meter reg-pass-hint"
+                      value="Lupulo2026!"
+                    />
+                    <button class="field__action" type="button" data-toggle-pass="reg-pass">
+                      Mostrar
+                    </button>
+                  </div>
+                  <div class="meter" id="reg-pass-meter" data-level="4">
+                    <div class="meter__track" aria-hidden="true">
+                      <span class="meter__seg"></span><span class="meter__seg"></span>
+                      <span class="meter__seg"></span><span class="meter__seg"></span>
+                    </div>
+                    <span class="meter__label" role="status">Seguridad: fuerte</span>
+                  </div>
+                  <span class="field__hint" id="reg-pass-hint">
+                    Mínimo 10 caracteres, con mayúscula, minúscula y número.
+                  </span>
+                </div>
+
+                <div class="field">
+                  <label class="field__label" for="reg-pass2">
+                    Repite la contraseña <span class="req" aria-hidden="true">*</span>
+                  </label>
+                  <div class="field__control">
+                    <input
+                      class="input input--with-action"
+                      id="reg-pass2"
+                      type="password"
+                      autocomplete="new-password"
+                      required
+                      aria-invalid="true"
+                      aria-describedby="reg-pass2-msg"
+                      value="Lupulo2026"
+                    />
+                    <button class="field__action" type="button" data-toggle-pass="reg-pass2">
+                      Mostrar
+                    </button>
+                  </div>
+                  <span class="field__error" id="reg-pass2-msg">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v6M12 16.5v.01" /></svg>
+                    Las contraseñas no coinciden
+                  </span>
+                </div>
+
+                <label class="check" style="margin-bottom: 1.75rem">
+                  <input type="checkbox" />
+                  <span>
+                    Acepto los <a class="link" href="#">Términos del servicio</a> y la
+                    <a class="link" href="#">Política de privacidad</a>.
+                  </span>
+                </label>
+
+                <button class="btn btn--primary btn--block btn--lg" type="submit">
+                  Crear cuenta de organizador
+                </button>
+              </form>
+
+              <p class="form-foot">
+                ¿Ya tienes cuenta? <a class="link" href="#" data-goto="login">Inicia sesión</a>
+              </p>
+            </div>
+          </main>
+        </section>
+
+        <!-- ============================================================
+             5 · VERIFICA TU CORREO
+             ============================================================ -->
+        <section class="screen auth" id="screen-verify" hidden aria-label="Verifica tu correo">
+          <span class="layer-badge layer-badge--kc">Keycloak · VERIFY_EMAIL</span>
+
+          <aside class="brand-panel">
+            <svg class="brand-panel__bubbles" aria-hidden="true">
+              <circle cx="24%" cy="76%" r="54" fill="rgba(255,255,255,.06)" />
+              <circle cx="76%" cy="28%" r="48" fill="rgba(255,255,255,.05)" />
+            </svg>
+            <div class="logo">
+              <span class="logo__mark" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FBFAF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8h9v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z" /><path d="M16 10h2a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-2" /><path d="M7 8a2.5 2.5 0 0 1 .6-3.6A2.5 2.5 0 0 1 11.5 5a2.5 2.5 0 0 1 4.4 1.2A2 2 0 0 1 16 8" /></svg>
+              </span>
+              BirraPoint
+            </div>
+            <div>
+              <h2 class="brand-panel__claim">Ya casi está.</h2>
+              <p class="brand-panel__lead">
+                Un último paso y podrás crear tu primera competición.
+              </p>
+            </div>
+            <div class="brand-panel__foot"><span>Verificación de correo</span></div>
+          </aside>
+
+          <main class="form-panel">
+            <div class="form-panel__inner">
+              <div class="status-icon" aria-hidden="true">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m2 7 10 6 10-6" /></svg>
+              </div>
+
+              <h1 class="title">Revisa tu correo</h1>
+              <p class="subtitle">
+                Hemos enviado un enlace de confirmación a
+                <strong>ana.organiza@birraclub.es</strong>. Ábrelo para activar tu cuenta de
+                organizador.
+              </p>
+
+              <div class="alert alert--info">
+                <svg class="alert__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 16v-5M12 8v.01" /></svg>
+                <span>
+                  ¿No lo encuentras? Mira en la carpeta de spam. El enlace caduca en 60 minutos.
+                </span>
+              </div>
+
+              <div class="stack-3">
+                <button class="btn btn--secondary btn--block" type="button">
+                  Reenviar correo de verificación
+                </button>
+                <button class="btn btn--ghost btn--block" type="button" data-goto="login">
+                  Volver al inicio de sesión
+                </button>
+              </div>
+
+              <p class="form-foot">
+                ¿Dirección equivocada? <a class="link" href="#">Cámbiala aquí</a>
+              </p>
+            </div>
+          </main>
+        </section>
+
+        <!-- ============================================================
+             TOKENS
+             ============================================================ -->
+        <section class="screen tokens" id="screen-tokens" hidden aria-label="Tokens">
+          <h2>Design tokens · Botella y cobre</h2>
+          <p class="subtitle" style="margin-bottom: 0">
+            Base del design system. Se trasladan a <code>@theme</code> de Tailwind v4 en
+            <code>frontend/src/styles.css</code>.
+          </p>
+
+          <h3>Verde botella · marca y superficies oscuras</h3>
+          <div class="swatches">
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-verde-50)"></div><div class="swatch__meta"><span class="swatch__name">verde-50</span><span class="swatch__hex">#EEF4F1</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-verde-100)"></div><div class="swatch__meta"><span class="swatch__name">verde-100</span><span class="swatch__hex">#D8E5DF</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-verde-300)"></div><div class="swatch__meta"><span class="swatch__name">verde-300</span><span class="swatch__hex">#6E9C8B</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-verde-400)"></div><div class="swatch__meta"><span class="swatch__name">verde-400</span><span class="swatch__hex">#2E6B57</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-verde-500)"></div><div class="swatch__meta"><span class="swatch__name">verde-500</span><span class="swatch__hex">#17513F</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-verde-600)"></div><div class="swatch__meta"><span class="swatch__name">verde-600 · panel</span><span class="swatch__hex">#0B3B2E</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-verde-800)"></div><div class="swatch__meta"><span class="swatch__name">verde-800</span><span class="swatch__hex">#041712</span></div></div>
+          </div>
+
+          <h3>Cobre · acción</h3>
+          <div class="swatches">
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-cobre-50)"></div><div class="swatch__meta"><span class="swatch__name">cobre-50</span><span class="swatch__hex">#FBF0EA</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-cobre-100)"></div><div class="swatch__meta"><span class="swatch__name">cobre-100</span><span class="swatch__hex">#F5DCCD</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-cobre-300)"></div><div class="swatch__meta"><span class="swatch__name">cobre-300 · sobre verde</span><span class="swatch__hex">#E2A277</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-cobre-400)"></div><div class="swatch__meta"><span class="swatch__name">cobre-400</span><span class="swatch__hex">#D07A4C</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-cobre-500)"></div><div class="swatch__meta"><span class="swatch__name">cobre-500 · botón</span><span class="swatch__hex">#B85C33</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-cobre-600)"></div><div class="swatch__meta"><span class="swatch__name">cobre-600 · hover/link</span><span class="swatch__hex">#9A4B27</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-cobre-700)"></div><div class="swatch__meta"><span class="swatch__name">cobre-700 · active</span><span class="swatch__hex">#7C3B1E</span></div></div>
+          </div>
+
+          <h3>Neutros hueso y texto</h3>
+          <div class="swatches">
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-hueso-50)"></div><div class="swatch__meta"><span class="swatch__name">hueso-50 · fondo</span><span class="swatch__hex">#FBFAF6</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-hueso-100)"></div><div class="swatch__meta"><span class="swatch__name">hueso-100</span><span class="swatch__hex">#F5F3EC</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-hueso-200)"></div><div class="swatch__meta"><span class="swatch__name">hueso-200</span><span class="swatch__hex">#E8E5DA</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-border-strong)"></div><div class="swatch__meta"><span class="swatch__name">border-strong</span><span class="swatch__hex">#7A8C85</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-text-muted)"></div><div class="swatch__meta"><span class="swatch__name">text-muted</span><span class="swatch__hex">#54655D</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-text)"></div><div class="swatch__meta"><span class="swatch__name">text</span><span class="swatch__hex">#14201B</span></div></div>
+          </div>
+
+          <h3>Semántico</h3>
+          <div class="swatches">
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-exito-600)"></div><div class="swatch__meta"><span class="swatch__name">éxito-600</span><span class="swatch__hex">#2C6E49</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-danger-600)"></div><div class="swatch__meta"><span class="swatch__name">danger-600</span><span class="swatch__hex">#A3271F</span></div></div>
+            <div class="swatch"><div class="swatch__chip" style="background: var(--bp-info-600)"></div><div class="swatch__meta"><span class="swatch__name">info-600</span><span class="swatch__hex">#2A5C77</span></div></div>
+          </div>
+
+          <h3>Tipografía</h3>
+          <div class="spec-row" style="flex-direction: column; align-items: flex-start; gap: 0.5rem">
+            <span style="font-family: var(--bp-font-display); font-size: var(--bp-text-4xl); font-weight: 600; letter-spacing: -0.02em">Fraunces · display</span>
+            <span class="field__hint" style="margin: 0">Reclamos y títulos de pantalla. 600/700.</span>
+            <span style="font-family: var(--bp-font-sans); font-size: var(--bp-text-xl); font-weight: 600; margin-top: 0.75rem">Inter · interfaz</span>
+            <span class="field__hint" style="margin: 0">
+              Todo lo demás. 400 cuerpo · 500 etiquetas · 600 acciones · 700 énfasis. Inputs nunca
+              por debajo de 16&nbsp;px.
+            </span>
+          </div>
+
+          <h3>Botones</h3>
+          <div class="spec-row">
+            <button class="btn btn--primary">Primario</button>
+            <button class="btn btn--secondary">Secundario</button>
+            <button class="btn btn--ghost">Ghost</button>
+            <button class="btn btn--primary" aria-busy="true">
+              <span class="spinner" aria-hidden="true"></span>Cargando
+            </button>
+          </div>
+
+          <h3>Campos</h3>
+          <div class="spec-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr))">
+            <div class="field" style="margin: 0">
+              <label class="field__label" for="tk-a">Reposo</label>
+              <input class="input" id="tk-a" placeholder="Escribe aquí" />
+            </div>
+            <div class="field" style="margin: 0">
+              <label class="field__label" for="tk-b">Error</label>
+              <input class="input" id="tk-b" aria-invalid="true" value="valor" />
+              <span class="field__error">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v6M12 16.5v.01" /></svg>
+                Mensaje de validación
+              </span>
+            </div>
+            <div class="field" style="margin: 0">
+              <label class="field__label" for="tk-c">Deshabilitado</label>
+              <input class="input" id="tk-c" value="No editable" disabled />
+            </div>
+          </div>
+
+          <h3>Alertas (RFC 7807 → UI)</h3>
+          <div style="max-width: 620px">
+            <div class="alert alert--error" role="alert">
+              <svg class="alert__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v6M12 16.5v.01" /></svg>
+              <span><strong class="alert__title">Error</strong>Mapea <code>title</code> + <code>detail</code> del ProblemDetails.</span>
+            </div>
+            <div class="alert alert--info">
+              <svg class="alert__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 16v-5M12 8v.01" /></svg>
+              <span><strong class="alert__title">Información</strong>Contexto neutro, sin bloquear la acción.</span>
+            </div>
+            <div class="alert alert--success">
+              <svg class="alert__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+              <span><strong class="alert__title">Éxito</strong>Verde más saturado que el de marca, para no confundir estado con identidad.</span>
+            </div>
+          </div>
+
+          <h3>Geometría y foco</h3>
+          <div class="spec-row">
+            <div>
+              <div style="width: 90px; height: 54px; background: var(--bp-hueso-200); border-radius: var(--bp-radius-sm)"></div>
+              <span class="field__hint">sm · 6px</span>
+            </div>
+            <div>
+              <div style="width: 90px; height: 54px; background: var(--bp-hueso-200); border-radius: var(--bp-radius-md)"></div>
+              <span class="field__hint">md · 10px · controles</span>
+            </div>
+            <div>
+              <div style="width: 90px; height: 54px; background: var(--bp-hueso-200); border-radius: var(--bp-radius-lg)"></div>
+              <span class="field__hint">lg · 16px · tarjetas</span>
+            </div>
+            <div>
+              <div style="width: 90px; height: 54px; background: var(--bp-surface); border: 1.5px solid var(--bp-cobre-500); border-radius: var(--bp-radius-md); box-shadow: var(--bp-focus-ring)"></div>
+              <span class="field__hint">anillo de foco</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const stage = document.getElementById('stage');
+        const screens = document.querySelectorAll('.screen');
+
+        function show(name) {
+          screens.forEach((s) => (s.hidden = s.id !== 'screen-' + name));
+          document.querySelectorAll('.mock-tab[data-screen]').forEach((t) => {
+            t.setAttribute('aria-selected', String(t.dataset.screen === name));
+          });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        document.querySelectorAll('.mock-tab[data-screen]').forEach((t) => {
+          t.addEventListener('click', () => show(t.dataset.screen));
+        });
+
+        document.querySelectorAll('[data-goto]').forEach((el) => {
+          el.addEventListener('click', (e) => {
+            e.preventDefault();
+            show(el.dataset.goto);
+          });
+        });
+
+        document.querySelectorAll('.mock-tab[data-viewport]').forEach((t) => {
+          t.addEventListener('click', () => {
+            stage.dataset.viewport = t.dataset.viewport;
+            document.querySelectorAll('.mock-tab[data-viewport]').forEach((o) => {
+              o.setAttribute('aria-selected', String(o === t));
+            });
+          });
+        });
+
+        document.querySelectorAll('[data-toggle-pass]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const input = document.getElementById(btn.dataset.togglePass);
+            const showing = input.type === 'text';
+            input.type = showing ? 'password' : 'text';
+            btn.textContent = showing ? 'Mostrar' : 'Ocultar';
+            btn.setAttribute('aria-pressed', String(!showing));
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -11,7 +11,8 @@ public sealed record TableSampleDto(
     string StyleName,
     decimal? AbvLow,
     decimal? AbvHigh,
-    bool NotValidForBos);
+    bool NotValidForBos,
+    string? EntryInstructions);
 
 public sealed record TableProgressDto(int Submitted, int Total);
 

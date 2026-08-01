@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 
-import type { StyleSummary } from './entry-import-api.service';
+import type { StyleSummary } from '../../core/api/catalog-api.service';
 
 // Filter-as-you-type over the BJCP catalog (T036) — plain signals, no ReactiveFormsModule/RxJS
 // needed for two local input values.

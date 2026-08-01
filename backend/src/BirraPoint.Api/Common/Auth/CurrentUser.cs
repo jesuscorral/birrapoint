@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Http;
 
 namespace BirraPoint.Api.Common.Auth;
 
-public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor, IJudgeResolver judgeResolver) : ICurrentUser
+public sealed class CurrentUser(
+    IHttpContextAccessor httpContextAccessor, IJudgeResolver judgeResolver, IOrganizerResolver organizerResolver)
+    : ICurrentUser
 {
     private ClaimsPrincipal Principal =>
         httpContextAccessor.HttpContext?.User
@@ -18,9 +20,16 @@ public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor, IJudge
 
     public string? Name => Principal.FindFirst("name")?.Value;
 
+    public string? GivenName => Principal.FindFirst("given_name")?.Value;
+
+    public string? FamilyName => Principal.FindFirst("family_name")?.Value;
+
     public IReadOnlyList<string> Roles =>
         [.. Principal.FindAll(ClaimTypes.Role).Select(claim => claim.Value)];
 
     public Task<IReadOnlyList<Judge>> GetJudgeRecordsAsync(CancellationToken ct = default) =>
         judgeResolver.ResolveAndBackfillAsync(Sub, Email, Name, ct);
+
+    public Task<Organizer> GetOrganizerAsync(CancellationToken ct = default) =>
+        organizerResolver.ResolveOrCreateAsync(Sub, Email, GivenName, FamilyName, ct);
 }

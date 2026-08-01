@@ -41,6 +41,11 @@ public sealed class CreateCompetitionCommandHandler(AppDbContext dbContext, ICur
 {
     public async Task<CompetitionDetailDto> Handle(CreateCompetitionCommand request, CancellationToken cancellationToken)
     {
+        // Resolve-or-create the caller's Organizer row (self-registration means it may not exist
+        // yet on this, its first authenticated write). CreatedByUserId below stays the source of
+        // truth for every existing ownership check; OrganizerId is additive (see Competition.cs).
+        var organizer = await currentUser.GetOrganizerAsync(cancellationToken);
+
         var competition = new Competition
         {
             Name = request.Name,
@@ -53,6 +58,7 @@ public sealed class CreateCompetitionCommandHandler(AppDbContext dbContext, ICur
             StartRegistration = request.RegistrationStart,
             EndRegistration = request.RegistrationEnd,
             CreatedByUserId = currentUser.Sub,
+            OrganizerId = organizer.Id,
         };
 
         dbContext.Competitions.Add(competition);

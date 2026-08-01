@@ -22,7 +22,23 @@ All PKs are `Guid` (v7/sequential). All entities carry `CreatedAt`/`UpdatedAt` (
 | StartRegistration | DateOnly? | optional |
 | EndRegistration | DateOnly? | optional; `>= StartRegistration` when both set (DB check constraint) |
 | State | enum `CompetitionState` | `Draft` \| `Active` \| `InEvaluation` \| `Finalized` |
-| CreatedByUserId | string | Keycloak subject of the organizer |
+| CreatedByUserId | string | Keycloak subject of the organizer; remains the source of truth for every existing ownership check (`c.CreatedByUserId == currentUser.Sub`) |
+| OrganizerId | Guid? | FK → Organizer; additive, populated going forward by `CreateCompetitionCommandHandler` only |
+
+### Organizer
+
+Account-level profile for a competition organizer; identity lives in Keycloak (Principle VII). One
+Organizer owns many Competition rows (1─\*). Resolved-or-created lazily on first authenticated
+action via `IOrganizerResolver` — unlike Judge, no row can pre-exist before that first login, since
+organizers self-register (`registrationAllowed`) rather than being invited ahead of time.
+
+| Field | Type | Constraints |
+|-------|------|-------------|
+| Id | Guid | PK |
+| KeycloakUserId | string(255) | required; unique; Keycloak subject (JWT `sub`) |
+| Email | string(320) | required; unique |
+| FirstName | string(200) | required; from JWT `given_name`, falls back to `"Organizer"` |
+| LastName | string(200) | required; from JWT `family_name`, falls back to the Keycloak subject |
 
 **State machine (FR-006, forward-only, organizer-only):**
 
@@ -76,6 +92,42 @@ Sourced from the official BJCP 2021 Style Guidelines (Spanish translation); seed
 `Features/Catalog/Data/bjcp-2021.json` (T010). Covers categories 1–34 plus the BJCP Appendix B
 local styles (X1–X5, e.g. `Italian Grape Ale`, `Catharina Sour`, `New Zealand Pilsner`).
 
+### CompetitionCategory *(organizer-defined, FR-052, wizard step 3)*
+
+Free-text grouping, chosen per competition by the organizer (e.g. "Estilos clásicos"), used to
+select which BJCP styles are allowed for that competition and how they're organized. **Not** the
+same concept as `BjcpStyle.CategoryName`/`CategoryNumber` (the BJCP taxonomy's own official
+category, e.g. "21"/"IPA") — that field is read-only catalog metadata; this entity is an
+organizer-editable allow-list container. One Competition has many CompetitionCategory rows (1─\*).
+
+| Field | Type | Constraints |
+|-------|------|-------------|
+| Id | Guid | PK |
+| CompetitionId | Guid | FK → Competition, `Cascade` delete |
+| Name | string(100) | required; **unique (CompetitionId, Name)** |
+| DisplayOrder | int | organizer-chosen ordering |
+
+### CompetitionCategoryStyle *(join, FR-052)*
+
+Assigns one BjcpStyle to one CompetitionCategory. A style can be assigned to **at most one**
+category per competition (DB-enforced) — not every BJCP style needs to be assigned; an unassigned
+style is simply not part of this competition's allow-list. `CompetitionId` is a denormalized copy
+of the owning category's competition id, needed only so the uniqueness constraint below doesn't
+require a cross-table subquery.
+
+| Field | Type | Constraints |
+|-------|------|-------------|
+| CompetitionCategoryId | Guid | PK (composite), FK → CompetitionCategory, `Cascade` delete |
+| StyleCode | string(20) | PK (composite), FK → BjcpStyle, `Restrict` delete (catalog is read-only) |
+| CompetitionId | Guid | denormalized FK → Competition, `NoAction` delete (the CompetitionCategory cascade already handles cleanup — two independent cascade paths to Competitions from this table would conflict); **unique (CompetitionId, StyleCode)** enforces "at most one category per style per competition" |
+
+Import validates the "Categoria" cell against `CompetitionCategory.Name` (import-file.md) and sets
+`BeerEntry.CompetitionCategoryId` at consolidation. It also cross-checks that the row's resolved
+style is one of that category's assigned styles via this join table (FR-053): a style that is
+BJCP-valid but not assigned to the resolved category yields `ImportRowStatus.CategoryStyleMismatch`
+instead of `Valid`. This check runs at initial parse, at the full-row edit, and at revalidation
+(see `ImportRow.Status` below).
+
 ### Participant *(brewer — never exposed to judges)*
 
 | Field | Type | Constraints |
@@ -84,6 +136,9 @@ local styles (X1–X5, e.g. `Italian Grape Ale`, `Catharina Sour`, `New Zealand 
 | CompetitionId | Guid | FK → Competition |
 | Name | string(200) | required |
 | Email | string(320) | required; **unique (CompetitionId, Email)** |
+| AcceMemberNumber | string(50)? | ACCE club membership number (import-file.md); stored as text |
+| DateOfBirth | DateOnly? | |
+| Phone | string(30)? | |
 
 ### BeerEntry *(sample)*
 
@@ -92,9 +147,19 @@ local styles (X1–X5, e.g. `Italian Grape Ale`, `Catharina Sour`, `New Zealand 
 | Id | Guid | PK |
 | CompetitionId | Guid | FK → Competition |
 | ParticipantId | Guid | FK → Participant |
-| BeerName | string(200) | required — **never serialized into judge-facing DTOs** |
+| BeerName | string(200)? | optional — the ACCE import format has no beer-name column; always null coming out of import, organizer-editable afterward. **Never serialized into judge-facing DTOs** |
 | StyleCode | string(20) | FK → BjcpStyle |
 | BlindCode | string(10) | system-generated at consolidation; **unique (CompetitionId, BlindCode)** |
+| CompetitionCategoryId | Guid? | FK → CompetitionCategory, `Restrict` delete (a category referenced by entries can't be deleted out from under them). Nullable only because entries seeded outside the Import slice predate this field; the Import consolidation flow always sets it |
+| SubmittedAt | DateTimeOffset | "Marca temporal" — when the organizer's original entry form was submitted |
+| AbvPercent | decimal(4,2) | "Grado alcohol: (%)" |
+| BrewDate | DateOnly? | "Fecha de elaboración" |
+| BottlingDate | DateOnly? | "Fecha de embotellado" |
+| Malts | string(1000)? | "Maltas utilizadas" — stored verbatim |
+| Hops | string(1000)? | "Lupulos utilizados" — stored verbatim |
+| Yeast | string(1000)? | "Levadura utilizada" — stored verbatim |
+| OtherIngredients | string(1000)? | "Otros ingredientes" — stored verbatim |
+| EntryInstructions | string(1000)? | "Instrucciones de entrada" — **judge-facing**, the one deliberate exception to BR-01/FR-019 alongside BlindCode/StyleCode |
 | NotValidForBos | bool | default false; set per FR-018 |
 
 ### EntryCollaborator
@@ -103,6 +168,9 @@ local styles (X1–X5, e.g. `Italian Grape Ale`, `Catharina Sour`, `New Zealand 
 |-------|------|-------------|
 | BeerEntryId | Guid | composite PK, FK → BeerEntry |
 | Email | string(320) | composite PK; used for COI matching (FR-017) |
+
+Not populated by the ACCE import format (no collaborators column) — used elsewhere when
+collaborators are assigned by some other means, out of Import's scope.
 
 ### ImportBatch *(slice-owned staging area, Features/Import)*
 
@@ -114,24 +182,49 @@ local styles (X1–X5, e.g. `Italian Grape Ale`, `Catharina Sour`, `New Zealand 
 
 ### ImportRow *(slice-owned staging area, Features/Import)*
 
+Mirrors the ACCE `.xlsx` column set 1:1 (import-file.md) so the Mapping & Correction screen
+operates purely off staged data before consolidation.
+
 | Field | Type | Constraints |
 |-------|------|-------------|
 | Id | Guid | PK |
 | ImportBatchId | Guid | FK → ImportBatch; **unique (ImportBatchId, RowNumber)** |
 | RowNumber | int | 1-based position among the file's data rows (excludes the header row) |
-| Status | enum `ImportRowStatus` | `Valid` \| `StyleMismatch` \| `Invalid` \| `Excluded` — the first three are parse-time outcomes (import-file.md); `Excluded` is a resolution outcome set only via the `exclude` action. `Valid` and `Excluded` never block consolidation; `StyleMismatch`/`Invalid` do (FR-011) |
+| Status | enum `ImportRowStatus` | `Valid` \| `StyleMismatch` \| `CategoryMismatch` \| `CategoryStyleMismatch` \| `Invalid` \| `Excluded` — the first five are parse-time outcomes (import-file.md; `CategoryStyleMismatch` per FR-053 — category and style each individually valid, but the style isn't assigned to that category); `Excluded` is a resolution outcome set only via `POST .../rows/{rowNumber}/exclude`. `Valid` and `Excluded` never block consolidation; the other four do (FR-011) |
 | ParticipantName | string(200)? | raw parsed cell, may be null/malformed when Status = `Invalid` |
 | ParticipantEmail | string(320)? | raw parsed cell |
-| BeerName | string(200)? | raw parsed cell |
-| StyleText | string(200)? | raw cell text as read from the file — may not match any catalog style |
-| CollaboratorsJson | jsonb | JSON array of the semicolon-split, trimmed collaborator emails |
-| ResolvedStyleCode | string(20)? | FK → BjcpStyle.Code (not DB-enforced, staging data); set at parse time when Style matched, or by the organizer via the `assign-style` resolution action |
-| ErrorMessage | string(1000)? | present for `StyleMismatch`/`Invalid`; null once resolved |
+| AcceMemberNumberText | string(50)? | raw parsed cell, stored as plain digits when the source cell was numeric |
+| DateOfBirth | DateOnly? | raw parsed cell |
+| Phone | string(30)? | raw parsed cell, stored as plain digits when the source cell was numeric |
+| CategoryText | string(200)? | raw "Categoria" cell text — may not match any of this competition's CompetitionCategory names |
+| ResolvedCompetitionCategoryId | Guid? | FK → CompetitionCategory (not DB-enforced, staging data); set at parse time when CategoryText matched, or by the organizer via the full row edit |
+| StyleText | string(200)? | raw "Estilo" cell text as read from the file — may not match any catalog style |
+| ResolvedStyleCode | string(20)? | FK → BjcpStyle.Code (not DB-enforced, staging data); set at parse time when Estilo matched, or by the organizer via the full row edit |
+| SubmittedAt | DateTimeOffset? | raw parsed "Marca temporal" cell |
+| AbvPercent | decimal(4,2)? | raw parsed "Grado alcohol: (%)" cell |
+| BrewDate | DateOnly? | raw parsed cell |
+| BottlingDate | DateOnly? | raw parsed cell |
+| Malts, Hops, Yeast, OtherIngredients, EntryInstructions | string(1000)? each | raw parsed cells |
+| BeerName | string(200)? | always null coming out of import; purely organizer-editable via the full row edit |
+| ErrorMessage | string(1000)? | present for `StyleMismatch`/`CategoryMismatch`/`Invalid`; null once resolved |
 
 These two entities are staging data only — never referenced outside the Import slice. On
-consolidation (FR-013), every `Valid` row becomes a `Participant` (deduplicated by email within
-the competition, reusing an existing row) + `BeerEntry` (with a generated unique `BlindCode`) +
-`EntryCollaborator` rows; `Excluded` rows are simply skipped.
+consolidation (FR-013), every `Valid` row becomes a `Participant` (matched by email within the
+competition — an existing row's Name/AcceMemberNumber/DateOfBirth/Phone are updated from the row,
+last-import-wins; otherwise a new row is created) + `BeerEntry` (with a generated unique
+`BlindCode` and `CompetitionCategoryId` set from `ResolvedCompetitionCategoryId`); `Excluded` rows
+are simply skipped.
+
+**Revalidation** (FR-054, `POST .../imports/{importId}/revalidate`) re-runs category/style/allow-
+list resolution for every row currently `Valid`/`StyleMismatch`/`CategoryMismatch`/
+`CategoryStyleMismatch` (a `CompetitionCategory` full-replace PUT — `SetCompetitionCategories.cs`
+— deletes and recreates rows, so a previously-resolved `CompetitionCategoryId` may now point at a
+deleted id even when a same-named category still exists). Per row: if the currently-resolved
+category id still exists it is kept, otherwise it is re-matched by the row's raw `CategoryText`;
+same for style by `ResolvedStyleCode`/`StyleText`; the two are then cross-checked against the
+current `CompetitionCategoryStyle` allow-list. `Invalid` and `Excluded` rows are skipped (their
+failure/exclusion is unrelated to category/style state). No-op (returns the batch unchanged) once
+`ImportBatch.Status` is `Consolidated`.
 
 ### Judge *(competition-scoped judge profile)*
 
@@ -291,11 +384,13 @@ Judge-facing read models are built exclusively from this projection and MUST liv
 DTO namespace (`Features/*/JudgeDtos`) that has no properties for entrant data:
 
 ```text
-JudgeSampleDto { BeerEntryId, BlindCode, StyleCode, StyleName, SequenceOrder?, EvaluationStatus }
+JudgeSampleDto { BeerEntryId, BlindCode, StyleCode, StyleName, SequenceOrder?, EvaluationStatus, EntryInstructions? }
 ```
 
 `BeerName`, `Participant.*`, `EntryCollaborator.*` are never referenced by any judge-facing
-query. Contract tests assert the serialized payloads contain none of these fields.
+query. `EntryInstructions` is the one deliberate exception to this boundary (import-file.md) —
+free text the organizer enters per entry, alongside BlindCode/StyleCode. Contract tests assert the
+serialized payloads contain none of the entrant fields, while still surfacing EntryInstructions.
 
 ## Client-side stores (Dexie / IndexedDB — R-08)
 
@@ -310,7 +405,9 @@ the UI surfaces via the offline badge (FR-027).
 ## Relationship overview
 
 ```text
+Organizer 1─* Competition (OrganizerId, additive alongside the existing CreatedByUserId claim check)
 Competition 1─* Participant 1─* BeerEntry *─1 BjcpStyle
+Competition 1─* CompetitionCategory 1─* CompetitionCategoryStyle *─1 BjcpStyle (style in ≤1 category per competition)
 Competition 1─* ImportBatch 1─* ImportRow (staging; consolidates into Participant/BeerEntry/EntryCollaborator)
 Competition 1─* Judge 1─* Invitation
 Competition 1─* TastingTable 1─* TableJudge *─1 Judge

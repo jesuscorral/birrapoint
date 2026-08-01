@@ -51,6 +51,24 @@ public static class CompetitionsEndpoints
         .Produces<ChangeCompetitionStateResult>()
         .Produces(StatusCodes.Status404NotFound);
 
+        group.MapGet("/{id:guid}/categories", async (Guid id, ISender sender, CancellationToken cancellationToken) =>
+        {
+            var result = await sender.Send(new GetCompetitionCategoriesQuery(id), cancellationToken);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        })
+        .WithName("GetCompetitionCategories")
+        .Produces<CompetitionCategoriesDto>()
+        .Produces(StatusCodes.Status404NotFound);
+
+        group.MapPut("/{id:guid}/categories", async (Guid id, SetCompetitionCategoriesCommand command, ISender sender, CancellationToken cancellationToken) =>
+        {
+            var result = await sender.Send(command with { CompetitionId = id }, cancellationToken);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        })
+        .WithName("SetCompetitionCategories")
+        .Produces<CompetitionCategoriesDto>()
+        .Produces(StatusCodes.Status404NotFound);
+
         return endpoints;
     }
 }

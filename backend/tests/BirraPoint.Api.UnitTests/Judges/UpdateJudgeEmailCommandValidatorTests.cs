@@ -27,8 +27,12 @@ public sealed class UpdateJudgeEmailCommandValidatorTests
         public string Sub => throw new InvalidOperationException("Not expected to be called.");
         public string? Email => throw new InvalidOperationException("Not expected to be called.");
         public string? Name => throw new InvalidOperationException("Not expected to be called.");
+        public string? GivenName => throw new InvalidOperationException("Not expected to be called.");
+        public string? FamilyName => throw new InvalidOperationException("Not expected to be called.");
         public IReadOnlyList<string> Roles => throw new InvalidOperationException("Not expected to be called.");
         public Task<IReadOnlyList<Judge>> GetJudgeRecordsAsync(CancellationToken ct = default) =>
+            throw new InvalidOperationException("Not expected to be called.");
+        public Task<Organizer> GetOrganizerAsync(CancellationToken ct = default) =>
             throw new InvalidOperationException("Not expected to be called.");
     }
 

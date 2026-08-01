@@ -1,4 +1,3 @@
-using System.Text.Json;
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
@@ -45,7 +44,8 @@ public sealed class ConsolidateImportCommandHandler(AppDbContext dbContext, ICur
         }
 
         var unresolvedRowNumbers = batch.Rows
-            .Where(row => row.Status is ImportRowStatus.StyleMismatch or ImportRowStatus.Invalid)
+            .Where(row => row.Status is ImportRowStatus.StyleMismatch or ImportRowStatus.CategoryMismatch
+                or ImportRowStatus.CategoryStyleMismatch or ImportRowStatus.Invalid)
             .Select(row => row.RowNumber)
             .OrderBy(rowNumber => rowNumber)
             .ToList();
@@ -73,13 +73,25 @@ public sealed class ConsolidateImportCommandHandler(AppDbContext dbContext, ICur
 
         foreach (var row in batch.Rows.Where(r => r.Status == ImportRowStatus.Valid).OrderBy(r => r.RowNumber))
         {
-            if (!participantsByEmail.TryGetValue(row.ParticipantEmail!, out var participant))
+            if (participantsByEmail.TryGetValue(row.ParticipantEmail!, out var participant))
+            {
+                // Last-import-wins within this competition (still per-competition scoped — a
+                // different competition's Participant row for the same email is untouched).
+                participant.Name = row.ParticipantName!;
+                participant.AcceMemberNumber = row.AcceMemberNumberText;
+                participant.DateOfBirth = row.DateOfBirth;
+                participant.Phone = row.Phone;
+            }
+            else
             {
                 participant = new Participant
                 {
                     CompetitionId = competition.Id,
                     Name = row.ParticipantName!,
                     Email = row.ParticipantEmail!,
+                    AcceMemberNumber = row.AcceMemberNumberText,
+                    DateOfBirth = row.DateOfBirth,
+                    Phone = row.Phone,
                 };
                 dbContext.Participants.Add(participant);
                 participantsByEmail[row.ParticipantEmail!] = participant;
@@ -91,16 +103,20 @@ public sealed class ConsolidateImportCommandHandler(AppDbContext dbContext, ICur
             {
                 CompetitionId = competition.Id,
                 ParticipantId = participant.Id,
-                BeerName = row.BeerName!,
+                BeerName = row.BeerName,
                 StyleCode = row.ResolvedStyleCode!,
                 BlindCode = blindCode,
+                CompetitionCategoryId = row.ResolvedCompetitionCategoryId!.Value,
+                SubmittedAt = row.SubmittedAt!.Value,
+                AbvPercent = row.AbvPercent!.Value,
+                BrewDate = row.BrewDate,
+                BottlingDate = row.BottlingDate,
+                Malts = row.Malts,
+                Hops = row.Hops,
+                Yeast = row.Yeast,
+                OtherIngredients = row.OtherIngredients,
+                EntryInstructions = row.EntryInstructions,
             };
-
-            var collaboratorEmails = JsonSerializer.Deserialize<List<string>>(row.CollaboratorsJson) ?? [];
-            foreach (var email in collaboratorEmails)
-            {
-                entry.Collaborators.Add(new EntryCollaborator { BeerEntryId = entry.Id, Email = email });
-            }
 
             dbContext.BeerEntries.Add(entry);
             createdEntries.Add(new ConsolidatedEntryDto(entry.Id, entry.BlindCode, entry.StyleCode));

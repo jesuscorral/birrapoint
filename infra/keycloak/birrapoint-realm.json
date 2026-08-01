@@ -2,16 +2,36 @@
   "realm": "birrapoint",
   "enabled": true,
   "displayName": "BirraPoint",
-  "registrationAllowed": false,
-  "resetPasswordAllowed": false,
+  "registrationAllowed": true,
+  "resetPasswordAllowed": true,
   "loginWithEmailAllowed": true,
+  "registrationEmailAsUsername": true,
   "duplicateEmailsAllowed": false,
   "sslRequired": "external",
+  "loginTheme": "birrapoint",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["es", "en"],
+  "defaultLocale": "es",
   "roles": {
     "realm": [
       { "name": "ORGANIZER", "description": "Competition organizer" },
-      { "name": "JUDGE", "description": "Tasting judge" }
+      { "name": "JUDGE", "description": "Tasting judge" },
+      {
+        "name": "default-roles-birrapoint",
+        "description": "Default roles granted to every new user in this realm — includes ORGANIZER so self-registration (registrationAllowed above) always produces an organizer account, matching the product decision that this registration form is organizer-only (judges are invited by an organizer instead, never self-register).",
+        "composite": true,
+        "clientRole": false,
+        "composites": {
+          "realm": ["ORGANIZER", "offline_access"]
+        }
+      }
     ]
+  },
+  "defaultRole": {
+    "name": "default-roles-birrapoint",
+    "description": "Default roles for realm birrapoint",
+    "composite": true,
+    "clientRole": false
   },
   "clients": [
     {

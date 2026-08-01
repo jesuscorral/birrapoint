@@ -3,8 +3,6 @@ using Microsoft.AspNetCore.Http;
 
 namespace BirraPoint.Api.Features.Import;
 
-public sealed record ResolveRowRequest(string Action, string? StyleCode);
-
 /// <summary>Maps every Entry Import endpoint (contracts/rest-api.md §Entry Import, T035) — ORGANIZER-only.</summary>
 public static class ImportEndpoints
 {
@@ -35,16 +33,35 @@ public static class ImportEndpoints
         .Produces<ImportBatchDto>()
         .Produces(StatusCodes.Status404NotFound);
 
-        group.MapPut("/{importId:guid}/rows/{rowNumber:int}", async (
-            Guid competitionId, Guid importId, int rowNumber, ResolveRowRequest request, ISender sender, CancellationToken cancellationToken) =>
+        group.MapPost("/{importId:guid}/revalidate", async (Guid competitionId, Guid importId, ISender sender, CancellationToken cancellationToken) =>
         {
-            var command = new ResolveRowCommand(competitionId, importId, rowNumber, request.Action, request.StyleCode);
+            var result = await sender.Send(new RevalidateImportCommand(competitionId, importId), cancellationToken);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        })
+        .WithName("RevalidateImport")
+        .Produces<ImportBatchDto>()
+        .Produces(StatusCodes.Status404NotFound);
+
+        group.MapPut("/{importId:guid}/rows/{rowNumber:int}", async (
+            Guid competitionId, Guid importId, int rowNumber, EditImportRowRequest request, ISender sender, CancellationToken cancellationToken) =>
+        {
+            var command = new EditImportRowCommand(competitionId, importId, rowNumber, request);
             var result = await sender.Send(command, cancellationToken);
             return result is null ? Results.NotFound() : Results.Ok(result);
         })
-        .WithName("ResolveImportRow")
+        .WithName("EditImportRow")
         .Produces<ImportRowDto>()
         .Produces(StatusCodes.Status400BadRequest)
+        .Produces(StatusCodes.Status404NotFound);
+
+        group.MapPost("/{importId:guid}/rows/{rowNumber:int}/exclude", async (
+            Guid competitionId, Guid importId, int rowNumber, ISender sender, CancellationToken cancellationToken) =>
+        {
+            var result = await sender.Send(new ExcludeImportRowCommand(competitionId, importId, rowNumber), cancellationToken);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        })
+        .WithName("ExcludeImportRow")
+        .Produces<ImportRowDto>()
         .Produces(StatusCodes.Status404NotFound);
 
         group.MapPost("/{importId:guid}/consolidate", async (Guid competitionId, Guid importId, ISender sender, CancellationToken cancellationToken) =>

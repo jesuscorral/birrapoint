@@ -19,9 +19,13 @@ public sealed class AuditWriterTests(PostgresFixture fixture) : IClassFixture<Po
         public string Sub { get; } = sub;
         public string? Email => null;
         public string? Name => null;
+        public string? GivenName => null;
+        public string? FamilyName => null;
         public IReadOnlyList<string> Roles => [];
         public Task<IReadOnlyList<Judge>> GetJudgeRecordsAsync(CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<Judge>>([]);
+        public Task<Organizer> GetOrganizerAsync(CancellationToken ct = default) =>
+            throw new InvalidOperationException("Not expected to be called.");
     }
 
     private AppDbContext NewContext() => new(fixture.Options);

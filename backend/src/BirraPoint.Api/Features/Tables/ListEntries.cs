@@ -14,7 +14,7 @@ public sealed record EntryDto(
     string StyleName,
     decimal? AbvLow,
     decimal? AbvHigh,
-    string BeerName,
+    string? BeerName,
     bool NotValidForBos,
     Guid? TastingTableId,
     string? TastingTableName);

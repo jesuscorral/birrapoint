@@ -15,11 +15,11 @@ function hasRealmRole(authData: AuthGuardData, role: string): boolean {
   return authData.grantedRoles.realmRoles.includes(role);
 }
 
-// `login-required` (keycloak.providers.ts) already forces authentication before any route
-// activates, so these only need to branch on role, not on `authData.authenticated`. A mismatch
-// redirects to the caller's own role landing (e.g. a JUDGE hitting /organizer/** lands on
-// /judge/tables, not just root) via resolveRoleLandingUrlTree; only a caller with neither role
-// falls back to root.
+// `onLoad: 'check-sso'` (keycloak.providers.ts) doesn't force authentication, so an anonymous
+// caller hitting /organizer/** or /judge/** directly falls through to root (WelcomeComponent, the
+// public login/register landing) via the same resolveRoleLandingUrlTree(authData) || parseUrl('/')
+// fallback used for an authenticated mismatch (e.g. a JUDGE hitting /organizer/** lands on
+// /judge/tables, not just root); only an authenticated caller with neither role reaches root.
 export async function isOrganizerAllowed(
   _route: ActivatedRouteSnapshot,
   _state: RouterStateSnapshot,

@@ -1,2 +1,56 @@
 /* Tailwind CSS (v4, PostCSS plugin — see .postcssrc.json) */
 @import 'tailwindcss';
+
+/* Botella y cobre design tokens. Colors live under @theme so Tailwind generates the matching
+   bg-bp, text-bp, border-bp and ring-bp utilities used across shared/components and features/auth;
+   both @theme and :root compile to real CSS custom properties, so var(--color-bp-...) in component
+   styles resolves the same way either way. */
+@theme {
+  --color-bp-cobre-50: #fbf3ec;
+  --color-bp-cobre-100: #f5e0cd;
+  --color-bp-cobre-300: #e2a277;
+  --color-bp-cobre-400: #d4915f;
+  --color-bp-cobre-500: #d07a4c;
+  --color-bp-cobre-600: #b85c33;
+  --color-bp-cobre-700: #9a4b27;
+
+  --color-bp-verde-50: #eaf2ee;
+  --color-bp-verde-100: #dfece5;
+  --color-bp-verde-400: #6fae91;
+  --color-bp-verde-500: #3f8768;
+  --color-bp-verde-600: #2e6b57;
+  --color-bp-verde-800: #17352a;
+
+  --color-bp-hueso-50: #faf8f3;
+  --color-bp-hueso-100: #f2ede4;
+
+  --color-bp-danger-50: #fdf1ef;
+  --color-bp-danger-600: #a3271f;
+
+  --color-bp-exito-50: #eef6f0;
+  --color-bp-exito-600: #2e6b57;
+  --color-bp-info-50: #eef4f7;
+  --color-bp-info-600: #2c5f7a;
+
+  --color-bp-surface: #ffffff;
+  --color-bp-border: #e2ddd3;
+  --color-bp-border-strong: #c7bfae;
+
+  --color-bp-text: #1f2320;
+  --color-bp-text-muted: #5b655f;
+  --color-bp-text-subtle: #8a8f8a;
+  --color-bp-text-on-dark: #fbfaf6;
+}
+
+:root {
+  --radius-full: 9999px;
+
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-5: 1.25rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+  --spacing-10: 2.5rem;
+  --spacing-12: 3rem;
+}

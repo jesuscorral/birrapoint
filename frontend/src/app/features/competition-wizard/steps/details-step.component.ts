@@ -16,6 +16,10 @@ import type {
   CompetitionDetail,
   CompetitionPayload,
 } from '../../../core/api/competitions-api.service';
+import { BpButtonComponent } from '../../../shared/components/bp-button/bp-button.component';
+import { BpInputComponent } from '../../../shared/components/bp-input/bp-input.component';
+import { BpTextareaComponent } from '../../../shared/components/bp-textarea/bp-textarea.component';
+import { BpAlertComponent } from '../../../shared/components/bp-alert/bp-alert.component';
 
 function registrationEndNotBeforeStart(group: AbstractControl): ValidationErrors | null {
   const start = group.get('registrationStart')?.value as string;
@@ -43,70 +47,135 @@ function toGenericApiError(error: unknown): ApiError {
     : new ApiError({ status: 0, title: 'An unexpected error occurred.', urn: null });
 }
 
-const SAVED_CONFIRMATION_MS = 3000;
-
 @Component({
   selector: 'app-details-step',
-  imports: [ReactiveFormsModule],
+  imports: [
+    ReactiveFormsModule,
+    BpButtonComponent,
+    BpInputComponent,
+    BpTextareaComponent,
+    BpAlertComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <p class="step-lead">
+      Todo esto es opcional y puedes volver a editarlo cuando quieras mientras la competición esté
+      en borrador.
+    </p>
+
     <form [formGroup]="form" (ngSubmit)="onSaveDraft()">
-      <label>
-        Description
-        <textarea formControlName="description"></textarea>
-      </label>
-      @if (fieldError('description'); as message) {
-        <p role="alert">{{ message }}</p>
-      }
+      <bp-textarea
+        id="details-description"
+        label="Descripción"
+        formControlName="description"
+        placeholder="Cuéntale a jueces y participantes de qué va esta competición…"
+        [hasError]="!!fieldError('description')"
+        [errorMessage]="fieldError('description') || ''"
+      ></bp-textarea>
 
-      <label>
-        Logo URL
-        <input type="text" formControlName="logoUrl" />
-      </label>
-      @if (fieldError('logoUrl'); as message) {
-        <p role="alert">{{ message }}</p>
-      }
+      <bp-input
+        id="details-logo"
+        label="URL del logo"
+        type="url"
+        formControlName="logoUrl"
+        placeholder="https://…"
+        [hasError]="!!fieldError('logoUrl')"
+        [errorMessage]="fieldError('logoUrl') || ''"
+      ></bp-input>
 
-      <label>
-        Entry limit
-        <input type="number" formControlName="entryLimit" />
-      </label>
-      @if (fieldError('entryLimit'); as message) {
-        <p role="alert">{{ message }}</p>
-      }
-      @if (form.controls.entryLimit.errors?.['min']) {
-        <p role="alert">Entry limit must be greater than zero.</p>
-      }
+      <bp-input
+        id="details-entry-limit"
+        label="Límite de inscripciones"
+        type="number"
+        [min]="1"
+        formControlName="entryLimit"
+        placeholder="Sin límite"
+        hint="Deja en blanco si no quieres poner tope."
+        [hasError]="!!fieldError('entryLimit') || !!form.controls.entryLimit.errors?.['min']"
+        [errorMessage]="
+          fieldError('entryLimit') ||
+          (form.controls.entryLimit.errors?.['min'] ? 'Debe ser mayor que cero.' : '')
+        "
+      ></bp-input>
 
-      <label>
-        Registration start
-        <input type="date" formControlName="registrationStart" />
-      </label>
-      @if (fieldError('registrationStart'); as message) {
-        <p role="alert">{{ message }}</p>
-      }
+      <div class="field-row">
+        <bp-input
+          id="details-reg-start"
+          label="Inicio de inscripciones"
+          type="date"
+          formControlName="registrationStart"
+          [hasError]="!!fieldError('registrationStart')"
+          [errorMessage]="fieldError('registrationStart') || ''"
+        ></bp-input>
 
-      <label>
-        Registration end
-        <input type="date" formControlName="registrationEnd" />
-      </label>
-      @if (fieldError('registrationEnd'); as message) {
-        <p role="alert">{{ message }}</p>
-      }
-      @if (form.errors?.['registrationEndBeforeStart']) {
-        <p role="alert">Registration end must be on or after registration start.</p>
-      }
+        <bp-input
+          id="details-reg-end"
+          label="Fin de inscripciones"
+          type="date"
+          formControlName="registrationEnd"
+          [hasError]="
+            !!fieldError('registrationEnd') || form.errors?.['registrationEndBeforeStart']
+          "
+          [errorMessage]="
+            fieldError('registrationEnd') ||
+            (form.errors?.['registrationEndBeforeStart']
+              ? 'Debe ser igual o posterior al inicio de inscripciones.'
+              : '')
+          "
+        ></bp-input>
+      </div>
 
       @if (bannerError(); as message) {
-        <p role="alert">{{ message }}</p>
-      }
-      @if (savedConfirmation()) {
-        <p>Saved</p>
+        <bp-alert type="error" title="No hemos podido guardar">{{ message }}</bp-alert>
       }
 
-      <button type="submit" [disabled]="form.invalid || submitting()">Save Draft</button>
+      <div class="step-actions">
+        <bp-button
+          type="button"
+          label="← Volver"
+          variant="ghost"
+          (onClick)="back.emit()"
+        ></bp-button>
+        <bp-button
+          type="submit"
+          label="Guardar borrador"
+          variant="primary"
+          [loading]="submitting()"
+          [disabled]="form.invalid"
+        ></bp-button>
+      </div>
     </form>
   `,
+  styles: [
+    `
+      .step-lead {
+        margin: 0 0 var(--spacing-6);
+        color: var(--color-bp-text-muted);
+        font-size: 0.9375rem;
+      }
+
+      .field-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--spacing-4);
+      }
+
+      @media (max-width: 480px) {
+        .field-row {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .step-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: var(--spacing-6);
+        padding-top: var(--spacing-6);
+        border-top: 1px solid var(--color-bp-border);
+      }
+    `,
+  ],
 })
 export class DetailsStepComponent {
   private readonly api = inject(CompetitionsApiService);
@@ -114,6 +183,7 @@ export class DetailsStepComponent {
   readonly competitionId = input.required<string>();
   readonly initialValue = input<CompetitionDetail | null>(null);
   readonly saved = output<CompetitionDetail>();
+  readonly back = output<void>();
 
   protected readonly form = new FormGroup(
     {
@@ -128,7 +198,6 @@ export class DetailsStepComponent {
 
   protected readonly submitting = signal(false);
   protected readonly apiError = signal<ApiError | null>(null);
-  protected readonly savedConfirmation = signal(false);
 
   constructor() {
     effect(() => {
@@ -164,7 +233,6 @@ export class DetailsStepComponent {
 
     this.submitting.set(true);
     this.apiError.set(null);
-    this.savedConfirmation.set(false);
 
     const raw = this.form.getRawValue();
     const payload: CompetitionPayload = {
@@ -179,9 +247,7 @@ export class DetailsStepComponent {
     this.api.update(this.competitionId(), payload).subscribe({
       next: (detail) => {
         this.submitting.set(false);
-        this.savedConfirmation.set(true);
         this.saved.emit(detail);
-        setTimeout(() => this.savedConfirmation.set(false), SAVED_CONFIRMATION_MS);
       },
       error: (error: unknown) => {
         this.submitting.set(false);

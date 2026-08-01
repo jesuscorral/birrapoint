@@ -73,7 +73,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     }
 
     private async Task<Guid> SeedBeerEntryAsync(
-        Guid competitionId, Guid participantId, string beerName, string styleCode = StyleCodeApa)
+        Guid competitionId, Guid participantId, string beerName, string styleCode = StyleCodeApa, string? entryInstructions = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -84,6 +84,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
             BeerName = beerName,
             StyleCode = styleCode,
             BlindCode = NewBlindCode(),
+            EntryInstructions = entryInstructions,
         };
         db.BeerEntries.Add(entry);
         await db.SaveChangesAsync();
@@ -281,6 +282,35 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
         {
             Assert.DoesNotContain(forbidden, lowered);
         }
+    }
+
+    /// <summary>EntryInstructions is the one deliberate exception to BR-01/FR-019 (alongside
+    /// BlindCode/StyleCode) — this asserts it round-trips to the judge, unlike every entrant field
+    /// asserted absent above.</summary>
+    [Fact]
+    public async Task GetTableSamples_includes_EntryInstructions_since_it_is_judge_facing_by_design()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+        await TransitionStateAsync(organizer, competitionId, "Active");
+        var tableId = await SeedTableAsync(competitionId, $"Table {Guid.NewGuid():N}");
+
+        var judgeSub = $"judge-{Guid.NewGuid():N}";
+        var judgeId = await SeedJudgeAsync(competitionId, $"{judgeSub}@brew.example", judgeSub);
+        await SeedTableJudgeAsync(tableId, judgeId);
+
+        var participantId = await SeedParticipantAsync(competitionId, "Brewer", $"brewer-{Guid.NewGuid():N}@brew.example");
+        var entryId = await SeedBeerEntryAsync(
+            competitionId, participantId, "Secret Beer", entryInstructions: "Serve at cellar temperature.");
+        await SeedTableSampleAsync(tableId, entryId);
+
+        using var judge = JudgeClient(judgeSub);
+        var response = await GetTableSamplesAsync(judge, tableId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var sample = Assert.Single(document.RootElement.EnumerateArray());
+        Assert.Equal("Serve at cellar temperature.", sample.GetProperty("entryInstructions").GetString());
     }
 
     // ---- POST /me/tables/{tableId}/order -----------------------------------------------------------
