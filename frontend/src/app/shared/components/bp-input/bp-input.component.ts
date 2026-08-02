@@ -235,9 +235,7 @@ export class BpInputComponent implements ControlValueAccessor {
 
   showPassword = false;
 
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
   private onChange: (value: string) => void = () => {};
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
   private onTouched: () => void = () => {};
 
   onInput(event: Event): void {

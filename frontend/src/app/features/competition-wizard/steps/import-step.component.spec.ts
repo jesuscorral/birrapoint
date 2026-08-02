@@ -446,6 +446,17 @@ describe('ImportStepComponent', () => {
     expect(fixture.nativeElement.querySelector('.existing-entries')).toBeFalsy();
   });
 
+  it('still loads categories/styles and shows the upload form when the already-imported check fails, with a warning instead of silently looking like "nothing imported"', () => {
+    fakeEntriesApi.getEntries.mockReturnValue(throwError(() => new Error('boom')));
+    const fixture = createComponent();
+
+    expect(fixture.nativeElement.querySelector('input[type="file"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.existing-entries')).toBeFalsy();
+    expect(fixture.nativeElement.textContent).toContain(
+      'No hemos podido comprobar cervezas ya importadas',
+    );
+  });
+
   it('emits importIdChange with the new batch id after a successful upload', () => {
     fakeImportApi.upload.mockReturnValue(of(batchFixture([rowFixture({ rowNumber: 1 })])));
     const fixture = createComponent();

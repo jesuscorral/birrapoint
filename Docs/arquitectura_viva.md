@@ -661,9 +661,12 @@ and the audit drill-down still shows judge A's earlier submitted total.
   and `JudgeTableSummaryDto` structurally carry no entrant-identifying field, and a contract test
   asserts the serialized wire payload directly, not just the DTO's declared members. The one
   deliberate exception (ADR-0011 point 6, formalized in spec.md FR-019 as of Session 2026-08-02) is
-  `EntryInstructions`: organizer-reviewed, entrant-authored serving/tasting guidance some BJCP
-  styles need, added later by the ACCE-import fold — `BeerName` and every `Participant.*` field
-  remain permanently excluded. `JudgeTableAccess`
+  `EntryInstructions`: entrant-authored serving/tasting guidance some BJCP styles need, added later
+  by the ACCE-import fold. The organizer *can* review/edit/clear it per row during import/
+  consolidation (`import-step.component.ts`'s row editor) — that's an available capability, not a
+  gate consolidation is blocked on, so its absence from a row's summary view is a known, tracked
+  gap (Recorded debt below), not an oversight. `BeerName` and every `Participant.*` field remain
+  permanently excluded. `JudgeTableAccess`
   (shared, all three handlers use it) resolves active table membership off `ICurrentUser.
   GetJudgeRecordsAsync()`'s backfilled Judge rows rather than re-deriving the sub/email match
   `CompetitionHub.JoinTable` does inline. `GetTableSamples` derives `evaluationStatus` (`NotStarted`
@@ -1648,6 +1651,17 @@ safety-net poll — no new retry mechanism, just reuse of what T016 already buil
 
 ## Recorded debt / immediate next steps
 
+- **New (2026-08-02, senior-code-reviewer on PR #29)**: FR-019's `EntryInstructions` judge-
+  visibility exception is conditioned on the organizer being able to review/edit/clear that text —
+  but the wizard's import-step row summary (`import-step.component.ts`) doesn't show
+  `entryInstructions` at all, and `onConsolidate` only gates on `unresolvedCount() > 0`, so a batch
+  of all-`Valid` rows can consolidate without any row ever being opened for edit. Spec wording
+  amended (Session 2026-08-02) to describe this as an available capability rather than a performed
+  or enforced review, closing the immediate spec/code mismatch — but the underlying gap (nothing
+  nudges the organizer to actually look at this field) is real and un-fixed. Two options on the
+  table, neither picked yet: surface `entryInstructions` in the row summary so it's seen by
+  default, or add a lightweight consolidation-time prompt when any row has non-empty
+  `entryInstructions`.
 - **Resolved 2026-07-29**: the `Organizer` table/`Competition.OrganizerId` FK
   (`Domain/Organizer.cs`, `OrganizerResolver`, `data-model.md`) now has its EF Core migration
   (`Migrations/20260729154727_AddOrganizers.cs`) — generated, applied against a real Postgres via

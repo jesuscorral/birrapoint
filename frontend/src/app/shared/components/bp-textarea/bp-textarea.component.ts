@@ -186,9 +186,7 @@ export class BpTextareaComponent implements ControlValueAccessor {
 
   readonly valueChange = output<string>();
 
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
   private onChange: (value: string) => void = () => {};
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
   private onTouched: () => void = () => {};
 
   onInput(event: Event): void {

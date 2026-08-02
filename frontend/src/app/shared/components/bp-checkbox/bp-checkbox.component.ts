@@ -98,9 +98,7 @@ export class BpCheckboxComponent implements ControlValueAccessor {
   // (a bare `change` collides with the native DOM event name).
   readonly checkedChange = output<boolean>();
 
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
   private onChangeCallback: (value: boolean) => void = () => {};
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
   private onTouchedCallback: () => void = () => {};
 
   onChange(event: Event): void {
