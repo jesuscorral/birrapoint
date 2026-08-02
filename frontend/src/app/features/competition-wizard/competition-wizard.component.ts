@@ -1,9 +1,11 @@
+import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Location } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
 import type { CompetitionDetail } from '../../core/api/competitions-api.service';
+import { BpButtonComponent } from '../../shared/components/bp-button/bp-button.component';
 import { BpTopbarComponent } from '../../shared/components/bp-topbar/bp-topbar.component';
 import { BasicsStepComponent } from './steps/basics-step.component';
 import { CategoriesStepComponent } from './steps/categories-step.component';
@@ -14,6 +16,8 @@ import { ImportStepComponent } from './steps/import-step.component';
   selector: 'app-competition-wizard',
   imports: [
     BpTopbarComponent,
+    BpButtonComponent,
+    CdkTrapFocus,
     BasicsStepComponent,
     DetailsStepComponent,
     CategoriesStepComponent,
@@ -163,6 +167,7 @@ import { ImportStepComponent } from './steps/import-step.component';
                     [competitionId]="competitionId()"
                     [initialValue]="competition()"
                     (saved)="onBasicsSaved($event)"
+                    (dirtyChange)="stepDirty.set($event)"
                   />
                 }
                 @case (2) {
@@ -171,6 +176,7 @@ import { ImportStepComponent } from './steps/import-step.component';
                     [initialValue]="competition()"
                     (saved)="onDetailsSaved($event)"
                     (back)="onBack()"
+                    (dirtyChange)="stepDirty.set($event)"
                   />
                 }
                 @case (3) {
@@ -178,6 +184,7 @@ import { ImportStepComponent } from './steps/import-step.component';
                     [competitionId]="competitionId()!"
                     (saved)="onCategoriesSaved()"
                     (back)="onBack()"
+                    (dirtyChange)="stepDirty.set($event)"
                   />
                 }
                 @case (4) {
@@ -186,6 +193,7 @@ import { ImportStepComponent } from './steps/import-step.component';
                     [importId]="importId()"
                     (importIdChange)="importId.set($event)"
                     (back)="onBack()"
+                    (dirtyChange)="stepDirty.set($event)"
                   />
                 }
               }
@@ -194,6 +202,38 @@ import { ImportStepComponent } from './steps/import-step.component';
         </div>
       </main>
     </div>
+
+    @if (pendingStep() !== null) {
+      <div class="modal-backdrop" role="presentation" (click)="onKeepEditing()">
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-label="Cambios sin guardar"
+          class="modal-panel"
+          cdkTrapFocus
+          cdkTrapFocusAutoCapture
+          (click)="$event.stopPropagation()"
+          (keydown.escape)="onKeepEditing()"
+        >
+          <h2>Cambios sin guardar</h2>
+          <p>Este paso tiene cambios que no se han guardado. Si continúas, se perderán.</p>
+          <div class="modal-actions">
+            <bp-button
+              type="button"
+              label="Seguir editando"
+              variant="primary"
+              (onClick)="onKeepEditing()"
+            ></bp-button>
+            <bp-button
+              type="button"
+              label="Descartar y continuar"
+              variant="secondary"
+              (onClick)="onDiscardAndNavigate()"
+            ></bp-button>
+          </div>
+        </div>
+      </div>
+    }
   `,
   styles: [
     `
@@ -347,6 +387,44 @@ import { ImportStepComponent } from './steps/import-step.component';
         text-align: center;
         padding: var(--spacing-8) 0;
       }
+
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(4, 23, 18, 0.45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: var(--spacing-4);
+        z-index: 10;
+      }
+
+      .modal-panel {
+        background: var(--color-bp-surface);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-lg);
+        padding: var(--spacing-6);
+        max-width: 26rem;
+      }
+
+      .modal-panel h2 {
+        font-family: 'Fraunces', serif;
+        font-size: 1.25rem;
+        margin: 0 0 var(--spacing-3);
+        color: var(--color-bp-text);
+      }
+
+      .modal-panel p {
+        color: var(--color-bp-text-muted);
+        margin: 0 0 var(--spacing-4);
+      }
+
+      .modal-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--spacing-3);
+        margin-top: var(--spacing-6);
+      }
     `,
   ],
 })
@@ -365,6 +443,14 @@ export class CompetitionWizardComponent {
   // thing that survives a step-4 -> step-3 -> step-4 round trip (e.g. to fix a category/style
   // assignment) so the import step can revalidate its pending batch instead of losing it.
   protected readonly importId = signal<string | null>(null);
+  // FR-007: the currently-mounted step's own notion of "has unsaved edits", reported via its
+  // dirtyChange output. Read by attemptNavigate() before a Back/stepper jump actually switches
+  // currentStep — @switch destroys the leaving step's instance immediately, so this is the only
+  // point where in-progress edits can still be caught and confirmed instead of silently lost.
+  protected readonly stepDirty = signal(false);
+  // Non-null while the "discard unsaved edits?" dialog is open; holds the step we'd move to if
+  // the organizer confirms.
+  protected readonly pendingStep = signal<1 | 2 | 3 | 4 | null>(null);
 
   constructor() {
     const id = this.route.snapshot.paramMap.get('id');
@@ -408,7 +494,7 @@ export class CompetitionWizardComponent {
   }
 
   protected onBack(): void {
-    this.currentStep.update((step) => (step - 1) as 1 | 2 | 3 | 4);
+    this.attemptNavigate((this.currentStep() - 1) as 1 | 2 | 3 | 4);
   }
 
   protected canJumpTo(step: 1 | 2 | 3 | 4): boolean {
@@ -417,6 +503,31 @@ export class CompetitionWizardComponent {
 
   protected goToStep(step: 1 | 2 | 3 | 4): void {
     if (!this.canJumpTo(step)) return;
+    this.attemptNavigate(step);
+  }
+
+  // FR-007: navigation away from a step with unsaved edits (Back or a stepper jump) prompts the
+  // organizer to keep editing or discard and continue, rather than @switch silently destroying
+  // the leaving step's in-progress state. A step with no unsaved edits navigates immediately.
+  private attemptNavigate(step: 1 | 2 | 3 | 4): void {
+    if (step === this.currentStep()) return;
+    if (this.stepDirty()) {
+      this.pendingStep.set(step);
+      return;
+    }
     this.currentStep.set(step);
+  }
+
+  protected onKeepEditing(): void {
+    this.pendingStep.set(null);
+  }
+
+  protected onDiscardAndNavigate(): void {
+    const step = this.pendingStep();
+    this.pendingStep.set(null);
+    this.stepDirty.set(false);
+    if (step !== null) {
+      this.currentStep.set(step);
+    }
   }
 }

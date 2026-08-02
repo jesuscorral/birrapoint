@@ -42,6 +42,7 @@
 ### Session 2026-08-01
 
 - Q: The Session 2026-07-30 deferral left FR-052's allow-list unwired from import validation, and the organizer had no way to fix a rejected row's root cause (missing/misconfigured category) without losing the in-progress import. In scope now? → A: Yes — closes that deferral. Added FR-053 (an imported row whose style is BJCP-valid but not assigned to its resolved category is now routed to the correction screen, same as an unrecognized style) and FR-054 (the pending import survives navigating to another wizard step and back — e.g. to fix categories/style assignments in step 3 — without re-uploading the file, and is automatically re-validated against the competition's current categories/allow-list on return, with each failing row showing its specific reason). This supersedes the Out-of-Scope bullet on FR-052's import/entry-time enforcement.
+- Q: FR-007's stepper/Back navigation silently discards unsaved edits in the step being left — an organizer who jumps away mid-edit loses that work with no warning. Fix? → A: Yes — FR-007 amended so leaving a step (Back or a stepper jump) with unsaved edits prompts the organizer to keep editing or discard and continue; navigation without unsaved edits is unaffected (immediate, no prompt). This is deliberately a stay-or-discard prompt, not a save-and-leave one — there's no single "save" action that composes cleanly across all four steps' differing save semantics (some steps auto-save per field, others only on their own explicit submit), so the prompt's role is limited to not losing work silently, not to triggering a save on the organizer's behalf.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -81,6 +82,7 @@ complete the competition.
 1. **Given** a wizard step with required fields incomplete, **When** the organizer tries to advance, **Then** the "Next" action stays disabled until the current step is valid.
 2. **Given** an organizer mid-wizard, **When** they choose "Save draft", **Then** the competition is stored in `Draft` state and the organizer can exit without any data-integrity penalty.
 3. **Given** a competition in `Draft`, **When** the organizer reopens it, **Then** the wizard resumes with all previously entered data intact.
+4. **Given** unsaved edits in the current step, **When** the organizer tries to leave it via "Back" or a stepper jump, **Then** a prompt asks whether to keep editing or discard the edits, and navigation proceeds only if they choose to discard (or if the step had no unsaved edits, in which case there is no prompt at all).
 
 ---
 
@@ -364,7 +366,7 @@ state, then separately start and complete creating a brand-new competition from 
   - `Active`: judges see their table assignments and the tasting order can be fixed; evaluation sheets remain locked; the organizer can still adjust setup (imports, tables, judges).
   - `In Evaluation`: evaluation sheets unlock (still subject to the fixed-order precondition of FR-022); entry imports and wizard edits are no longer allowed; live monitoring and judge removal apply.
   - `Finalized`: everything becomes read-only and results generation/dispatch runs (FR-036, FR-040, FR-041).
-- **FR-007**: The creation wizard MUST validate the required fields of each step and keep the "Next" action disabled until the current step is valid. Required fields: competition name, venue/location, start date, and end date (end date must not precede start date); all other fields (description, logo, entry limit, registration window start/end) are optional. The stepper indicator MUST also let the organizer jump directly to any step whose prerequisite data already exists (a step becomes reachable once the competition has been saved at least once — immediate when editing an existing competition); jumping to another step discards unsaved edits in the step being left, the same as the existing "Back" action.
+- **FR-007**: The creation wizard MUST validate the required fields of each step and keep the "Next" action disabled until the current step is valid. Required fields: competition name, venue/location, start date, and end date (end date must not precede start date); all other fields (description, logo, entry limit, registration window start/end) are optional. The stepper indicator MUST also let the organizer jump directly to any step whose prerequisite data already exists (a step becomes reachable once the competition has been saved at least once — immediate when editing an existing competition). Leaving a step with unsaved edits — via the "Back" action or a stepper jump — MUST prompt the organizer to either keep editing (stay on the step) or discard the edits and continue; a step with no unsaved edits navigates immediately without prompting.
 - **FR-008**: The wizard MUST allow saving as `Draft` at any step and resuming later with all entered data intact.
 
 **Entry Import**

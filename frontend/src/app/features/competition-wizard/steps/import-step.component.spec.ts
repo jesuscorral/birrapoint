@@ -6,6 +6,8 @@ import { CatalogApiService } from '../../../core/api/catalog-api.service';
 import type { StyleSummary } from '../../../core/api/catalog-api.service';
 import { CompetitionsApiService } from '../../../core/api/competitions-api.service';
 import type { CompetitionCategoriesResponse } from '../../../core/api/competitions-api.service';
+import { EntriesApiService } from '../../../core/api/entries-api.service';
+import type { EntryListItem } from '../../../core/api/entries-api.service';
 import { ImportApiService } from '../../../core/api/import-api.service';
 import type { ImportBatch, ImportRow, ImportRowData } from '../../../core/api/import-api.service';
 import { ImportStepComponent } from './import-step.component';
@@ -62,6 +64,22 @@ function styleFixture(): StyleSummary[] {
   return [{ code: '21C', name: 'Hazy IPA', categoryNumber: '21', categoryName: 'IPA' }];
 }
 
+function entryFixture(overrides: Partial<EntryListItem> = {}): EntryListItem {
+  return {
+    id: 'e1',
+    blindCode: 'AB12',
+    styleCode: '21C',
+    styleName: 'Hazy IPA',
+    abvLow: 6,
+    abvHigh: 9,
+    beerName: 'Bruma',
+    notValidForBos: false,
+    tastingTableId: null,
+    tastingTableName: null,
+    ...overrides,
+  };
+}
+
 describe('ImportStepComponent', () => {
   let fakeImportApi: {
     upload: jest.Mock;
@@ -73,6 +91,7 @@ describe('ImportStepComponent', () => {
   };
   let fakeCatalogApi: { getStyles: jest.Mock };
   let fakeCompetitionsApi: { getCategories: jest.Mock };
+  let fakeEntriesApi: { getEntries: jest.Mock };
 
   beforeEach(() => {
     fakeImportApi = {
@@ -87,12 +106,14 @@ describe('ImportStepComponent', () => {
     fakeCompetitionsApi = {
       getCategories: jest.fn().mockReturnValue(of(categoriesResponseFixture())),
     };
+    fakeEntriesApi = { getEntries: jest.fn().mockReturnValue(of([])) };
 
     TestBed.configureTestingModule({
       providers: [
         { provide: ImportApiService, useValue: fakeImportApi },
         { provide: CatalogApiService, useValue: fakeCatalogApi },
         { provide: CompetitionsApiService, useValue: fakeCompetitionsApi },
+        { provide: EntriesApiService, useValue: fakeEntriesApi },
         provideRouter([]),
       ],
     });
@@ -232,11 +253,8 @@ describe('ImportStepComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Válida');
   });
 
-  it('excludes a row', () => {
+  it('excludes a row directly from the collapsed summary row, without opening the editor', () => {
     const fixture = uploadedFixture([rowFixture({ rowNumber: 1, status: 'Invalid', error: 'x' })]);
-
-    buttonWithText(fixture.nativeElement, 'Editar').click();
-    fixture.detectChanges();
 
     fakeImportApi.excludeRow.mockReturnValue(of(rowFixture({ rowNumber: 1, status: 'Excluded' })));
     buttonWithText(fixture.nativeElement, 'Excluir').click();
@@ -249,6 +267,68 @@ describe('ImportStepComponent', () => {
         (button: HTMLButtonElement) => button.textContent?.trim() === 'Editar',
       ),
     ).toBe(false);
+    expect(
+      [...fixture.nativeElement.querySelectorAll('button')].some(
+        (button: HTMLButtonElement) => button.textContent?.trim() === 'Excluir',
+      ),
+    ).toBe(false);
+  });
+
+  it('shows an "Excluir" button in the summary row for every non-excluded, non-editing row, with an accessible name distinguishing each row', () => {
+    const fixture = uploadedFixture([
+      rowFixture({ rowNumber: 1, status: 'Valid' }),
+      rowFixture({ rowNumber: 2, status: 'Invalid', error: 'x' }),
+    ]);
+
+    const rows = fixture.nativeElement.querySelectorAll('.import-row');
+    const excludeButton1 = buttonWithText(rows[0] as Element, 'Excluir');
+    const excludeButton2 = buttonWithText(rows[1] as Element, 'Excluir');
+
+    expect(excludeButton1.getAttribute('aria-label')).toBeTruthy();
+    expect(excludeButton2.getAttribute('aria-label')).toBeTruthy();
+    expect(excludeButton1.getAttribute('aria-label')).not.toBe(
+      excludeButton2.getAttribute('aria-label'),
+    );
+  });
+
+  it('excludes a row from its collapsed summary row while another row is being edited', () => {
+    const fixture = uploadedFixture([
+      rowFixture({ rowNumber: 1, status: 'Valid' }),
+      rowFixture({ rowNumber: 2, status: 'Invalid', error: 'x' }),
+    ]);
+
+    const rows = fixture.nativeElement.querySelectorAll('.import-row');
+    buttonWithText(rows[0] as Element, 'Editar').click();
+    fixture.detectChanges();
+
+    fakeImportApi.excludeRow.mockReturnValue(of(rowFixture({ rowNumber: 2, status: 'Excluded' })));
+    const rowsAfterEdit = fixture.nativeElement.querySelectorAll('.import-row');
+    buttonWithText(rowsAfterEdit[1] as Element, 'Excluir').click();
+    fixture.detectChanges();
+
+    expect(fakeImportApi.excludeRow).toHaveBeenCalledWith('c1', 'i1', 2);
+  });
+
+  it('does not render an "Excluir" button inside the row editor anymore', () => {
+    const fixture = uploadedFixture([
+      rowFixture({
+        rowNumber: 1,
+        status: 'CategoryMismatch',
+        data: rowDataFixture({ competitionCategoryId: null }),
+      }),
+    ]);
+
+    buttonWithText(fixture.nativeElement, 'Editar').click();
+    fixture.detectChanges();
+
+    const editorActions = fixture.nativeElement.querySelector('.import-row__editor-actions');
+    expect(
+      [...editorActions!.querySelectorAll('button')].some(
+        (button: HTMLButtonElement) => button.textContent?.trim() === 'Excluir',
+      ),
+    ).toBe(false);
+    expect(buttonWithText(fixture.nativeElement, 'Cancelar')).toBeTruthy();
+    expect(buttonWithText(fixture.nativeElement, 'Guardar fila')).toBeTruthy();
   });
 
   it('keeps Consolidar disabled while any row is unresolved, and enables it once every row is resolved', () => {
@@ -266,11 +346,8 @@ describe('ImportStepComponent', () => {
     expect(consolidateButton.disabled).toBe(true);
 
     const row2 = fixture.nativeElement.querySelectorAll('.import-row')[1] as Element;
-    buttonWithText(row2, 'Editar').click();
-    fixture.detectChanges();
-
     fakeImportApi.excludeRow.mockReturnValue(of(rowFixture({ rowNumber: 2, status: 'Excluded' })));
-    buttonWithText(fixture.nativeElement, 'Excluir').click();
+    buttonWithText(row2, 'Excluir').click();
     fixture.detectChanges();
 
     const consolidateButtonAfter = buttonWithText(fixture.nativeElement, 'Consolidar');
@@ -339,6 +416,36 @@ describe('ImportStepComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('No hemos podido cargar los datos');
   });
 
+  it('shows the already-imported entries list when reopening step 4 with no pending batch but existing entries (e.g. after consolidating, leaving the wizard, and coming back)', () => {
+    fakeEntriesApi.getEntries.mockReturnValue(
+      of([entryFixture({ id: 'e1', blindCode: 'AB12', beerName: 'Bruma' })]),
+    );
+    const fixture = createComponent();
+
+    expect(fakeEntriesApi.getEntries).toHaveBeenCalledWith('c1');
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('AB12');
+    expect(text).toContain('Bruma');
+    expect(fixture.nativeElement.querySelector('input[type="file"]')).toBeTruthy();
+  });
+
+  it('does not show the already-imported entries block when the competition has no existing entries', () => {
+    fakeEntriesApi.getEntries.mockReturnValue(of([]));
+    const fixture = createComponent();
+
+    expect(fixture.nativeElement.querySelector('.existing-entries')).toBeFalsy();
+  });
+
+  it('does not show the already-imported entries block while a pending import batch is active, even if existing entries are also returned', () => {
+    fakeEntriesApi.getEntries.mockReturnValue(of([entryFixture()]));
+    fakeImportApi.revalidate.mockReturnValue(
+      of(batchFixture([rowFixture({ rowNumber: 1, status: 'Valid' })])),
+    );
+    const fixture = createComponent('i1');
+
+    expect(fixture.nativeElement.querySelector('.existing-entries')).toBeFalsy();
+  });
+
   it('emits importIdChange with the new batch id after a successful upload', () => {
     fakeImportApi.upload.mockReturnValue(of(batchFixture([rowFixture({ rowNumber: 1 })])));
     const fixture = createComponent();
@@ -382,5 +489,56 @@ describe('ImportStepComponent', () => {
     const consolidateButton = buttonWithText(fixture.nativeElement, 'Consolidar');
     expect(consolidateButton.disabled).toBe(true);
     expect(fixture.nativeElement.textContent).toContain('1 fila(s) necesitan corrección');
+  });
+
+  it('emits dirtyChange(false) on init with no pending edits', () => {
+    const fixture = TestBed.createComponent(ImportStepComponent);
+    const emitted: boolean[] = [];
+    fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
+    fixture.componentRef.setInput('competitionId', 'c1');
+    fixture.detectChanges();
+
+    expect(emitted).toEqual([false]);
+  });
+
+  it('emits dirtyChange(true) while a row editor is open, and dirtyChange(false) again once it is closed', () => {
+    const fixture = uploadedFixture([rowFixture({ rowNumber: 1, status: 'Valid' })]);
+    const emitted: boolean[] = [];
+    fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
+
+    buttonWithText(fixture.nativeElement, 'Editar').click();
+    fixture.detectChanges();
+    expect(emitted).toEqual([true]);
+
+    fixture.componentInstance['stopEditing']();
+    fixture.detectChanges();
+    expect(emitted).toEqual([true, false]);
+  });
+
+  it('emits dirtyChange(true) once a file is selected but not yet uploaded', () => {
+    const fixture = createComponent();
+    const emitted: boolean[] = [];
+    fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
+
+    selectFile(fixture, new File(['data'], 'entries.xlsx'));
+    fixture.detectChanges();
+
+    expect(emitted).toEqual([true]);
+  });
+
+  it('emits dirtyChange(false) again once the selected file finishes uploading', () => {
+    fakeImportApi.upload.mockReturnValue(of(batchFixture([rowFixture({ rowNumber: 1 })])));
+    const fixture = createComponent();
+    const emitted: boolean[] = [];
+    fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
+
+    selectFile(fixture, new File(['data'], 'entries.xlsx'));
+    fixture.detectChanges();
+    expect(emitted).toEqual([true]);
+
+    fixture.componentInstance['onUpload']();
+    fixture.detectChanges();
+
+    expect(emitted).toEqual([true, false]);
   });
 });

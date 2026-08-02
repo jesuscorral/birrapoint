@@ -405,6 +405,38 @@ describe('CategoriesStepComponent', () => {
     expect(saveButton.disabled).toBe(true);
   });
 
+  it('emits dirtyChange(false) right after the initial load completes', () => {
+    const fixture = TestBed.createComponent(CategoriesStepComponent);
+    const emitted: boolean[] = [];
+    fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
+    fixture.componentRef.setInput('competitionId', 'c1');
+    fixture.detectChanges();
+
+    expect(emitted).toEqual([false]);
+  });
+
+  it('emits dirtyChange(true) once the organizer mutates the categories, and does not revert to false', () => {
+    const fixture = createComponent();
+    const emitted: boolean[] = [];
+    fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
+
+    fixture.componentInstance.addCategory();
+    fixture.detectChanges();
+
+    expect(emitted).toEqual([true]);
+  });
+
+  it('emits dirtyChange(true) after renaming a category', () => {
+    const fixture = createComponent();
+    const emitted: boolean[] = [];
+    fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
+
+    fixture.componentInstance.updateCategoryName(0, 'Renamed');
+    fixture.detectChanges();
+
+    expect(emitted).toEqual([true]);
+  });
+
   it('emits back when the "← Volver" button is clicked', () => {
     const fixture = createComponent();
     const emitted: void[] = [];

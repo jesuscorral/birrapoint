@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   input,
   output,
@@ -17,6 +18,8 @@ import { CatalogApiService } from '../../../core/api/catalog-api.service';
 import type { StyleSummary } from '../../../core/api/catalog-api.service';
 import { CompetitionsApiService } from '../../../core/api/competitions-api.service';
 import type { CompetitionCategory } from '../../../core/api/competitions-api.service';
+import { EntriesApiService } from '../../../core/api/entries-api.service';
+import type { EntryListItem } from '../../../core/api/entries-api.service';
 import { ImportApiService } from '../../../core/api/import-api.service';
 import type {
   ConsolidateResult,
@@ -152,6 +155,34 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
       }
 
       @if (!importBatch()) {
+        @if (alreadyImportedEntries().length > 0) {
+          <section class="existing-entries" aria-label="Cervezas ya importadas">
+            <h2 class="existing-entries__title">
+              Cervezas ya importadas ({{ alreadyImportedEntries().length }})
+            </h2>
+            <ul class="existing-entries__list">
+              @for (entry of alreadyImportedEntries(); track entry.id) {
+                <li>
+                  <span class="existing-entries__code">{{ entry.blindCode }}</span>
+                  <span class="existing-entries__style"
+                    >{{ entry.styleCode }} — {{ entry.styleName }}</span
+                  >
+                  @if (entry.beerName) {
+                    <span class="existing-entries__name">{{ entry.beerName }}</span>
+                  }
+                </li>
+              }
+            </ul>
+            <div class="step-actions">
+              <bp-button
+                type="button"
+                label="Ir al panel de organizador"
+                variant="primary"
+                (onClick)="goToDashboard()"
+              ></bp-button>
+            </div>
+          </section>
+        }
         <form (ngSubmit)="onUpload()">
           <label class="upload-label" for="import-file">Archivo de inscripciones (.xlsx)</label>
           <input
@@ -345,13 +376,6 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
                     ></bp-button>
                     <bp-button
                       type="button"
-                      label="Excluir"
-                      variant="secondary"
-                      [loading]="rowSaving()"
-                      (onClick)="excludeRow(i)"
-                    ></bp-button>
-                    <bp-button
-                      type="button"
                       label="Guardar fila"
                       variant="primary"
                       [loading]="rowSaving()"
@@ -376,6 +400,14 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
                       label="Editar"
                       variant="ghost"
                       (onClick)="startEditing(i)"
+                    ></bp-button>
+                    <bp-button
+                      type="button"
+                      label="Excluir"
+                      variant="secondary"
+                      [ariaLabel]="'Excluir fila #' + row.rowNumber"
+                      [loading]="rowSaving()"
+                      (onClick)="excludeRow(i)"
                     ></bp-button>
                   } @else {
                     <span class="import-row__excluded-label">Fila excluida</span>
@@ -461,6 +493,46 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
         flex-direction: column;
         gap: var(--spacing-3);
         margin-bottom: var(--spacing-4);
+      }
+
+      .existing-entries {
+        margin-bottom: var(--spacing-6);
+        padding-bottom: var(--spacing-4);
+        border-bottom: 1px solid var(--color-bp-border);
+      }
+
+      .existing-entries__title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--color-bp-text);
+        margin: 0 0 var(--spacing-3);
+      }
+
+      .existing-entries__list {
+        list-style: none;
+        margin: 0 0 var(--spacing-4);
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-2);
+      }
+
+      .existing-entries__list li {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-3);
+        flex-wrap: wrap;
+        font-size: 0.875rem;
+      }
+
+      .existing-entries__code {
+        font-weight: 600;
+        color: var(--color-bp-text);
+      }
+
+      .existing-entries__style,
+      .existing-entries__name {
+        color: var(--color-bp-text-muted);
       }
 
       .import-row {
@@ -589,9 +661,20 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-top: var(--spacing-6);
-        padding-top: var(--spacing-6);
+        margin: 0 calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
+        padding: var(--spacing-4) var(--spacing-8) var(--spacing-6);
         border-top: 1px solid var(--color-bp-border);
+        position: sticky;
+        bottom: 0;
+        background: var(--color-bp-surface);
+        z-index: 1;
+      }
+
+      @media (max-width: 640px) {
+        .step-actions {
+          margin: 0 calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
+          padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
+        }
       }
     `,
   ],
@@ -600,6 +683,7 @@ export class ImportStepComponent implements OnInit {
   private readonly importApi = inject(ImportApiService);
   private readonly catalogApi = inject(CatalogApiService);
   private readonly competitionsApi = inject(CompetitionsApiService);
+  private readonly entriesApi = inject(EntriesApiService);
   private readonly router = inject(Router);
 
   readonly competitionId = input.required<string>();
@@ -609,6 +693,10 @@ export class ImportStepComponent implements OnInit {
   readonly importId = input<string | null>(null);
   readonly importIdChange = output<string>();
   readonly back = output<void>();
+  // See basics-step.component.ts for why the wizard shell needs this (FR-007 stay-or-discard
+  // prompt on Back/stepper navigation). Unsaved-edit here means either an open row editor whose
+  // draft hasn't been saved, or a chosen file not yet uploaded.
+  readonly dirtyChange = output<boolean>();
 
   protected readonly loading = signal(false);
   protected readonly categories = signal<CompetitionCategory[]>([]);
@@ -620,6 +708,10 @@ export class ImportStepComponent implements OnInit {
   protected readonly uploadError = signal<ApiError | null>(null);
 
   protected readonly importBatch = signal<ImportBatch | null>(null);
+  // Consolidated entries already persisted for this competition, independent of any pending
+  // import batch — fetched by competitionId alone so they're still visible after reopening the
+  // wizard (importId is in-memory-only and does not survive leaving/reloading it).
+  protected readonly alreadyImportedEntries = signal<EntryListItem[]>([]);
 
   protected readonly editingIndex = signal<number | null>(null);
   protected readonly editDraft = signal<RowDraft | null>(null);
@@ -634,15 +726,28 @@ export class ImportStepComponent implements OnInit {
     () => this.importBatch()?.rows.filter((row) => UNRESOLVED_STATUSES.has(row.status)).length ?? 0,
   );
 
+  protected readonly isDirty = computed(
+    () =>
+      this.editingIndex() !== null || (this.selectedFile() !== null && this.importBatch() === null),
+  );
+
+  constructor() {
+    effect(() => {
+      this.dirtyChange.emit(this.isDirty());
+    });
+  }
+
   ngOnInit(): void {
     this.loading.set(true);
     forkJoin({
       categoriesResponse: this.competitionsApi.getCategories(this.competitionId()),
       styles: this.catalogApi.getStyles(),
+      entries: this.entriesApi.getEntries(this.competitionId()),
     }).subscribe({
-      next: ({ categoriesResponse, styles }) => {
+      next: ({ categoriesResponse, styles, entries }) => {
         this.categories.set(categoriesResponse.categories);
         this.styles.set(styles);
+        this.alreadyImportedEntries.set(entries);
 
         const importId = this.importId();
         if (importId) {

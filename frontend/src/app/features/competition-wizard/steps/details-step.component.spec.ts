@@ -176,4 +176,31 @@ describe('DetailsStepComponent', () => {
       registrationEnd: '2026-07-01',
     });
   });
+
+  it('emits dirtyChange(false) when the form is populated from initialValue (patchValue never marks a control dirty)', () => {
+    const emitted: boolean[] = [];
+    const fixture = TestBed.createComponent(DetailsStepComponent);
+    fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
+    fixture.componentRef.setInput('competitionId', 'c1');
+    fixture.componentRef.setInput('initialValue', detailFixture());
+    fixture.detectChanges();
+
+    expect(emitted).toEqual([false]);
+  });
+
+  it('emits dirtyChange(true) after the organizer edits a field', () => {
+    const fixture = createComponent();
+    const emitted: boolean[] = [];
+    fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
+
+    const logoInput = fixture.nativeElement.querySelector(
+      '#details-logo input',
+    ) as HTMLInputElement;
+    logoInput.value = 'https://example.com/new-logo.png';
+    logoInput.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(emitted).toEqual([true]);
+    expect(fixture.componentInstance.form.dirty).toBe(true);
+  });
 });

@@ -7,6 +7,7 @@ import { of, throwError } from 'rxjs';
 import { CatalogApiService } from '../../core/api/catalog-api.service';
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
 import type { CompetitionDetail } from '../../core/api/competitions-api.service';
+import { EntriesApiService } from '../../core/api/entries-api.service';
 import { ImportApiService } from '../../core/api/import-api.service';
 import { CompetitionWizardComponent } from './competition-wizard.component';
 import { ImportStepComponent } from './steps/import-step.component';
@@ -44,6 +45,7 @@ describe('CompetitionWizardComponent', () => {
     consolidate: jest.Mock;
     revalidate: jest.Mock;
   };
+  let fakeEntriesApi: { getEntries: jest.Mock };
 
   function configure(id: string | null) {
     fakeApi = {
@@ -61,11 +63,13 @@ describe('CompetitionWizardComponent', () => {
       consolidate: jest.fn(),
       revalidate: jest.fn().mockReturnValue(of({ importId: 'i1', rows: [] })),
     };
+    fakeEntriesApi = { getEntries: jest.fn().mockReturnValue(of([])) };
     TestBed.configureTestingModule({
       providers: [
         { provide: CompetitionsApiService, useValue: fakeApi },
         { provide: CatalogApiService, useValue: fakeCatalogApi },
         { provide: ImportApiService, useValue: fakeImportApi },
+        { provide: EntriesApiService, useValue: fakeEntriesApi },
         provideRouter([]),
         // Must come after provideRouter([]) — it registers its own root ActivatedRoute, which
         // would otherwise win over this mock and silently drop the :id route param.
@@ -309,5 +313,138 @@ describe('CompetitionWizardComponent', () => {
 
     importStepDebugEl = fixture.debugElement.query(By.directive(ImportStepComponent));
     expect(importStepDebugEl.componentInstance.importId()).toBe('imp-1');
+  });
+
+  describe('unsaved-edits confirmation (FR-007)', () => {
+    it('navigates immediately via the stepper when the active step reports no unsaved edits', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+
+      const [, , step3Button] = stepButtons(fixture);
+      step3Button.click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['currentStep']()).toBe(3);
+      expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeFalsy();
+    });
+
+    it('shows a confirm dialog instead of navigating when the active step reports unsaved edits, via a stepper jump', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+
+      fixture.componentInstance['stepDirty'].set(true);
+      fixture.detectChanges();
+
+      const [, , step3Button] = stepButtons(fixture);
+      step3Button.click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['currentStep']()).toBe(1);
+      const dialog = fixture.nativeElement.querySelector('[role="alertdialog"]');
+      expect(dialog).toBeTruthy();
+      expect(dialog.textContent).toContain('Cambios sin guardar');
+    });
+
+    it('shows a confirm dialog instead of navigating on "Back" when the active step reports unsaved edits', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+
+      fixture.componentInstance['onDetailsSaved'](detailFixture());
+      fixture.detectChanges();
+      expect(fixture.componentInstance['currentStep']()).toBe(3);
+
+      fixture.componentInstance['stepDirty'].set(true);
+      fixture.componentInstance['onBack']();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['currentStep']()).toBe(3);
+      expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeTruthy();
+    });
+
+    it('"Descartar y continuar" discards the pending edits and completes the navigation', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+
+      fixture.componentInstance['stepDirty'].set(true);
+      fixture.detectChanges();
+      const [, , step3Button] = stepButtons(fixture);
+      step3Button.click();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeTruthy();
+
+      fixture.componentInstance['onDiscardAndNavigate']();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['currentStep']()).toBe(3);
+      expect(fixture.componentInstance['stepDirty']()).toBe(false);
+      expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeFalsy();
+      expect(fixture.nativeElement.querySelector('app-categories-step')).toBeTruthy();
+    });
+
+    it('"Seguir editando" closes the dialog and leaves currentStep unchanged', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+
+      fixture.componentInstance['stepDirty'].set(true);
+      fixture.detectChanges();
+      const [, , step3Button] = stepButtons(fixture);
+      step3Button.click();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeTruthy();
+
+      fixture.componentInstance['onKeepEditing']();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['currentStep']()).toBe(1);
+      expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeFalsy();
+      expect(fixture.nativeElement.querySelector('app-basics-step')).toBeTruthy();
+    });
+
+    it('closes the dialog without navigating when the backdrop is clicked', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+
+      fixture.componentInstance['stepDirty'].set(true);
+      fixture.detectChanges();
+      const [, , step3Button] = stepButtons(fixture);
+      step3Button.click();
+      fixture.detectChanges();
+
+      const backdrop = fixture.nativeElement.querySelector('.modal-backdrop') as HTMLElement;
+      backdrop.click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['currentStep']()).toBe(1);
+      expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeFalsy();
+    });
+
+    it('does not re-prompt when clicking the already-active step button', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+
+      fixture.componentInstance['stepDirty'].set(true);
+      fixture.detectChanges();
+
+      const [step1Button] = stepButtons(fixture);
+      step1Button.click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['currentStep']()).toBe(1);
+      expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeFalsy();
+    });
   });
 });

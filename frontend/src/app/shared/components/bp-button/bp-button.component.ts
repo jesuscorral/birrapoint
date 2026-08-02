@@ -12,6 +12,7 @@ import { CommonModule } from '@angular/common';
       [disabled]="loading || disabled"
       (click)="onClick.emit()"
       [attr.aria-busy]="loading"
+      [attr.aria-label]="ariaLabel"
     >
       <span *ngIf="loading" class="spinner" aria-hidden="true"></span>
       <span *ngIf="!loading && icon" class="mr-2" [innerHTML]="icon"></span>
@@ -52,6 +53,11 @@ import { CommonModule } from '@angular/common';
 })
 export class BpButtonComponent {
   @Input() label = '';
+  // Overrides the accessible name with something more specific than the visible label — needed
+  // whenever several buttons sharing the same label (e.g. one "Excluir" per list row) are on
+  // screen at once, so assistive tech can distinguish them. `null` (the default) leaves the
+  // native button's implicit accessible name (its text content) untouched.
+  @Input() ariaLabel: string | null = null;
   @Input() variant: 'primary' | 'secondary' | 'ghost' = 'primary';
   @Input() size: 'sm' | 'md' | 'lg' = 'md';
   @Input() type: 'button' | 'submit' | 'reset' = 'button';

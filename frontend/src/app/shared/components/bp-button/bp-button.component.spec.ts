@@ -197,5 +197,22 @@ describe('BpButtonComponent', () => {
       const button = fixture.nativeElement.querySelector('button');
       expect(button.classList.toString()).toContain('focus-visible');
     });
+
+    it('should not set an aria-label on the native button by default', () => {
+      component.label = 'Editar';
+      fixture.detectChanges();
+
+      const button = fixture.nativeElement.querySelector('button');
+      expect(button.hasAttribute('aria-label')).toBe(false);
+    });
+
+    it('should forward ariaLabel onto the native button, overriding the visible label as the accessible name', () => {
+      component.label = 'Excluir';
+      component.ariaLabel = 'Excluir fila #3';
+      fixture.detectChanges();
+
+      const button = fixture.nativeElement.querySelector('button');
+      expect(button.getAttribute('aria-label')).toBe('Excluir fila #3');
+    });
   });
 });

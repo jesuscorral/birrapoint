@@ -1122,6 +1122,46 @@ and the audit drill-down still shows judge A's earlier submitted total.
       gap this task didn't extend or fix) and filtering the style picker to only a row's resolved
       category's assigned styles (kept showing the full BJCP catalog, per FR-011's existing
       "searchable catalog list" wording).
+    - **FR-007 (2026-08-01)**: leaving a step with unsaved edits via "← Volver" or a direct
+      stepper-number click used to discard them silently — `@switch` destroys the leaving step's
+      component instance the same way T109 above describes. Each of the four step components now
+      reports its own dirty state upward via `dirtyChange: OutputEmitterRef<boolean>`: `basics-`/
+      `details-step` subscribe to `form.valueChanges` and emit `form.dirty` (Reactive Forms doesn't
+      mark a control dirty from a programmatic `patchValue`, only from real user input, so the
+      initial data load never falsely reports dirty); `categories-step` has no `ReactiveFormsModule`
+      form to key off, so it snapshots `JSON.stringify(categories())` right after the initial load
+      and diffs against that; `import-step` counts an open row editor (`editingIndex() !== null`)
+      or a chosen-but-not-yet-uploaded file as dirty. `CompetitionWizardComponent` aggregates
+      whichever child is mounted into one `stepDirty` signal and routes every step-to-step
+      navigation (`onBack`, stepper clicks) through a shared `attemptNavigate(step)`: clean → same
+      immediate `currentStep.set(step)` as before; dirty → holds the target in `pendingStep` and
+      shows a confirm dialog instead. Deliberately a **stay-or-discard** prompt, not save-or-discard
+      — unlike the two existing `confirmingBack` dialogs in `basics-step`/`categories-step` (for
+      leaving the wizard entirely to the dashboard, which already had a single "Guardar borrador"
+      action to call), there's no one save action that composes across all four steps' differing
+      save semantics, so the wizard-level dialog only offers "Seguir editando" (close, stay) or
+      "Descartar y continuar" (navigate, discarding — the leaving component's local state is simply
+      garbage-collected by `@switch`, same as any other navigation).
+    - **Import step, "Excluir" always visible**: previously only reachable from inside the expanded
+      per-row editor (`.import-row__editor-actions`); moved to the collapsed row summary next to
+      "Editar" so excluding a row no longer requires opening it first. Surfaced a pre-existing gap
+      while adding a distinguishing accessible name for the now-several-at-once "Excluir" buttons:
+      `[attr.aria-label]` on a `<bp-button>` sets the attribute on the custom-element host tag, not
+      on the native `<button>` it renders internally, so it never reached the accessible name —
+      already latently true of the existing "Editar"/"Eliminar" buttons in this same file and in
+      `categories-step`, just never exercised because there was previously only ever one of each on
+      screen at a time needing disambiguation. Fixed at the source: `BpButtonComponent` gained an
+      `ariaLabel` input that forwards onto the real `<button>`; the pre-existing "Editar"/"Eliminar"
+      call sites were left on their old (currently-inert) `[attr.aria-label]` binding since fixing
+      those wasn't part of this change.
+    - **Sticky `.step-actions` bar**: all four steps' bottom action row (Back/Cancel + primary
+      submit) is now `position: sticky; bottom: 0` with a solid background, so the organizer doesn't
+      have to scroll a long step (`categories-step` especially, with many BJCP styles listed) to
+      reach the save/continue action. Bleeds to the `wizard-card`'s own padded edges via negative
+      margins (each step's own CSS, matching `wizard-card`'s `padding`/`--spacing-8`, with a
+      `640px` breakpoint override matching the card's own responsive padding drop to `--spacing-6`)
+      so the bar reads as part of the card rather than a gap-floating overlay. Pure CSS — not
+      exercised by Jest/jsdom (no real layout engine), verified in a live browser instead.
 - **`features/judge-management/`** (T043, US4): another single signal-driven container (no
   stepper) — a paste-list registration form (textarea split on newline or comma, trimmed, empties
   dropped) always shown together with a delivery-status table, since the two are meant to stay

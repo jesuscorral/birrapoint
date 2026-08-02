@@ -4,6 +4,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   input,
   output,
@@ -346,9 +347,20 @@ function toGenericApiError(error: unknown): ApiError {
         align-items: center;
         flex-wrap: wrap;
         gap: var(--spacing-3);
-        margin-top: var(--spacing-6);
-        padding-top: var(--spacing-6);
+        margin: 0 calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
+        padding: var(--spacing-4) var(--spacing-8) var(--spacing-6);
         border-top: 1px solid var(--color-bp-border);
+        position: sticky;
+        bottom: 0;
+        background: var(--color-bp-surface);
+        z-index: 1;
+      }
+
+      @media (max-width: 640px) {
+        .step-actions {
+          margin: 0 calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
+          padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
+        }
       }
 
       .step-actions__left {
@@ -434,6 +446,10 @@ export class CategoriesStepComponent implements OnInit {
   readonly competitionId = input.required<string>();
   readonly saved = output<void>();
   readonly back = output<void>();
+  // See basics-step.component.ts for why the wizard shell needs this (FR-007 stay-or-discard
+  // prompt on Back/stepper navigation). There's no reactive form here, so dirtiness is tracked by
+  // diffing the current categories() against a snapshot taken right after the initial load.
+  readonly dirtyChange = output<boolean>();
 
   protected readonly loading = signal(false);
   protected readonly catalog = signal<StyleSummary[]>([]);
@@ -442,6 +458,11 @@ export class CategoriesStepComponent implements OnInit {
   protected readonly apiError = signal<ApiError | null>(null);
   protected readonly confirmingBack = signal(false);
   protected readonly editingIndex = signal<number | null>(null);
+  private readonly loadedSnapshot = signal<string>('');
+
+  protected readonly isDirty = computed(
+    () => JSON.stringify(this.categories()) !== this.loadedSnapshot(),
+  );
 
   protected readonly groupedCatalog = computed<StyleGroup[]>(() => {
     const groups = new Map<string, StyleSummary[]>();
@@ -455,6 +476,12 @@ export class CategoriesStepComponent implements OnInit {
       styles,
     }));
   });
+
+  constructor() {
+    effect(() => {
+      this.dirtyChange.emit(this.isDirty());
+    });
+  }
 
   ngOnInit(): void {
     this.loading.set(true);
@@ -478,6 +505,7 @@ export class CategoriesStepComponent implements OnInit {
             ? loaded
             : [{ id: null, name: 'General', displayOrder: 0, styleCodes: [] }],
         );
+        this.loadedSnapshot.set(JSON.stringify(this.categories()));
         this.loading.set(false);
       },
       error: (error: unknown) => {

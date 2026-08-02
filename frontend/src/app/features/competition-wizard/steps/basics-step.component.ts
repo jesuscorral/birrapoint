@@ -215,9 +215,20 @@ function toGenericApiError(error: unknown): ApiError {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-top: var(--spacing-6);
-        padding-top: var(--spacing-6);
+        margin: 0 calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
+        padding: var(--spacing-4) var(--spacing-8) var(--spacing-6);
         border-top: 1px solid var(--color-bp-border);
+        position: sticky;
+        bottom: 0;
+        background: var(--color-bp-surface);
+        z-index: 1;
+      }
+
+      @media (max-width: 640px) {
+        .step-actions {
+          margin: 0 calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
+          padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
+        }
       }
 
       .back-to-list-link {
@@ -296,6 +307,11 @@ export class BasicsStepComponent {
   readonly competitionId = input<string | null>(null);
   readonly initialValue = input<CompetitionDetail | null>(null);
   readonly saved = output<CompetitionDetail>();
+  // Lets the wizard shell prompt before discarding this step's in-progress edits when the
+  // organizer jumps to another step via the stepper (FR-007). Driven off FormGroup.dirty, which
+  // is a plain getter (not a signal) — only real user input marks a control dirty, so the
+  // constructor's own patchValue-from-initialValue effect below never trips a false positive.
+  readonly dirtyChange = output<boolean>();
 
   protected readonly confirmingBack = signal(false);
 
@@ -323,6 +339,10 @@ export class BasicsStepComponent {
           endDate: value.endDate,
         });
       }
+    });
+
+    this.form.valueChanges.subscribe(() => {
+      this.dirtyChange.emit(this.form.dirty);
     });
   }
 

@@ -170,9 +170,20 @@ function toGenericApiError(error: unknown): ApiError {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-top: var(--spacing-6);
-        padding-top: var(--spacing-6);
+        margin: 0 calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
+        padding: var(--spacing-4) var(--spacing-8) var(--spacing-6);
         border-top: 1px solid var(--color-bp-border);
+        position: sticky;
+        bottom: 0;
+        background: var(--color-bp-surface);
+        z-index: 1;
+      }
+
+      @media (max-width: 640px) {
+        .step-actions {
+          margin: 0 calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
+          padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
+        }
       }
     `,
   ],
@@ -184,6 +195,9 @@ export class DetailsStepComponent {
   readonly initialValue = input<CompetitionDetail | null>(null);
   readonly saved = output<CompetitionDetail>();
   readonly back = output<void>();
+  // See basics-step.component.ts for why this is driven off FormGroup.dirty via valueChanges
+  // rather than an effect() over initialValue: patchValue never marks a control dirty.
+  readonly dirtyChange = output<boolean>();
 
   protected readonly form = new FormGroup(
     {
@@ -211,6 +225,10 @@ export class DetailsStepComponent {
           registrationEnd: value.registrationEnd ?? '',
         });
       }
+    });
+
+    this.form.valueChanges.subscribe(() => {
+      this.dirtyChange.emit(this.form.dirty);
     });
   }
 
