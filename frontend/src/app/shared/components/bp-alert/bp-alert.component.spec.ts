@@ -1,3 +1,4 @@
+import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BpAlertComponent } from './bp-alert.component';
 
@@ -20,7 +21,7 @@ describe('BpAlertComponent', () => {
 
   describe('Alert types', () => {
     it('should render error alert', () => {
-      component.type = 'error';
+      fixture.componentRef.setInput('type', 'error');
       fixture.detectChanges();
 
       const alert = fixture.nativeElement.querySelector('.alert');
@@ -28,7 +29,7 @@ describe('BpAlertComponent', () => {
     });
 
     it('should render info alert', () => {
-      component.type = 'info';
+      fixture.componentRef.setInput('type', 'info');
       fixture.detectChanges();
 
       const alert = fixture.nativeElement.querySelector('.alert');
@@ -36,7 +37,7 @@ describe('BpAlertComponent', () => {
     });
 
     it('should render success alert', () => {
-      component.type = 'success';
+      fixture.componentRef.setInput('type', 'success');
       fixture.detectChanges();
 
       const alert = fixture.nativeElement.querySelector('.alert');
@@ -46,7 +47,7 @@ describe('BpAlertComponent', () => {
 
   describe('Icon rendering', () => {
     it('should render error icon for error type', () => {
-      component.type = 'error';
+      fixture.componentRef.setInput('type', 'error');
       fixture.detectChanges();
 
       const svg = fixture.nativeElement.querySelector('svg');
@@ -55,7 +56,7 @@ describe('BpAlertComponent', () => {
     });
 
     it('should render success icon for success type', () => {
-      component.type = 'success';
+      fixture.componentRef.setInput('type', 'success');
       fixture.detectChanges();
 
       const svg = fixture.nativeElement.querySelector('svg');
@@ -64,7 +65,7 @@ describe('BpAlertComponent', () => {
     });
 
     it('should render info icon for info type', () => {
-      component.type = 'info';
+      fixture.componentRef.setInput('type', 'info');
       fixture.detectChanges();
 
       const svg = fixture.nativeElement.querySelector('svg');
@@ -74,7 +75,7 @@ describe('BpAlertComponent', () => {
 
   describe('Title and content', () => {
     it('should render title when provided', () => {
-      component.title = 'Error occurred';
+      fixture.componentRef.setInput('title', 'Error occurred');
       fixture.detectChanges();
 
       const title = fixture.nativeElement.querySelector('.alert-title');
@@ -82,19 +83,25 @@ describe('BpAlertComponent', () => {
     });
 
     it('should project content via ng-content', () => {
-      component.title = 'Error';
-      const content = 'Something went wrong';
-      fixture.nativeElement.appendChild(document.createTextNode(content));
-      fixture.detectChanges();
+      @Component({
+        template: `<bp-alert title="Error">{{ content }}</bp-alert>`,
+        imports: [BpAlertComponent],
+      })
+      class HostComponent {
+        content = 'Something went wrong';
+      }
 
-      const alert = fixture.nativeElement.querySelector('.alert');
-      expect(alert.textContent).toContain(content);
+      const hostFixture = TestBed.createComponent(HostComponent);
+      hostFixture.detectChanges();
+
+      const alert = hostFixture.nativeElement.querySelector('.alert');
+      expect(alert.textContent).toContain('Something went wrong');
     });
   });
 
   describe('ARIA attributes', () => {
     it('should have role="alert" by default', () => {
-      component.role = 'alert';
+      fixture.componentRef.setInput('role', 'alert');
       fixture.detectChanges();
 
       const alert = fixture.nativeElement.querySelector('.alert');
@@ -102,7 +109,7 @@ describe('BpAlertComponent', () => {
     });
 
     it('should have role="status" when specified', () => {
-      component.role = 'status';
+      fixture.componentRef.setInput('role', 'status');
       fixture.detectChanges();
 
       const alert = fixture.nativeElement.querySelector('.alert');
@@ -119,7 +126,7 @@ describe('BpAlertComponent', () => {
 
   describe('Styling', () => {
     it('should apply error styling (background, border, text)', () => {
-      component.type = 'error';
+      fixture.componentRef.setInput('type', 'error');
       fixture.detectChanges();
 
       const alert = fixture.nativeElement.querySelector('.alert');

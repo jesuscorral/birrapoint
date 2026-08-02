@@ -20,7 +20,7 @@ describe('BpButtonComponent', () => {
 
   describe('Rendering', () => {
     it('should render button with label', () => {
-      component.label = 'Click me';
+      fixture.componentRef.setInput('label', 'Click me');
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -28,7 +28,7 @@ describe('BpButtonComponent', () => {
     });
 
     it('should render as block when block=true', () => {
-      component.block = true;
+      fixture.componentRef.setInput('block', true);
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -36,7 +36,7 @@ describe('BpButtonComponent', () => {
     });
 
     it('should have correct type attribute', () => {
-      component.type = 'submit';
+      fixture.componentRef.setInput('type', 'submit');
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -46,7 +46,7 @@ describe('BpButtonComponent', () => {
 
   describe('Variants', () => {
     it('should apply primary variant classes', () => {
-      component.variant = 'primary';
+      fixture.componentRef.setInput('variant', 'primary');
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -54,7 +54,7 @@ describe('BpButtonComponent', () => {
     });
 
     it('should apply secondary variant classes', () => {
-      component.variant = 'secondary';
+      fixture.componentRef.setInput('variant', 'secondary');
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -62,7 +62,7 @@ describe('BpButtonComponent', () => {
     });
 
     it('should apply ghost variant classes', () => {
-      component.variant = 'ghost';
+      fixture.componentRef.setInput('variant', 'ghost');
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -72,7 +72,7 @@ describe('BpButtonComponent', () => {
 
   describe('Loading state', () => {
     it('should show spinner when loading=true', () => {
-      component.loading = true;
+      fixture.componentRef.setInput('loading', true);
       fixture.detectChanges();
 
       const spinner = fixture.nativeElement.querySelector('.spinner');
@@ -80,7 +80,7 @@ describe('BpButtonComponent', () => {
     });
 
     it('should set aria-busy when loading', () => {
-      component.loading = true;
+      fixture.componentRef.setInput('loading', true);
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -88,7 +88,7 @@ describe('BpButtonComponent', () => {
     });
 
     it('should disable button when loading', () => {
-      component.loading = true;
+      fixture.componentRef.setInput('loading', true);
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -96,7 +96,7 @@ describe('BpButtonComponent', () => {
     });
 
     it('should reduce opacity when loading', () => {
-      component.loading = true;
+      fixture.componentRef.setInput('loading', true);
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -106,7 +106,7 @@ describe('BpButtonComponent', () => {
 
   describe('Disabled state', () => {
     it('should disable button when disabled=true', () => {
-      component.disabled = true;
+      fixture.componentRef.setInput('disabled', true);
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -114,7 +114,7 @@ describe('BpButtonComponent', () => {
     });
 
     it('should disable button when loading=true', () => {
-      component.loading = true;
+      fixture.componentRef.setInput('loading', true);
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -122,7 +122,7 @@ describe('BpButtonComponent', () => {
     });
 
     it('should have pointer-events-none when disabled', () => {
-      component.disabled = true;
+      fixture.componentRef.setInput('disabled', true);
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -131,34 +131,34 @@ describe('BpButtonComponent', () => {
   });
 
   describe('Click event', () => {
-    it('should emit onClick event when clicked', () => {
-      jest.spyOn(component.onClick, 'emit');
-      component.disabled = false;
-      component.loading = false;
+    it('should emit clicked event when clicked', () => {
+      jest.spyOn(component.clicked, 'emit');
+      fixture.componentRef.setInput('disabled', false);
+      fixture.componentRef.setInput('loading', false);
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
       button.click();
 
-      expect(component.onClick.emit).toHaveBeenCalled();
+      expect(component.clicked.emit).toHaveBeenCalled();
     });
 
     it('should not emit click when disabled', () => {
-      jest.spyOn(component.onClick, 'emit');
-      component.disabled = true;
+      jest.spyOn(component.clicked, 'emit');
+      fixture.componentRef.setInput('disabled', true);
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
       button.click();
 
       // Button is disabled, so click won't fire
-      expect(component.onClick.emit).not.toHaveBeenCalled();
+      expect(component.clicked.emit).not.toHaveBeenCalled();
     });
   });
 
   describe('Sizes', () => {
     it('should apply sm size classes', () => {
-      component.size = 'sm';
+      fixture.componentRef.setInput('size', 'sm');
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -166,7 +166,7 @@ describe('BpButtonComponent', () => {
     });
 
     it('should apply lg size classes', () => {
-      component.size = 'lg';
+      fixture.componentRef.setInput('size', 'lg');
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -174,7 +174,7 @@ describe('BpButtonComponent', () => {
     });
 
     it('should apply md (default) size classes', () => {
-      component.size = 'md';
+      fixture.componentRef.setInput('size', 'md');
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -191,7 +191,7 @@ describe('BpButtonComponent', () => {
     });
 
     it('should apply focus-visible styles', () => {
-      component.variant = 'primary';
+      fixture.componentRef.setInput('variant', 'primary');
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -199,7 +199,7 @@ describe('BpButtonComponent', () => {
     });
 
     it('should not set an aria-label on the native button by default', () => {
-      component.label = 'Editar';
+      fixture.componentRef.setInput('label', 'Editar');
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
@@ -207,8 +207,8 @@ describe('BpButtonComponent', () => {
     });
 
     it('should forward ariaLabel onto the native button, overriding the visible label as the accessible name', () => {
-      component.label = 'Excluir';
-      component.ariaLabel = 'Excluir fila #3';
+      fixture.componentRef.setInput('label', 'Excluir');
+      fixture.componentRef.setInput('ariaLabel', 'Excluir fila #3');
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');

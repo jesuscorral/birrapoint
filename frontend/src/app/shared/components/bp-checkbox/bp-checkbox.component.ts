@@ -1,11 +1,18 @@
-import { Component, Input, Output, EventEmitter, forwardRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  Input,
+  forwardRef,
+  inject,
+  output,
+} from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 
 @Component({
   selector: 'bp-checkbox',
   standalone: true,
-  imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <label class="check" [class.check-disabled]="disabled">
       <input
@@ -80,17 +87,26 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
   ],
 })
 export class BpCheckboxComponent implements ControlValueAccessor {
+  private readonly cdr = inject(ChangeDetectorRef);
+
+  // Written imperatively by ControlValueAccessor.writeValue()/setDisabledState() (Reactive Forms
+  // integration) — cannot be a signal input(), which is read-only from outside the component.
   @Input() checked = false;
   @Input() disabled = false;
-  @Output() change = new EventEmitter<boolean>();
+  // Named checkedChange (not `checked`, which would collide with the Input above) to mirror the
+  // valueChange convention already used by bp-input/bp-textarea, and to avoid no-output-native
+  // (a bare `change` collides with the native DOM event name).
+  readonly checkedChange = output<boolean>();
 
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   private onChangeCallback: (value: boolean) => void = () => {};
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   private onTouchedCallback: () => void = () => {};
 
   onChange(event: Event): void {
     const target = event.target as HTMLInputElement;
     this.checked = target.checked;
-    this.change.emit(this.checked);
+    this.checkedChange.emit(this.checked);
     this.onChangeCallback(this.checked);
   }
 
@@ -101,6 +117,9 @@ export class BpCheckboxComponent implements ControlValueAccessor {
   // ControlValueAccessor methods
   writeValue(value: boolean): void {
     this.checked = value || false;
+    // Called by Angular's forms directives from outside this OnPush component's own change
+    // detection (e.g. FormGroup.patchValue()) — without this, the new value would never render.
+    this.cdr.markForCheck();
   }
 
   registerOnChange(fn: (value: boolean) => void): void {
@@ -113,5 +132,6 @@ export class BpCheckboxComponent implements ControlValueAccessor {
 
   setDisabledState(isDisabled: boolean): void {
     this.disabled = isDisabled;
+    this.cdr.markForCheck();
   }
 }

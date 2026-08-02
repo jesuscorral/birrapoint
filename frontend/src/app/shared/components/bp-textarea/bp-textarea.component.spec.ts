@@ -24,8 +24,8 @@ describe('BpTextareaComponent', () => {
   });
 
   it('should render label with required asterisk', () => {
-    component.label = 'Descripción';
-    component.required = true;
+    fixture.componentRef.setInput('label', 'Descripción');
+    fixture.componentRef.setInput('required', true);
     fixture.detectChanges();
 
     const label = fixture.nativeElement.querySelector('label');
@@ -34,7 +34,7 @@ describe('BpTextareaComponent', () => {
   });
 
   it('should apply the configured number of rows', () => {
-    component.rows = 6;
+    fixture.componentRef.setInput('rows', 6);
     fixture.detectChanges();
 
     const textarea = fixture.nativeElement.querySelector('textarea');
@@ -42,8 +42,8 @@ describe('BpTextareaComponent', () => {
   });
 
   it('should set aria-invalid and show the error message when hasError is true', () => {
-    component.hasError = true;
-    component.errorMessage = 'Campo requerido';
+    fixture.componentRef.setInput('hasError', true);
+    fixture.componentRef.setInput('errorMessage', 'Campo requerido');
     fixture.detectChanges();
 
     const textarea = fixture.nativeElement.querySelector('textarea');
@@ -54,9 +54,9 @@ describe('BpTextareaComponent', () => {
   });
 
   it('should hide the hint when there is an error', () => {
-    component.hint = 'Cuéntanos algo';
-    component.hasError = true;
-    component.errorMessage = 'Error';
+    fixture.componentRef.setInput('hint', 'Cuéntanos algo');
+    fixture.componentRef.setInput('hasError', true);
+    fixture.componentRef.setInput('errorMessage', 'Error');
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('.field__hint')).toBeFalsy();

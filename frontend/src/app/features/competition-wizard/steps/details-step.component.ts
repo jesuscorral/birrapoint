@@ -134,7 +134,7 @@ function toGenericApiError(error: unknown): ApiError {
           type="button"
           label="← Volver"
           variant="ghost"
-          (onClick)="back.emit()"
+          (clicked)="back.emit()"
         ></bp-button>
         <bp-button
           type="submit"

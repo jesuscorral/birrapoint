@@ -122,7 +122,7 @@ import { BpButtonComponent } from '../../../shared/components/bp-button/bp-butto
             variant="primary"
             size="lg"
             [block]="true"
-            (onClick)="onLogin()"
+            (clicked)="onLogin()"
           ></bp-button>
 
           <div class="divider">o</div>

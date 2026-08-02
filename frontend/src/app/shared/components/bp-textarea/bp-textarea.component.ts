@@ -1,52 +1,69 @@
-import { Component, Input, Output, EventEmitter, forwardRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  Input,
+  computed,
+  forwardRef,
+  inject,
+  input,
+  output,
+} from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 
 @Component({
   selector: 'bp-textarea',
   standalone: true,
-  imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="field">
-      <label *ngIf="label" class="field__label" [for]="id">
-        {{ label }}
-        <span *ngIf="required" class="req" aria-hidden="true">*</span>
-      </label>
+      @if (label()) {
+        <label class="field__label" [for]="id()">
+          {{ label() }}
+          @if (required()) {
+            <span class="req" aria-hidden="true">*</span>
+          }
+        </label>
+      }
       <div class="field__control">
         <textarea
-          [class]="textareaClasses"
-          [id]="id"
-          [placeholder]="placeholder"
-          [required]="required"
+          [class]="textareaClasses()"
+          [id]="id()"
+          [placeholder]="placeholder()"
+          [required]="required()"
           [disabled]="disabled"
-          [rows]="rows"
+          [rows]="rows()"
           [value]="value"
           (input)="onInput($event)"
           (blur)="onBlur()"
-          [attr.aria-invalid]="hasError"
-          [attr.aria-describedby]="hint ? id + '-hint' : hasError ? id + '-error' : null"
+          [attr.aria-invalid]="hasError()"
+          [attr.aria-describedby]="hint() ? id() + '-hint' : hasError() ? id() + '-error' : null"
         ></textarea>
       </div>
-      <span *ngIf="hint && !hasError" class="field__hint" [id]="id + '-hint'">
-        {{ hint }}
-      </span>
-      <span *ngIf="hasError && errorMessage" class="field__error" [id]="id + '-error'">
-        <svg
-          class="error-icon"
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          aria-hidden="true"
-        >
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 7v6M12 16.5v.01" />
-        </svg>
-        {{ errorMessage }}
-      </span>
+      @if (hint() && !hasError()) {
+        <span class="field__hint" [id]="id() + '-hint'">
+          {{ hint() }}
+        </span>
+      }
+      @if (hasError() && errorMessage()) {
+        <span class="field__error" [id]="id() + '-error'">
+          <svg
+            class="error-icon"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v6M12 16.5v.01" />
+          </svg>
+          {{ errorMessage() }}
+        </span>
+      }
     </div>
   `,
   styles: [
@@ -151,20 +168,27 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
   ],
 })
 export class BpTextareaComponent implements ControlValueAccessor {
-  @Input() id = 'bp-textarea-' + Math.random().toString(36).substr(2, 9);
-  @Input() label = '';
-  @Input() placeholder = '';
-  @Input() required = false;
-  @Input() disabled = false;
-  @Input() hint = '';
-  @Input() hasError = false;
-  @Input() errorMessage = '';
-  @Input() rows = 4;
+  private readonly cdr = inject(ChangeDetectorRef);
+
+  readonly id = input('bp-textarea-' + Math.random().toString(36).slice(2, 11));
+  readonly label = input('');
+  readonly placeholder = input('');
+  readonly required = input(false);
+  readonly hint = input('');
+  readonly hasError = input(false);
+  readonly errorMessage = input('');
+  readonly rows = input(4);
+
+  // Written imperatively by ControlValueAccessor.writeValue()/setDisabledState() (Reactive Forms
+  // integration) — cannot be a signal input(), which is read-only from outside the component.
   @Input() value = '';
+  @Input() disabled = false;
 
-  @Output() valueChange = new EventEmitter<string>();
+  readonly valueChange = output<string>();
 
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   private onChange: (value: string) => void = () => {};
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   private onTouched: () => void = () => {};
 
   onInput(event: Event): void {
@@ -178,17 +202,20 @@ export class BpTextareaComponent implements ControlValueAccessor {
     this.onTouched();
   }
 
-  get textareaClasses(): string {
+  protected readonly textareaClasses = computed(() => {
     const base =
       'w-full font-base text-base rounded-md bg-bp-surface border-bp-border-strong border-1.5 text-bp-text placeholder:text-bp-text-subtle hover:border-bp-verde-400 focus:outline-none focus:border-bp-cobre-500 focus:ring-3 focus:ring-bp-cobre-100 disabled:bg-bp-hueso-100 disabled:text-bp-text-subtle disabled:cursor-not-allowed transition-colors duration-150 ease-out';
-    const errorClass = this.hasError ? 'border-bp-danger-600 bg-bp-danger-50' : '';
+    const errorClass = this.hasError() ? 'border-bp-danger-600 bg-bp-danger-50' : '';
 
     return `${base} ${errorClass}`.trim();
-  }
+  });
 
   // ControlValueAccessor methods
   writeValue(value: string | null | undefined): void {
     this.value = value ?? '';
+    // Called by Angular's forms directives from outside this OnPush component's own change
+    // detection (e.g. FormGroup.patchValue()) — without this, the new value would never render.
+    this.cdr.markForCheck();
   }
 
   registerOnChange(fn: (value: string) => void): void {
@@ -201,5 +228,6 @@ export class BpTextareaComponent implements ControlValueAccessor {
 
   setDisabledState(isDisabled: boolean): void {
     this.disabled = isDisabled;
+    this.cdr.markForCheck();
   }
 }

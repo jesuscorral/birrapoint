@@ -1,22 +1,22 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 @Component({
   selector: 'bp-button',
   standalone: true,
-  imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <button
-      [class]="buttonClasses"
-      [type]="type"
-      [disabled]="loading || disabled"
-      (click)="onClick.emit()"
-      [attr.aria-busy]="loading"
-      [attr.aria-label]="ariaLabel"
+      [class]="buttonClasses()"
+      [type]="type()"
+      [disabled]="loading() || disabled()"
+      (click)="clicked.emit()"
+      [attr.aria-busy]="loading()"
+      [attr.aria-label]="ariaLabel()"
     >
-      <span *ngIf="loading" class="spinner" aria-hidden="true"></span>
-      <span *ngIf="!loading && icon" class="mr-2" [innerHTML]="icon"></span>
-      {{ label }}
+      @if (loading()) {
+        <span class="spinner" aria-hidden="true"></span>
+      }
+      {{ label() }}
     </button>
   `,
   styles: [
@@ -44,42 +44,37 @@ import { CommonModule } from '@angular/common';
           animation-duration: 2s;
         }
       }
-
-      .mr-2 {
-        margin-right: 0.5rem;
-      }
     `,
   ],
 })
 export class BpButtonComponent {
-  @Input() label = '';
+  readonly label = input('');
   // Overrides the accessible name with something more specific than the visible label — needed
   // whenever several buttons sharing the same label (e.g. one "Excluir" per list row) are on
   // screen at once, so assistive tech can distinguish them. `null` (the default) leaves the
   // native button's implicit accessible name (its text content) untouched.
-  @Input() ariaLabel: string | null = null;
-  @Input() variant: 'primary' | 'secondary' | 'ghost' = 'primary';
-  @Input() size: 'sm' | 'md' | 'lg' = 'md';
-  @Input() type: 'button' | 'submit' | 'reset' = 'button';
-  @Input() loading = false;
-  @Input() disabled = false;
-  @Input() block = false;
-  @Input() icon: string | null = null;
-  @Output() onClick = new EventEmitter<void>();
+  readonly ariaLabel = input<string | null>(null);
+  readonly variant = input<'primary' | 'secondary' | 'ghost'>('primary');
+  readonly size = input<'sm' | 'md' | 'lg'>('md');
+  readonly type = input<'button' | 'submit' | 'reset'>('button');
+  readonly loading = input(false);
+  readonly disabled = input(false);
+  readonly block = input(false);
+  readonly clicked = output<void>();
 
-  get buttonClasses(): string {
+  protected readonly buttonClasses = computed(() => {
     const base =
       'inline-flex items-center justify-center gap-2 font-semibold rounded-md cursor-pointer transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-offset-2';
     const variant = this.variantClasses();
     const sizeClass = this.sizeClass();
-    const blockClass = this.block ? 'w-full' : '';
-    const disabledClass = this.loading || this.disabled ? 'opacity-50 pointer-events-none' : '';
+    const blockClass = this.block() ? 'w-full' : '';
+    const disabledClass = this.loading() || this.disabled() ? 'opacity-50 pointer-events-none' : '';
 
     return `${base} ${variant} ${sizeClass} ${blockClass} ${disabledClass}`.trim();
-  }
+  });
 
   private variantClasses(): string {
-    switch (this.variant) {
+    switch (this.variant()) {
       case 'primary':
         return 'min-h-11 px-5 bg-bp-cobre-500 text-white border-1.5 border-bp-cobre-500 hover:bg-bp-cobre-600 hover:border-bp-cobre-600 active:bg-bp-cobre-700 active:border-bp-cobre-700 active:translate-y-0.5 focus-visible:ring-bp-hueso-50 focus-visible:ring-offset-bp-cobre-500';
       case 'secondary':
@@ -92,7 +87,7 @@ export class BpButtonComponent {
   }
 
   private sizeClass(): string {
-    switch (this.size) {
+    switch (this.size()) {
       case 'sm':
         return 'min-h-9 px-3 text-sm';
       case 'lg':

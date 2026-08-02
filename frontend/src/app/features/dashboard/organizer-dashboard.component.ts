@@ -161,7 +161,9 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
 
     .new-competition-action:focus-visible {
       outline: none;
-      box-shadow: 0 0 0 3px var(--color-bp-hueso-50), 0 0 0 5px var(--color-bp-cobre-500);
+      box-shadow:
+        0 0 0 3px var(--color-bp-hueso-50),
+        0 0 0 5px var(--color-bp-cobre-500);
     }
 
     .empty-state {
@@ -218,7 +220,9 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
 
     .competition-list-item:focus-visible {
       outline: none;
-      box-shadow: 0 0 0 3px var(--color-bp-hueso-50), 0 0 0 5px var(--color-bp-cobre-500);
+      box-shadow:
+        0 0 0 3px var(--color-bp-hueso-50),
+        0 0 0 5px var(--color-bp-cobre-500);
     }
 
     .competition-name {
@@ -280,7 +284,9 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
 
     .advance-state-action:focus-visible {
       outline: none;
-      box-shadow: 0 0 0 3px var(--color-bp-hueso-50), 0 0 0 5px var(--color-bp-cobre-500);
+      box-shadow:
+        0 0 0 3px var(--color-bp-hueso-50),
+        0 0 0 5px var(--color-bp-cobre-500);
     }
 
     .modal-backdrop {

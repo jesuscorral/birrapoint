@@ -74,25 +74,25 @@ describe('BpCheckboxComponent', () => {
   });
 
   describe('Change event', () => {
-    it('should emit change event when checkbox is clicked', () => {
-      jest.spyOn(component.change, 'emit');
+    it('should emit checkedChange event when checkbox is clicked', () => {
+      jest.spyOn(component.checkedChange, 'emit');
       fixture.detectChanges();
 
       const input = fixture.nativeElement.querySelector('input[type="checkbox"]');
       input.click();
 
-      expect(component.change.emit).toHaveBeenCalledWith(true);
+      expect(component.checkedChange.emit).toHaveBeenCalledWith(true);
     });
 
     it('should emit false when unchecking', () => {
-      jest.spyOn(component.change, 'emit');
+      jest.spyOn(component.checkedChange, 'emit');
       component.checked = true;
       fixture.detectChanges();
 
       const input = fixture.nativeElement.querySelector('input[type="checkbox"]');
       input.click();
 
-      expect(component.change.emit).toHaveBeenCalledWith(false);
+      expect(component.checkedChange.emit).toHaveBeenCalledWith(false);
     });
   });
 
@@ -114,14 +114,14 @@ describe('BpCheckboxComponent', () => {
     });
 
     it('should not emit change when disabled', () => {
-      jest.spyOn(component.change, 'emit');
+      jest.spyOn(component.checkedChange, 'emit');
       component.disabled = true;
       fixture.detectChanges();
 
       const input = fixture.nativeElement.querySelector('input[type="checkbox"]');
       input.click();
 
-      expect(component.change.emit).not.toHaveBeenCalled();
+      expect(component.checkedChange.emit).not.toHaveBeenCalled();
     });
   });
 

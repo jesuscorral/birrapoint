@@ -38,7 +38,7 @@ import { BpButtonComponent } from '../../../shared/components/bp-button/bp-butto
           Tu sesión se gestiona de forma segura. La app nunca ve tu contraseña.
         </p>
         <p style="margin-top: 2rem">
-          <bp-button label="Continuar →" variant="ghost" (onClick)="onContinue()"></bp-button>
+          <bp-button label="Continuar →" variant="ghost" (clicked)="onContinue()"></bp-button>
         </p>
       </div>
     </div>

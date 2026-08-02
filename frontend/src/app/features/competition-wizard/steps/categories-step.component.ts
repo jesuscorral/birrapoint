@@ -69,7 +69,7 @@ function toGenericApiError(error: unknown): ApiError {
                 type="button"
                 label="Listo"
                 variant="secondary"
-                (onClick)="stopEditing()"
+                (clicked)="stopEditing()"
               ></bp-button>
             } @else {
               <span class="category-row__name">{{ categoryLabel(row, i) }}</span>
@@ -79,7 +79,7 @@ function toGenericApiError(error: unknown): ApiError {
                   label="Editar"
                   variant="ghost"
                   [attr.aria-label]="'Editar ' + categoryLabel(row, i)"
-                  (onClick)="startEditing(i)"
+                  (clicked)="startEditing(i)"
                 ></bp-button>
                 <bp-button
                   type="button"
@@ -87,7 +87,7 @@ function toGenericApiError(error: unknown): ApiError {
                   variant="ghost"
                   [disabled]="categories().length <= 1"
                   [attr.aria-label]="'Eliminar ' + categoryLabel(row, i)"
-                  (onClick)="removeCategory(i)"
+                  (clicked)="removeCategory(i)"
                 ></bp-button>
               </div>
             }
@@ -98,7 +98,7 @@ function toGenericApiError(error: unknown): ApiError {
           type="button"
           label="+ Añadir categoría"
           variant="secondary"
-          (onClick)="addCategory()"
+          (clicked)="addCategory()"
         ></bp-button>
       </section>
 
@@ -159,7 +159,7 @@ function toGenericApiError(error: unknown): ApiError {
             type="button"
             label="← Volver"
             variant="ghost"
-            (onClick)="back.emit()"
+            (clicked)="back.emit()"
           ></bp-button>
           <button type="button" class="back-to-list-link" (click)="onRequestBack()">
             ← Volver al listado
@@ -171,7 +171,7 @@ function toGenericApiError(error: unknown): ApiError {
           variant="primary"
           [loading]="submitting()"
           [disabled]="!canFinish()"
-          (onClick)="onFinish()"
+          (clicked)="onFinish()"
         ></bp-button>
       </div>
     }
@@ -205,21 +205,21 @@ function toGenericApiError(error: unknown): ApiError {
               variant="primary"
               [loading]="submitting()"
               [disabled]="!canFinish()"
-              (onClick)="onSaveAndLeave()"
+              (clicked)="onSaveAndLeave()"
             ></bp-button>
             <bp-button
               type="button"
               label="Descartar cambios"
               variant="secondary"
               [disabled]="submitting()"
-              (onClick)="onDiscardAndLeave()"
+              (clicked)="onDiscardAndLeave()"
             ></bp-button>
             <bp-button
               type="button"
               label="Cancelar"
               variant="ghost"
               [disabled]="submitting()"
-              (onClick)="onCancelBackConfirm()"
+              (clicked)="onCancelBackConfirm()"
             ></bp-button>
           </div>
         </div>

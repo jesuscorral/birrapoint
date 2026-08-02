@@ -11,7 +11,8 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
 import { ApiError } from '../../../core/api/api-error';
 import { CatalogApiService } from '../../../core/api/catalog-api.service';
@@ -178,7 +179,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
                 type="button"
                 label="Ir al panel de organizador"
                 variant="primary"
-                (onClick)="goToDashboard()"
+                (clicked)="goToDashboard()"
               ></bp-button>
             </div>
           </section>
@@ -204,7 +205,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
               type="button"
               label="← Volver"
               variant="ghost"
-              (onClick)="back.emit()"
+              (clicked)="back.emit()"
             ></bp-button>
             <bp-button
               type="submit"
@@ -372,14 +373,14 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
                       label="Cancelar"
                       variant="ghost"
                       [disabled]="rowSaving()"
-                      (onClick)="stopEditing()"
+                      (clicked)="stopEditing()"
                     ></bp-button>
                     <bp-button
                       type="button"
                       label="Guardar fila"
                       variant="primary"
                       [loading]="rowSaving()"
-                      (onClick)="saveRow(i)"
+                      (clicked)="saveRow(i)"
                     ></bp-button>
                   </div>
                 </div>
@@ -399,7 +400,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
                       type="button"
                       label="Editar"
                       variant="ghost"
-                      (onClick)="startEditing(i)"
+                      (clicked)="startEditing(i)"
                     ></bp-button>
                     <bp-button
                       type="button"
@@ -407,7 +408,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
                       variant="secondary"
                       [ariaLabel]="'Excluir fila #' + row.rowNumber"
                       [loading]="rowSaving()"
-                      (onClick)="excludeRow(i)"
+                      (clicked)="excludeRow(i)"
                     ></bp-button>
                   } @else {
                     <span class="import-row__excluded-label">Fila excluida</span>
@@ -441,7 +442,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
               type="button"
               label="Ir al panel de organizador"
               variant="primary"
-              (onClick)="goToDashboard()"
+              (clicked)="goToDashboard()"
             ></bp-button>
           </div>
         } @else {
@@ -450,7 +451,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
               type="button"
               label="← Volver"
               variant="ghost"
-              (onClick)="back.emit()"
+              (clicked)="back.emit()"
             ></bp-button>
             <bp-button
               type="button"
@@ -458,7 +459,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
               variant="primary"
               [loading]="consolidating()"
               [disabled]="unresolvedCount() > 0 || consolidating()"
-              (onClick)="onConsolidate()"
+              (clicked)="onConsolidate()"
             ></bp-button>
           </div>
         }
@@ -742,7 +743,9 @@ export class ImportStepComponent implements OnInit {
     forkJoin({
       categoriesResponse: this.competitionsApi.getCategories(this.competitionId()),
       styles: this.catalogApi.getStyles(),
-      entries: this.entriesApi.getEntries(this.competitionId()),
+      // Purely decorative (shows an "already imported" panel) — a transient failure here must not
+      // block the primary category/style load that the rest of the step depends on.
+      entries: this.entriesApi.getEntries(this.competitionId()).pipe(catchError(() => of([]))),
     }).subscribe({
       next: ({ categoriesResponse, styles, entries }) => {
         this.categories.set(categoriesResponse.categories);

@@ -658,8 +658,12 @@ and the audit drill-down still shows judge A's earlier submitted total.
 - **`Features/TastingOrder/`** (T050–T052, US6): the first judge-facing slice, `JUDGE`-only under
   `/api/v1/me/tables` — the mirror image of `Features/Tables/`'s organizer-only shape. `JudgeDtos.cs`
   is a dedicated anonymity-boundary namespace (data-model.md §Anonymity boundary): `JudgeSampleDto`
-  and `JudgeTableSummaryDto` structurally carry no entrant field, and a contract test asserts the
-  serialized wire payload directly, not just the DTO's declared members. `JudgeTableAccess`
+  and `JudgeTableSummaryDto` structurally carry no entrant-identifying field, and a contract test
+  asserts the serialized wire payload directly, not just the DTO's declared members. The one
+  deliberate exception (ADR-0011 point 6, formalized in spec.md FR-019 as of Session 2026-08-02) is
+  `EntryInstructions`: organizer-reviewed, entrant-authored serving/tasting guidance some BJCP
+  styles need, added later by the ACCE-import fold — `BeerName` and every `Participant.*` field
+  remain permanently excluded. `JudgeTableAccess`
   (shared, all three handlers use it) resolves active table membership off `ICurrentUser.
   GetJudgeRecordsAsync()`'s backfilled Judge rows rather than re-deriving the sub/email match
   `CompetitionHub.JoinTable` does inline. `GetTableSamples` derives `evaluationStatus` (`NotStarted`
@@ -916,12 +920,17 @@ and the audit drill-down still shows judge A's earlier submitted total.
 - **`core/auth/`** (T019): the Keycloak auth core, built on the modern `keycloak-angular` v19+
   API (`provideKeycloak`/`createAuthGuard`/`includeBearerTokenInterceptor`) — the older
   `KeycloakService`/class-guard/`KeycloakBearerInterceptor` APIs are deprecated and unused.
-  - `keycloak.providers.ts`: `provideAppKeycloak()` — `initOptions: { onLoad: 'login-required',
-    pkceMethod: 'S256' }`. `login-required` blocks the entire app pre-render until authenticated,
-    which is how FR-001 ("redirect unauthenticated users... before showing any content") is
-    satisfied — there's no public/anonymous section of this PWA, so no separate route-level auth
-    guard was needed on top of it. `features: [withAutoRefreshToken()]` gives silent token
-    refresh driven by user activity (R-11). **Library quirk worked around here**:
+  - `keycloak.providers.ts`: `provideAppKeycloak()` — `initOptions: { onLoad: 'check-sso',
+    pkceMethod: 'S256' }` (ADR-0012, 2026-08-02; previously `login-required`). `check-sso`
+    silently detects an existing session without forcing one, which is what makes the public
+    `/welcome` landing (`WelcomeComponent`, `features/auth/welcome/`) reachable by an
+    unauthenticated caller at all — FR-001 now requires exactly that: a public landing with
+    explicit sign-in/create-account actions, no competition data, and no forced pre-render
+    redirect. Route-level guards (`role.guard.ts` below) carry the actual access control that
+    `login-required` used to provide implicitly; an unauthenticated caller hitting a guarded
+    route falls through to `/` (the landing) rather than being blocked before Angular even
+    bootstraps. `features: [withAutoRefreshToken()]` gives silent token refresh driven by user
+    activity (R-11). **Library quirk worked around here**:
     `keycloak-angular@20.1.0`'s `AutoRefreshTokenService` and `UserActivityService` are plain
     `@Injectable()` with no `providedIn: 'root'`, so `withAutoRefreshToken`'s
     `inject(AutoRefreshTokenService)` throws `NG0201` unless both are also passed through
@@ -935,12 +944,16 @@ and the audit drill-down still shows judge A's earlier submitted total.
     requests.
   - `role.guard.ts`: `organizerGuard`/`judgeGuard` (`CanActivateFn` via `createAuthGuard`), each
     wrapping a directly-unit-testable predicate (`isOrganizerAllowed`/`isJudgeAllowed`) that
-    checks `authData.grantedRoles.realmRoles`. Since `login-required` already guarantees
-    authentication before any guard runs, these only branch on role. **T024**: a mismatch now
-    redirects to the caller's *own* role landing via the new `role-landing.ts`'s
-    `resolveRoleLandingUrlTree(authData)` (e.g. a JUDGE hitting `/organizer/**` lands on
-    `/judge/tables`, not a dead end at root) — `parseUrl('/')` is now only the fallback for a
-    caller holding neither role.
+    checks `authData.grantedRoles.realmRoles`. Since ADR-0012's `check-sso` switch no longer
+    guarantees authentication before a guard runs, these carry the real access-control weight now
+    (previously they only branched on role, on the assumption `login-required` had already
+    blocked anonymous access) — an unauthenticated caller simply has empty `grantedRoles`, so
+    `hasRealmRole` is `false` for both and the caller falls through to the same landing-resolution
+    fallback as a role mismatch. **T024**: a mismatch (or anonymous caller) redirects to the
+    caller's *own* role landing via `role-landing.ts`'s `resolveRoleLandingUrlTree(authData)`
+    (e.g. a JUDGE hitting `/organizer/**` lands on `/judge/tables`, not a dead end at root) —
+    `parseUrl('/')` (the public landing) is the fallback for a caller holding neither role,
+    including an anonymous one.
   - `role-landing.ts` (T024, new): `resolveRoleLandingUrlTree(authData): UrlTree | null` — the
     single ORGANIZER → `/organizer/dashboard`, JUDGE → `/judge/tables` mapping, shared by
     `role.guard.ts`'s mismatch branch above and `home-redirect.guard.ts` below (ORGANIZER wins if
@@ -1538,9 +1551,12 @@ that's judge-facing rather than organizer-facing, and the first REST-level consu
 `CompetitionHubService`'s realtime event stream (T020, previously wired but unconsumed). The
 database holds the full domain schema (T008–T009); target contracts live in
 `specs/001-birrapoint-mvp/contracts/` (REST `/api/v1`, SignalR `CompetitionHub`, `.xlsx` import
-file). Frontend-side: any route load triggers Keycloak's `login-required` flow first (PKCE
-redirect to the realm's hosted login if no session). **T024**: once authenticated, `''` resolves
-via `homeRedirectGuard` and `/organizer`/`/judge` via `organizerGuard`/`judgeGuard`, all sharing
+file). Frontend-side (ADR-0012, 2026-08-02): Keycloak's `check-sso` silently detects an existing
+session at bootstrap without forcing a redirect, so an unauthenticated caller lands on the public
+`/welcome` page rather than an immediate Keycloak-hosted login; signing in is now an explicit
+action (`/auth/handoff` triggers the same PKCE redirect on demand). **T024**: once authenticated,
+`''` resolves via `homeRedirectGuard` and `/organizer`/`/judge` via `organizerGuard`/`judgeGuard`,
+all sharing
 `role-landing.ts`'s single role→URL mapping, landing on `/organizer/dashboard` (still placeholder
 — real dashboard data starts at Phase 11/US9) or `/judge/tables` (real content since Phase 8/US6,
 above); a judge with a Keycloak `UPDATE_PASSWORD` required action never reaches any of this routing

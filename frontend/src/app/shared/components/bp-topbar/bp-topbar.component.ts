@@ -1,14 +1,14 @@
-import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 @Component({
   selector: 'bp-topbar',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [RouterLink],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="topbar">
-      <a class="topbar__brand" [routerLink]="homeLink">
+      <a class="topbar__brand" [routerLink]="homeLink()">
         <span class="topbar__logo" aria-hidden="true">
           <svg
             width="18"
@@ -30,7 +30,9 @@ import { RouterLink } from '@angular/router';
         BirraPoint
       </a>
 
-      <span *ngIf="title" class="topbar__title">{{ title }}</span>
+      @if (title()) {
+        <span class="topbar__title">{{ title() }}</span>
+      }
 
       <div class="topbar__actions">
         <ng-content></ng-content>
@@ -106,6 +108,6 @@ import { RouterLink } from '@angular/router';
   ],
 })
 export class BpTopbarComponent {
-  @Input() title = '';
-  @Input() homeLink = '/organizer/dashboard';
+  readonly title = input('');
+  readonly homeLink = input('/organizer/dashboard');
 }
