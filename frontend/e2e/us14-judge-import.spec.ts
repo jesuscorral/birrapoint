@@ -58,16 +58,10 @@ function uniqueCompetitionName(): string {
 async function createCompetition(page: Page): Promise<string> {
   await page.getByRole('link', { name: 'New competition' }).click();
 
-  // bp-input (shared/components/bp-input) reflects its static `id` attribute onto both its host
-  // element and the inner native <input>, producing a duplicate DOM id — <label for> resolves to
-  // the wrong (host) element as a result, so getByLabel() cannot find these fields. Targeting the
-  // native <input> tag directly sidesteps that for functional interaction; the underlying
-  // duplicate-id/broken-label-association defect itself is still expected to be caught by the
-  // axe-core scan below, not masked by this locator.
-  await page.locator('input#basics-name').fill(uniqueCompetitionName());
-  await page.locator('input#basics-venue').fill('Salón de Actos, Madrid');
-  await page.locator('input#basics-start').fill('2026-09-01');
-  await page.locator('input#basics-end').fill('2026-09-03');
+  await page.getByLabel('Nombre de la competición').fill(uniqueCompetitionName());
+  await page.getByLabel('Sede / ubicación').fill('Salón de Actos, Madrid');
+  await page.getByLabel('Fecha de inicio').fill('2026-09-01');
+  await page.getByLabel('Fecha de fin').fill('2026-09-03');
 
   await page.getByRole('button', { name: 'Continuar' }).click();
   await page.waitForURL(/\/organizer\/competitions\/[0-9a-fA-F-]{36}$/);

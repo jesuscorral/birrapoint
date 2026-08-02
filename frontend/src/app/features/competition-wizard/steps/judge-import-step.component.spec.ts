@@ -12,7 +12,7 @@ import { JudgeImportStepComponent } from './judge-import-step.component';
 
 function rowDataFixture(overrides: Partial<JudgeImportRowData> = {}): JudgeImportRowData {
   return {
-    name: 'Rebeca Ruifernández Calzada',
+    name: 'Ana García Ruiz',
     email: 'rebeca@example.com',
     bjcpRank: 'Certificado',
     bjcpId: 'E4612',
@@ -133,7 +133,7 @@ describe('JudgeImportStepComponent', () => {
 
     expect(fakeJudgeImportApi.upload).toHaveBeenCalledWith('c1', expect.any(File));
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Rebeca Ruifernández Calzada');
+    expect(text).toContain('Ana García Ruiz');
     expect(text).toContain('Grace Hopper');
     expect(text).toContain('Falta el correo electrónico.');
   });
@@ -220,6 +220,7 @@ describe('JudgeImportStepComponent', () => {
         created: [{ id: 'j1', email: 'rebeca@example.com' }],
         updated: [],
         excluded: 0,
+        skipped: [],
       }),
     );
     buttonWithText(fixture.nativeElement, 'Consolidar').click();
@@ -237,6 +238,40 @@ describe('JudgeImportStepComponent', () => {
     fixture.detectChanges();
 
     expect(navigateSpy).toHaveBeenCalledWith('/organizer/dashboard');
+  });
+
+  it('shows the skipped-duplicates count in the consolidate summary when the batch had any (FR-058)', () => {
+    const fixture = uploadedFixture([rowFixture({ rowNumber: 1, status: 'Valid' })]);
+
+    fakeJudgeImportApi.consolidate.mockReturnValue(
+      of({
+        created: [{ id: 'j1', email: 'ana@example.com' }],
+        updated: [],
+        excluded: 0,
+        skipped: [{ email: 'ana@example.com', reason: 'duplicate-in-list' }],
+      }),
+    );
+    buttonWithText(fixture.nativeElement, 'Consolidar').click();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Omitidos: 1');
+  });
+
+  it('does not mention omitted rows in the consolidate summary when nothing was skipped', () => {
+    const fixture = uploadedFixture([rowFixture({ rowNumber: 1, status: 'Valid' })]);
+
+    fakeJudgeImportApi.consolidate.mockReturnValue(
+      of({
+        created: [{ id: 'j1', email: 'ana@example.com' }],
+        updated: [],
+        excluded: 0,
+        skipped: [],
+      }),
+    );
+    buttonWithText(fixture.nativeElement, 'Consolidar').click();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Omitidos');
   });
 
   it('shows a consolidate error banner when consolidation fails', () => {
@@ -267,7 +302,7 @@ describe('JudgeImportStepComponent', () => {
 
     expect(fakeJudgeImportApi.getImport).toHaveBeenCalledWith('c1', 'ji1');
     expect(fixture.nativeElement.querySelector('input[type="file"]')).toBeFalsy();
-    expect(fixture.nativeElement.textContent).toContain('Rebeca Ruifernández Calzada');
+    expect(fixture.nativeElement.textContent).toContain('Ana García Ruiz');
   });
 
   it('shows the upload form and does not call getImport when no judgeImportId is set', () => {

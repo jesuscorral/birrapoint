@@ -250,6 +250,9 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
           <bp-alert type="success" title="Importación consolidada">
             Creados: {{ result.created.length }}. Actualizados: {{ result.updated.length }}.
             Excluidos: {{ result.excluded }}.
+            @if (result.skipped.length > 0) {
+              Omitidos: {{ result.skipped.length }} (correos duplicados en el archivo).
+            }
           </bp-alert>
 
           <div class="step-actions">

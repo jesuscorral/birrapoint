@@ -22,7 +22,7 @@ describe('JudgeImportApiService', () => {
         rowNumber: 1,
         status: 'Valid',
         data: {
-          name: 'Rebeca Ruifernández Calzada',
+          name: 'Ana García Ruiz',
           email: 'rebeca@example.com',
           bjcpRank: 'Certificado',
           bjcpId: 'E4612',
@@ -73,7 +73,7 @@ describe('JudgeImportApiService', () => {
 
   it('editRow() puts the full-replace row body', async () => {
     const body: EditJudgeImportRowRequest = {
-      name: 'Rebeca Ruifernández Calzada',
+      name: 'Ana García Ruiz',
       email: 'rebeca@example.com',
       bjcpRank: 'Certificado',
       bjcpId: 'E4612',
@@ -111,6 +111,7 @@ describe('JudgeImportApiService', () => {
       created: [{ id: 'j1', email: 'rebeca@example.com' }],
       updated: [],
       excluded: 0,
+      skipped: [],
     };
     const result = firstValueFrom(service.consolidate('c1', 'i1'));
 

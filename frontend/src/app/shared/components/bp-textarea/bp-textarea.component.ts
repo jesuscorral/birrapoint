@@ -15,6 +15,11 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
   selector: 'bp-textarea',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Same fix as bp-input.component.ts: a static id="x" attribute on <bp-textarea> would
+  // otherwise also land on this host element (Angular reflects static attributes onto the host
+  // in addition to feeding a matching signal input), duplicating the id the inner <textarea>
+  // needs for its own label[for] association.
+  host: { '[attr.id]': 'null' },
   template: `
     <div class="field">
       @if (label()) {

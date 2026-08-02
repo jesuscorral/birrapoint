@@ -44,10 +44,20 @@ export interface ConsolidatedJudge {
   email: string;
 }
 
+// Wire shape `skipped` on the consolidate response (contracts/rest-api.md §Judge Roster Import,
+// FR-058) — same JudgeSkipDto backend reuses from the plain email-list flow, but this endpoint
+// only ever populates the "duplicate-in-list" reason (an already-registered judge is upserted,
+// not skipped, here).
+export interface JudgeImportSkip {
+  email: string;
+  reason: 'duplicate-in-list';
+}
+
 export interface JudgeImportConsolidateResult {
   created: ConsolidatedJudge[];
   updated: ConsolidatedJudge[];
   excluded: number;
+  skipped: JudgeImportSkip[];
 }
 
 @Injectable({ providedIn: 'root' })
