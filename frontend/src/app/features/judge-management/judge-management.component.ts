@@ -4,7 +4,12 @@ import { ActivatedRoute } from '@angular/router';
 
 import { ApiError } from '../../core/api/api-error';
 import { JudgeManagementApiService } from './judge-management-api.service';
-import type { JudgeProfile, JudgeSkip, RegisterJudgesResult } from './judge-management-api.service';
+import type {
+  JudgeProfile,
+  JudgeSkip,
+  NotifyJudgesResult,
+  RegisterJudgesResult,
+} from './judge-management-api.service';
 
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError
@@ -83,6 +88,19 @@ function splitEmails(raw: string): string[] {
 
     <section aria-label="Delivery status">
       <h2>Delivery status</h2>
+
+      <button type="button" [disabled]="notifying()" (click)="onNotify()">Notificar jueces</button>
+      @if (notifyError(); as message) {
+        <p role="alert">{{ message }}</p>
+      }
+      @if (notifyResult(); as result) {
+        @if (result.queued.length > 0) {
+          <p>Se han notificado {{ result.queued.length }} juez(es).</p>
+        } @else {
+          <p>No había jueces pendientes de notificar.</p>
+        }
+      }
+
       @if (listError(); as message) {
         <p role="alert">{{ message }}</p>
       }
@@ -127,6 +145,24 @@ function splitEmails(raw: string): string[] {
                 }
               </td>
             </tr>
+            @if (hasRosterInfo(judge)) {
+              <tr [attr.data-judge-roster]="judge.email">
+                <td colspan="6">
+                  @if (judge.bjcpRank) {
+                    <span>Rango BJCP: {{ judge.bjcpRank }}</span>
+                  }
+                  @if (judge.bjcpId) {
+                    <span>BJCP ID: {{ judge.bjcpId }}</span>
+                  }
+                  @if (judge.preferredCategory) {
+                    <span>Categoría preferida: {{ judge.preferredCategory }}</span>
+                  }
+                  @if (judge.preferences) {
+                    <span>Preferencias: {{ judge.preferences }}</span>
+                  }
+                </td>
+              </tr>
+            }
           }
         </tbody>
       </table>
@@ -152,6 +188,10 @@ export class JudgeManagementComponent {
   protected readonly editEmailInput = signal('');
   protected readonly editError = signal<string | null>(null);
 
+  protected readonly notifying = signal(false);
+  protected readonly notifyError = signal<string | null>(null);
+  protected readonly notifyResult = signal<NotifyJudgesResult | null>(null);
+
   protected readonly skipReasonLabel = skipReasonLabel;
 
   constructor() {
@@ -160,6 +200,10 @@ export class JudgeManagementComponent {
 
   protected isBusy(judgeId: string): boolean {
     return this.busyJudgeId() === judgeId;
+  }
+
+  protected hasRosterInfo(judge: JudgeProfile): boolean {
+    return !!(judge.bjcpRank || judge.bjcpId || judge.preferredCategory || judge.preferences);
   }
 
   private loadJudges(): void {
@@ -247,6 +291,30 @@ export class JudgeManagementComponent {
       error: (error: unknown) => {
         this.busyJudgeId.set(null);
         this.editError.set(errorMessage(toGenericApiError(error)));
+      },
+    });
+  }
+
+  // FR-059: single bulk action covering judges from both provisioning paths (plain email-list
+  // registration and judge-roster import consolidation), neither of which sends an invitation.
+  protected onNotify(): void {
+    if (this.notifying()) {
+      return;
+    }
+
+    this.notifying.set(true);
+    this.notifyError.set(null);
+    this.notifyResult.set(null);
+
+    this.api.notifyJudges(this.competitionId).subscribe({
+      next: (result) => {
+        this.notifying.set(false);
+        this.notifyResult.set(result);
+        this.loadJudges();
+      },
+      error: (error: unknown) => {
+        this.notifying.set(false);
+        this.notifyError.set(errorMessage(toGenericApiError(error)));
       },
     });
   }

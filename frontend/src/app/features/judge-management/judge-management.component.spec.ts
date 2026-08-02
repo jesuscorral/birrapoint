@@ -13,6 +13,10 @@ function judgesFixture(): JudgeProfile[] {
       id: 'j1',
       email: 'ada@example.com',
       displayName: 'Ada Lovelace',
+      bjcpRank: null,
+      bjcpId: null,
+      preferredCategory: null,
+      preferences: null,
       invitationStatus: 'Sent',
       attempts: 1,
       lastError: null,
@@ -22,6 +26,10 @@ function judgesFixture(): JudgeProfile[] {
       id: 'j2',
       email: 'grace@example.com',
       displayName: 'Grace Hopper',
+      bjcpRank: null,
+      bjcpId: null,
+      preferredCategory: null,
+      preferences: null,
       invitationStatus: 'Failed',
       attempts: 3,
       lastError: 'SMTP timeout',
@@ -45,6 +53,7 @@ describe('JudgeManagementComponent', () => {
     getJudges: jest.Mock;
     updateJudgeEmail: jest.Mock;
     resendInvitation: jest.Mock;
+    notifyJudges: jest.Mock;
   };
 
   beforeEach(() => {
@@ -53,6 +62,7 @@ describe('JudgeManagementComponent', () => {
       getJudges: jest.fn().mockReturnValue(of([])),
       updateJudgeEmail: jest.fn(),
       resendInvitation: jest.fn(),
+      notifyJudges: jest.fn(),
     };
     TestBed.configureTestingModule({
       providers: [
@@ -238,5 +248,82 @@ describe('JudgeManagementComponent', () => {
     expect(fixture.nativeElement.textContent).toContain(
       'This judge has already logged in and can no longer be corrected here.',
     );
+  });
+
+  it('renders the roster fields for a judge created via the roster import, only the ones that are set', () => {
+    fakeApi.getJudges.mockReturnValue(
+      of([
+        {
+          ...judgesFixture()[0],
+          bjcpRank: 'Certificado',
+          bjcpId: 'E4612',
+          preferredCategory: 'Estilos Clásicos',
+          preferences: null,
+        },
+      ]),
+    );
+    const fixture = createComponent();
+
+    const rosterRow = fixture.nativeElement.querySelector(
+      'tr[data-judge-roster="ada@example.com"]',
+    ) as Element;
+    expect(rosterRow.textContent).toContain('Rango BJCP: Certificado');
+    expect(rosterRow.textContent).toContain('BJCP ID: E4612');
+    expect(rosterRow.textContent).toContain('Categoría preferida: Estilos Clásicos');
+    expect(rosterRow.textContent).not.toContain('Preferencias:');
+  });
+
+  it('does not render a roster row for a judge created via the plain email-list flow (all four fields null)', () => {
+    fakeApi.getJudges.mockReturnValue(of(judgesFixture()));
+    const fixture = createComponent();
+
+    expect(
+      fixture.nativeElement.querySelector('tr[data-judge-roster="ada@example.com"]'),
+    ).toBeFalsy();
+  });
+
+  it('notifies pending judges and shows how many were queued, then refreshes the list', () => {
+    fakeApi.getJudges.mockReturnValue(of(judgesFixture()));
+    const fixture = createComponent();
+
+    fakeApi.notifyJudges.mockReturnValue(of({ queued: [{ id: 'j1', email: 'ada@example.com' }] }));
+    buttonWithText(fixture.nativeElement, 'Notificar jueces').click();
+    fixture.detectChanges();
+
+    expect(fakeApi.notifyJudges).toHaveBeenCalledWith('c1');
+    expect(fixture.nativeElement.textContent).toContain('Se han notificado 1 juez(es).');
+    expect(fakeApi.getJudges).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows a message instead of a count when nothing was pending to notify', () => {
+    fakeApi.getJudges.mockReturnValue(of(judgesFixture()));
+    const fixture = createComponent();
+
+    fakeApi.notifyJudges.mockReturnValue(of({ queued: [] }));
+    buttonWithText(fixture.nativeElement, 'Notificar jueces').click();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('No había jueces pendientes de notificar.');
+  });
+
+  it('surfaces the server error message when notifying fails', () => {
+    fakeApi.getJudges.mockReturnValue(of(judgesFixture()));
+    const fixture = createComponent();
+
+    fakeApi.notifyJudges.mockReturnValue(
+      throwError(
+        () =>
+          new ApiError({
+            status: 404,
+            title: 'Competition not found',
+            urn: null,
+            detail: 'Competition not found.',
+          }),
+      ),
+    );
+    buttonWithText(fixture.nativeElement, 'Notificar jueces').click();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Competition not found.');
   });
 });
