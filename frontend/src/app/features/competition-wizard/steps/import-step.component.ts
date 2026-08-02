@@ -11,7 +11,8 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
 import { ApiError } from '../../../core/api/api-error';
 import { CatalogApiService } from '../../../core/api/catalog-api.service';
@@ -155,6 +156,13 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
       }
 
       @if (!importBatch()) {
+        @if (entriesLoadFailed()) {
+          <bp-alert type="info" title="No hemos podido comprobar cervezas ya importadas">
+            Puede que ya existan cervezas cargadas para esta competición y no las estemos mostrando.
+            Revisa el panel de organizador antes de subir un archivo para evitar una importación
+            duplicada.
+          </bp-alert>
+        }
         @if (alreadyImportedEntries().length > 0) {
           <section class="existing-entries" aria-label="Cervezas ya importadas">
             <h2 class="existing-entries__title">
@@ -178,7 +186,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
                 type="button"
                 label="Ir al panel de organizador"
                 variant="primary"
-                (onClick)="goToDashboard()"
+                (clicked)="goToDashboard()"
               ></bp-button>
             </div>
           </section>
@@ -204,7 +212,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
               type="button"
               label="← Volver"
               variant="ghost"
-              (onClick)="back.emit()"
+              (clicked)="back.emit()"
             ></bp-button>
             <bp-button
               type="submit"
@@ -372,14 +380,14 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
                       label="Cancelar"
                       variant="ghost"
                       [disabled]="rowSaving()"
-                      (onClick)="stopEditing()"
+                      (clicked)="stopEditing()"
                     ></bp-button>
                     <bp-button
                       type="button"
                       label="Guardar fila"
                       variant="primary"
                       [loading]="rowSaving()"
-                      (onClick)="saveRow(i)"
+                      (clicked)="saveRow(i)"
                     ></bp-button>
                   </div>
                 </div>
@@ -399,7 +407,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
                       type="button"
                       label="Editar"
                       variant="ghost"
-                      (onClick)="startEditing(i)"
+                      (clicked)="startEditing(i)"
                     ></bp-button>
                     <bp-button
                       type="button"
@@ -407,7 +415,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
                       variant="secondary"
                       [ariaLabel]="'Excluir fila #' + row.rowNumber"
                       [loading]="rowSaving()"
-                      (onClick)="excludeRow(i)"
+                      (clicked)="excludeRow(i)"
                     ></bp-button>
                   } @else {
                     <span class="import-row__excluded-label">Fila excluida</span>
@@ -441,7 +449,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
               type="button"
               label="Ir al panel de organizador"
               variant="primary"
-              (onClick)="goToDashboard()"
+              (clicked)="goToDashboard()"
             ></bp-button>
           </div>
         } @else {
@@ -450,7 +458,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
               type="button"
               label="← Volver"
               variant="ghost"
-              (onClick)="back.emit()"
+              (clicked)="back.emit()"
             ></bp-button>
             <bp-button
               type="button"
@@ -458,7 +466,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
               variant="primary"
               [loading]="consolidating()"
               [disabled]="unresolvedCount() > 0 || consolidating()"
-              (onClick)="onConsolidate()"
+              (clicked)="onConsolidate()"
             ></bp-button>
           </div>
         }
@@ -712,6 +720,10 @@ export class ImportStepComponent implements OnInit {
   // import batch — fetched by competitionId alone so they're still visible after reopening the
   // wizard (importId is in-memory-only and does not survive leaving/reloading it).
   protected readonly alreadyImportedEntries = signal<EntryListItem[]>([]);
+  // Distinguishes "checked, nothing imported yet" from "the check itself failed" — an empty
+  // alreadyImportedEntries() alone can't tell those apart, and silently treating a failed check as
+  // "nothing imported" nudges the organizer toward an accidental duplicate import.
+  protected readonly entriesLoadFailed = signal(false);
 
   protected readonly editingIndex = signal<number | null>(null);
   protected readonly editDraft = signal<RowDraft | null>(null);
@@ -742,7 +754,15 @@ export class ImportStepComponent implements OnInit {
     forkJoin({
       categoriesResponse: this.competitionsApi.getCategories(this.competitionId()),
       styles: this.catalogApi.getStyles(),
-      entries: this.entriesApi.getEntries(this.competitionId()),
+      // A transient failure here must not block the primary category/style load that the rest of
+      // the step depends on — but it's still surfaced (entriesLoadFailed) rather than swallowed,
+      // since an empty result is otherwise indistinguishable from "nothing imported yet".
+      entries: this.entriesApi.getEntries(this.competitionId()).pipe(
+        catchError(() => {
+          this.entriesLoadFailed.set(true);
+          return of([]);
+        }),
+      ),
     }).subscribe({
       next: ({ categoriesResponse, styles, entries }) => {
         this.categories.set(categoriesResponse.categories);

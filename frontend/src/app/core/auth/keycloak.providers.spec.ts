@@ -10,8 +10,10 @@ describe('keycloak config', () => {
     expect(keycloakConfig).toEqual(environment.keycloak);
   });
 
-  it('requires login before any content renders, with PKCE S256', () => {
-    expect(keycloakInitOptions.onLoad).toBe('login-required');
+  it('checks for an existing SSO session without forcing a login redirect, with PKCE S256', () => {
+    // Public landing page decision — see Docs/adrs/0012-public-welcome-landing-with-check-sso.md
+    // and spec.md FR-001.
+    expect(keycloakInitOptions.onLoad).toBe('check-sso');
     expect(keycloakInitOptions.pkceMethod).toBe('S256');
   });
 });

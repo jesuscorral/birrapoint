@@ -170,21 +170,21 @@ function toGenericApiError(error: unknown): ApiError {
               variant="primary"
               [loading]="submitting()"
               [disabled]="form.invalid"
-              (onClick)="onSaveAndLeave()"
+              (clicked)="onSaveAndLeave()"
             ></bp-button>
             <bp-button
               type="button"
               label="Descartar cambios"
               variant="secondary"
               [disabled]="submitting()"
-              (onClick)="onDiscardAndLeave()"
+              (clicked)="onDiscardAndLeave()"
             ></bp-button>
             <bp-button
               type="button"
               label="Cancelar"
               variant="ghost"
               [disabled]="submitting()"
-              (onClick)="onCancelBackConfirm()"
+              (clicked)="onCancelBackConfirm()"
             ></bp-button>
           </div>
         </div>

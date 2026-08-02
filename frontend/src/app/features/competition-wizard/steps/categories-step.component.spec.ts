@@ -156,6 +156,37 @@ describe('CategoriesStepComponent', () => {
     expect(fixture.nativeElement.querySelector('#category-name-0')).toBeFalsy();
   });
 
+  it("gives each row's Editar/Eliminar buttons an accessible name that distinguishes them from every other row", () => {
+    // Regression test: `[attr.aria-label]` bound on the <bp-button> host element is inert — the
+    // accessible name comes from the inner native <button>, which only picks it up via bp-button's
+    // own `ariaLabel` input. Without this, every row's buttons are indistinguishable "Editar"/
+    // "Eliminar" to assistive tech (WCAG 2.1 AA, Principle VIII) — axe's core ruleset doesn't flag
+    // duplicate accessible names, so only an explicit assertion on the rendered attribute catches it.
+    fakeCompetitionsApi.getCategories.mockReturnValue(
+      of(
+        categoriesResponseFixture({
+          categories: [
+            { id: 'cat-1', name: 'A', displayOrder: 0, styleCodes: [] },
+            { id: 'cat-2', name: 'B', displayOrder: 1, styleCodes: [] },
+          ],
+        }),
+      ),
+    );
+    const fixture = createComponent();
+
+    const editButtons = fixture.nativeElement.querySelectorAll('button[aria-label^="Editar "]');
+    expect(editButtons.length).toBe(2);
+    expect(editButtons[0].getAttribute('aria-label')).not.toBe(
+      editButtons[1].getAttribute('aria-label'),
+    );
+
+    const removeButtons = fixture.nativeElement.querySelectorAll('button[aria-label^="Eliminar "]');
+    expect(removeButtons.length).toBe(2);
+    expect(removeButtons[0].getAttribute('aria-label')).not.toBe(
+      removeButtons[1].getAttribute('aria-label'),
+    );
+  });
+
   it('assigning a style to a category removes it from any previously-assigned category', () => {
     fakeCatalogApi.getStyles.mockReturnValue(of([styleFixture()]));
     fakeCompetitionsApi.getCategories.mockReturnValue(

@@ -222,13 +222,13 @@ import { ImportStepComponent } from './steps/import-step.component';
               type="button"
               label="Seguir editando"
               variant="primary"
-              (onClick)="onKeepEditing()"
+              (clicked)="onKeepEditing()"
             ></bp-button>
             <bp-button
               type="button"
               label="Descartar y continuar"
               variant="secondary"
-              (onClick)="onDiscardAndNavigate()"
+              (clicked)="onDiscardAndNavigate()"
             ></bp-button>
           </div>
         </div>

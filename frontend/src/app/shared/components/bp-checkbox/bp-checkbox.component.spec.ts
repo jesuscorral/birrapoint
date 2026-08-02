@@ -1,3 +1,4 @@
+import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { BpCheckboxComponent } from './bp-checkbox.component';
@@ -74,25 +75,25 @@ describe('BpCheckboxComponent', () => {
   });
 
   describe('Change event', () => {
-    it('should emit change event when checkbox is clicked', () => {
-      jest.spyOn(component.change, 'emit');
+    it('should emit checkedChange event when checkbox is clicked', () => {
+      jest.spyOn(component.checkedChange, 'emit');
       fixture.detectChanges();
 
       const input = fixture.nativeElement.querySelector('input[type="checkbox"]');
       input.click();
 
-      expect(component.change.emit).toHaveBeenCalledWith(true);
+      expect(component.checkedChange.emit).toHaveBeenCalledWith(true);
     });
 
     it('should emit false when unchecking', () => {
-      jest.spyOn(component.change, 'emit');
+      jest.spyOn(component.checkedChange, 'emit');
       component.checked = true;
       fixture.detectChanges();
 
       const input = fixture.nativeElement.querySelector('input[type="checkbox"]');
       input.click();
 
-      expect(component.change.emit).toHaveBeenCalledWith(false);
+      expect(component.checkedChange.emit).toHaveBeenCalledWith(false);
     });
   });
 
@@ -114,14 +115,14 @@ describe('BpCheckboxComponent', () => {
     });
 
     it('should not emit change when disabled', () => {
-      jest.spyOn(component.change, 'emit');
+      jest.spyOn(component.checkedChange, 'emit');
       component.disabled = true;
       fixture.detectChanges();
 
       const input = fixture.nativeElement.querySelector('input[type="checkbox"]');
       input.click();
 
-      expect(component.change.emit).not.toHaveBeenCalled();
+      expect(component.checkedChange.emit).not.toHaveBeenCalled();
     });
   });
 
@@ -176,6 +177,42 @@ describe('BpCheckboxComponent', () => {
 
       component.setDisabledState(false);
       expect(component.disabled).toBe(false);
+    });
+  });
+
+  describe('OnPush + ControlValueAccessor written from a parent view', () => {
+    // Regression test for markForCheck() inside writeValue()/setDisabledState(): the tests above
+    // call component.writeValue()/setDisabledState() directly on this root fixture, which doesn't
+    // exercise a parent view writing in from outside this component's own OnPush change-detection
+    // cycle — the actual Reactive Forms usage pattern. Only a host-based test reproduces that.
+    @Component({
+      template: `<bp-checkbox [formControl]="control">Acepto</bp-checkbox>`,
+      imports: [BpCheckboxComponent, ReactiveFormsModule],
+    })
+    class HostComponent {
+      readonly control = new FormControl(false);
+    }
+
+    it('renders a value written by the parent FormControl', () => {
+      const host = TestBed.createComponent(HostComponent);
+      host.detectChanges();
+
+      host.componentInstance.control.setValue(true);
+      host.detectChanges();
+
+      const input = host.nativeElement.querySelector('input[type="checkbox"]') as HTMLInputElement;
+      expect(input.checked).toBe(true);
+    });
+
+    it('renders disabled state set by the parent FormControl', () => {
+      const host = TestBed.createComponent(HostComponent);
+      host.detectChanges();
+
+      host.componentInstance.control.disable();
+      host.detectChanges();
+
+      const input = host.nativeElement.querySelector('input[type="checkbox"]') as HTMLInputElement;
+      expect(input.disabled).toBe(true);
     });
   });
 

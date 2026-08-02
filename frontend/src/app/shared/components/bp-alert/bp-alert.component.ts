@@ -1,27 +1,64 @@
-import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 @Component({
   selector: 'bp-alert',
   standalone: true,
-  imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div [class]="alertClasses" [attr.role]="role">
-      <svg
-        *ngIf="icon"
-        class="alert__icon"
-        [innerHTML]="icon"
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.2"
-        stroke-linecap="round"
-        aria-hidden="true"
-      ></svg>
+    <div [class]="alertClasses()" [attr.role]="role()">
+      @switch (type()) {
+        @case ('error') {
+          <svg
+            class="alert__icon"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v6M12 16.5v.01" />
+          </svg>
+        }
+        @case ('success') {
+          <svg
+            class="alert__icon"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+        }
+        @default {
+          <svg
+            class="alert__icon"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 16v-5M12 8v.01" />
+          </svg>
+        }
+      }
       <span>
-        <strong *ngIf="title" class="alert-title">{{ title }}</strong>
+        @if (title()) {
+          <strong class="alert-title">{{ title() }}</strong>
+        }
         <ng-content></ng-content>
       </span>
     </div>
@@ -70,25 +107,13 @@ import { CommonModule } from '@angular/common';
   ],
 })
 export class BpAlertComponent {
-  @Input() type: 'error' | 'info' | 'success' = 'info';
-  @Input() title = '';
-  @Input() role: 'alert' | 'status' = 'alert';
+  readonly type = input<'error' | 'info' | 'success'>('info');
+  readonly title = input('');
+  readonly role = input<'alert' | 'status'>('alert');
 
-  get alertClasses(): string {
+  protected readonly alertClasses = computed(() => {
     const base = 'alert';
-    const typeClass = `alert-${this.type}`;
+    const typeClass = `alert-${this.type()}`;
     return `${base} ${typeClass}`;
-  }
-
-  get icon(): string {
-    switch (this.type) {
-      case 'error':
-        return '<circle cx="12" cy="12" r="9" /><path d="M12 7v6M12 16.5v.01" />';
-      case 'success':
-        return '<path d="M20 6 9 17l-5-5" />';
-      case 'info':
-      default:
-        return '<circle cx="12" cy="12" r="9" /><path d="M12 16v-5M12 8v.01" />';
-    }
-  }
+  });
 }

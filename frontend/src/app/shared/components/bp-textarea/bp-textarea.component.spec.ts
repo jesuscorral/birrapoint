@@ -1,4 +1,6 @@
+import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { BpTextareaComponent } from './bp-textarea.component';
 
 describe('BpTextareaComponent', () => {
@@ -24,8 +26,8 @@ describe('BpTextareaComponent', () => {
   });
 
   it('should render label with required asterisk', () => {
-    component.label = 'Descripción';
-    component.required = true;
+    fixture.componentRef.setInput('label', 'Descripción');
+    fixture.componentRef.setInput('required', true);
     fixture.detectChanges();
 
     const label = fixture.nativeElement.querySelector('label');
@@ -34,7 +36,7 @@ describe('BpTextareaComponent', () => {
   });
 
   it('should apply the configured number of rows', () => {
-    component.rows = 6;
+    fixture.componentRef.setInput('rows', 6);
     fixture.detectChanges();
 
     const textarea = fixture.nativeElement.querySelector('textarea');
@@ -42,8 +44,8 @@ describe('BpTextareaComponent', () => {
   });
 
   it('should set aria-invalid and show the error message when hasError is true', () => {
-    component.hasError = true;
-    component.errorMessage = 'Campo requerido';
+    fixture.componentRef.setInput('hasError', true);
+    fixture.componentRef.setInput('errorMessage', 'Campo requerido');
     fixture.detectChanges();
 
     const textarea = fixture.nativeElement.querySelector('textarea');
@@ -54,9 +56,9 @@ describe('BpTextareaComponent', () => {
   });
 
   it('should hide the hint when there is an error', () => {
-    component.hint = 'Cuéntanos algo';
-    component.hasError = true;
-    component.errorMessage = 'Error';
+    fixture.componentRef.setInput('hint', 'Cuéntanos algo');
+    fixture.componentRef.setInput('hasError', true);
+    fixture.componentRef.setInput('errorMessage', 'Error');
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('.field__hint')).toBeFalsy();
@@ -110,6 +112,42 @@ describe('BpTextareaComponent', () => {
     it('should set disabled state via setDisabledState', () => {
       component.setDisabledState(true);
       expect(component.disabled).toBe(true);
+    });
+  });
+
+  describe('OnPush + ControlValueAccessor written from a parent view', () => {
+    // Regression test for markForCheck() inside writeValue()/setDisabledState(): the tests above
+    // call component.writeValue()/setDisabledState() directly on this root fixture, which doesn't
+    // exercise a parent view writing in from outside this component's own OnPush change-detection
+    // cycle — the actual Reactive Forms usage pattern. Only a host-based test reproduces that.
+    @Component({
+      template: `<bp-textarea [formControl]="control"></bp-textarea>`,
+      imports: [BpTextareaComponent, ReactiveFormsModule],
+    })
+    class HostComponent {
+      readonly control = new FormControl('initial');
+    }
+
+    it('renders a value written by the parent FormControl', () => {
+      const host = TestBed.createComponent(HostComponent);
+      host.detectChanges();
+
+      host.componentInstance.control.setValue('patched');
+      host.detectChanges();
+
+      const textarea = host.nativeElement.querySelector('textarea') as HTMLTextAreaElement;
+      expect(textarea.value).toBe('patched');
+    });
+
+    it('renders disabled state set by the parent FormControl', () => {
+      const host = TestBed.createComponent(HostComponent);
+      host.detectChanges();
+
+      host.componentInstance.control.disable();
+      host.detectChanges();
+
+      const textarea = host.nativeElement.querySelector('textarea') as HTMLTextAreaElement;
+      expect(textarea.disabled).toBe(true);
     });
   });
 });

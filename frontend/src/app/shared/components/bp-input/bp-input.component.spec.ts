@@ -1,5 +1,6 @@
+import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ReactiveFormsModule, FormControl, Validators } from '@angular/forms';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { BpInputComponent } from './bp-input.component';
 
 describe('BpInputComponent', () => {
@@ -28,7 +29,7 @@ describe('BpInputComponent', () => {
     });
 
     it('should render label when provided', () => {
-      component.label = 'Email';
+      fixture.componentRef.setInput('label', 'Email');
       fixture.detectChanges();
 
       const label = fixture.nativeElement.querySelector('label');
@@ -36,8 +37,8 @@ describe('BpInputComponent', () => {
     });
 
     it('should show asterisk for required fields', () => {
-      component.label = 'Email';
-      component.required = true;
+      fixture.componentRef.setInput('label', 'Email');
+      fixture.componentRef.setInput('required', true);
       fixture.detectChanges();
 
       const req = fixture.nativeElement.querySelector('.req');
@@ -45,8 +46,8 @@ describe('BpInputComponent', () => {
     });
 
     it('should render hint text when provided', () => {
-      component.hint = 'Your email for login';
-      component.hasError = false;
+      fixture.componentRef.setInput('hint', 'Your email for login');
+      fixture.componentRef.setInput('hasError', false);
       fixture.detectChanges();
 
       const hint = fixture.nativeElement.querySelector('.field__hint');
@@ -54,9 +55,9 @@ describe('BpInputComponent', () => {
     });
 
     it('should hide hint when there is an error', () => {
-      component.hint = 'Your email';
-      component.hasError = true;
-      component.errorMessage = 'Invalid email';
+      fixture.componentRef.setInput('hint', 'Your email');
+      fixture.componentRef.setInput('hasError', true);
+      fixture.componentRef.setInput('errorMessage', 'Invalid email');
       fixture.detectChanges();
 
       const hint = fixture.nativeElement.querySelector('.field__hint');
@@ -73,7 +74,7 @@ describe('BpInputComponent', () => {
     });
 
     it('should render email input', () => {
-      component.type = 'email';
+      fixture.componentRef.setInput('type', 'email');
       fixture.detectChanges();
 
       const input = fixture.nativeElement.querySelector('input');
@@ -81,7 +82,7 @@ describe('BpInputComponent', () => {
     });
 
     it('should render password input', () => {
-      component.type = 'password';
+      fixture.componentRef.setInput('type', 'password');
       fixture.detectChanges();
 
       const input = fixture.nativeElement.querySelector('input');
@@ -89,7 +90,7 @@ describe('BpInputComponent', () => {
     });
 
     it('should render tel input', () => {
-      component.type = 'tel';
+      fixture.componentRef.setInput('type', 'tel');
       fixture.detectChanges();
 
       const input = fixture.nativeElement.querySelector('input');
@@ -99,7 +100,7 @@ describe('BpInputComponent', () => {
 
   describe('Password toggle', () => {
     it('should show toggle button for password type', () => {
-      component.type = 'password';
+      fixture.componentRef.setInput('type', 'password');
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('.field__action');
@@ -107,7 +108,7 @@ describe('BpInputComponent', () => {
     });
 
     it('should not show toggle button for other types', () => {
-      component.type = 'email';
+      fixture.componentRef.setInput('type', 'email');
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('.field__action');
@@ -115,7 +116,7 @@ describe('BpInputComponent', () => {
     });
 
     it('should toggle password visibility', () => {
-      component.type = 'password';
+      fixture.componentRef.setInput('type', 'password');
       fixture.detectChanges();
 
       const input = fixture.nativeElement.querySelector('input');
@@ -135,7 +136,7 @@ describe('BpInputComponent', () => {
 
   describe('Validation', () => {
     it('should set aria-invalid when hasError=true', () => {
-      component.hasError = true;
+      fixture.componentRef.setInput('hasError', true);
       fixture.detectChanges();
 
       const input = fixture.nativeElement.querySelector('input');
@@ -143,7 +144,7 @@ describe('BpInputComponent', () => {
     });
 
     it('should apply error styling when hasError=true', () => {
-      component.hasError = true;
+      fixture.componentRef.setInput('hasError', true);
       fixture.detectChanges();
 
       const input = fixture.nativeElement.querySelector('input');
@@ -151,8 +152,8 @@ describe('BpInputComponent', () => {
     });
 
     it('should show error message when provided', () => {
-      component.hasError = true;
-      component.errorMessage = 'This field is required';
+      fixture.componentRef.setInput('hasError', true);
+      fixture.componentRef.setInput('errorMessage', 'This field is required');
       fixture.detectChanges();
 
       const error = fixture.nativeElement.querySelector('.field__error');
@@ -160,9 +161,9 @@ describe('BpInputComponent', () => {
     });
 
     it('should set aria-describedby for hint', () => {
-      component.id = 'email-field';
-      component.hint = 'Your email';
-      component.hasError = false;
+      fixture.componentRef.setInput('id', 'email-field');
+      fixture.componentRef.setInput('hint', 'Your email');
+      fixture.componentRef.setInput('hasError', false);
       fixture.detectChanges();
 
       const input = fixture.nativeElement.querySelector('input');
@@ -170,9 +171,9 @@ describe('BpInputComponent', () => {
     });
 
     it('should set aria-describedby for error', () => {
-      component.id = 'email-field';
-      component.hasError = true;
-      component.errorMessage = 'Invalid';
+      fixture.componentRef.setInput('id', 'email-field');
+      fixture.componentRef.setInput('hasError', true);
+      fixture.componentRef.setInput('errorMessage', 'Invalid');
       fixture.detectChanges();
 
       const input = fixture.nativeElement.querySelector('input');
@@ -222,8 +223,7 @@ describe('BpInputComponent', () => {
     });
 
     it('should work with reactive forms', () => {
-      const control = new FormControl('initial');
-      component.id = 'email';
+      fixture.componentRef.setInput('id', 'email');
 
       fixture.detectChanges();
       component.writeValue('new value');
@@ -265,9 +265,48 @@ describe('BpInputComponent', () => {
     });
   });
 
+  describe('OnPush + ControlValueAccessor written from a parent view', () => {
+    // Regression test for markForCheck() inside writeValue()/setDisabledState(): calling
+    // component.writeValue() directly and then this fixture's own detectChanges() (as the
+    // "should work with reactive forms" test above does) force-refreshes THIS component's view
+    // regardless of OnPush, so it would pass identically even with markForCheck() deleted. Forms
+    // writes actually arrive from a *parent* view's FormControl outside this component's own
+    // change-detection cycle — only a host-based test reproduces that and can actually fail on
+    // regression.
+    @Component({
+      template: `<bp-input [formControl]="control"></bp-input>`,
+      imports: [BpInputComponent, ReactiveFormsModule],
+    })
+    class HostComponent {
+      readonly control = new FormControl('initial');
+    }
+
+    it('renders a value written by the parent FormControl', () => {
+      const host = TestBed.createComponent(HostComponent);
+      host.detectChanges();
+
+      host.componentInstance.control.setValue('patched');
+      host.detectChanges();
+
+      const input = host.nativeElement.querySelector('input') as HTMLInputElement;
+      expect(input.value).toBe('patched');
+    });
+
+    it('renders disabled state set by the parent FormControl', () => {
+      const host = TestBed.createComponent(HostComponent);
+      host.detectChanges();
+
+      host.componentInstance.control.disable();
+      host.detectChanges();
+
+      const input = host.nativeElement.querySelector('input') as HTMLInputElement;
+      expect(input.disabled).toBe(true);
+    });
+  });
+
   describe('Placeholder', () => {
     it('should set placeholder text', () => {
-      component.placeholder = 'Enter email';
+      fixture.componentRef.setInput('placeholder', 'Enter email');
       fixture.detectChanges();
 
       const input = fixture.nativeElement.querySelector('input');
@@ -277,8 +316,8 @@ describe('BpInputComponent', () => {
 
   describe('Accessibility', () => {
     it('should have proper label association', () => {
-      component.id = 'custom-id';
-      component.label = 'Custom Field';
+      fixture.componentRef.setInput('id', 'custom-id');
+      fixture.componentRef.setInput('label', 'Custom Field');
       fixture.detectChanges();
 
       const label = fixture.nativeElement.querySelector('label');

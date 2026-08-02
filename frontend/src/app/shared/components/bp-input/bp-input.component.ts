@@ -1,72 +1,84 @@
 import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
-  Input,
-  Output,
-  EventEmitter,
-  ViewChild,
   ElementRef,
+  Input,
+  ViewChild,
+  computed,
   forwardRef,
+  inject,
+  input,
+  output,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 
 @Component({
   selector: 'bp-input',
   standalone: true,
-  imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="field">
-      <label *ngIf="label" class="field__label" [for]="id">
-        {{ label }}
-        <span *ngIf="required" class="req" aria-hidden="true">*</span>
-      </label>
+      @if (label()) {
+        <label class="field__label" [for]="id()">
+          {{ label() }}
+          @if (required()) {
+            <span class="req" aria-hidden="true">*</span>
+          }
+        </label>
+      }
       <div class="field__control">
         <input
           #input
-          [class]="inputClasses"
-          [type]="showPassword ? 'text' : type"
-          [id]="id"
-          [placeholder]="placeholder"
-          [required]="required"
+          [class]="inputClasses()"
+          [type]="showPassword ? 'text' : type()"
+          [id]="id()"
+          [placeholder]="placeholder()"
+          [required]="required()"
           [disabled]="disabled"
           [value]="value"
-          [attr.min]="min"
-          [attr.max]="max"
+          [attr.min]="min()"
+          [attr.max]="max()"
           (input)="onInput($event)"
           (blur)="onBlur()"
-          [attr.aria-invalid]="hasError"
-          [attr.aria-describedby]="hint ? id + '-hint' : hasError ? id + '-error' : null"
+          [attr.aria-invalid]="hasError()"
+          [attr.aria-describedby]="hint() ? id() + '-hint' : hasError() ? id() + '-error' : null"
         />
-        <button
-          *ngIf="type === 'password'"
-          class="field__action"
-          type="button"
-          (click)="togglePassword()"
-          [attr.aria-pressed]="showPassword"
-        >
-          {{ showPassword ? 'Ocultar' : 'Mostrar' }}
-        </button>
+        @if (type() === 'password') {
+          <button
+            class="field__action"
+            type="button"
+            (click)="togglePassword()"
+            [attr.aria-pressed]="showPassword"
+          >
+            {{ showPassword ? 'Ocultar' : 'Mostrar' }}
+          </button>
+        }
       </div>
-      <span *ngIf="hint && !hasError" class="field__hint" [id]="id + '-hint'">
-        {{ hint }}
-      </span>
-      <span *ngIf="hasError && errorMessage" class="field__error" [id]="id + '-error'">
-        <svg
-          class="error-icon"
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          aria-hidden="true"
-        >
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 7v6M12 16.5v.01" />
-        </svg>
-        {{ errorMessage }}
-      </span>
+      @if (hint() && !hasError()) {
+        <span class="field__hint" [id]="id() + '-hint'">
+          {{ hint() }}
+        </span>
+      }
+      @if (hasError() && errorMessage()) {
+        <span class="field__error" [id]="id() + '-error'">
+          <svg
+            class="error-icon"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v6M12 16.5v.01" />
+          </svg>
+          {{ errorMessage() }}
+        </span>
+      }
     </div>
   `,
   styles: [
@@ -199,22 +211,27 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
   ],
 })
 export class BpInputComponent implements ControlValueAccessor {
+  private readonly cdr = inject(ChangeDetectorRef);
+
   @ViewChild('input') inputElement!: ElementRef<HTMLInputElement>;
 
-  @Input() id = 'bp-input-' + Math.random().toString(36).substr(2, 9);
-  @Input() label = '';
-  @Input() type: 'text' | 'email' | 'password' | 'tel' | 'url' | 'date' | 'number' = 'text';
-  @Input() placeholder = '';
-  @Input() required = false;
-  @Input() disabled = false;
-  @Input() hint = '';
-  @Input() hasError = false;
-  @Input() errorMessage = '';
-  @Input() min: number | null = null;
-  @Input() max: number | null = null;
-  @Input() value = '';
+  readonly id = input('bp-input-' + Math.random().toString(36).slice(2, 11));
+  readonly label = input('');
+  readonly type = input<'text' | 'email' | 'password' | 'tel' | 'url' | 'date' | 'number'>('text');
+  readonly placeholder = input('');
+  readonly required = input(false);
+  readonly hint = input('');
+  readonly hasError = input(false);
+  readonly errorMessage = input('');
+  readonly min = input<number | null>(null);
+  readonly max = input<number | null>(null);
 
-  @Output() valueChange = new EventEmitter<string>();
+  // Written imperatively by ControlValueAccessor.writeValue()/setDisabledState() (Reactive Forms
+  // integration) — cannot be a signal input(), which is read-only from outside the component.
+  @Input() value = '';
+  @Input() disabled = false;
+
+  readonly valueChange = output<string>();
 
   showPassword = false;
 
@@ -240,20 +257,23 @@ export class BpInputComponent implements ControlValueAccessor {
     }, 0);
   }
 
-  get inputClasses(): string {
+  protected readonly inputClasses = computed(() => {
     const base =
       'w-full min-h-11 px-4 font-base text-base rounded-md bg-bp-surface border-bp-border-strong border-1.5 text-bp-text placeholder:text-bp-text-subtle hover:border-bp-verde-400 focus:outline-none focus:border-bp-cobre-500 focus:ring-3 focus:ring-bp-cobre-100 disabled:bg-bp-hueso-100 disabled:text-bp-text-subtle disabled:cursor-not-allowed transition-colors duration-150 ease-out';
-    const actionClass = this.type === 'password' ? 'with-action' : '';
-    const errorClass = this.hasError ? 'border-bp-danger-600 bg-bp-danger-50' : '';
+    const actionClass = this.type() === 'password' ? 'with-action' : '';
+    const errorClass = this.hasError() ? 'border-bp-danger-600 bg-bp-danger-50' : '';
 
     return `${base} ${actionClass} ${errorClass}`.trim();
-  }
+  });
 
   // ControlValueAccessor methods
   // Accepts number too (entryLimit etc. are FormControl<number|null>) — `value || ''` would drop
   // a legitimate 0, so compare against null/undefined explicitly instead of relying on falsiness.
   writeValue(value: string | number | null | undefined): void {
     this.value = value === null || value === undefined ? '' : String(value);
+    // Called by Angular's forms directives from outside this OnPush component's own change
+    // detection (e.g. FormGroup.patchValue()) — without this, the new value would never render.
+    this.cdr.markForCheck();
   }
 
   registerOnChange(fn: (value: string) => void): void {
@@ -266,5 +286,6 @@ export class BpInputComponent implements ControlValueAccessor {
 
   setDisabledState(isDisabled: boolean): void {
     this.disabled = isDisabled;
+    this.cdr.markForCheck();
   }
 }

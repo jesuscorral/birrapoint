@@ -75,7 +75,7 @@ Each scenario maps to a spec user story (US) and must pass before that story is 
 
 | # | Scenario (US) | Steps | Expected |
 |---|---------------|-------|----------|
-| 1 | Access & roles (US1) | Open `:4200` unauthenticated → login as seeded organizer; repeat as invited judge | Redirect to Keycloak; organizer lands on dashboard, judge on "my tables"; judge first login forces password change with no bypass |
+| 1 | Access & roles (US1) | Open `:4200` unauthenticated → verify public welcome landing (no competition data, sign-in/create-account visible) → sign in as seeded organizer; repeat as invited judge | Welcome page shown with no competition data before sign-in; choosing sign-in reaches Keycloak; organizer lands on dashboard, judge on "my tables"; judge first login forces password change with no bypass |
 | 2 | Wizard & drafts (US2) | Create competition, leave step 2 via "Save draft", reopen | Draft state persisted; wizard resumes with data intact; Next disabled until name/venue/dates valid |
 | 3 | Import & correction (US3) | Upload `samples/entries-with-errors.xlsx` (contract example incl. `99Z` row) | Row-level results; correction screen resolves `StyleMismatch`; consolidation blocked until resolved; blind codes generated |
 | 4 | Judge invitations (US4) | Bulk-add emails incl. one duplicate | Profiles created, duplicate reported; invitation visible in Mailpit (`:8025`) |

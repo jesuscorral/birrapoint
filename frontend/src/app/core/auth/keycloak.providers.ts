@@ -12,12 +12,12 @@ import { environment } from '../../../environments/environment';
 export const keycloakConfig: KeycloakConfig = environment.keycloak;
 
 // `check-sso` silently checks if there's an active session but doesn't force login.
-// The public /welcome landing (Angular) is guarded por role-based redirects at the route level,
+// The public /welcome landing (Angular) is guarded by role-based redirects at the route level,
 // so authenticated users land on their dashboard automatically (homeRedirectGuard).
 // `pkceMethod: 'S256'` is required client-side even though the realm client already
 // mandates it (infra/keycloak/birrapoint-realm.json), per R-11.
-// NOTE: This change enables a public landing per design decision (Botella y cobre auth flow).
-// FR-001 updated: "redirect *authenticated* users to dashboard, *unauthenticated* to welcome".
+// See ADR-0012 (Docs/adrs/0012-public-welcome-landing-with-check-sso.md) and spec.md FR-001
+// (Session 2026-08-02) for why this is `check-sso` and not `login-required`.
 export const keycloakInitOptions: KeycloakInitOptions = {
   onLoad: 'check-sso',
   pkceMethod: 'S256',
