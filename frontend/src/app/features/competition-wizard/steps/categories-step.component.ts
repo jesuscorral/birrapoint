@@ -78,7 +78,7 @@ function toGenericApiError(error: unknown): ApiError {
                   type="button"
                   label="Editar"
                   variant="ghost"
-                  [attr.aria-label]="'Editar ' + categoryLabel(row, i)"
+                  [ariaLabel]="'Editar ' + categoryLabel(row, i)"
                   (clicked)="startEditing(i)"
                 ></bp-button>
                 <bp-button
@@ -86,7 +86,7 @@ function toGenericApiError(error: unknown): ApiError {
                   label="Eliminar"
                   variant="ghost"
                   [disabled]="categories().length <= 1"
-                  [attr.aria-label]="'Eliminar ' + categoryLabel(row, i)"
+                  [ariaLabel]="'Eliminar ' + categoryLabel(row, i)"
                   (clicked)="removeCategory(i)"
                 ></bp-button>
               </div>

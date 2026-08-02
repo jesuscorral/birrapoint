@@ -1,4 +1,6 @@
+import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { BpTextareaComponent } from './bp-textarea.component';
 
 describe('BpTextareaComponent', () => {
@@ -110,6 +112,42 @@ describe('BpTextareaComponent', () => {
     it('should set disabled state via setDisabledState', () => {
       component.setDisabledState(true);
       expect(component.disabled).toBe(true);
+    });
+  });
+
+  describe('OnPush + ControlValueAccessor written from a parent view', () => {
+    // Regression test for markForCheck() inside writeValue()/setDisabledState(): the tests above
+    // call component.writeValue()/setDisabledState() directly on this root fixture, which doesn't
+    // exercise a parent view writing in from outside this component's own OnPush change-detection
+    // cycle — the actual Reactive Forms usage pattern. Only a host-based test reproduces that.
+    @Component({
+      template: `<bp-textarea [formControl]="control"></bp-textarea>`,
+      imports: [BpTextareaComponent, ReactiveFormsModule],
+    })
+    class HostComponent {
+      readonly control = new FormControl('initial');
+    }
+
+    it('renders a value written by the parent FormControl', () => {
+      const host = TestBed.createComponent(HostComponent);
+      host.detectChanges();
+
+      host.componentInstance.control.setValue('patched');
+      host.detectChanges();
+
+      const textarea = host.nativeElement.querySelector('textarea') as HTMLTextAreaElement;
+      expect(textarea.value).toBe('patched');
+    });
+
+    it('renders disabled state set by the parent FormControl', () => {
+      const host = TestBed.createComponent(HostComponent);
+      host.detectChanges();
+
+      host.componentInstance.control.disable();
+      host.detectChanges();
+
+      const textarea = host.nativeElement.querySelector('textarea') as HTMLTextAreaElement;
+      expect(textarea.disabled).toBe(true);
     });
   });
 });

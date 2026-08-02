@@ -61,14 +61,17 @@ competition data. After login, each user lands on the workspace matching their r
 on forced credential rotation before any data exposure.
 
 **Independent Test**: Provision one organizer and one judge (judge flagged for mandatory password
-change); verify redirect-to-login, forced change, and role-based landing pages with no bypass.
+change); verify the public landing page renders for an unauthenticated visitor with no competition
+data, choosing to sign in reaches the central identity portal, forced password change, and
+role-based landing pages with no bypass.
 
 **Acceptance Scenarios**:
 
-1. **Given** an unauthenticated visitor, **When** they navigate to any address of the platform, **Then** they are redirected to the central login portal.
-2. **Given** an authenticated organizer, **When** login completes, **Then** they land on the organizer dashboard.
-3. **Given** an authenticated judge, **When** login completes, **Then** they land on their assigned-tables view.
-4. **Given** a judge whose account is flagged as requiring a password change, **When** they authenticate, **Then** they must set a new password before any competition data is shown, **and** navigating directly to internal addresses cannot bypass this step.
+1. **Given** an unauthenticated visitor, **When** they navigate to any address of the platform, **Then** they land on the public welcome page — no competition data, only sign-in / create-organizer-account actions.
+2. **Given** an unauthenticated visitor on the welcome page, **When** they choose to sign in or create an account, **Then** they are redirected to the central identity portal.
+3. **Given** an authenticated organizer, **When** login completes, **Then** they land on the organizer dashboard.
+4. **Given** an authenticated judge, **When** login completes, **Then** they land on their assigned-tables view.
+5. **Given** a judge whose account is flagged as requiring a password change, **When** they authenticate, **Then** they must set a new password before any competition data is shown, **and** navigating directly to internal addresses cannot bypass this step.
 
 ---
 

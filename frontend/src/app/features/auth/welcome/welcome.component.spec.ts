@@ -142,17 +142,11 @@ describe('WelcomeComponent', () => {
   });
 
   describe('Responsive layout', () => {
-    it('should have responsive grid layout', () => {
-      fixture.detectChanges();
-
-      // jsdom does not reliably resolve emulated-encapsulation-scoped `display: grid` via
-      // getComputedStyle — the actual grid CSS is verified in real browsers (visual
-      // regression/E2E), so this only asserts the two-panel structure the grid lays out.
-      const auth = fixture.nativeElement.querySelector('.auth');
-      expect(auth.querySelector('.brand-panel')).toBeTruthy();
-      expect(auth.querySelector('.form-panel')).toBeTruthy();
-    });
-
+    // The two-panel grid structure itself is already covered under 'Rendering' above
+    // ('should render auth layout with brand panel and form panel') — jsdom doesn't reliably
+    // resolve emulated-encapsulation-scoped `display: grid` via getComputedStyle, and neither a
+    // dedicated /welcome E2E spec nor visual-regression tooling exists in this repo to cover the
+    // actual grid CSS, so there's nothing further to assert here without adding one of those.
     it('should render as single column on mobile', () => {
       fixture.detectChanges();
 

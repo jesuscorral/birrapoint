@@ -1,5 +1,6 @@
+import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ReactiveFormsModule } from '@angular/forms';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { BpInputComponent } from './bp-input.component';
 
 describe('BpInputComponent', () => {
@@ -261,6 +262,45 @@ describe('BpInputComponent', () => {
 
       component.setDisabledState(false);
       expect(component.disabled).toBe(false);
+    });
+  });
+
+  describe('OnPush + ControlValueAccessor written from a parent view', () => {
+    // Regression test for markForCheck() inside writeValue()/setDisabledState(): calling
+    // component.writeValue() directly and then this fixture's own detectChanges() (as the
+    // "should work with reactive forms" test above does) force-refreshes THIS component's view
+    // regardless of OnPush, so it would pass identically even with markForCheck() deleted. Forms
+    // writes actually arrive from a *parent* view's FormControl outside this component's own
+    // change-detection cycle — only a host-based test reproduces that and can actually fail on
+    // regression.
+    @Component({
+      template: `<bp-input [formControl]="control"></bp-input>`,
+      imports: [BpInputComponent, ReactiveFormsModule],
+    })
+    class HostComponent {
+      readonly control = new FormControl('initial');
+    }
+
+    it('renders a value written by the parent FormControl', () => {
+      const host = TestBed.createComponent(HostComponent);
+      host.detectChanges();
+
+      host.componentInstance.control.setValue('patched');
+      host.detectChanges();
+
+      const input = host.nativeElement.querySelector('input') as HTMLInputElement;
+      expect(input.value).toBe('patched');
+    });
+
+    it('renders disabled state set by the parent FormControl', () => {
+      const host = TestBed.createComponent(HostComponent);
+      host.detectChanges();
+
+      host.componentInstance.control.disable();
+      host.detectChanges();
+
+      const input = host.nativeElement.querySelector('input') as HTMLInputElement;
+      expect(input.disabled).toBe(true);
     });
   });
 
