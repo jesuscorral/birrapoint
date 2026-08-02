@@ -9,8 +9,10 @@ import { CompetitionsApiService } from '../../core/api/competitions-api.service'
 import type { CompetitionDetail } from '../../core/api/competitions-api.service';
 import { EntriesApiService } from '../../core/api/entries-api.service';
 import { ImportApiService } from '../../core/api/import-api.service';
+import { JudgeImportApiService } from '../../core/api/judge-import-api.service';
 import { CompetitionWizardComponent } from './competition-wizard.component';
 import { ImportStepComponent } from './steps/import-step.component';
+import { JudgeImportStepComponent } from './steps/judge-import-step.component';
 
 function detailFixture(overrides: Partial<CompetitionDetail> = {}): CompetitionDetail {
   return {
@@ -46,6 +48,13 @@ describe('CompetitionWizardComponent', () => {
     revalidate: jest.Mock;
   };
   let fakeEntriesApi: { getEntries: jest.Mock };
+  let fakeJudgeImportApi: {
+    upload: jest.Mock;
+    getImport: jest.Mock;
+    editRow: jest.Mock;
+    excludeRow: jest.Mock;
+    consolidate: jest.Mock;
+  };
 
   function configure(id: string | null) {
     fakeApi = {
@@ -64,12 +73,20 @@ describe('CompetitionWizardComponent', () => {
       revalidate: jest.fn().mockReturnValue(of({ importId: 'i1', rows: [] })),
     };
     fakeEntriesApi = { getEntries: jest.fn().mockReturnValue(of([])) };
+    fakeJudgeImportApi = {
+      upload: jest.fn(),
+      getImport: jest.fn().mockReturnValue(of({ importId: 'ji1', rows: [] })),
+      editRow: jest.fn(),
+      excludeRow: jest.fn(),
+      consolidate: jest.fn(),
+    };
     TestBed.configureTestingModule({
       providers: [
         { provide: CompetitionsApiService, useValue: fakeApi },
         { provide: CatalogApiService, useValue: fakeCatalogApi },
         { provide: ImportApiService, useValue: fakeImportApi },
         { provide: EntriesApiService, useValue: fakeEntriesApi },
+        { provide: JudgeImportApiService, useValue: fakeJudgeImportApi },
         provideRouter([]),
         // Must come after provideRouter([]) — it registers its own root ActivatedRoute, which
         // would otherwise win over this mock and silently drop the :id route param.
@@ -99,11 +116,7 @@ describe('CompetitionWizardComponent', () => {
     fixture.detectChanges();
 
     expect(fakeApi.getById).toHaveBeenCalledWith('c1');
-    // formControlName attaches to the <bp-input> host element, not the native <input> nested
-    // inside its own template — select by the id passed through to that native input instead.
-    // bp-input's own [id] binding puts the same id on both, so scope the query to the nested
-    // native element specifically or querySelector's document-order match returns the host.
-    const nameInput = fixture.nativeElement.querySelector('#basics-name input') as HTMLInputElement;
+    const nameInput = fixture.nativeElement.querySelector('input#basics-name') as HTMLInputElement;
     expect(nameInput.value).toBe('Resumed Cup');
   });
 
@@ -166,16 +179,17 @@ describe('CompetitionWizardComponent', () => {
     return Array.from(fixture.nativeElement.querySelectorAll('.stepper__step'));
   }
 
-  it('disables the step 2, 3 and 4 stepper buttons for a brand-new, unsaved competition', () => {
+  it('disables the step 2, 3, 4 and 5 stepper buttons for a brand-new, unsaved competition', () => {
     configure(null);
     const fixture = TestBed.createComponent(CompetitionWizardComponent);
     fixture.detectChanges();
 
-    const [step1Button, step2Button, step3Button, step4Button] = stepButtons(fixture);
+    const [step1Button, step2Button, step3Button, step4Button, step5Button] = stepButtons(fixture);
     expect(step1Button.disabled).toBe(false);
     expect(step2Button.disabled).toBe(true);
     expect(step3Button.disabled).toBe(true);
     expect(step4Button.disabled).toBe(true);
+    expect(step5Button.disabled).toBe(true);
 
     fixture.componentInstance['goToStep'](2);
     fixture.componentInstance['goToStep'](3);
@@ -185,7 +199,7 @@ describe('CompetitionWizardComponent', () => {
     expect(fixture.nativeElement.querySelector('app-basics-step')).toBeTruthy();
   });
 
-  it('enables the step 2, 3 and 4 stepper buttons once basics is saved, and jumps directly to step 3', () => {
+  it('enables the step 2, 3, 4 and 5 stepper buttons once basics is saved, and jumps directly to step 3', () => {
     configure(null);
     const fixture = TestBed.createComponent(CompetitionWizardComponent);
     fixture.detectChanges();
@@ -193,10 +207,11 @@ describe('CompetitionWizardComponent', () => {
     fixture.componentInstance['onBasicsSaved'](detailFixture({ id: 'new-id' }));
     fixture.detectChanges();
 
-    const [, step2Button, step3Button, step4Button] = stepButtons(fixture);
+    const [, step2Button, step3Button, step4Button, step5Button] = stepButtons(fixture);
     expect(step2Button.disabled).toBe(false);
     expect(step3Button.disabled).toBe(false);
     expect(step4Button.disabled).toBe(false);
+    expect(step5Button.disabled).toBe(false);
 
     step3Button.click();
     fixture.detectChanges();
@@ -222,7 +237,7 @@ describe('CompetitionWizardComponent', () => {
 
     expect(fixture.componentInstance['currentStep']()).toBe(1);
     expect(fixture.nativeElement.querySelector('app-basics-step')).toBeTruthy();
-    const nameInput = fixture.nativeElement.querySelector('#basics-name input') as HTMLInputElement;
+    const nameInput = fixture.nativeElement.querySelector('input#basics-name') as HTMLInputElement;
     expect(nameInput.value).toBe('Resumed Cup');
   });
 
@@ -232,11 +247,12 @@ describe('CompetitionWizardComponent', () => {
     const fixture = TestBed.createComponent(CompetitionWizardComponent);
     fixture.detectChanges();
 
-    const [step1Button, step2Button, step3Button, step4Button] = stepButtons(fixture);
+    const [step1Button, step2Button, step3Button, step4Button, step5Button] = stepButtons(fixture);
     expect(step1Button.disabled).toBe(false);
     expect(step2Button.disabled).toBe(false);
     expect(step3Button.disabled).toBe(false);
     expect(step4Button.disabled).toBe(false);
+    expect(step5Button.disabled).toBe(false);
 
     step3Button.click();
     fixture.detectChanges();
@@ -263,6 +279,65 @@ describe('CompetitionWizardComponent', () => {
 
     const items = fixture.nativeElement.querySelectorAll('.stepper__item');
     expect(items[2].classList.contains('is-done')).toBe(true);
+  });
+
+  it('renders the judge-import step when navigating to step 5 via the stepper, marking step 4 done', () => {
+    configure('c1');
+    fakeApi.getById.mockReturnValue(of(detailFixture()));
+    const fixture = TestBed.createComponent(CompetitionWizardComponent);
+    fixture.detectChanges();
+
+    fixture.componentInstance['onDetailsSaved'](detailFixture());
+    fixture.detectChanges();
+    fixture.componentInstance['onCategoriesSaved']();
+    fixture.detectChanges();
+    expect(fixture.componentInstance['currentStep']()).toBe(4);
+
+    const [, , , step4Button, step5Button] = stepButtons(fixture);
+    expect(step5Button.disabled).toBe(false);
+    step5Button.click();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance['currentStep']()).toBe(5);
+    expect(fixture.nativeElement.querySelector('app-judge-import-step')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('app-import-step')).toBeFalsy();
+
+    const items = fixture.nativeElement.querySelectorAll('.stepper__item');
+    expect(items[3].classList.contains('is-done')).toBe(true);
+    expect(step4Button).toBeTruthy();
+  });
+
+  it('hoists the judge-roster import batch id emitted by the judge-import step and re-supplies it after navigating away and back', () => {
+    configure('c1');
+    fakeApi.getById.mockReturnValue(of(detailFixture()));
+    const fixture = TestBed.createComponent(CompetitionWizardComponent);
+    fixture.detectChanges();
+
+    fixture.componentInstance['onDetailsSaved'](detailFixture());
+    fixture.detectChanges();
+    fixture.componentInstance['onCategoriesSaved']();
+    fixture.detectChanges();
+    fixture.componentInstance['goToStep'](5);
+    fixture.detectChanges();
+    expect(fixture.componentInstance['currentStep']()).toBe(5);
+
+    let judgeImportStepDebugEl = fixture.debugElement.query(By.directive(JudgeImportStepComponent));
+    expect(judgeImportStepDebugEl.componentInstance.judgeImportId()).toBeNull();
+
+    judgeImportStepDebugEl.componentInstance.judgeImportIdChange.emit('ji-1');
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance['judgeImportId']()).toBe('ji-1');
+
+    // Navigate back to step 4 (destroys the app-judge-import-step instance) and forward again —
+    // the wizard-held signal, not the child's local state, is what must survive this round trip.
+    fixture.componentInstance['onBack']();
+    fixture.detectChanges();
+    fixture.componentInstance['goToStep'](5);
+    fixture.detectChanges();
+
+    judgeImportStepDebugEl = fixture.debugElement.query(By.directive(JudgeImportStepComponent));
+    expect(judgeImportStepDebugEl.componentInstance.judgeImportId()).toBe('ji-1');
   });
 
   it('marks only the active step button with aria-current="step"', () => {

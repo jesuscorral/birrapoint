@@ -272,7 +272,7 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
       border-radius: var(--radius-md);
       border: 1.5px solid var(--color-bp-cobre-500);
       background: var(--color-bp-surface);
-      color: var(--color-bp-cobre-600);
+      color: var(--color-bp-cobre-700);
       font-weight: 600;
       cursor: pointer;
       transition: background 0.15s ease;

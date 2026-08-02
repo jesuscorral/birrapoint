@@ -369,7 +369,7 @@ import { BpButtonComponent } from '../../../shared/components/bp-button/bp-butto
         font-weight: 600;
         letter-spacing: 0.09em;
         text-transform: uppercase;
-        color: var(--color-bp-cobre-600);
+        color: var(--color-bp-cobre-700);
         margin-bottom: var(--spacing-2);
       }
 
@@ -512,7 +512,7 @@ import { BpButtonComponent } from '../../../shared/components/bp-button/bp-butto
       }
 
       .form-foot a {
-        color: var(--color-bp-cobre-600);
+        color: var(--color-bp-cobre-700);
         font-weight: 600;
         text-decoration: none;
       }
