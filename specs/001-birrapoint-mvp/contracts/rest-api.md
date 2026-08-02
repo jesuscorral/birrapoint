@@ -48,10 +48,25 @@ Conventions: `404` for resources outside the caller's scope (never reveal existe
 
 | Method & Path | Role | Description |
 |---|---|---|
-| `POST /competitions/{id}/judges` | ORGANIZER | Body: `{ emails: [string] }`. Creates missing profiles, queues invitations (Keycloak provisioning happens per-delivery-attempt inside the async `SendInvitation` job, not synchronously in this request). → `201` `{ created: [{ id, email }], skipped: [{ email, reason: "duplicate-in-list" \| "already-registered" }] }` (FR-014/FR-015). |
-| `GET /competitions/{id}/judges` | ORGANIZER | `[{ id, email, displayName, invitationStatus, attempts, lastError, sentAt }]`. |
+| `POST /competitions/{id}/judges` | ORGANIZER | Body: `{ emails: [string] }`. Creates missing profiles and enqueues `ProvisionJudgeAccount` per new judge (Keycloak account created in the background, no email sent — Session 2026-08-02/R-20, supersedes the originally-automatic `SendInvitation` enqueue). → `201` `{ created: [{ id, email }], skipped: [{ email, reason: "duplicate-in-list" \| "already-registered" }] }` (FR-014/FR-015). |
+| `GET /competitions/{id}/judges` | ORGANIZER | `[{ id, email, displayName, bjcpRank, bjcpId, preferredCategory, preferences, invitationStatus, attempts, lastError, sentAt }]`. The four roster fields are `null` for judges created via the plain email-list flow above. |
 | `PUT /competitions/{id}/judges/{judgeId}` | ORGANIZER | Correct a judge's email before first login (edge case: bounced invitation). Body: `{ email }`. Re-validates uniqueness (FR-015), updates the Keycloak account. `409 judge-already-active` once the judge has authenticated. **COI matching / BOS re-flagging against the new address (FR-017/FR-018) is still not implemented here** — `Features/Tables` now exists (Phase 7), so the blocking dependency is resolved, but wiring this endpoint to `CoiDetector`/`BosFlagRules` was never in either phase's task scope; tracked as an explicit follow-up (see `Docs/arquitectura_viva.md` Recorded debt). |
-| `POST /competitions/{id}/judges/{judgeId}/invitation` | ORGANIZER | Re-send invitation (edge case: bounced email after correction). |
+| `POST /competitions/{id}/judges/{judgeId}/invitation` | ORGANIZER | Re-send invitation to this one judge (edge case: bounced email after correction). Enqueues `SendInvitation` regardless of current `invitationStatus`. |
+| `POST /competitions/{id}/judges/notify` | ORGANIZER | *(added FR-059)* Enqueues `SendInvitation` for every judge in the competition whose `invitationStatus` is `Pending` — the explicit "Notify judges" action, decoupled from both provisioning paths above. → `200` `{ queued: [{ id, email }] }`. A judge already `Sent`/`Failed` is untouched by this bulk action (use the per-judge resend above for those). No-op (`queued: []`) when nothing is `Pending`. |
+
+## Judge Roster Import
+
+*(added US14 — FR-055–FR-058. Mirrors Entry Import below 1:1; same upload → correction → consolidate*
+*shape, `contracts/judge-import-file.md` for the file format. On consolidation, see FR-057/R-20 —*
+*profiles persist and `ProvisionJudgeAccount` is enqueued per judge; no invitation is sent here.)*
+
+| Method & Path | Role | Description |
+|---|---|---|
+| `POST /competitions/{id}/judge-imports` | ORGANIZER | Multipart `.xlsx` upload (schema: [judge-import-file.md](./judge-import-file.md)). Competition must be `Draft`/`Active` (`409 invalid-state-transition` otherwise, same gate as `POST .../imports`). → `201` `{ importId, rows: [{ rowNumber, status: "Valid" \| "Invalid", data, error? }] }` where `data` is `{ name, email, bjcpRank, bjcpId, preferredCategory, preferences }`. Malformed/empty file → `400 invalid-import-file`. A prior unconsolidated judge-roster batch for the competition is discarded (single active batch, same rule as beer-entry import). |
+| `GET /competitions/{id}/judge-imports/{importId}` | ORGANIZER | Current row states — `status` may additionally be `Excluded` for rows resolved via the exclude action below. |
+| `PUT /competitions/{id}/judge-imports/{importId}/rows/{rowNumber}` | ORGANIZER | Full-replace edit of the row's `data` shape (see above). `status` recomputes to `Valid` once `name` and `email` are both present and well-formed, `Invalid` otherwise. Rejected with `400 invalid-import-file` on an already-`Excluded` row (terminal). |
+| `POST /competitions/{id}/judge-imports/{importId}/rows/{rowNumber}/exclude` | ORGANIZER | One-way: sets `status: "Excluded"`, terminal for the row. |
+| `POST /competitions/{id}/judge-imports/{importId}/consolidate` | ORGANIZER | `409 unresolved-import-rows` while any row is `Invalid` (FR-056). `409 invalid-state-transition` if the batch was already consolidated. On success `200` `{ created: [{ id, email }], updated: [{ id, email }], excluded: number }` — `updated` covers a `Valid` row whose email matches an existing judge in this competition (last-import-wins on the roster fields, same policy as beer-entry `Participant` matching); `created`/`updated` judges each get a `ProvisionJudgeAccount` job enqueued (FR-057), no email sent. |
 
 ## Tables (organizer)
 
@@ -98,10 +113,10 @@ built exclusively from the blind projection (`JudgeSampleDto`) — see data-mode
 | `type` URN (`urn:birrapoint:…`) | HTTP | Raised by |
 |---|---|---|
 | `validation` | 400 | any FluentValidation failure (`errors` field map) |
-| `invalid-import-file` | 400 | unreadable/empty/mis-schema’d upload |
+| `invalid-import-file` | 400 | unreadable/empty/mis-schema’d upload (beer-entry or judge-roster, `POST .../imports` or `.../judge-imports`) |
 | `invalid-state-transition` | 409 | FR-006 gates (skip/reverse/edit in wrong state) |
 | `conflict-of-interest` | 409 | FR-017 table assignment |
-| `unresolved-import-rows` | 409 | FR-011 consolidation |
+| `unresolved-import-rows` | 409 | FR-011 consolidation (beer-entry); FR-056 consolidation (judge-roster) |
 | `order-already-fixed` | 409 | US6-4 race |
 | `order-not-fixed` | 409 | FR-022 precondition |
 | `out-of-sequence` | 409 | FR-022 sequence enforcement |

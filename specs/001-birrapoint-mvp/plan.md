@@ -104,6 +104,20 @@ dependency, entity, or contract. `CompetitionsApiService` also relocates from
 `features/competition-wizard/` to `core/api/` in the same change (PR #21 review follow-up — it's
 now consumed by two features, the FSD threshold this repo uses for promoting a client to `core/`).
 
+**Post-addition re-check (2026-08-02, User Story 14 / FR-055–FR-059)**: ✅ PASS — no new
+dependency (R-20 reuses R-04 ClosedXML + R-10 Keycloak Admin API/MailKit verbatim, one new
+`DispatchJobType` enum member and two new staging entities, same shape as the existing Import
+slice's `ImportBatch`/`ImportRow`); extends the existing `Features/Judges` slice and
+`Features/Import`-adjacent pattern rather than introducing a new one. Principle IX (performance
+budgets) is the one gate that took real analysis, not a rubber stamp — R-20 explicitly rejected
+synchronous Keycloak provisioning inside the consolidation request because a ~100-judge roster
+(SC-013) could exceed the write p95 < 500 ms budget; account provisioning stays an async
+`DispatchJob` (same retry/backoff machinery as every other background job, Principle IV). New
+contract file `contracts/judge-import-file.md` (mirrors `import-file.md`); `contracts/rest-api.md`
+gains a `Judge Roster Import` section and two new `Judges` endpoints, no new error-catalog entries
+(reuses `invalid-import-file`/`unresolved-import-rows`, Principle VI). No BR-01/FR-019 concerns —
+judge roster data is organizer-only, structurally unrelated to the anonymity boundary.
+
 ## Project Structure
 
 ### Documentation (this feature)
@@ -194,6 +208,19 @@ constitution's modular-monolith + FSD mandate). Backend slices live under
 `frontend/src/app/features/` with shared infrastructure in `core/`. Local orchestration lives in
 the Aspire `BirraPoint.AppHost` project; the cloud topology in `azure.yaml` + `infra/bicep/`
 (deployed with `azd up`).
+
+**User Story 14 file locations** (the diagram above predates the ACCE-import wizard fold, ADR-0011,
+and is stale on where entry-import UI actually lives — this note is authoritative for the new work,
+not the diagram): backend adds `Features/Judges/JudgeImport*.cs` (upload/get/edit-row/exclude/
+consolidate handlers) and `Features/Judges/ProvisionJudgeAccountHandler.cs`
+(`IDispatchJobHandler` for the new job type), both new files in the existing `Features/Judges/`
+slice — no new slice directory. Frontend adds
+`features/competition-wizard/steps/judge-import-step.component.ts` (wizard step 5, sibling to
+`steps/import-step.component.ts` which it structurally mirrors) and a `core/api/judge-import-
+api.service.ts` alongside the existing `import-api.service.ts`; the "Notify judges" action and the
+judges list (now showing the four new roster fields) land in `features/judge-management/` (already
+the planned home for judge delivery status per the diagram above) rather than in the wizard, since
+FR-059 is explicitly a post-wizard, anytime action.
 
 ## Complexity Tracking
 

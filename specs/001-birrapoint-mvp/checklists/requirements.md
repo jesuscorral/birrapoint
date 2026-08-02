@@ -63,3 +63,29 @@
   [NEEDS CLARIFICATION] markers. No implementation details introduced — `POST
   /competitions/{id}/state` is referenced only in `contracts/rest-api.md` (already existed) and
   Assumptions-adjacent notes, not prescribed in the requirement itself.
+
+### Incremental validation — 2026-08-02 addendum (User Story 14 / FR-055–FR-059 / SC-013)
+
+- Prompted by a request for a new wizard step 5 ("Importar Jueces"), a `.xlsx` judge-roster import
+  mirroring the existing entry-import (step 4) pattern — parse, correction screen, consolidate —
+  but for judges (name, email, BJCP rank, BJCP ID, preferred category, preferences), creating each
+  judge's platform account at consolidation without yet emailing them.
+- Re-validated only the added/changed content (US14 and its edit to US4, FR-055–FR-059, the FR-014
+  amendment, SC-013, the new edge case, three new Assumptions bullets, one new Out of Scope bullet)
+  against all four checklist sections above.
+- One [NEEDS CLARIFICATION] marker was raised (FR-059): whether deferred notification should also
+  change FR-014's existing email-list flow (which auto-dispatched immediately) or only apply to
+  the new import path. Presented to the user with two options; resolved as **unify** — FR-014 now
+  defers to the same explicit FR-059 "Notify judges" action rather than keeping two different
+  judge-provisioning behaviors live in one competition. Spec updated accordingly (US4 renamed
+  "Judge Registration and Deferred Invitations", its scenarios and Independent Test reworded, FR-014
+  reworded) and the decision recorded in Clarifications, Session 2026-08-02.
+- Passed on second iteration (first iteration held the marker above; resolved, then re-checked) —
+  no implementation details introduced (no mention of Keycloak, the specific email-sending
+  mechanism, or the .xlsx parsing library; "platform account"/"temporary credentials" mirror the
+  existing FR-014 abstraction level, and `.xlsx` was already an established file-format term from
+  FR-009). Success criterion SC-013 is measurable (100 judges, single session, no re-upload) and
+  technology-agnostic. The two new Assumptions bullets scoping BJCP rank/preferred-category/
+  preferences to informational-only fields (no automated matching) and leaving preferred-category
+  free text unvalidated against FR-052 categories are reasonable MVP defaults with no scope/UX
+  impact requiring a user decision — not raised as clarifications.

@@ -48,6 +48,7 @@
 
 - Q: The judge sample/table DTOs already carry the entrant-authored `entryInstructions` field (e.g. "serve at cellar temperature") alongside blind code and style, since some BJCP styles genuinely need serving/tasting guidance the judge can't infer from style alone — but FR-019 as written is unconditional and doesn't acknowledge this exception, contradicting the contract docs. Formalize? → A: Yes — `entryInstructions` is a deliberate, narrow exception to FR-019: the import/consolidation workflow gives the organizer the ability to review and, if necessary, edit or clear each entry's `entryInstructions` text before it becomes visible to a judge, to strip anything that could identify the brewer, beer name, or brewery. This is a capability the workflow offers, not a system-enforced guarantee that every row was reviewed — consolidation is not gated on it. The exception covers only this one field; every other entrant/registration field stays excluded from judge-facing views exactly as FR-019 already requires.
 - Q: `keycloak.providers.ts` was changed (via an inline code comment, not a spec update) from `onLoad: 'login-required'` to `onLoad: 'check-sso'`, backing a new public `/welcome` landing page — but FR-001 still unconditionally requires redirecting unauthenticated users before showing any content, and the test asserting the old behavior was left failing. Formalize? → A: Yes — FR-001 amended: unauthenticated users now land on a public product landing page (no competition data, no organizer/judge workspace content) with explicit "Iniciar sesión" / "Crear cuenta" actions; authenticated users are still auto-routed to their role's workspace with no re-prompt, via `check-sso` silently detecting an existing session. See ADR-0012.
+- Q: User Story 14 (new wizard step 5, judge roster spreadsheet import) creates each judge's account but defers sending their invitation email to a separate "Notify judges" action — a behavior change from FR-014's existing email-list flow, which today auto-dispatches the invitation immediately on creation. Should FR-014 be unified onto the same deferred-notification behavior, or kept as-is (auto-dispatch) so only the new import path defers? → A: Unify — FR-014 amended to also defer notification to the same explicit FR-059 "Notify judges" action, reusing it rather than maintaining two different judge-provisioning behaviors within one competition.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -117,22 +118,26 @@ resolve every failure in the correction screen and consolidate.
 
 ---
 
-### User Story 4 - Judge Registration and Automatic Invitations (Priority: P1)
+### User Story 4 - Judge Registration and Deferred Invitations (Priority: P1)
 
-An organizer pastes a list of email addresses; the system creates passive judge profiles with
-temporary credentials and dispatches invitation emails automatically.
+An organizer pastes a list of email addresses; the system creates passive judge profiles, each
+with a temporary-credentialed platform account. Sending the invitation email is a separate,
+explicit "Notify judges" action the organizer triggers when ready (shared with User Story 14's
+spreadsheet import — Session 2026-08-02: previously this dispatched automatically on creation).
 
 **Why this priority**: Judges cannot participate without accounts, and manual account creation
 does not scale to a full panel.
 
-**Independent Test**: Submit a list of emails (including a duplicate); verify profiles, dispatched
-invitations, and deduplication reporting.
+**Independent Test**: Submit a list of emails (including a duplicate); verify profiles and accounts
+are created with no invitation sent yet, deduplication is reported, then trigger "Notify judges"
+and verify every not-yet-notified judge receives their invitation.
 
 **Acceptance Scenarios**:
 
-1. **Given** a list of judge emails, **When** the organizer submits it, **Then** a passive profile is created for each address and an invitation with temporary credentials is emailed automatically.
+1. **Given** a list of judge emails, **When** the organizer submits it, **Then** a passive profile and a temporary-credentialed account are created for each address, and no invitation has been emailed yet.
 2. **Given** a list containing duplicates or already-registered addresses, **When** it is submitted, **Then** duplicates are not created and the organizer is shown what was skipped and why.
-3. **Given** a newly invited judge, **When** they first sign in, **Then** the forced password change of User Story 1 applies.
+3. **Given** judges created and not yet notified, **When** the organizer triggers "Notify judges," **Then** each receives their invitation email with temporary credentials.
+4. **Given** a newly invited judge, **When** they first sign in, **Then** the forced password change of User Story 1 applies.
 
 ---
 
@@ -329,6 +334,34 @@ state, then separately start and complete creating a brand-new competition from 
 
 ---
 
+### User Story 14 - Judge Roster Import via Spreadsheet (Priority: P1)
+
+An organizer bulk-loads the competition's judge panel from a `.xlsx` file — name, email, BJCP
+rank, BJCP ID, preferred tasting category, and free-text preferences per judge — as wizard step 5,
+right after entry import. Every row is editable in a correction screen before the organizer
+consolidates. Consolidating persists each judge's full profile and creates their platform account
+with a randomly generated temporary password, but does not email them; sending each judge's
+invitation is a separate, explicit action available afterward.
+
+**Why this priority**: A competition's full judge panel — often dozens of people, each with BJCP
+credentials and scheduling/table preferences the organizer needs when building tables — cannot
+realistically be entered one email at a time the way User Story 4's simple flow requires.
+
+**Independent Test**: Import a spreadsheet of judges including one duplicate email and one row
+missing a required field; resolve the failing row in the correction screen, consolidate, and
+verify one account per unique judge with the correct profile data, no invitations sent yet, and
+the duplicate reported.
+
+**Acceptance Scenarios**:
+
+1. **Given** a well-formed judge spreadsheet, **When** it is uploaded, **Then** every row's data (name, email, BJCP rank, BJCP ID, preferred category, preferences) is parsed and shown for review before anything is persisted.
+2. **Given** a row missing a required field (name or email), **When** validation runs, **Then** the row is flagged in a correction screen and consolidation is blocked until it is fixed or excluded — the same pattern as the beer-entry import correction screen (User Story 3).
+3. **Given** a corrected, fully valid set of rows, **When** the organizer consolidates, **Then** each judge's full profile is persisted and a platform account with a temporary password is created for each, and no invitation email has been sent yet.
+4. **Given** two rows in the same file share an email address, **When** validation runs, **Then** only one profile/account is created for that address and the organizer is shown what was deduplicated and why (same policy as User Story 4).
+5. **Given** judges already imported and consolidated with accounts created but not yet notified, **When** the organizer triggers "Notify judges," **Then** each not-yet-notified judge receives their invitation email with temporary credentials, and a judge's first sign-in still forces the password change of User Story 1.
+
+---
+
 ### Edge Cases
 
 - An organizer with no competitions yet: the dashboard shows an empty state with a create action, not a blank or broken screen.
@@ -340,6 +373,7 @@ state, then separately start and complete creating a brand-new competition from 
 - The imported file is empty, malformed, or not a spreadsheet: the upload is rejected with a clear reason before row validation starts.
 - The organizer edits categories/style assignments (FR-052) after uploading an import and returns to the correction screen: previously valid rows may become unresolved and vice versa; the screen re-validates automatically and shows updated statuses/reasons without requiring re-upload (FR-054).
 - An invitation email address is invalid or bounces: the profile still exists; the organizer sees the delivery failure and can correct the address and resend.
+- A judge row's BJCP rank, BJCP ID, preferred category, or preferences cell is blank: parsed and stored as unset, not a validation error — only name and email are required (User Story 14).
 - Removing a judge leaves a table with no judges or below the minimum needed: the organizer is warned that the table cannot produce results until staffed.
 - A discrepancy involves three or more judges: the alert includes every judge whose total is more than 7 points from any other total for that sample.
 - A discrepancy is detected from a late offline sync while an involved judge is offline: the alert is shown to each involved judge as soon as they are next online; the table remains blocked from closing until resolved (per FR-031/FR-032).
@@ -389,8 +423,13 @@ state, then separately start and complete creating a brand-new competition from 
 
 **Judge Provisioning**
 
-- **FR-014**: The system MUST create passive judge profiles from a submitted email list and automatically dispatch invitation emails with temporary credentials.
+- **FR-014**: The system MUST create passive judge profiles from a submitted email list, generating a platform account and temporary credentials for each; sending the invitation email is a separate, explicit action (FR-059), not automatic on creation (Session 2026-08-02 — supersedes the originally-automatic dispatch, unified with User Story 14's spreadsheet import so both judge-provisioning paths behave the same way).
 - **FR-015**: Duplicate addresses (within the list or already registered) MUST NOT create duplicate profiles and MUST be reported to the organizer.
+- **FR-055**: The competition creation wizard MUST offer a fifth step, immediately after entry import, accepting a `.xlsx` judge roster file (name, email, BJCP rank, BJCP ID, preferred category, free-text preferences) and validating it row by row; a row missing a required field (name or email) MUST be routed to a correction screen instead of aborting the load — same pattern as FR-009/FR-011.
+- **FR-056**: The correction screen MUST let the organizer edit any field of a pending row, or exclude it, before consolidation; consolidation MUST be blocked while any row is missing a required field.
+- **FR-057**: On consolidation, the system MUST persist every resolved row as a judge profile for the competition — including BJCP rank, BJCP ID, preferred category, and preferences — and create a platform account for each judge with a randomly generated temporary password. The invitation email MUST NOT be sent as part of this step.
+- **FR-058**: Duplicate judge email addresses (within the file, or already registered for this competition) MUST NOT create duplicate profiles/accounts and MUST be reported to the organizer, per the same policy as FR-015.
+- **FR-059**: The organizer MUST have a single explicit "Notify judges" action — covering judges created via either path, the email-list flow (FR-014) or the spreadsheet import (FR-055–FR-058) — that sends the invitation email (temporary credentials) to every not-yet-notified judge in the competition. A judge already notified MUST NOT be re-notified by this action (the existing per-judge resend already covers the bounced-email correction case).
 
 **Tables & Conflict of Interest**
 
@@ -480,6 +519,7 @@ state, then separately start and complete creating a brand-new competition from 
 - **SC-010**: A first-time judge completes their first evaluation sheet in under 10 minutes without external help or training material, verified in usability testing with at least 5 judges.
 - **SC-011**: A fresh cloud environment is provisioned and the full system deployed by executing a single command, with zero manual configuration steps; a fresh local environment starts with a single command.
 - **SC-012**: An organizer with multiple competitions can locate and open any existing one from the post-login dashboard in under 10 seconds, without navigating by a directly-typed address.
+- **SC-013**: An organizer can import a spreadsheet of 100 judges, correct any flagged rows, and have every judge's account created and ready to notify in a single session, without re-uploading the file.
 
 ## Assumptions
 
@@ -497,8 +537,12 @@ state, then separately start and complete creating a brand-new competition from 
 - Because the production database runs in-environment (FR-047) instead of on a managed database service, backup/export scheduling and restore verification are an explicit operational responsibility of the deployment, not the platform.
 - Excluding a row during import correction removes it from the import only; it is reported in the import summary.
 - An organizer may own multiple competitions simultaneously (the platform already scopes every competition to its creating organizer); User Story 13 exposes that existing scoping in the UI rather than introducing new multi-tenancy behavior.
+- The existing single-email judge registration (User Story 4) remains available alongside the spreadsheet import (User Story 14) for ad-hoc additions after the wizard; the spreadsheet import is the primary path for provisioning the full panel up front, not a replacement for the other.
+- BJCP rank, BJCP ID, preferred category, and preferences are stored as informational judge-profile fields for the organizer's own reference; this pass does not add any automated matching or suggestion behavior based on them (e.g., no automatic table assignment) — consistent with how FR-052 initially scoped category definitions to persistence only, before later requirements wired them into validation.
+- "Preferred category" values in the judge roster file are free text and are not validated against this competition's own step-3 categories (FR-052) in this pass; a mismatch is not an error.
 
 ## Out of Scope (MVP)
 
 - **Tie-break rounds and Best of Show (BOS)**: algorithmic or visual handling of ties and the final BOS round are excluded. These continue on paper, coordinated in person by organizers and head judges. The platform's only contribution is the recorded "Not valid for BOS" eligibility flag on affected entries.
 - **Configurable/multi-standard scoring**: only the BJCP 2021 catalog and the fixed five-section score caps (FR-023) are supported; a per-competition choice of scoring standard (e.g. AHA), organizer-editable section caps, or an editable consensus threshold (in place of the fixed 7-point rule of FR-031) are out of scope for the MVP (considered and explicitly rejected, Clarifications 2026-07-21).
+- **Preference-driven table suggestions**: using a judge's imported preferred category or free-text preferences (User Story 14) to automatically suggest or assign table placement is out of scope; table assignment (User Story 5) stays a fully manual organizer decision, with the imported fields available only as reference text.

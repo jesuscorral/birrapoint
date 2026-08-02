@@ -226,6 +226,44 @@ current `CompetitionCategoryStyle` allow-list. `Invalid` and `Excluded` rows are
 failure/exclusion is unrelated to category/style state). No-op (returns the batch unchanged) once
 `ImportBatch.Status` is `Consolidated`.
 
+### JudgeImportBatch *(slice-owned staging area, Features/Judges — added US14/FR-055)*
+
+Mirrors `ImportBatch` exactly, same semantics (`contracts/judge-import-file.md` §Semantics): at
+most one `Pending` batch per competition, a new upload discards the prior unconsolidated one.
+
+| Field | Type | Constraints |
+|-------|------|-------------|
+| Id | Guid | PK |
+| CompetitionId | Guid | FK → Competition |
+| Status | enum `JudgeImportBatchStatus` | `Pending` \| `Consolidated`; **at most one `Pending` batch per competition** (partial unique index on `Status = 'Pending'`) |
+
+### JudgeImportRow *(slice-owned staging area, Features/Judges — added US14/FR-055)*
+
+Mirrors the judge-roster `.xlsx` column set 1:1 (`contracts/judge-import-file.md`). Simpler than
+`ImportRow`: no catalog resolution happens for any judge-roster field, so there is no
+mismatch/unresolved-reference status — only whether the two required fields are present.
+
+| Field | Type | Constraints |
+|-------|------|-------------|
+| Id | Guid | PK |
+| JudgeImportBatchId | Guid | FK → JudgeImportBatch; **unique (JudgeImportBatchId, RowNumber)** |
+| RowNumber | int | 1-based position among the file's data rows (excludes the header row) |
+| Status | enum `JudgeImportRowStatus` | `Valid` \| `Invalid` \| `Excluded` — `Invalid` when `Name` or `Email` is missing/malformed (FR-056); `Valid` and `Excluded` never block consolidation, `Invalid` does (FR-056) |
+| Name | string(200)? | raw parsed "Nombre y apellidos" cell, may be null/malformed when Status = `Invalid` |
+| Email | string(320)? | raw parsed "Correo electrónico" cell |
+| BjcpRank | string(100)? | raw parsed "Rango BJCP" cell |
+| BjcpId | string(50)? | raw parsed "BJCP ID" cell, stored verbatim (incl. the `Pte` placeholder) |
+| PreferredCategory | string(200)? | raw parsed "Categoría preferida" cell |
+| Preferences | string(2000)? | raw parsed "Preferencias" cell, stored verbatim as plain text (never interpreted as markup — R-20) |
+| ErrorMessage | string(1000)? | present for `Invalid`; null once resolved |
+
+On consolidation (FR-057), every `Valid` row upserts a `Judge` (matched by email within the
+competition — an existing row's `BjcpRank`/`BjcpId`/`PreferredCategory`/`Preferences` are updated
+from the row, last-import-wins, same policy as `Participant` in beer-entry consolidation) +
+`Invitation{Status=Pending}` if one doesn't already exist, and enqueues a `ProvisionJudgeAccount`
+job (R-20); `Excluded` rows are skipped. Duplicate emails within the same file resolve to a single
+upsert, reported the same way `ImportBatch` consolidation reports beer-entry duplicates (FR-058).
+
 ### Judge *(competition-scoped judge profile)*
 
 | Field | Type | Constraints |
@@ -235,6 +273,14 @@ failure/exclusion is unrelated to category/style state). No-op (returns the batc
 | Email | string(320) | required; COI matching key vs Participant.Email + EntryCollaborator.Email |
 | KeycloakUserId | string? | set once provisioned in Keycloak |
 | DisplayName | string(200) | defaults to email local-part until first login |
+| BjcpRank | string(100)? | *(added US14/FR-057)* free text, club vocabulary (e.g. "Certificado", "Reconocido", "Pendiente de Rango") — not a controlled catalog |
+| BjcpId | string(50)? | *(added US14/FR-057)* stored verbatim; observed formats include `E####`, bare numeric, and the placeholder `Pte` ("not yet assigned") — never parsed or validated |
+| PreferredCategory | string(200)? | *(added US14/FR-057)* free text; informational only, not cross-checked against this competition's `CompetitionCategory` names (spec.md Assumptions) |
+| Preferences | string(2000)? | *(added US14/FR-057)* free-text notes (table-mate requests, availability, aversions); rendered as plain text only — never interpreted as markup, even when the source cell contains literal `<br>`-style text |
+
+Judges created via either provisioning path — the email-list flow (FR-014) or the roster import
+(FR-057) — are the same entity; `BjcpRank`/`BjcpId`/`PreferredCategory`/`Preferences` are simply
+null for judges created via the simpler email-list flow, which doesn't collect them.
 
 ### Invitation
 
@@ -246,6 +292,15 @@ failure/exclusion is unrelated to category/style state). No-op (returns the batc
 | Attempts | int | default 0 |
 | LastError | string? | last SMTP failure |
 | SentAt | DateTimeOffset? | |
+
+**Behavior change (Session 2026-08-02, R-20)**: `Pending` no longer auto-progresses to `Sent`
+shortly after `Judge` creation. Both provisioning paths (FR-014, FR-057) create the `Judge` +
+`Invitation{Status=Pending}` row and enqueue a `ProvisionJudgeAccount` job (creates the Keycloak
+account only, no email); `Status` stays `Pending` until the organizer's explicit "Notify judges"
+action (FR-059) enqueues `SendInvitation` for every `Pending` judge in the competition, which sends
+the email and transitions to `Sent`/`Failed` exactly as it does today. The existing per-judge
+resend (`POST .../judges/{judgeId}/invitation`) is unchanged and still applies after a `Failed` or
+already-`Sent` invitation.
 
 ### TastingTable
 
@@ -340,7 +395,7 @@ points from any other submitted total (spec edge case: ≥3 judges).
 |-------|------|-------------|
 | Id | Guid | PK |
 | CompetitionId | Guid | FK |
-| Type | enum | `GeneratePdfs` \| `BundleZip` \| `SendResultEmail` \| `SendInvitation` |
+| Type | enum | `GeneratePdfs` \| `BundleZip` \| `SendResultEmail` \| `SendInvitation` \| `ProvisionJudgeAccount` *(added R-20)* |
 | PayloadJson | jsonb | e.g. `{ "participantId": … }` |
 | Status | enum | `Pending` \| `Running` \| `Completed` \| `Failed` |
 | Attempts | int | retry with backoff; `Failed` after max attempts, retryable via API (FR-041) |
@@ -409,6 +464,7 @@ Organizer 1─* Competition (OrganizerId, additive alongside the existing Create
 Competition 1─* Participant 1─* BeerEntry *─1 BjcpStyle
 Competition 1─* CompetitionCategory 1─* CompetitionCategoryStyle *─1 BjcpStyle (style in ≤1 category per competition)
 Competition 1─* ImportBatch 1─* ImportRow (staging; consolidates into Participant/BeerEntry/EntryCollaborator)
+Competition 1─* JudgeImportBatch 1─* JudgeImportRow (staging; consolidates into Judge — added US14/FR-055)
 Competition 1─* Judge 1─* Invitation
 Competition 1─* TastingTable 1─* TableJudge *─1 Judge
 TastingTable 1─* TableSample *─1 BeerEntry (entry in at most one table)
