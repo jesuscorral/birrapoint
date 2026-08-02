@@ -69,8 +69,8 @@ public sealed class JudgeWorkbookParserTests
     /// <summary>Builds one judge-roster row in standard column order, from the contract's own
     /// worked example, defaulting every field to a well-formed value.</summary>
     private static object?[] Row(
-        string? name = "Rebeca Ruifernández Calzada",
-        string? email = "corralperez@gmail.com",
+        string? name = "Ana García Ruiz",
+        string? email = "ana.garcia@example.com",
         string? bjcpRank = "Certificado",
         string? bjcpId = "E4612",
         string? preferredCategory = "Estilos Clásicos",
@@ -98,8 +98,8 @@ public sealed class JudgeWorkbookParserTests
         var row = rows[0];
         Assert.Equal(JudgeImportRowStatus.Valid, row.Status);
         Assert.Equal(1, row.RowNumber);
-        Assert.Equal("Rebeca Ruifernández Calzada", row.Name);
-        Assert.Equal("corralperez@gmail.com", row.Email);
+        Assert.Equal("Ana García Ruiz", row.Name);
+        Assert.Equal("ana.garcia@example.com", row.Email);
         Assert.Equal("Certificado", row.BjcpRank);
         Assert.Equal("E4612", row.BjcpId);
         Assert.Equal("Estilos Clásicos", row.PreferredCategory);
@@ -133,7 +133,7 @@ public sealed class JudgeWorkbookParserTests
     public void Literal_br_style_text_in_preferences_is_stored_verbatim_never_interpreted_as_markup()
     {
         const string preferences =
-            "Me gustaría compartir mesa con Aaron Soriano. <br>Mi pareja se ofrece para ayudar. <br>Un saludo.";
+            "Me gustaría compartir mesa con Pablo. <br>Mi pareja se ofrece para ayudar. <br>Un saludo.";
         var xlsx = BuildJudgeWorkbook(Row(preferences: preferences));
 
         var rows = Parse(xlsx);
@@ -267,8 +267,8 @@ public sealed class JudgeWorkbookParserTests
         // The parser never dedupes — duplicate-email resolution to a single upsert happens at
         // consolidation (FR-058, ConsolidateJudgeImport), not at parse time.
         var xlsx = BuildJudgeWorkbook(
-            Row(name: "Jonatan García Ruiz", email: "shared@brew.example"),
-            Row(name: "Juan Ramón Cano Reina", email: "shared@brew.example"));
+            Row(name: "Luis Martín Soto", email: "shared@brew.example"),
+            Row(name: "Carmen López Díaz", email: "shared@brew.example"));
 
         var rows = Parse(xlsx);
 

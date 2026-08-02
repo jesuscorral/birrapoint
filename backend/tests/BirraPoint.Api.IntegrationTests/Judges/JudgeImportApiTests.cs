@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BirraPoint.Api.Common.Jobs;
+using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
@@ -105,7 +107,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     /// masked by a `??` fallback — tests that need distinct addresses across rows pass them
     /// explicitly.</summary>
     private static object?[] Row(
-        string? name = "Rebeca Ruifernández Calzada",
+        string? name = "Ana García Ruiz",
         string? email = "rebeca@brew.example",
         string? bjcpRank = "Certificado",
         string? bjcpId = "E4612",
@@ -158,7 +160,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     /// shape. Like <see cref="Row"/>, <paramref name="email"/> defaults to a fixed literal so
     /// passing <c>email: null</c> genuinely leaves it blank.</summary>
     private static object FullEditBody(
-        string? name = "Rebeca Ruifernández Calzada",
+        string? name = "Ana García Ruiz",
         string? email = "rebeca@brew.example",
         string? bjcpRank = "Certificado",
         string? bjcpId = "E4612",
@@ -253,7 +255,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         Assert.Equal("Valid", rows[0].GetProperty("status").GetString());
         Assert.Equal(1, rows[0].GetProperty("rowNumber").GetInt32());
         var data = rows[0].GetProperty("data");
-        Assert.Equal("Rebeca Ruifernández Calzada", data.GetProperty("name").GetString());
+        Assert.Equal("Ana García Ruiz", data.GetProperty("name").GetString());
         Assert.Equal(email, data.GetProperty("email").GetString());
         Assert.Equal("Certificado", data.GetProperty("bjcpRank").GetString());
         Assert.Equal("E4612", data.GetProperty("bjcpId").GetString());
@@ -293,7 +295,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
-        const string preferences = "Me gustaría compartir mesa con Aaron Soriano. <br>Un saludo.";
+        const string preferences = "Me gustaría compartir mesa con Pablo. <br>Un saludo.";
 
         var (_, rows) = await UploadJudgeRowsAsync(organizer, competitionId, Row(preferences: preferences));
 
@@ -579,7 +581,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         var judge = await db.Judges.SingleAsync(j => j.Id == judgeId);
 
         Assert.Equal(email, judge.Email);
-        Assert.Equal("Rebeca Ruifernández Calzada", judge.DisplayName);
+        Assert.Equal("Ana García Ruiz", judge.DisplayName);
         Assert.Equal("Certificado", judge.BjcpRank);
         Assert.Equal("E4612", judge.BjcpId);
         Assert.Equal("Estilos Clásicos", judge.PreferredCategory);
@@ -643,6 +645,56 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         Assert.Equal("Certificado", judges[0].BjcpRank);
     }
 
+    /// <summary>Regression test for the account-lockout bug: re-provisioning an already-notified
+    /// judge must never reset their live password (research.md R-20). Covers both the re-import
+    /// path (ConsolidateJudgeImport's enqueue-time narrowing) and the retry-reordering race
+    /// (ProvisionJudgeAccountHandler's own Invitation.Status guard, exercised here by enqueueing
+    /// directly so the assertion doesn't depend on the narrowing alone).</summary>
+    [Fact]
+    public async Task ProvisionJudgeAccount_does_not_reset_the_password_once_the_judge_has_already_been_notified()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+        var email = $"already-notified-{Guid.NewGuid():N}@brew.example";
+
+        var (importId, _) = await UploadJudgeRowsAsync(organizer, competitionId, Row(name: "Original Name", email: email));
+        var consolidate = await ConsolidateAsync(organizer, competitionId, importId);
+        Assert.Equal(HttpStatusCode.OK, consolidate.StatusCode);
+        await WaitForDispatchJobCompletionAsync(competitionId, DispatchJobType.ProvisionJudgeAccount);
+
+        var notifyResponse = await organizer.PostAsync($"/api/v1/competitions/{competitionId}/judges/notify", null);
+        Assert.Equal(HttpStatusCode.OK, notifyResponse.StatusCode);
+        await WaitForDispatchJobCompletionAsync(competitionId, DispatchJobType.SendInvitation);
+
+        var fakeKeycloak = (FakeKeycloakAdminClient)factory.Services.GetRequiredService<IKeycloakAdminClient>();
+        var callCountAfterNotify = fakeKeycloak.PasswordResetCallCount(email);
+        Assert.True(callCountAfterNotify >= 1);
+
+        Guid judgeId;
+        await using (var seedScope = factory.Services.CreateAsyncScope())
+        {
+            var db = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            judgeId = await db.Judges
+                .Where(j => j.CompetitionId == competitionId && j.Email == email)
+                .Select(j => j.Id)
+                .SingleAsync();
+            Assert.Equal(InvitationStatus.Sent, (await db.Invitations.SingleAsync(i => i.JudgeId == judgeId)).Status);
+        }
+
+        // Simulates a stale re-enqueue of ProvisionJudgeAccount for a judge who has already been
+        // notified — e.g. a re-import consolidation, or a backed-off retry racing a
+        // since-completed "Notify judges" send (research.md R-20).
+        await using (var enqueueScope = factory.Services.CreateAsyncScope())
+        {
+            var dispatchJobQueue = enqueueScope.ServiceProvider.GetRequiredService<IDispatchJobQueue>();
+            await dispatchJobQueue.EnqueueAsync(competitionId, DispatchJobType.ProvisionJudgeAccount, new { JudgeId = judgeId });
+        }
+
+        await WaitForDispatchJobCompletionAsync(competitionId, DispatchJobType.ProvisionJudgeAccount, expectedCount: 2);
+
+        Assert.Equal(callCountAfterNotify, fakeKeycloak.PasswordResetCallCount(email));
+    }
+
     [Fact]
     public async Task Consolidate_duplicate_emails_within_the_same_file_resolve_to_a_single_upsert()
     {
@@ -660,6 +712,10 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal(1, document.RootElement.GetProperty("created").GetArrayLength());
+        var skipped = document.RootElement.GetProperty("skipped").EnumerateArray().ToList();
+        Assert.Single(skipped);
+        Assert.Equal(sharedEmail, skipped[0].GetProperty("email").GetString());
+        Assert.Equal("duplicate-in-list", skipped[0].GetProperty("reason").GetString());
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

@@ -11,7 +11,10 @@ namespace BirraPoint.Api.Features.Judges;
 public sealed record ConsolidatedJudgeDto(Guid Id, string Email);
 
 public sealed record ConsolidateJudgeImportResult(
-    IReadOnlyList<ConsolidatedJudgeDto> Created, IReadOnlyList<ConsolidatedJudgeDto> Updated, int Excluded);
+    IReadOnlyList<ConsolidatedJudgeDto> Created,
+    IReadOnlyList<ConsolidatedJudgeDto> Updated,
+    int Excluded,
+    IReadOnlyList<JudgeSkipDto> Skipped);
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
 public sealed record ConsolidateJudgeImportCommand(Guid CompetitionId, Guid ImportId) : IRequest<ConsolidateJudgeImportResult?>;
@@ -66,13 +69,14 @@ public sealed class ConsolidateJudgeImportCommandHandler(
         var judgesByEmail = existingJudges.ToDictionary(j => j.Email, StringComparer.OrdinalIgnoreCase);
 
         var existingJudgeIds = existingJudges.Select(j => j.Id).ToHashSet();
-        var judgeIdsWithInvitation = new HashSet<Guid>(await dbContext.Invitations
+        var invitationStatusByJudgeId = await dbContext.Invitations
             .Where(i => existingJudgeIds.Contains(i.JudgeId))
-            .Select(i => i.JudgeId)
-            .ToListAsync(cancellationToken));
+            .ToDictionaryAsync(i => i.JudgeId, i => i.Status, cancellationToken);
+        var judgeIdsWithInvitation = new HashSet<Guid>(invitationStatusByJudgeId.Keys);
 
         var createdJudges = new List<ConsolidatedJudgeDto>();
         var updatedJudges = new List<ConsolidatedJudgeDto>();
+        var skippedJudges = new List<JudgeSkipDto>();
         var judgesToProvision = new List<Judge>();
         var seenEmailsInBatch = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -96,7 +100,21 @@ public sealed class ConsolidateJudgeImportCommandHandler(
                 if (isFirstOccurrenceInBatch)
                 {
                     updatedJudges.Add(new ConsolidatedJudgeDto(judge.Id, judge.Email));
-                    judgesToProvision.Add(judge);
+
+                    // Belt-and-suspenders optimization: skip enqueueing entirely for a judge whose
+                    // invitation has already left Pending (already Sent/Failed via SendInvitation),
+                    // since ProvisionJudgeAccountHandler would just no-op it anyway. The handler-level
+                    // guard is the actual fix — this only avoids a pointless DispatchJob row.
+                    var invitationStillPending = !invitationStatusByJudgeId.TryGetValue(judge.Id, out var status)
+                        || status == InvitationStatus.Pending;
+                    if (invitationStillPending)
+                    {
+                        judgesToProvision.Add(judge);
+                    }
+                }
+                else
+                {
+                    skippedJudges.Add(new JudgeSkipDto(email, "duplicate-in-list"));
                 }
             }
             else
@@ -137,6 +155,6 @@ public sealed class ConsolidateJudgeImportCommandHandler(
                 competition.Id, DispatchJobType.ProvisionJudgeAccount, new { JudgeId = judge.Id }, cancellationToken);
         }
 
-        return new ConsolidateJudgeImportResult(createdJudges, updatedJudges, excludedCount);
+        return new ConsolidateJudgeImportResult(createdJudges, updatedJudges, excludedCount, skippedJudges);
     }
 }

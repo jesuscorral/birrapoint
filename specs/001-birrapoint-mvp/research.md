@@ -228,15 +228,26 @@ Alternatives considered.
     provisioning paths, by the existing email-list flow (FR-014) — instead of today's immediate
     `SendInvitation` enqueue.
   - **`SendInvitation`** (existing `DispatchJobType`, handler unchanged): calls the *same*
-    `EnsureUserWithTemporaryPasswordAsync` again (idempotent — creates-or-finds the user and always
-    resets to a fresh password, per `KeycloakAdminClient.ResetPasswordAsync`'s existing behavior),
-    then emails that password. Now enqueued only by the new explicit "Notify judges" action
-    (FR-059) — one job per `Invitation.Status == Pending` judge in the competition — never
-    automatically at judge creation.
-- **Rationale**: `EnsureUserWithTemporaryPasswordAsync` is already safe to call twice (it always
-  generates and sets a fresh password, never reuses or persists one — R-10's existing "no secrets"
-  design), so splitting it into an eager provisioning call and a later real send needs zero changes
-  to `KeycloakAdminClient` or `SendInvitationHandler`. Provisioning stays a background job (not a
+    `EnsureUserWithTemporaryPasswordAsync` again (creates-or-finds the user and always resets to a
+    fresh password, per `KeycloakAdminClient.ResetPasswordAsync`'s existing behavior), then emails
+    that password. Now enqueued only by the new explicit "Notify judges" action (FR-059) — one job
+    per `Invitation.Status == Pending` judge in the competition — never automatically at judge
+    creation.
+- **`ProvisionJudgeAccount` is a no-op once the judge's invitation has left `Pending`.**
+  `EnsureUserWithTemporaryPasswordAsync` is **not** safe to call an unbounded number of times — it
+  always resets the live password, so a second call after a password has already been issued (or
+  attempted) via `SendInvitationHandler` would lock the judge out with no recovery path, or clobber
+  a password mid-delivery under a race between a backed-off provisioning retry and a
+  since-completed "Notify judges" send. `ProvisionJudgeAccountHandler` therefore checks
+  `Invitation.Status == Pending` immediately before calling the Keycloak client and returns without
+  touching Keycloak otherwise (`Sent`/`Failed` both mean a password has already been issued or
+  attempted). `ConsolidateJudgeImportCommandHandler` mirrors this at enqueue time — an `updated`
+  judge whose invitation isn't `Pending` never gets a `ProvisionJudgeAccount` job in the first
+  place — as a belt-and-suspenders optimization; the handler-level guard is the actual invariant,
+  since `RegisterJudgesCommandHandler` also enqueues this job and has no equivalent narrowing.
+- **Rationale**: splitting account creation into an eager provisioning call and a later real send
+  needs no changes to `KeycloakAdminClient` or `SendInvitationHandler` beyond the `Pending`-status
+  guard above. Provisioning stays a background job (not a
   synchronous call inside the `POST .../judges` or `.../consolidate` request) because a roster of
   up to ~100 judges (SC-013) making up to 100 sequential Keycloak Admin API calls inside one HTTP
   request risks the write p95 < 500 ms budget (Principle IX); the existing `DispatchWorker`/

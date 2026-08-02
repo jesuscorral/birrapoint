@@ -19,6 +19,13 @@ public sealed record ProvisionJudgeAccountPayload(Guid JudgeId);
 /// try/catch: a thrown exception propagates to DispatchWorker's existing retry/backoff
 /// (DispatchRetryPolicy), same as every other IDispatchJobHandler.
 /// </summary>
+/// <remarks>
+/// Skips provisioning once the judge's invitation has left <see cref="InvitationStatus.Pending"/>
+/// — a password has already been issued (or attempted) via <see cref="SendInvitationHandler"/>, so
+/// calling <c>EnsureUserWithTemporaryPasswordAsync</c> again would reset it out from under the
+/// judge with no recovery path (re-import consolidation and stale retries both re-enqueue this
+/// job for already-known judges; see research.md R-20).
+/// </remarks>
 public sealed class ProvisionJudgeAccountHandler(AppDbContext dbContext, IKeycloakAdminClient keycloakAdminClient)
     : IDispatchJobHandler
 {
@@ -31,6 +38,13 @@ public sealed class ProvisionJudgeAccountHandler(AppDbContext dbContext, IKeyclo
 
         var judge = await dbContext.Judges.FirstOrDefaultAsync(j => j.Id == payload.JudgeId, cancellationToken)
             ?? throw new InvalidOperationException($"Judge {payload.JudgeId} not found for DispatchJob {job.Id}.");
+
+        var invitationPending = await dbContext.Invitations.AnyAsync(
+            i => i.JudgeId == judge.Id && i.Status == InvitationStatus.Pending, cancellationToken);
+        if (!invitationPending)
+        {
+            return;
+        }
 
         await keycloakAdminClient.EnsureUserWithTemporaryPasswordAsync(judge.Email, cancellationToken);
     }
