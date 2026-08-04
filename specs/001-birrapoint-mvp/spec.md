@@ -50,6 +50,10 @@
 - Q: `keycloak.providers.ts` was changed (via an inline code comment, not a spec update) from `onLoad: 'login-required'` to `onLoad: 'check-sso'`, backing a new public `/welcome` landing page — but FR-001 still unconditionally requires redirecting unauthenticated users before showing any content, and the test asserting the old behavior was left failing. Formalize? → A: Yes — FR-001 amended: unauthenticated users now land on a public product landing page (no competition data, no organizer/judge workspace content) with explicit "Iniciar sesión" / "Crear cuenta" actions; authenticated users are still auto-routed to their role's workspace with no re-prompt, via `check-sso` silently detecting an existing session. See ADR-0012.
 - Q: User Story 14 (new wizard step 5, judge roster spreadsheet import) creates each judge's account but defers sending their invitation email to a separate "Notify judges" action — a behavior change from FR-014's existing email-list flow, which today auto-dispatches the invitation immediately on creation. Should FR-014 be unified onto the same deferred-notification behavior, or kept as-is (auto-dispatch) so only the new import path defers? → A: Unify — FR-014 amended to also defer notification to the same explicit FR-059 "Notify judges" action, reusing it rather than maintaining two different judge-provisioning behaviors within one competition.
 
+### Session 2026-08-04
+
+- Q: User Story 5's table setup (FR-016–FR-018) has been reachable only from the organizer dashboard after a competition is activated past `Draft` — never from inside the creation wizard itself, unlike every other setup capability (categories, entry import, judge import). Organizer asked for it as a wizard step, since judge-visible beers at login are entirely determined by table assignment (FR-020), making this the natural place to configure it during initial setup. In scope now? → A: Yes — added as a sixth wizard step (FR-060) embedding the same table-management screen, immediately after judge import. Deliberately reuses the existing US5 screen rather than introducing a second table-assignment UI; the screen also remains reachable unchanged at its original post-activation entry point, since an organizer may still want to adjust tables after activating. Advancing the competition `Draft` → `Active` (FR-051) stays a separate, explicit dashboard action — not fused into finishing the wizard, since the organizer may want to keep refining tables (or any other step) before committing to activation.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Secure Access with Role-Based Entry (Priority: P1)
@@ -92,6 +96,7 @@ complete the competition.
 2. **Given** an organizer mid-wizard, **When** they choose "Save draft", **Then** the competition is stored in `Draft` state and the organizer can exit without any data-integrity penalty.
 3. **Given** a competition in `Draft`, **When** the organizer reopens it, **Then** the wizard resumes with all previously entered data intact.
 4. **Given** unsaved edits in the current step, **When** the organizer tries to leave it via "Back" or a stepper jump, **Then** a prompt asks whether to keep editing or discard the edits, and navigation proceeds only if they choose to discard (or if the step had no unsaved edits, in which case there is no prompt at all).
+5. **Given** the organizer has just completed judge import (step 5), **When** they confirm to continue, **Then** the wizard advances to a sixth step for table setup (User Story 5), where they can create tables and assign judges/beers before leaving to the dashboard; this step is subject to the same unsaved-edits prompt as scenario 4.
 
 ---
 
@@ -145,7 +150,9 @@ and verify every not-yet-notified judge receives their invitation.
 
 An organizer creates tasting tables and assigns each one a group of judges and a set of beers. The
 system blocks assignments where a judge would evaluate a beer they own or collaborated on, and
-flags all entries owned by judging participants as ineligible for Best of Show.
+flags all entries owned by judging participants as ineligible for Best of Show. Reachable both as
+the competition wizard's sixth step (FR-060, during initial Draft setup) and, unchanged, from the
+organizer dashboard once the competition is `Active` or later.
 
 **Why this priority**: Table assignments define the entire judging workload, and undetected
 conflicts of interest invalidate results.
@@ -436,6 +443,7 @@ the duplicate reported.
 - **FR-016**: Organizers MUST be able to create tables and assign each one a set of judges and a set of beers.
 - **FR-017**: An assignment placing a judge at a table containing a beer they own or collaborated on MUST be rejected atomically with a conflict error identifying the judge and entries involved.
 - **FR-018**: When a judge who has entries in the competition is assigned to any table, the system MUST flag all of that judge's entries "Not valid for BOS", warn the organizer, and carry the flag into audit views and result exports. The flag is lifted only if the judge loses all table assignments before submitting any evaluation; once the judge has submitted at least one evaluation, the flag is permanent for that competition.
+- **FR-060**: The competition creation wizard MUST offer a sixth step, immediately after judge import, embedding table setup and assignment (FR-016–FR-018) so organizers can create tables and assign judges/beers during Draft creation rather than only after later activating the competition; the same table-management screen MUST remain reachable, unchanged, from the organizer dashboard once the competition is `Active` or later, for continued editing.
 
 **Blind Tasting Dynamics**
 
