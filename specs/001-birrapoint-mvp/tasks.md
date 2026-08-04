@@ -423,6 +423,30 @@ no email sent) plus the updated scenario 4 (trigger "Notify judges", verify deli
 
 ---
 
+## Phase 20: Wizard Step 6 — Table Assignment & Real ABV Balance Stat (FR-016, added 2026-08-04)
+
+**Goal**: US5's table-setup screen (`features/table-management/`, all of Phase 7, already built)
+was only reachable post-activation from the dashboard, not during Draft setup — organizer asked
+for it as wizard step 6 instead, reusing the existing screen rather than rebuilding it. Along the
+way, `TableStatsDto.MeanAbv` was found to be computed from the BJCP style's declared ABV-range
+midpoint instead of each beer's actual submitted ABV (`BeerEntry.AbvPercent`, unused until now in
+this slice) — styles with no declared range (e.g. `27-Kellerbier`) were silently excluded from the
+average entirely. Fixed as part of the same change since both feed the same balance-visibility
+goal.
+
+**Independent Test**: reach wizard step 6 after judge import (step 5's "Continuar" now advances
+here instead of leaving the wizard); create a table, assign judges/beers, confirm Mean ABV reflects
+the assigned beers' real ABV% (not the BJCP style range) and updates as membership changes; the
+same screen remains reachable unchanged at its original standalone route
+(`organizer/competitions/:id/tables`) post-activation.
+
+- [X] T122 [FR-016] Backend: `TableSampleDto`/`EntryDto` gain `AbvPercent` (real `BeerEntry.AbvPercent`, alongside the existing style-range `AbvLow`/`AbvHigh`) in `Features/Tables/TableDtos.cs`/`ListEntries.cs`; `TableProjector.cs`'s `TableStatsDto.MeanAbv` recomputed as the average of the table's entries' real `AbvPercent` (previously the BJCP style's declared range midpoint, gated on the style having one) — null only when the table has zero samples. `contracts/rest-api.md` updated for both DTOs and the corrected `meanAbv` semantics (additive, non-breaking). Integration tests in `TablesApiTests.cs`/`EntriesApiTests.cs`, including a regression using the real null-ABV-range catalog style `27-Kellerbier`
+- [X] T123 [FR-016] Frontend: new route-agnostic `features/table-management/table-board.component.ts` extracted from `table-management.component.ts` (same logic — create table, drag-drop/click-to-detail judge+beer assignment, BOS-flag banner, conflict-of-interest dialog — now parameterized by a `competitionId` input instead of reading `ActivatedRoute` directly); `table-management.component.ts` reduced to a thin route-bound wrapper at its original URL (unchanged for the 8 existing E2E specs that use it as scaffolding). New `competition-wizard/steps/tables-step.component.ts` (step 6, "Mesas") embeds `app-table-board`; `competition-wizard.component.ts` stepper widened to 6 steps; `judge-import-step.component.ts`'s terminal action changed from "Ir al panel de organizador" (left the wizard) to "Continuar" (advances to step 6, `saved` output added). `mesa-card.component.ts` gains judge/beer count stats; `unassigned-column.component.ts` shows live unassigned counts; `table-detail-modal.component.ts` shows real ABV% alongside the style range; `mesa-card`/`judge-seat`/`beer-token`/`unassigned-column`/the "Add table" form restyled onto the shared design-system tokens/components (`bp-button`/`bp-input`) instead of raw hex colors/native elements — presentational only, every E2E-locked `data-*`/`aria-label`/`role` attribute preserved byte-for-byte. Jest specs alongside for every file above
+
+**Checkpoint**: Table assignment reachable both as wizard step 6 (Draft-time setup) and at its original standalone route (post-activation editing); balance stats reflect real beer data
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

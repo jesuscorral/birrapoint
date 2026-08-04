@@ -1178,6 +1178,33 @@ and the audit drill-down still shows judge A's earlier submitted total.
       `640px` breakpoint override matching the card's own responsive padding drop to `--spacing-6`)
       so the bar reads as part of the card rather than a gap-floating overlay. Pure CSS — not
       exercised by Jest/jsdom (no real layout engine), verified in a live browser instead.
+  **Step 5 (T119, US14, undocumented until now)**: `JudgeImportStepComponent`
+  (`steps/judge-import-step.component.ts`) — judge-roster `.xlsx` upload, structurally mirroring
+  step 4's upload/row-list/per-row-edit/consolidate shape (`JudgeImportApiService` mirrors
+  `ImportApiService`), reached once step 3's action advances `currentStep` to 5; a `judgeImportId`
+  signal hoisted onto the wizard follows T109's exact survive-navigation pattern (no revalidate
+  endpoint exists for judge imports, so returning to step 5 just re-fetches the batch's current
+  state). No "notify judges" action here — that stays a separate post-wizard action on
+  `features/judge-management/`'s roster table (T120), since bulk-inviting a whole roster isn't a
+  step-5-local concern.
+  **Step 6 (T123, added 2026-08-04, FR-016)**: `TablesStepComponent`
+  (`steps/tables-step.component.ts`) — table assignment (create tables, assign judges/beers, see
+  balance stats), now the wizard's actual terminal step (superseding the "step 3/step 4 is
+  terminal" framing in the bullets above — both were true only until the next step existed). Does
+  **not** rebuild table-assignment logic: it embeds the already-fully-built US5 screen (see
+  `features/table-management/` below) via a new route-agnostic `TableBoardComponent`, extracted
+  from what used to be `table-management.component.ts` so the same board renders both inside this
+  wizard step (`competitionId` passed as an `input()`) and unchanged at its original standalone
+  route (`table-management.component.ts` is now a thin wrapper reading `ActivatedRoute` and
+  passing the id down). `dirtyChange` always emits `false` here — every board mutation
+  (create/drag-drop/click-to-detail "Move to") already saves immediately via the API, so there is
+  never anything un-persisted to lose on navigation, unlike steps 1–5's form-based dirty tracking.
+  Step 5's own terminal button changed from "Ir al panel de organizador" (which used to leave the
+  wizard entirely — `goToDashboard()`/its `Router` injection removed, now dead) to "Continuar"
+  (`saved` output added, advances the wizard to step 6 instead) — the dashboard-exit action moved
+  to step 6's own "Ir al panel de organizador" button. Draft→Active activation deliberately
+  **stays** a separate manual dashboard action (T102), not fused into finishing this step — the
+  organizer may want to keep adjusting tables before activating.
 - **`features/judge-management/`** (T043, US4): another single signal-driven container (no
   stepper) — a paste-list registration form (textarea split on newline or comma, trimmed, empties
   dropped) always shown together with a delivery-status table, since the two are meant to stay
@@ -1242,6 +1269,35 @@ and the audit drill-down still shows judge A's earlier submitted total.
   correct in both directions, at the cost of one extra request per mutation (acceptable for an
   organizer-only setup screen). Route: `competitions/:id/tables` under `organizer`, same
   direct-navigation-only convention as the other two Phase 5–6 feature routes.
+  **T122/T123 (2026-08-04, FR-016)**: this screen is now reachable two ways — unchanged at its
+  original standalone route (post-activation editing) and as the wizard's new step 6 (Draft-time
+  setup, see `features/competition-wizard/` above) — via a straight logic extraction, not a
+  rewrite: everything that used to live in `table-management.component.ts` (every signal,
+  computed, drag-drop/click-to-detail handler, the BOS banner and COI dialog) moved verbatim into
+  a new `TableBoardComponent`, whose only real change is taking `competitionId` as an
+  `input.required<string>()` instead of reading it off `ActivatedRoute` — which surfaced a genuine
+  Angular constraint: the old constructor called `loadAll()` synchronously, but a required signal
+  input is only guaranteed populated from `ngOnInit()` onward (`NG0950` otherwise), so the initial
+  load moved there. `table-management.component.ts` is now an eight-line wrapper. The backend's
+  `TableStatsDto.MeanAbv` was also found wrong while wiring this up and fixed as part of the same
+  change: it averaged the *BJCP style's* declared ABV-range midpoint (`Features/Tables/TableProjector.cs`),
+  not each beer's own submitted `AbvPercent` — silently dropping any table seated with a style that
+  has no declared range (confirmed with a real one, `27-Kellerbier`, in the seeded catalog) out of
+  the average entirely. `TableSampleDto`/`EntryDto` gained a real `AbvPercent` field
+  (`contracts/rest-api.md` updated) and `MeanAbv` now averages that directly — null only when a
+  table has zero samples. `MesaCardComponent` also gained live judge-count/beer-count stats,
+  `UnassignedColumnComponent`'s headers show live unassigned counts, and
+  `TableDetailModalComponent`'s beer view shows the real ABV% alongside the style's declared range
+  — all sourced from data already on the wire, no new endpoints. Presentational-only pass across
+  `mesa-card`/`judge-seat`/`beer-token`/`unassigned-column`/the "Add table" form: raw hex colors
+  and native `<input>`/`<button>` replaced with this codebase's `--color-bp-*` design tokens and
+  `bp-button`/`bp-input` components (matching the wizard steps' own established look), with every
+  `data-*`/`aria-label`/`role` attribute the 8 dependent E2E specs (`us5`–`us13`) and the a11y
+  sweep lock onto preserved byte-for-byte — confirmed by inspection rather than a green E2E run:
+  `us5-tables.spec.ts`'s shared login `beforeEach` never got past the app's own landing page to
+  reach Keycloak at all, a pre-existing condition traced (via `git log`) to `welcome.component.ts`
+  as last touched by an earlier commit on this same branch, before this change and unrelated to
+  anything touched here.
 - **`features/judge-tables/`** (T053, US6): the JUDGE role's first real screen —
   `JudgeTablesListComponent` (route `/judge/tables`, the post-login landing) lists assigned tables
   with an order-fixed badge; `JudgeTableOrderComponent` (route `/judge/tables/:tableId`) is the
