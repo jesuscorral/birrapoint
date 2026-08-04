@@ -16,6 +16,9 @@ export interface TableSample {
   blindCode: string;
   styleCode: string;
   styleName: string;
+  // Real ABV% of this specific beer entry (distinct from abvLow/abvHigh, the BJCP style's
+  // declared range — kept alongside it as a secondary/contextual field).
+  abvPercent: number;
   abvLow: number | null;
   abvHigh: number | null;
   notValidForBos: boolean;
@@ -27,6 +30,8 @@ export interface TableProgress {
 }
 
 export interface TableStats {
+  // Average of the table's entries' real ABV% (TableSample.abvPercent) — NOT the BJCP style
+  // declared ABV-range midpoint.
   meanAbv: number | null;
   styleCount: number;
   styles: string[];

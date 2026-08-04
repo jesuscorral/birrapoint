@@ -28,6 +28,7 @@ describe('EntriesApiService', () => {
         blindCode: 'CD34',
         styleCode: '21A',
         styleName: 'American IPA',
+        abvPercent: 6.8,
         abvLow: 6,
         abvHigh: 7.5,
         beerName: 'Hazy Dream',

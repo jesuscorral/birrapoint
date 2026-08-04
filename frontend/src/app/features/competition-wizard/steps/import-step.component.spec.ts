@@ -70,6 +70,7 @@ function entryFixture(overrides: Partial<EntryListItem> = {}): EntryListItem {
     blindCode: 'AB12',
     styleCode: '21C',
     styleName: 'Hazy IPA',
+    abvPercent: 7.5,
     abvLow: 6,
     abvHigh: 9,
     beerName: 'Bruma',

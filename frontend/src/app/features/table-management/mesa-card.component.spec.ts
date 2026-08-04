@@ -18,6 +18,7 @@ function tableFixture(): TableSummary {
         blindCode: 'AB12',
         styleCode: '4A',
         styleName: 'Munich Helles',
+        abvPercent: 5.2,
         abvLow: 4.5,
         abvHigh: 5.5,
         notValidForBos: false,
@@ -46,6 +47,29 @@ describe('MesaCardComponent', () => {
     expect(text).toContain('5.2%');
     expect(text).toContain('Munich Helles');
     expect(text).toContain('1/3');
+  });
+
+  it('shows the judge count and beer count for quick balance-at-a-glance', () => {
+    const fixture = createComponent(tableFixture());
+
+    const text = fixture.nativeElement.textContent as string;
+    // tableFixture() has 2 judges and 1 sample.
+    expect(text).toContain('2');
+    expect(text).toContain('1');
+  });
+
+  it('recomputes the judge/beer counts live from table().judges/samples, not a cached value', () => {
+    const table = {
+      ...tableFixture(),
+      judges: [],
+      samples: [],
+    };
+    const fixture = createComponent(table);
+
+    const judgesDd = fixture.nativeElement.querySelector('dd[data-stat="judges"]') as HTMLElement;
+    const beersDd = fixture.nativeElement.querySelector('dd[data-stat="beers"]') as HTMLElement;
+    expect(judgesDd.textContent?.trim()).toBe('0');
+    expect(beersDd.textContent?.trim()).toBe('0');
   });
 
   it('shows a placeholder when mean ABV is unavailable', () => {

@@ -1,5 +1,4 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
 import { JudgeImportApiService } from '../../../core/api/judge-import-api.service';
@@ -55,10 +54,7 @@ describe('JudgeImportStepComponent', () => {
     };
 
     TestBed.configureTestingModule({
-      providers: [
-        { provide: JudgeImportApiService, useValue: fakeJudgeImportApi },
-        provideRouter([]),
-      ],
+      providers: [{ provide: JudgeImportApiService, useValue: fakeJudgeImportApi }],
     });
   });
 
@@ -210,10 +206,10 @@ describe('JudgeImportStepComponent', () => {
     expect(consolidateButtonAfter.disabled).toBe(false);
   });
 
-  it('consolidates successfully, shows the created/updated/excluded summary, and only navigates once confirmed', () => {
+  it('consolidates successfully, shows the created/updated/excluded summary, and only emits saved once confirmed', () => {
     const fixture = uploadedFixture([rowFixture({ rowNumber: 1, status: 'Valid' })]);
-    const router = TestBed.inject(Router);
-    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
+    const savedEmitted: void[] = [];
+    fixture.componentInstance.saved.subscribe(() => savedEmitted.push(undefined));
 
     fakeJudgeImportApi.consolidate.mockReturnValue(
       of({
@@ -230,14 +226,14 @@ describe('JudgeImportStepComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Creados: 1');
     expect(fixture.nativeElement.textContent).toContain('Actualizados: 0');
     expect(fixture.nativeElement.textContent).toContain('Excluidos: 0');
-    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(savedEmitted.length).toBe(0);
     const buttons = [...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[];
     expect(buttons.some((button) => button.textContent?.trim() === 'Consolidar')).toBe(false);
 
-    buttonWithText(fixture.nativeElement, 'Ir al panel de organizador').click();
+    buttonWithText(fixture.nativeElement, 'Continuar').click();
     fixture.detectChanges();
 
-    expect(navigateSpy).toHaveBeenCalledWith('/organizer/dashboard');
+    expect(savedEmitted.length).toBe(1);
   });
 
   it('shows the skipped-duplicates count in the consolidate summary when the batch had any (FR-058)', () => {

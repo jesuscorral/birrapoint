@@ -50,8 +50,10 @@ function initialsOf(displayName: string): string {
       height: 38px;
       min-width: 38px;
       min-height: 38px;
-      border-radius: 9999px;
-      background: #1d4ed8;
+      border-radius: var(--radius-full);
+      /* White text on --color-bp-verde-600 (#2e6b57) is ~6.25:1 -- comfortably passes WCAG AA's
+         4.5:1 for this small (0.7rem) bold label. */
+      background: var(--color-bp-verde-600);
       color: #fff;
       font-size: 0.7rem;
       font-weight: 600;
@@ -60,7 +62,7 @@ function initialsOf(displayName: string): string {
     }
 
     .judge-seat:focus-visible {
-      outline: 2px solid #1d4ed8;
+      outline: 2px solid var(--color-bp-verde-600);
       outline-offset: 2px;
     }
   `,

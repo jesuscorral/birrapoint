@@ -10,7 +10,6 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
 
 import { ApiError } from '../../../core/api/api-error';
 import { JudgeImportApiService } from '../../../core/api/judge-import-api.service';
@@ -258,9 +257,9 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
           <div class="step-actions">
             <bp-button
               type="button"
-              label="Ir al panel de organizador"
+              label="Continuar"
               variant="primary"
-              (clicked)="goToDashboard()"
+              (clicked)="saved.emit()"
             ></bp-button>
           </div>
         } @else {
@@ -427,7 +426,6 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
 })
 export class JudgeImportStepComponent implements OnInit {
   private readonly judgeImportApi = inject(JudgeImportApiService);
-  private readonly router = inject(Router);
 
   readonly competitionId = input.required<string>();
   // Hoisted onto the wizard (see competition-wizard.component.ts) so a pending judge-roster
@@ -438,6 +436,7 @@ export class JudgeImportStepComponent implements OnInit {
   // returning to this step simply re-fetches the batch's current state.
   readonly judgeImportId = input<string | null>(null);
   readonly judgeImportIdChange = output<string>();
+  readonly saved = output<void>();
   readonly back = output<void>();
   readonly dirtyChange = output<boolean>();
 
@@ -626,9 +625,5 @@ export class JudgeImportStepComponent implements OnInit {
         this.consolidateError.set(toGenericApiError(error));
       },
     });
-  }
-
-  protected goToDashboard(): void {
-    this.router.navigateByUrl('/organizer/dashboard');
   }
 }

@@ -20,7 +20,7 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="unassigned-column" aria-label="Unassigned">
-      <h3>Unassigned judges</h3>
+      <h3>Jueces sin asignar ({{ judges().length }})</h3>
       <ul
         class="unassigned-list"
         cdkDropList
@@ -35,7 +35,7 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
         }
       </ul>
 
-      <h3>Unassigned beers</h3>
+      <h3>Cervezas sin asignar ({{ beers().length }})</h3>
       <ul
         class="unassigned-list"
         cdkDropList
@@ -60,16 +60,25 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
   `,
   styles: `
     .unassigned-column {
-      border: 1px dashed #9ca3af;
-      border-radius: 0.5rem;
-      padding: 1rem;
+      border: 1px dashed var(--color-bp-border-strong);
+      border-radius: var(--radius-lg);
+      padding: var(--spacing-4);
+      background: var(--color-bp-surface);
+    }
+
+    .unassigned-column h3 {
+      font-family: 'Fraunces', serif;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: var(--color-bp-text);
+      margin: 0 0 var(--spacing-2);
     }
 
     .unassigned-list {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.5rem;
-      margin: 0.5rem 0 1rem;
+      gap: var(--spacing-2);
+      margin: 0 0 var(--spacing-4);
       padding: 0;
       list-style: none;
       min-height: 64px;

@@ -26,6 +26,7 @@ describe('TableManagementApiService', () => {
         blindCode: 'AB12',
         styleCode: '4A',
         styleName: 'Munich Helles',
+        abvPercent: 5.2,
         abvLow: 4.5,
         abvHigh: 5.5,
         notValidForBos: false,

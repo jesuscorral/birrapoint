@@ -10,6 +10,7 @@ import type { CompetitionDetail } from '../../core/api/competitions-api.service'
 import { EntriesApiService } from '../../core/api/entries-api.service';
 import { ImportApiService } from '../../core/api/import-api.service';
 import { JudgeImportApiService } from '../../core/api/judge-import-api.service';
+import { TableManagementApiService } from '../table-management/table-management-api.service';
 import { CompetitionWizardComponent } from './competition-wizard.component';
 import { ImportStepComponent } from './steps/import-step.component';
 import { JudgeImportStepComponent } from './steps/judge-import-step.component';
@@ -55,6 +56,12 @@ describe('CompetitionWizardComponent', () => {
     excludeRow: jest.Mock;
     consolidate: jest.Mock;
   };
+  let fakeTableManagementApi: {
+    getTables: jest.Mock;
+    getJudges: jest.Mock;
+    createTable: jest.Mock;
+    updateTable: jest.Mock;
+  };
 
   function configure(id: string | null) {
     fakeApi = {
@@ -80,6 +87,12 @@ describe('CompetitionWizardComponent', () => {
       excludeRow: jest.fn(),
       consolidate: jest.fn(),
     };
+    fakeTableManagementApi = {
+      getTables: jest.fn().mockReturnValue(of([])),
+      getJudges: jest.fn().mockReturnValue(of([])),
+      createTable: jest.fn(),
+      updateTable: jest.fn(),
+    };
     TestBed.configureTestingModule({
       providers: [
         { provide: CompetitionsApiService, useValue: fakeApi },
@@ -87,6 +100,7 @@ describe('CompetitionWizardComponent', () => {
         { provide: ImportApiService, useValue: fakeImportApi },
         { provide: EntriesApiService, useValue: fakeEntriesApi },
         { provide: JudgeImportApiService, useValue: fakeJudgeImportApi },
+        { provide: TableManagementApiService, useValue: fakeTableManagementApi },
         provideRouter([]),
         // Must come after provideRouter([]) — it registers its own root ActivatedRoute, which
         // would otherwise win over this mock and silently drop the :id route param.
@@ -305,6 +319,67 @@ describe('CompetitionWizardComponent', () => {
     const items = fixture.nativeElement.querySelectorAll('.stepper__item');
     expect(items[3].classList.contains('is-done')).toBe(true);
     expect(step4Button).toBeTruthy();
+  });
+
+  it('renders a 6th stepper item labeled "Mesas"', () => {
+    configure('c1');
+    fakeApi.getById.mockReturnValue(of(detailFixture()));
+    const fixture = TestBed.createComponent(CompetitionWizardComponent);
+    fixture.detectChanges();
+
+    const markers = fixture.nativeElement.querySelectorAll('.stepper__marker');
+    const labels = fixture.nativeElement.querySelectorAll('.stepper__label');
+    expect(markers[5].textContent?.trim()).toBe('6');
+    expect(labels[5].textContent?.trim()).toBe('Mesas');
+  });
+
+  it('advances to step 6 and renders app-tables-step when onJudgeImportSaved() runs, marking step 5 done', () => {
+    configure('c1');
+    fakeApi.getById.mockReturnValue(of(detailFixture()));
+    const fixture = TestBed.createComponent(CompetitionWizardComponent);
+    fixture.detectChanges();
+
+    fixture.componentInstance['onDetailsSaved'](detailFixture());
+    fixture.detectChanges();
+    fixture.componentInstance['onCategoriesSaved']();
+    fixture.detectChanges();
+    fixture.componentInstance['goToStep'](5);
+    fixture.detectChanges();
+    expect(fixture.componentInstance['currentStep']()).toBe(5);
+
+    fixture.componentInstance['onJudgeImportSaved']();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance['currentStep']()).toBe(6);
+    expect(fixture.nativeElement.querySelector('app-tables-step')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('app-judge-import-step')).toBeFalsy();
+    expect(fakeTableManagementApi.getTables).toHaveBeenCalledWith('c1');
+
+    const items = fixture.nativeElement.querySelectorAll('.stepper__item');
+    expect(items[4].classList.contains('is-done')).toBe(true);
+  });
+
+  it('advances to step 6 when the judge-import step emits saved (real wiring, not a direct call)', () => {
+    configure('c1');
+    fakeApi.getById.mockReturnValue(of(detailFixture()));
+    const fixture = TestBed.createComponent(CompetitionWizardComponent);
+    fixture.detectChanges();
+
+    fixture.componentInstance['onDetailsSaved'](detailFixture());
+    fixture.detectChanges();
+    fixture.componentInstance['onCategoriesSaved']();
+    fixture.detectChanges();
+    fixture.componentInstance['goToStep'](5);
+    fixture.detectChanges();
+
+    const judgeImportStepDebugEl = fixture.debugElement.query(
+      By.directive(JudgeImportStepComponent),
+    );
+    judgeImportStepDebugEl.componentInstance.saved.emit();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance['currentStep']()).toBe(6);
+    expect(fixture.nativeElement.querySelector('app-tables-step')).toBeTruthy();
   });
 
   it('hoists the judge-roster import batch id emitted by the judge-import step and re-supplies it after navigating away and back', () => {
