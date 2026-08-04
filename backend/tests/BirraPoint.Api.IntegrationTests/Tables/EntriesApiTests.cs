@@ -5,7 +5,6 @@ using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BirraPoint.Api.IntegrationTests.Tables;

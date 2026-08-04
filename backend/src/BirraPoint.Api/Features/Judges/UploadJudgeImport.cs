@@ -3,7 +3,6 @@ using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using MediatR;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Features.Judges;

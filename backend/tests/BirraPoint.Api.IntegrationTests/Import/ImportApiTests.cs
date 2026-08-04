@@ -3,7 +3,6 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;

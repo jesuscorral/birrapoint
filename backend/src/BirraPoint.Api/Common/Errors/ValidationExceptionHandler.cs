@@ -1,6 +1,5 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BirraPoint.Api.Common.Errors;

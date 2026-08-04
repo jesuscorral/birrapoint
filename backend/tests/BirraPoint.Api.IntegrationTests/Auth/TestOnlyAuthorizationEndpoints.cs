@@ -1,5 +1,4 @@
 using BirraPoint.Api.Common.Persistence;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;

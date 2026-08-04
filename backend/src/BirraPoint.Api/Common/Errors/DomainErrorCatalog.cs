@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Http;
-
 namespace BirraPoint.Api.Common.Errors;
 
 /// <summary>Urn/status/title metadata for each <see cref="DomainErrorType"/>, per contracts/rest-api.md §Error catalog.</summary>

@@ -18,6 +18,7 @@ using BirraPoint.Api.Features.Monitoring;
 using BirraPoint.Api.Features.Tables;
 using BirraPoint.Api.Features.TastingOrder;
 using BirraPoint.Api.Realtime;
+using BirraPoint.ServiceDefaults;
 using Microsoft.EntityFrameworkCore;
 
 // Community license (T074) — required before the first document generation or QuestPDF throws.

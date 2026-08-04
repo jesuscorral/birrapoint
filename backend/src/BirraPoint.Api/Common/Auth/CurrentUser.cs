@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using BirraPoint.Api.Domain;
-using Microsoft.AspNetCore.Http;
 
 namespace BirraPoint.Api.Common.Auth;
 
