@@ -103,7 +103,8 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     private async Task<Guid> SeedBeerEntryAsync(
-        Guid competitionId, Guid participantId, string beerName, string styleCode = StyleCodeApa, IEnumerable<string>? collaboratorEmails = null)
+        Guid competitionId, Guid participantId, string beerName, string styleCode = StyleCodeApa,
+        IEnumerable<string>? collaboratorEmails = null, decimal abvPercent = 0m)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -114,6 +115,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
             BeerName = beerName,
             StyleCode = styleCode,
             BlindCode = NewBlindCode(),
+            AbvPercent = abvPercent,
         };
         db.BeerEntries.Add(entry);
         foreach (var email in collaboratorEmails ?? [])
@@ -560,5 +562,78 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         Assert.Equal("Open", table.GetProperty("state").GetString());
         Assert.Contains(judgeId, ExtractIds(table.GetProperty("judges"), "judgeId", "id"));
         Assert.Contains(entryId, ExtractIds(table.GetProperty("samples"), "beerEntryId", "id"));
+    }
+
+    // ---- GET /tables: stats.meanAbv (T122) -----------------------------------------------------
+
+    [Fact]
+    public async Task Get_returns_the_entrys_actual_abv_percent_on_each_sample()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+
+        var participantId = await SeedParticipantAsync(competitionId, "Ana Gomez", $"ana-{Guid.NewGuid():N}@brew.example");
+        var entryId = await SeedBeerEntryAsync(competitionId, participantId, "Hop Cannon", abvPercent: 6.50m);
+        var tableName = $"Table {Guid.NewGuid():N}";
+        await CreateTableAsync(organizer, competitionId, tableName, [], [entryId]);
+
+        var response = await GetTablesAsync(organizer, competitionId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var table = document.RootElement.EnumerateArray().Single();
+        var sample = table.GetProperty("samples").EnumerateArray().Single(s => s.GetProperty("beerEntryId").GetGuid() == entryId);
+        Assert.Equal(6.50m, sample.GetProperty("abvPercent").GetDecimal());
+    }
+
+    [Fact]
+    public async Task Get_computes_mean_abv_from_the_entries_actual_abv_not_the_bjcp_style_range()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+
+        var participantId = await SeedParticipantAsync(competitionId, "Ana Gomez", $"ana-{Guid.NewGuid():N}@brew.example");
+        // Both entries share StyleCodeApa (21A, American IPA — a real declared ABV range in the
+        // catalog), but their real submitted ABV differs from the style midpoint and from each
+        // other — proves meanAbv is the average of actual AbvPercent, not the style's range.
+        var entry1 = await SeedBeerEntryAsync(competitionId, participantId, "Brew 1", abvPercent: 5.00m);
+        var entry2 = await SeedBeerEntryAsync(competitionId, participantId, "Brew 2", abvPercent: 7.00m);
+        var tableName = $"Table {Guid.NewGuid():N}";
+        await CreateTableAsync(organizer, competitionId, tableName, [], [entry1, entry2]);
+
+        var response = await GetTablesAsync(organizer, competitionId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var table = document.RootElement.EnumerateArray().Single();
+        Assert.Equal(6.00m, table.GetProperty("stats").GetProperty("meanAbv").GetDecimal());
+    }
+
+    [Fact]
+    public async Task Get_computes_mean_abv_from_real_abv_even_when_the_styles_bjcp_range_is_undeclared()
+    {
+        // Regression for the pre-T122 bug: MeanAbv used to average the BJCP style's declared
+        // ABVLow/ABVHigh midpoint, so a style with no declared range (real BJCP catalog styles
+        // like "27-Kellerbier" legitimately have none) was excluded from the average entirely —
+        // a single-entry table on such a style produced a null MeanAbv even though the
+        // organizer had the entry's real submitted ABV all along.
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+
+        var participantId = await SeedParticipantAsync(competitionId, "Ana Gomez", $"ana-{Guid.NewGuid():N}@brew.example");
+        var entryId = await SeedBeerEntryAsync(
+            competitionId, participantId, "Kellerbier Brew", styleCode: "27-Kellerbier", abvPercent: 4.80m);
+        var tableName = $"Table {Guid.NewGuid():N}";
+        await CreateTableAsync(organizer, competitionId, tableName, [], [entryId]);
+
+        var response = await GetTablesAsync(organizer, competitionId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var table = document.RootElement.EnumerateArray().Single();
+        var sample = table.GetProperty("samples").EnumerateArray().Single();
+        Assert.Equal(JsonValueKind.Null, sample.GetProperty("abvLow").ValueKind);
+        Assert.Equal(JsonValueKind.Null, sample.GetProperty("abvHigh").ValueKind);
+        Assert.Equal(4.80m, table.GetProperty("stats").GetProperty("meanAbv").GetDecimal());
     }
 }

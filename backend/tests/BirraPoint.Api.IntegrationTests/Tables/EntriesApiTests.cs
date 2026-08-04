@@ -67,7 +67,8 @@ public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFacto
         return participant.Id;
     }
 
-    private async Task<Guid> SeedBeerEntryAsync(Guid competitionId, Guid participantId, string beerName, string styleCode = StyleCodeApa)
+    private async Task<Guid> SeedBeerEntryAsync(
+        Guid competitionId, Guid participantId, string beerName, string styleCode = StyleCodeApa, decimal abvPercent = 0m)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -78,6 +79,7 @@ public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFacto
             BeerName = beerName,
             StyleCode = styleCode,
             BlindCode = NewBlindCode(),
+            AbvPercent = abvPercent,
         };
         db.BeerEntries.Add(entry);
         await db.SaveChangesAsync();
@@ -150,5 +152,22 @@ public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFacto
 
         Assert.Equal(tableId, afterEntry.GetProperty("tastingTableId").GetGuid());
         Assert.Equal(tableName, afterEntry.GetProperty("tastingTableName").GetString());
+    }
+
+    [Fact]
+    public async Task Get_returns_the_entrys_actual_abv_percent()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+
+        var participantId = await SeedParticipantAsync(competitionId, "Ana Gomez", $"ana-{Guid.NewGuid():N}@brew.example");
+        var entryId = await SeedBeerEntryAsync(competitionId, participantId, "Hop Cannon", abvPercent: 6.20m);
+
+        var response = await GetEntriesAsync(organizer, competitionId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var entry = document.RootElement.EnumerateArray().Single(e => e.GetProperty("id").GetGuid() == entryId);
+        Assert.Equal(6.20m, entry.GetProperty("abvPercent").GetDecimal());
     }
 }

@@ -14,6 +14,7 @@ public sealed record EntryDto(
     string StyleName,
     decimal? AbvLow,
     decimal? AbvHigh,
+    decimal AbvPercent,
     string? BeerName,
     bool NotValidForBos,
     Guid? TastingTableId,
@@ -37,7 +38,7 @@ public sealed class ListEntriesQueryHandler(AppDbContext dbContext, ICurrentUser
 
         var entries = await dbContext.BeerEntries
             .Where(e => e.CompetitionId == request.CompetitionId)
-            .Select(e => new { e.Id, e.BlindCode, e.StyleCode, e.BeerName, e.NotValidForBos })
+            .Select(e => new { e.Id, e.BlindCode, e.StyleCode, e.AbvPercent, e.BeerName, e.NotValidForBos })
             .ToListAsync(cancellationToken);
 
         var styleCodes = entries.Select(e => e.StyleCode).Distinct().ToList();
@@ -64,6 +65,7 @@ public sealed class ListEntriesQueryHandler(AppDbContext dbContext, ICurrentUser
                     style?.Name ?? e.StyleCode,
                     style?.ABVLow,
                     style?.ABVHigh,
+                    e.AbvPercent,
                     e.BeerName,
                     e.NotValidForBos,
                     table?.TableId,

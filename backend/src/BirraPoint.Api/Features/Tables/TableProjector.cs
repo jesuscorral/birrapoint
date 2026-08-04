@@ -22,7 +22,7 @@ internal static class TableProjector
         var entryIds = table.Samples.Select(s => s.BeerEntryId).ToList();
         var entries = await dbContext.BeerEntries
             .Where(e => entryIds.Contains(e.Id))
-            .Select(e => new { e.Id, e.BlindCode, e.StyleCode, e.NotValidForBos, e.EntryInstructions })
+            .Select(e => new { e.Id, e.BlindCode, e.StyleCode, e.AbvPercent, e.NotValidForBos, e.EntryInstructions })
             .ToListAsync(cancellationToken);
 
         var styleCodes = entries.Select(e => e.StyleCode).Distinct().ToList();
@@ -38,17 +38,15 @@ internal static class TableProjector
                 styleByCode.TryGetValue(e.StyleCode, out var style);
                 return new TableSampleDto(
                     e.Id, e.BlindCode, e.StyleCode, style?.Name ?? e.StyleCode, style?.ABVLow, style?.ABVHigh,
-                    e.NotValidForBos, e.EntryInstructions);
+                    e.AbvPercent, e.NotValidForBos, e.EntryInstructions);
             })
             .ToList();
 
-        var abvMidpoints = entries
-            .Where(e => styleByCode.TryGetValue(e.StyleCode, out var style) && style.ABVLow.HasValue && style.ABVHigh.HasValue)
-            .Select(e => (styleByCode[e.StyleCode].ABVLow!.Value + styleByCode[e.StyleCode].ABVHigh!.Value) / 2m)
-            .ToList();
-
+        // Real submitted ABV (BeerEntry.AbvPercent), not the BJCP style's declared range —
+        // the organizer needs actual table balance, and many styles (e.g. historical ones)
+        // legitimately have no declared ABV range at all (T122).
         var stats = new TableStatsDto(
-            abvMidpoints.Count > 0 ? abvMidpoints.Average() : null,
+            entries.Count > 0 ? entries.Average(e => e.AbvPercent) : null,
             styles.Count,
             styles.Select(s => s.Name).OrderBy(name => name).ToList());
 

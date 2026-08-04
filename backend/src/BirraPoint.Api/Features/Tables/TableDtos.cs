@@ -11,6 +11,7 @@ public sealed record TableSampleDto(
     string StyleName,
     decimal? AbvLow,
     decimal? AbvHigh,
+    decimal AbvPercent,
     bool NotValidForBos,
     string? EntryInstructions);
 
