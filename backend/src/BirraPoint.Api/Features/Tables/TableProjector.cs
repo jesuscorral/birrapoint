@@ -44,11 +44,16 @@ internal static class TableProjector
 
         // Real submitted ABV (BeerEntry.AbvPercent), not the BJCP style's declared range —
         // the organizer needs actual table balance, and many styles (e.g. historical ones)
-        // legitimately have no declared ABV range at all (T122).
-        var stats = new TableStatsDto(
-            entries.Count > 0 ? entries.Average(e => e.AbvPercent) : null,
-            styles.Count,
-            styles.Select(s => s.Name).OrderBy(name => name).ToList());
+        // legitimately have no declared ABV range at all (T122). Rounded to the column's own
+        // decimal(4,2) precision to avoid repeating-decimal payload noise (PR #31 review #10).
+        var meanAbv = entries.Count > 0 ? Math.Round(entries.Average(e => e.AbvPercent), 2) : (decimal?)null;
+
+        // Derived from `samples` (which already falls back to the entry's raw StyleCode via
+        // `style?.Name ?? e.StyleCode`), not from the catalog-joined `styles` rows — an entry
+        // whose StyleCode has no matching BjcpStyles row must still count here, the same
+        // "silently excluded" defect class just fixed for MeanAbv (PR #31 review #7).
+        var styleNames = samples.Select(s => s.StyleName).Distinct().OrderBy(name => name).ToList();
+        var stats = new TableStatsDto(meanAbv, styleNames.Count, styleNames);
 
         var submitted = await dbContext.Evaluations.CountAsync(e => e.TastingTableId == table.Id, cancellationToken);
         var progress = new TableProgressDto(submitted, judges.Count * samples.Count);

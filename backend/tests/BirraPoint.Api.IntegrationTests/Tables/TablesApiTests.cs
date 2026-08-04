@@ -636,4 +636,80 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         Assert.Equal(JsonValueKind.Null, sample.GetProperty("abvHigh").ValueKind);
         Assert.Equal(4.80m, table.GetProperty("stats").GetProperty("meanAbv").GetDecimal());
     }
+
+    [Fact]
+    public async Task Get_returns_a_null_mean_abv_for_a_table_with_zero_samples()
+    {
+        // rest-api.md now says explicitly that meanAbv is "null only when the table has zero
+        // samples" — closing the coverage gap flagged in PR #31 review finding #8 (all three
+        // T122 tests above seed at least one entry).
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+        var tableName = $"Table {Guid.NewGuid():N}";
+        await CreateTableAsync(organizer, competitionId, tableName, [], []);
+
+        var response = await GetTablesAsync(organizer, competitionId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var table = document.RootElement.EnumerateArray().Single();
+        Assert.Equal(JsonValueKind.Null, table.GetProperty("stats").GetProperty("meanAbv").ValueKind);
+    }
+
+    // ---- GET /tables: stats.styleCount/styles (PR #31 review finding #7) ----------------------
+
+    [Fact]
+    public async Task Get_still_counts_a_sample_whose_style_code_has_no_matching_bjcp_row_in_stats()
+    {
+        // Same "silently excluded" defect shape as the pre-T122 MeanAbv bug, spotted in PR #31
+        // review finding #7: StyleCount/Styles used to be derived from the catalog-joined
+        // `styles` rows rather than from `samples` (which already falls back to the entry's
+        // raw StyleCode via `style?.Name ?? e.StyleCode`) — an entry whose StyleCode has no
+        // matching BjcpStyles row was silently dropped from the style stats. The
+        // BeerEntries.StyleCode FK to BjcpStyles prevents creating such a row through the
+        // normal insert path, so SeedBeerEntryWithUnmatchedStyleCodeAsync bypasses FK
+        // enforcement for one transaction to prove the projector degrades gracefully for the
+        // scenario the code's own `style?.Name ?? e.StyleCode` fallback already anticipates.
+        const string orphanStyleCode = "ZZ-NO-CATALOG-ROW";
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+        var participantId = await SeedParticipantAsync(competitionId, "Ana Gomez", $"ana-{Guid.NewGuid():N}@brew.example");
+        var entryId = await SeedBeerEntryWithUnmatchedStyleCodeAsync(competitionId, participantId, orphanStyleCode);
+        var tableName = $"Table {Guid.NewGuid():N}";
+        await CreateTableAsync(organizer, competitionId, tableName, [], [entryId]);
+
+        var response = await GetTablesAsync(organizer, competitionId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var table = document.RootElement.EnumerateArray().Single();
+        var stats = table.GetProperty("stats");
+        Assert.Equal(1, stats.GetProperty("styleCount").GetInt32());
+        Assert.Contains(orphanStyleCode, stats.GetProperty("styles").EnumerateArray().Select(s => s.GetString()));
+    }
+
+    /// <summary>Inserts a BeerEntry whose StyleCode has no matching BjcpStyles row — bypasses the
+    /// DB-enforced FK (`FK_BeerEntries_BjcpStyles_StyleCode`) for the single insert statement via
+    /// `SET LOCAL session_replication_role = replica`, scoped to one transaction so it can't leak
+    /// into other tests sharing this class's Testcontainer.</summary>
+    private async Task<Guid> SeedBeerEntryWithUnmatchedStyleCodeAsync(Guid competitionId, Guid participantId, string styleCode)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        await db.Database.ExecuteSqlRawAsync("SET LOCAL session_replication_role = replica;");
+        var entry = new BeerEntry
+        {
+            CompetitionId = competitionId,
+            ParticipantId = participantId,
+            BeerName = "Orphan Style Brew",
+            StyleCode = styleCode,
+            BlindCode = NewBlindCode(),
+            AbvPercent = 5.00m,
+        };
+        db.BeerEntries.Add(entry);
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+        return entry.Id;
+    }
 }
