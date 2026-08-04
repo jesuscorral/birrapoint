@@ -2,11 +2,16 @@ import { CdkTrapFocus } from '@angular/cdk/a11y';
 import type { OnInit } from '@angular/core';
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 
+import { BpButtonComponent } from '../../shared/components/bp-button/bp-button.component';
+
 export interface BeerDetailContent {
   kind: 'beer';
   id: string;
   blindCode: string;
   styleName: string;
+  // Real ABV% of this specific beer entry (distinct from abvLow/abvHigh, the BJCP style's
+  // declared range — kept alongside it as a secondary/contextual field).
+  abvPercent: number;
   abvLow: number | null;
   abvHigh: number | null;
 }
@@ -31,7 +36,7 @@ export interface TableOption {
 @Component({
   selector: 'app-table-detail-modal',
   standalone: true,
-  imports: [CdkTrapFocus],
+  imports: [CdkTrapFocus, BpButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="modal-backdrop" role="presentation" (click)="closed.emit()">
@@ -79,18 +84,33 @@ export interface TableOption {
 
         <p>Assigned table: {{ assignedTableNames() }}</p>
 
-        <label>
+        <label class="move-label">
           Move to
-          <select [value]="moveTarget()" (change)="moveTarget.set($any($event.target).value)">
+          <select
+            class="move-select"
+            [value]="moveTarget()"
+            (change)="moveTarget.set($any($event.target).value)"
+          >
             <option value="">Unassigned</option>
             @for (table of tables(); track table.id) {
               <option [value]="table.id">{{ table.name }}</option>
             }
           </select>
         </label>
-        <button type="button" (click)="onMove()">Move</button>
-
-        <button type="button" (click)="closed.emit()">Close</button>
+        <div class="modal-actions">
+          <bp-button
+            type="button"
+            label="Move"
+            variant="secondary"
+            (clicked)="onMove()"
+          ></bp-button>
+          <bp-button
+            type="button"
+            label="Close"
+            variant="ghost"
+            (clicked)="closed.emit()"
+          ></bp-button>
+        </div>
       </div>
     </div>
   `,
@@ -98,17 +118,69 @@ export interface TableOption {
     .modal-backdrop {
       position: fixed;
       inset: 0;
-      background: rgb(0 0 0 / 50%);
+      background: rgba(4, 23, 18, 0.45);
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: var(--spacing-4);
+      z-index: 10;
     }
 
     .modal-panel {
-      background: #fff;
-      border-radius: 0.5rem;
-      padding: 1.5rem;
+      background: var(--color-bp-surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      padding: var(--spacing-6);
       min-width: 20rem;
+    }
+
+    .modal-panel h2 {
+      font-family: 'Fraunces', serif;
+      font-size: 1.25rem;
+      margin: 0 0 var(--spacing-3);
+      color: var(--color-bp-text);
+    }
+
+    .modal-panel dl {
+      margin: 0 0 var(--spacing-4);
+    }
+
+    .modal-panel dt {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--color-bp-text-muted);
+      margin-top: var(--spacing-2);
+    }
+
+    .modal-panel dd {
+      margin: 0;
+      color: var(--color-bp-text);
+    }
+
+    .move-label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--color-bp-text);
+      margin-bottom: var(--spacing-4);
+    }
+
+    .move-select {
+      display: block;
+      width: 100%;
+      min-height: 44px;
+      margin-top: var(--spacing-2);
+      padding: 0 var(--spacing-3);
+      border: 1.5px solid var(--color-bp-border-strong);
+      border-radius: var(--radius-md);
+      background: var(--color-bp-surface);
+      color: var(--color-bp-text);
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: var(--spacing-3);
+      margin-top: var(--spacing-4);
     }
   `,
 })
@@ -136,12 +208,19 @@ export class TableDetailModalComponent implements OnInit {
     this.content().kind === 'beer' ? 'Beer details' : 'Judge details',
   );
 
+  // Always shows the beer's real ABV% (abvPercent). When the BJCP style's declared range
+  // (abvLow/abvHigh) is also available it's appended as secondary/contextual information — e.g.
+  // "5.5% (style range 4.5–7.5%)" — otherwise just the real percent is shown on its own.
   protected readonly abvLabel = computed(() => {
     const beer = this.beerContent();
-    if (!beer || (beer.abvLow === null && beer.abvHigh === null)) {
+    if (!beer) {
       return null;
     }
-    return `${beer.abvLow ?? '?'}–${beer.abvHigh ?? '?'}%`;
+    const real = `${beer.abvPercent}%`;
+    if (beer.abvLow === null && beer.abvHigh === null) {
+      return real;
+    }
+    return `${real} (style range ${beer.abvLow ?? '?'}–${beer.abvHigh ?? '?'}%)`;
   });
 
   protected readonly assignedTableNames = computed(() => {

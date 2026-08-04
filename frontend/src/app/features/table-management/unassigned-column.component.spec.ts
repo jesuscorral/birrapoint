@@ -15,6 +15,7 @@ function beersFixture(): EntryListItem[] {
       blindCode: 'AB12',
       styleCode: '4A',
       styleName: 'Munich Helles',
+      abvPercent: 5.2,
       abvLow: 4.5,
       abvHigh: 5.5,
       beerName: 'Golden Helles',
@@ -41,6 +42,27 @@ describe('UnassignedColumnComponent', () => {
 
     expect(fixture.nativeElement.querySelector('[data-judge-id="j1"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('[data-entry-id="e1"]')).not.toBeNull();
+  });
+
+  it('shows the live unassigned judge/beer counts in the column headings', () => {
+    const fixture = createComponent();
+
+    const headings = [...fixture.nativeElement.querySelectorAll('h3')] as HTMLElement[];
+    expect(headings[0].textContent?.trim()).toBe('Jueces sin asignar (1)');
+    expect(headings[1].textContent?.trim()).toBe('Cervezas sin asignar (1)');
+  });
+
+  it('reflects an empty count when there are no unassigned judges/beers', () => {
+    const fixture = TestBed.createComponent(UnassignedColumnComponent);
+    fixture.componentRef.setInput('judges', []);
+    fixture.componentRef.setInput('beers', []);
+    fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned']);
+    fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned']);
+    fixture.detectChanges();
+
+    const headings = [...fixture.nativeElement.querySelectorAll('h3')] as HTMLElement[];
+    expect(headings[0].textContent?.trim()).toBe('Jueces sin asignar (0)');
+    expect(headings[1].textContent?.trim()).toBe('Cervezas sin asignar (0)');
   });
 
   it('exposes stable drop list ids for cross-component connection', () => {

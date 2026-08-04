@@ -42,7 +42,7 @@ Conventions: `404` for resources outside the caller's scope (never reveal existe
 
 | Method & Path | Role | Description |
 |---|---|---|
-| `GET /competitions/{id}/entries` | ORGANIZER | Every entry in the competition with its current table assignment — feeds the table-setup UI's "Unassigned" column (T048). `200` → `[{ id, blindCode, styleCode, styleName, abvLow, abvHigh, beerName, notValidForBos, tastingTableId, tastingTableName }]`; `tastingTableId`/`tastingTableName` are `null` until the entry is assigned via `POST`/`PUT .../tables`. Organizer-only, so unlike judge-facing DTOs this includes `beerName` (no BR-01 concern). |
+| `GET /competitions/{id}/entries` | ORGANIZER | Every entry in the competition with its current table assignment — feeds the table-setup UI's "Unassigned" column (T048). `200` → `[{ id, blindCode, styleCode, styleName, abvLow, abvHigh, abvPercent, beerName, notValidForBos, tastingTableId, tastingTableName }]`; `abvLow`/`abvHigh` are the BJCP style's declared ABV range (catalog-sourced, may both be `null` — some styles, e.g. historical ones, have no declared range), `abvPercent` is this entry's actual submitted ABV (required at import, never `null`); `tastingTableId`/`tastingTableName` are `null` until the entry is assigned via `POST`/`PUT .../tables`. Organizer-only, so unlike judge-facing DTOs this includes `beerName` (no BR-01 concern). |
 
 ## Judges
 
@@ -74,7 +74,7 @@ Conventions: `404` for resources outside the caller's scope (never reveal existe
 |---|---|---|
 | `POST /competitions/{id}/tables` | ORGANIZER | Body: `{ name, judgeIds: [], beerEntryIds: [] }`. Competition must be `Draft`/`Active` (`409 invalid-state-transition` otherwise, same gate as `POST .../imports` — data-model.md §Competition state gates). COI violation → `409 conflict-of-interest` `{ conflicts: [{ judgeId, beerEntryIds }] }`, nothing persisted (FR-017). Success → `201`; response includes `bosFlaggedEntryIds` when FR-018 fired. |
 | `PUT /competitions/{id}/tables/{tableId}` | ORGANIZER | Same body, COI semantics, and `Draft`/`Active` state gate as `POST`. `409 table-closed` if the table itself is closed. |
-| `GET /competitions/{id}/tables` | ORGANIZER | Tables with judges, samples, progress, state. |
+| `GET /competitions/{id}/tables` | ORGANIZER | `200` → `[{ id, name, state, judges: [{ id, email, displayName }], samples: [{ beerEntryId, blindCode, styleCode, styleName, abvLow, abvHigh, abvPercent, notValidForBos, entryInstructions }], progress: { submitted, total }, stats: { meanAbv, styleCount, styles } }]` (same `samples`/`stats` shape is reused by the `POST`/`PUT` responses below, alongside `bosFlaggedEntryIds`). `abvLow`/`abvHigh` per sample are the BJCP style's declared range (may both be `null`); `stats.meanAbv` is the average of the table's entries' actual `abvPercent` — not the styles' declared range — and is `null` only when the table has zero samples. |
 | `DELETE /competitions/{id}/tables/{tableId}/judges/{judgeId}` | ORGANIZER | Live removal (FR-039 — "during the live event"). Competition must be `InEvaluation` (`409 invalid-state-transition` otherwise). `200`; sets `RemovedAt`, revokes access, emits `JudgeRemoved`, audit-logged. Already-submitted evaluations stay valid. |
 
 ## Judge workspace

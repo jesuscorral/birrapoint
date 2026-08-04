@@ -25,13 +25,14 @@ describe('TableDetailModalComponent', () => {
     return fixture;
   }
 
-  it('shows beer detail content: blind code, style, ABV range, assigned table', () => {
+  it('shows beer detail content: blind code, style, real ABV% alongside the style ABV range, assigned table', () => {
     const beer: BeerDetailContent = {
       kind: 'beer',
       id: 'e1',
       blindCode: 'AB12',
       styleName: 'Munich Helles',
-      abvLow: 5.5,
+      abvPercent: 5.5,
+      abvLow: 4.5,
       abvHigh: 7.5,
     };
     const fixture = createComponent(beer, ['t1']);
@@ -39,23 +40,26 @@ describe('TableDetailModalComponent', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('AB12');
     expect(text).toContain('Munich Helles');
-    expect(text).toContain('5.5–7.5%');
+    expect(text).toContain('5.5% (style range 4.5–7.5%)');
     expect(text).toContain('Mesa 1');
   });
 
-  it('omits the ABV row gracefully when both abvLow and abvHigh are null', () => {
+  it('shows only the real ABV%, omitting the style range, when abvLow and abvHigh are both null', () => {
     const beer: BeerDetailContent = {
       kind: 'beer',
       id: 'e1',
       blindCode: 'AB12',
       styleName: 'Local style',
+      abvPercent: 6.2,
       abvLow: null,
       abvHigh: null,
     };
     const fixture = createComponent(beer, []);
 
     const text = fixture.nativeElement.textContent as string;
-    expect(text).not.toContain('ABV');
+    expect(text).toContain('ABV');
+    expect(text).toContain('6.2%');
+    expect(text).not.toContain('style range');
     expect(text).toContain('Unassigned');
   });
 

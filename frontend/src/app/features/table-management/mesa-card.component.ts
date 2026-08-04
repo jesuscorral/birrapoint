@@ -43,6 +43,14 @@ function seatPosition(index: number, count: number): SeatPosition {
             <dt>Progress</dt>
             <dd>{{ table().progress.submitted }}/{{ table().progress.total }}</dd>
           </div>
+          <div>
+            <dt>Judges</dt>
+            <dd data-stat="judges">{{ table().judges.length }}</dd>
+          </div>
+          <div>
+            <dt>Beers</dt>
+            <dd data-stat="beers">{{ table().samples.length }}</dd>
+          </div>
         </dl>
       </header>
 
@@ -92,15 +100,25 @@ function seatPosition(index: number, count: number): SeatPosition {
   `,
   styles: `
     .mesa-card {
-      border: 1px solid #d1d5db;
-      border-radius: 0.75rem;
-      padding: 1rem;
+      border: 1px solid var(--color-bp-border);
+      border-radius: var(--radius-lg);
+      padding: var(--spacing-4);
+      background: var(--color-bp-surface);
+    }
+
+    .mesa-header h3 {
+      font-family: 'Fraunces', serif;
+      font-size: 1.0625rem;
+      font-weight: 600;
+      color: var(--color-bp-text);
+      margin: 0;
     }
 
     .mesa-stats {
       display: flex;
-      gap: 1rem;
-      margin: 0.5rem 0 0;
+      flex-wrap: wrap;
+      gap: var(--spacing-4);
+      margin: var(--spacing-2) 0 0;
     }
 
     .mesa-stats div {
@@ -108,13 +126,25 @@ function seatPosition(index: number, count: number): SeatPosition {
       flex-direction: column;
     }
 
+    .mesa-stats dt {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--color-bp-text-muted);
+    }
+
+    .mesa-stats dd {
+      margin: 0;
+      color: var(--color-bp-text);
+      font-weight: 600;
+    }
+
     .mesa-board {
       position: relative;
-      margin-top: 1.5rem;
+      margin-top: var(--spacing-6);
       aspect-ratio: 1.4 / 1;
       border-radius: 999px;
-      background: #ecfccb;
-      border: 2px solid #65a30d;
+      background: var(--color-bp-verde-50);
+      border: 2px solid var(--color-bp-verde-400);
     }
 
     .mesa-seats {
@@ -140,7 +170,7 @@ function seatPosition(index: number, count: number): SeatPosition {
       flex-wrap: wrap;
       align-content: center;
       justify-content: center;
-      gap: 0.5rem;
+      gap: var(--spacing-2);
     }
   `,
 })

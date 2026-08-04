@@ -22,7 +22,7 @@ internal static class TableProjector
         var entryIds = table.Samples.Select(s => s.BeerEntryId).ToList();
         var entries = await dbContext.BeerEntries
             .Where(e => entryIds.Contains(e.Id))
-            .Select(e => new { e.Id, e.BlindCode, e.StyleCode, e.NotValidForBos, e.EntryInstructions })
+            .Select(e => new { e.Id, e.BlindCode, e.StyleCode, e.AbvPercent, e.NotValidForBos, e.EntryInstructions })
             .ToListAsync(cancellationToken);
 
         var styleCodes = entries.Select(e => e.StyleCode).Distinct().ToList();
@@ -38,19 +38,22 @@ internal static class TableProjector
                 styleByCode.TryGetValue(e.StyleCode, out var style);
                 return new TableSampleDto(
                     e.Id, e.BlindCode, e.StyleCode, style?.Name ?? e.StyleCode, style?.ABVLow, style?.ABVHigh,
-                    e.NotValidForBos, e.EntryInstructions);
+                    e.AbvPercent, e.NotValidForBos, e.EntryInstructions);
             })
             .ToList();
 
-        var abvMidpoints = entries
-            .Where(e => styleByCode.TryGetValue(e.StyleCode, out var style) && style.ABVLow.HasValue && style.ABVHigh.HasValue)
-            .Select(e => (styleByCode[e.StyleCode].ABVLow!.Value + styleByCode[e.StyleCode].ABVHigh!.Value) / 2m)
-            .ToList();
+        // Real submitted ABV (BeerEntry.AbvPercent), not the BJCP style's declared range —
+        // the organizer needs actual table balance, and many styles (e.g. historical ones)
+        // legitimately have no declared ABV range at all (T122). Rounded to the column's own
+        // decimal(4,2) precision to avoid repeating-decimal payload noise (PR #31 review #10).
+        var meanAbv = entries.Count > 0 ? Math.Round(entries.Average(e => e.AbvPercent), 2) : (decimal?)null;
 
-        var stats = new TableStatsDto(
-            abvMidpoints.Count > 0 ? abvMidpoints.Average() : null,
-            styles.Count,
-            styles.Select(s => s.Name).OrderBy(name => name).ToList());
+        // Derived from `samples` (which already falls back to the entry's raw StyleCode via
+        // `style?.Name ?? e.StyleCode`), not from the catalog-joined `styles` rows — an entry
+        // whose StyleCode has no matching BjcpStyles row must still count here, the same
+        // "silently excluded" defect class just fixed for MeanAbv (PR #31 review #7).
+        var styleNames = samples.Select(s => s.StyleName).Distinct().OrderBy(name => name).ToList();
+        var stats = new TableStatsDto(meanAbv, styleNames.Count, styleNames);
 
         var submitted = await dbContext.Evaluations.CountAsync(e => e.TastingTableId == table.Id, cancellationToken);
         var progress = new TableProgressDto(submitted, judges.Count * samples.Count);

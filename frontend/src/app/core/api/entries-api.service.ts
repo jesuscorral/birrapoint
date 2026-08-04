@@ -10,6 +10,9 @@ export interface EntryListItem {
   blindCode: string;
   styleCode: string;
   styleName: string;
+  // Real ABV% of this specific beer entry (distinct from abvLow/abvHigh, the BJCP style's
+  // declared range).
+  abvPercent: number;
   abvLow: number | null;
   abvHigh: number | null;
   beerName: string;

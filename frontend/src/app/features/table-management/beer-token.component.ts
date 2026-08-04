@@ -55,25 +55,28 @@ export interface BeerTokenData {
       height: 64px;
       min-width: 64px;
       min-height: 64px;
-      border-radius: 0.5rem;
-      background: #92400e;
+      border-radius: var(--radius-md);
+      /* White text on --color-bp-cobre-700 (#9a4b27) is ~6.16:1, passing WCAG AA's 4.5:1 for this
+         small (0.8rem) bold label -- one shade darker than the "primary button" cobre-500 token,
+         which only computes to ~3.2:1 against white and would fail here. */
+      background: var(--color-bp-cobre-700);
       color: #fff;
       font-size: 0.8rem;
       font-weight: 700;
       cursor: grab;
       user-select: none;
       text-align: center;
-      padding: 0.25rem;
+      padding: var(--spacing-2);
     }
 
     .beer-token--bos-flagged {
-      /* #fbbf24 (amber-400) against this token's #92400e background is ~4.24:1 -- the previous
-         #dc2626 ring was ~1.47:1, well under WCAG 1.4.11's 3:1 non-text contrast minimum. */
-      box-shadow: 0 0 0 2px #fbbf24 inset;
+      /* --color-bp-cobre-100 (#f5e0cd) against this token's --color-bp-cobre-700 background is
+         ~4.8:1 -- comfortably above WCAG 1.4.11's 3:1 non-text contrast minimum. */
+      box-shadow: 0 0 0 2px var(--color-bp-cobre-100) inset;
     }
 
     .beer-token:focus-visible {
-      outline: 2px solid #92400e;
+      outline: 2px solid var(--color-bp-cobre-700);
       outline-offset: 2px;
     }
 
@@ -81,9 +84,9 @@ export interface BeerTokenData {
       position: absolute;
       top: -0.35rem;
       right: -0.35rem;
-      color: #fbbf24;
-      background: #1f2937;
-      border-radius: 9999px;
+      color: var(--color-bp-cobre-100);
+      background: var(--color-bp-text);
+      border-radius: var(--radius-full);
       width: 1rem;
       height: 1rem;
       line-height: 1rem;
