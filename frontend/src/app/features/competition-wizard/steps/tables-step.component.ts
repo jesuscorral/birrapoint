@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, inject, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input, output } from '@angular/core';
 import { Router } from '@angular/router';
 
 import { TableBoardComponent } from '../../table-management/table-board.component';
@@ -19,7 +19,12 @@ import { BpButtonComponent } from '../../../shared/components/bp-button/bp-butto
       y grado alcohólico antes de arrancar la competición.
     </p>
 
-    <app-table-board [competitionId]="competitionId()" />
+    <app-table-board
+      [competitionId]="competitionId()"
+      [headingLevel]="2"
+      [heading]="'Mesas'"
+      (dirtyChange)="dirtyChange.emit($event)"
+    />
 
     <div class="step-actions">
       <bp-button type="button" label="← Volver" variant="ghost" (clicked)="back.emit()"></bp-button>
@@ -66,16 +71,11 @@ export class TablesStepComponent {
 
   readonly competitionId = input.required<string>();
   readonly back = output<void>();
-  // Always false: app-table-board's mutations save immediately via the API on every action
-  // (drag-drop, click-to-detail "Move to", add table), so there's never anything un-persisted to
-  // lose on navigation away from this step — same reasoning as judge-management's live actions.
+  // Forwarded straight from app-table-board's own dirtyChange (see table-board.component.ts):
+  // the only in-progress, un-persisted state this step can hold is an un-submitted "Add table"
+  // name -- every other mutation (drag-drop, click-to-detail "Move to") saves immediately via
+  // the API.
   readonly dirtyChange = output<boolean>();
-
-  constructor() {
-    effect(() => {
-      this.dirtyChange.emit(false);
-    });
-  }
 
   protected goToDashboard(): void {
     this.router.navigateByUrl('/organizer/dashboard');

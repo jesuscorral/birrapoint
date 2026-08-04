@@ -1,7 +1,16 @@
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 import type { OnInit, WritableSignal } from '@angular/core';
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { forkJoin } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
@@ -91,14 +100,18 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h1>Table management</h1>
+    @if (headingLevel() === 1) {
+      <h1>{{ heading() }}</h1>
+    } @else {
+      <h2>{{ heading() }}</h2>
+    }
 
     @if (loadError(); as message) {
       <bp-alert type="error" title="No hemos podido cargar los datos">{{ message }}</bp-alert>
     }
 
     @if (bosWarning(); as message) {
-      <bp-alert type="info" role="status">
+      <bp-alert type="info" [role]="'status'">
         {{ message }}
         <bp-button
           type="button"
@@ -200,7 +213,8 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
     }
   `,
   styles: `
-    h1 {
+    h1,
+    h2 {
       font-family: 'Fraunces', serif;
       font-size: 1.5rem;
       font-weight: 600;
@@ -260,6 +274,17 @@ export class TableBoardComponent implements OnInit {
   private readonly entriesApi = inject(EntriesApiService);
 
   readonly competitionId = input.required<string>();
+  // Configurable so an embedding parent (e.g. the wizard's "Mesas" step) can nest this heading
+  // correctly instead of getting a second, wrongly-leveled/English-only <h1> inside its own
+  // heading hierarchy. Defaults preserve the standalone /tables route's markup byte-for-byte
+  // (E2E-locked: `page.getByRole('heading', { name: 'Table management' })`).
+  readonly headingLevel = input<1 | 2>(1);
+  readonly heading = input('Table management');
+
+  // FR-007: an un-submitted "Add table" name is the only in-progress, un-persisted state this
+  // board ever holds (every other mutation -- drag-drop, click-to-detail "Move to" -- saves
+  // immediately via the API) -- so dirtiness tracks exactly that field.
+  readonly dirtyChange = output<boolean>();
 
   protected readonly tables = signal<TableSummary[]>([]);
   protected readonly entries = signal<EntryListItem[]>([]);
@@ -298,6 +323,12 @@ export class TableBoardComponent implements OnInit {
   protected readonly tableOptions = computed<TableOption[]>(() =>
     this.tables().map((table) => ({ id: table.id, name: table.name })),
   );
+
+  constructor() {
+    effect(() => {
+      this.dirtyChange.emit(this.newTableName().trim().length > 0);
+    });
+  }
 
   // input.required() is only guaranteed to be resolved starting from ngOnInit -- reading it in
   // the constructor throws NG0950 (and would silently race in production, since the constructor

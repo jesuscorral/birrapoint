@@ -52,10 +52,14 @@ describe('MesaCardComponent', () => {
   it('shows the judge count and beer count for quick balance-at-a-glance', () => {
     const fixture = createComponent(tableFixture());
 
-    const text = fixture.nativeElement.textContent as string;
-    // tableFixture() has 2 judges and 1 sample.
-    expect(text).toContain('2');
-    expect(text).toContain('1');
+    // tableFixture() has 2 judges and 1 sample. Asserted against the specific stat elements, not
+    // generic textContent.toContain — the fixture's ABV (5.2%) and progress (1/3) already contain
+    // both "2" and "1" as digits, so a bare toContain assertion would pass even if these stat
+    // <dd>s were deleted entirely.
+    const judgesDd = fixture.nativeElement.querySelector('dd[data-stat="judges"]') as HTMLElement;
+    const beersDd = fixture.nativeElement.querySelector('dd[data-stat="beers"]') as HTMLElement;
+    expect(judgesDd.textContent?.trim()).toBe('2');
+    expect(beersDd.textContent?.trim()).toBe('1');
   });
 
   it('recomputes the judge/beer counts live from table().judges/samples, not a cached value', () => {

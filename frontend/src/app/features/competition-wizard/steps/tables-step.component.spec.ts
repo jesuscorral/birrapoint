@@ -51,16 +51,20 @@ describe('TablesStepComponent', () => {
     return fixture;
   }
 
-  it('renders app-table-board with the competitionId input', () => {
+  it('renders app-table-board with the competitionId input and a nested h2 "Mesas" heading (not a second h1)', () => {
     const fixture = createComponent('c1');
 
     const boardDebugEl = fixture.debugElement.query(By.directive(TableBoardComponent));
     expect(boardDebugEl).toBeTruthy();
     expect(boardDebugEl.componentInstance.competitionId()).toBe('c1');
     expect(fakeApi.getTables).toHaveBeenCalledWith('c1');
+
+    expect(fixture.nativeElement.querySelector('h1')).toBeNull();
+    const h2 = fixture.nativeElement.querySelector('h2');
+    expect(h2?.textContent?.trim()).toBe('Mesas');
   });
 
-  it('emits dirtyChange(false) on init — table-board mutations save immediately, nothing to lose', () => {
+  it('emits dirtyChange(false) on init (forwarded from the embedded table-board)', () => {
     const fixture = TestBed.createComponent(TablesStepComponent);
     const emitted: boolean[] = [];
     fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
@@ -68,6 +72,19 @@ describe('TablesStepComponent', () => {
     fixture.detectChanges();
 
     expect(emitted).toEqual([false]);
+  });
+
+  it('forwards dirtyChange(true) once the embedded table-board has an un-submitted table name (FR-007)', () => {
+    const fixture = createComponent();
+    const emitted: boolean[] = [];
+    fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
+
+    const input = fixture.nativeElement.querySelector('input#new-table-name') as HTMLInputElement;
+    input.value = 'Mesa en progreso';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(emitted).toEqual([true]);
   });
 
   it('emits back when "← Volver" is clicked', () => {

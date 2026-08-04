@@ -304,4 +304,125 @@ describe('TableBoardComponent', () => {
 
     expect(fakeApi.getTables).toHaveBeenCalledWith('other-competition');
   });
+
+  describe('heading (configurable so an embedding parent, e.g. the wizard, controls level/copy)', () => {
+    it('defaults to an <h1>"Table management" heading — byte-for-byte the standalone-route markup E2E locks on', () => {
+      const fixture = createComponent();
+
+      const h1 = fixture.nativeElement.querySelector('h1');
+      expect(h1?.textContent?.trim()).toBe('Table management');
+      expect(fixture.nativeElement.querySelector('h2')).toBeNull();
+    });
+
+    it('renders an <h2> with the given text when headingLevel=2/heading is overridden', () => {
+      const fixture = TestBed.createComponent(TableBoardComponent);
+      fixture.componentRef.setInput('competitionId', 'c1');
+      fixture.componentRef.setInput('headingLevel', 2);
+      fixture.componentRef.setInput('heading', 'Mesas');
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('h1')).toBeNull();
+      const h2 = fixture.nativeElement.querySelector('h2');
+      expect(h2?.textContent?.trim()).toBe('Mesas');
+    });
+  });
+
+  it("associates the add-table label with its input via for/id (bp-input wiring, pinned for getByLabel('New table name'))", () => {
+    const fixture = createComponent();
+
+    const label = fixture.nativeElement.querySelector(
+      'label[for="new-table-name"]',
+    ) as HTMLLabelElement | null;
+    expect(label?.textContent?.trim()).toBe('New table name');
+    const input = fixture.nativeElement.querySelector('#new-table-name');
+    expect(input?.tagName).toBe('INPUT');
+  });
+
+  it('exposes exactly one role="status" region, containing a Dismiss button, when the BOS banner is shown (pinned for getByRole("status"))', () => {
+    const fixture = createComponent();
+    const result: TableMutationResult = {
+      ...tableFixture({ id: 't2' }),
+      bosFlaggedEntryIds: ['e5'],
+    };
+    fakeApi.createTable.mockReturnValue(of(result));
+
+    const input = fixture.nativeElement.querySelector('input#new-table-name') as HTMLInputElement;
+    input.value = 'Mesa 2';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    buttonWithText(fixture.nativeElement, 'Add table').click();
+    fixture.detectChanges();
+
+    const statusRegions = fixture.nativeElement.querySelectorAll('[role="status"]');
+    expect(statusRegions.length).toBe(1);
+    const dismissButton = [...statusRegions[0].querySelectorAll('button')].find(
+      (button: HTMLButtonElement) => button.textContent?.trim() === 'Dismiss',
+    );
+    expect(dismissButton).toBeTruthy();
+  });
+
+  describe('dirtyChange (FR-007: an un-submitted "Add table" name must not be silently discarded)', () => {
+    it('emits false on init', () => {
+      const fixture = TestBed.createComponent(TableBoardComponent);
+      const emitted: boolean[] = [];
+      fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
+      fixture.componentRef.setInput('competitionId', 'c1');
+      fixture.detectChanges();
+
+      expect(emitted).toEqual([false]);
+    });
+
+    it('emits true once the organizer types a non-blank table name, and false again once cleared', () => {
+      const fixture = createComponent();
+      const emitted: boolean[] = [];
+      fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
+
+      const input = fixture.nativeElement.querySelector('input#new-table-name') as HTMLInputElement;
+      input.value = 'Mesa en progreso';
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      expect(emitted).toEqual([true]);
+
+      input.value = '';
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      expect(emitted).toEqual([true, false]);
+    });
+
+    it('treats a whitespace-only name as not dirty', () => {
+      const fixture = createComponent();
+      const emitted: boolean[] = [];
+      fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
+
+      const input = fixture.nativeElement.querySelector('input#new-table-name') as HTMLInputElement;
+      input.value = '   ';
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      // The effect re-runs on any newTableName signal write (even '' -> '   ', still trim()==='')
+      // and may re-emit `false` again -- what matters is that `true` is never emitted for
+      // whitespace-only content.
+      expect(emitted.every((value) => value === false)).toBe(true);
+    });
+
+    it('emits false again once the table is created and the name field clears', () => {
+      const fixture = createComponent();
+      fakeApi.createTable.mockReturnValue(
+        of({ ...tableFixture({ id: 't2', judges: [], samples: [] }), bosFlaggedEntryIds: [] }),
+      );
+      const emitted: boolean[] = [];
+      fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
+
+      const input = fixture.nativeElement.querySelector('input#new-table-name') as HTMLInputElement;
+      input.value = 'Mesa 2';
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      expect(emitted).toEqual([true]);
+
+      buttonWithText(fixture.nativeElement, 'Add table').click();
+      fixture.detectChanges();
+
+      expect(emitted).toEqual([true, false]);
+    });
+  });
 });

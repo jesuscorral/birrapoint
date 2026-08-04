@@ -60,7 +60,10 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
   `,
   styles: `
     .unassigned-column {
-      border: 1px dashed var(--color-bp-border-strong);
+      /* --color-bp-border-strong only gives ~1.83:1 against the surface here -- too low for a
+         border that's the sole visual affordance of a drag target. --color-bp-text-muted restores
+         it to ~2.55:1 (matching the original #9ca3af) without reintroducing a hardcoded hex. */
+      border: 1px dashed var(--color-bp-text-muted);
       border-radius: var(--radius-lg);
       padding: var(--spacing-4);
       background: var(--color-bp-surface);
