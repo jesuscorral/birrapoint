@@ -98,6 +98,8 @@ public sealed class UpdateJudgeEmailCommandHandler(
         var invitation = await dbContext.Invitations.FirstAsync(i => i.JudgeId == judge.Id, cancellationToken);
 
         return new JudgeProfileDto(
-            judge.Id, judge.Email, judge.DisplayName, invitation.Status, invitation.Attempts, invitation.LastError, invitation.SentAt);
+            judge.Id, judge.Email, judge.DisplayName,
+            judge.BjcpRank, judge.BjcpId, judge.PreferredCategory, judge.Preferences,
+            invitation.Status, invitation.Attempts, invitation.LastError, invitation.SentAt);
     }
 }

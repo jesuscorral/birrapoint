@@ -193,9 +193,7 @@ describe('DetailsStepComponent', () => {
     const emitted: boolean[] = [];
     fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
 
-    const logoInput = fixture.nativeElement.querySelector(
-      '#details-logo input',
-    ) as HTMLInputElement;
+    const logoInput = fixture.nativeElement.querySelector('input#details-logo') as HTMLInputElement;
     logoInput.value = 'https://example.com/new-logo.png';
     logoInput.dispatchEvent(new Event('input'));
     fixture.detectChanges();

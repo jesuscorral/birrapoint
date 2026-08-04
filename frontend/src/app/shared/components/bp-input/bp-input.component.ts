@@ -17,6 +17,12 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
   selector: 'bp-input',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // A static `id="x"` attribute on <bp-input> (the common case — most consumers don't bind it)
+  // is reflected by Angular onto this host element as a real DOM attribute, in addition to
+  // initializing the `id` input below — producing a second element with the same id as the
+  // inner <input id="x"> and breaking `label[for]` association. Null it out so only the actual
+  // focusable control keeps the id.
+  host: { '[attr.id]': 'null' },
   template: `
     <div class="field">
       @if (label()) {

@@ -78,6 +78,11 @@ builder.Services.AddScoped<IEmailSender, MailKitEmailSender>();
 // First DispatchJobHandler (T041): SendInvitation, auto-discovered by DispatchWorker.
 builder.Services.AddScoped<IDispatchJobHandler, SendInvitationHandler>();
 
+// Judge account provisioning without email (T116/R-20/US14) — enqueued eagerly by both
+// RegisterJudges and ConsolidateJudgeImport; SendInvitation is enqueued only by the explicit
+// "Notify judges" action.
+builder.Services.AddScoped<IDispatchJobHandler, ProvisionJudgeAccountHandler>();
+
 // Results dispatch pipeline (T075/FR-036/FR-040/FR-041): GeneratePdfs -> BundleZip -> SendResultEmail,
 // each enqueuing the next on success, auto-discovered by DispatchWorker like SendInvitation above.
 builder.Services.AddScoped<IDispatchJobHandler, GeneratePdfsHandler>();
@@ -138,6 +143,9 @@ app.MapImportEndpoints();
 
 // Judge bulk registration, invitations, email correction (T042).
 app.MapJudgesEndpoints();
+
+// Judge roster import: upload, mapping/correction, consolidation (T115/US14).
+app.MapJudgeImportEndpoints();
 
 // Tasting tables: create/update with transactional COI validation + BOS flagging, list (T047).
 app.MapTablesEndpoints();

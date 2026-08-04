@@ -215,6 +215,67 @@ Alternatives considered.
 - **Alternatives considered**: External managed Keycloak (extra vendor, breaks single-command
   provisioning); Microsoft Entra External ID (re-plan of US1/US4 and a constitution rewrite).
 
+## R-20: Judge roster import & deferred notification — split account provisioning from email dispatch *(added 2026-08-02, User Story 14 / FR-055–FR-059)*
+
+- **Decision**: No new dependency. Reuses R-04 (ClosedXML) verbatim for the judge-roster `.xlsx`
+  and R-10 (Keycloak Admin API + MailKit) verbatim for account creation and email — but splits
+  R-10's previously-combined "create account + send email" step into two independently-triggered
+  background jobs:
+  - **`ProvisionJudgeAccount`** (new `DispatchJobType`): calls the existing
+    `IKeycloakAdminClient.EnsureUserWithTemporaryPasswordAsync(email)` and discards the returned
+    password. Enqueued after commit whenever a `Judge` row is created — both by judge-roster
+    consolidation (FR-057) and, per the Session 2026-08-02 clarification unifying the two
+    provisioning paths, by the existing email-list flow (FR-014) — instead of today's immediate
+    `SendInvitation` enqueue.
+  - **`SendInvitation`** (existing `DispatchJobType`, handler unchanged): calls the *same*
+    `EnsureUserWithTemporaryPasswordAsync` again (creates-or-finds the user and always resets to a
+    fresh password, per `KeycloakAdminClient.ResetPasswordAsync`'s existing behavior), then emails
+    that password. Now enqueued only by the new explicit "Notify judges" action (FR-059) — one job
+    per `Invitation.Status == Pending` judge in the competition — never automatically at judge
+    creation.
+- **`ProvisionJudgeAccount` is a no-op once the judge's invitation has left `Pending`.**
+  `EnsureUserWithTemporaryPasswordAsync` is **not** safe to call an unbounded number of times — it
+  always resets the live password, so a second call after a password has already been issued (or
+  attempted) via `SendInvitationHandler` would lock the judge out with no recovery path, or clobber
+  a password mid-delivery under a race between a backed-off provisioning retry and a
+  since-completed "Notify judges" send. `ProvisionJudgeAccountHandler` therefore checks
+  `Invitation.Status == Pending` immediately before calling the Keycloak client and returns without
+  touching Keycloak otherwise (`Sent`/`Failed` both mean a password has already been issued or
+  attempted). `ConsolidateJudgeImportCommandHandler` mirrors this at enqueue time — an `updated`
+  judge whose invitation isn't `Pending` never gets a `ProvisionJudgeAccount` job in the first
+  place — as a belt-and-suspenders optimization; the handler-level guard is the actual invariant,
+  since `RegisterJudgesCommandHandler` also enqueues this job and has no equivalent narrowing.
+- **Rationale**: splitting account creation into an eager provisioning call and a later real send
+  needs no changes to `KeycloakAdminClient` or `SendInvitationHandler` beyond the `Pending`-status
+  guard above. Provisioning stays a background job (not a
+  synchronous call inside the `POST .../judges` or `.../consolidate` request) because a roster of
+  up to ~100 judges (SC-013) making up to 100 sequential Keycloak Admin API calls inside one HTTP
+  request risks the write p95 < 500 ms budget (Principle IX); the existing `DispatchWorker`/
+  `DispatchRetryPolicy` (R-06) already gives this retry/backoff for free, so it's the simplest
+  design that survives a transient Keycloak outage, consistent with Principle IV.
+- **Judge roster row validation** (`JudgeImportRow`, mirrors `ImportRow` from R-04's Import slice)
+  needs only two states, `Valid`/`Invalid` (plus terminal `Excluded`) — unlike beer-entry rows,
+  there is no catalog to resolve against: BJCP rank is free-text club vocabulary (not the BJCP
+  style catalog), BJCP ID is an opaque identifier (formats observed: `E####`, bare numeric, and the
+  literal placeholder `Pte` for "not yet assigned" — stored verbatim, never parsed/validated), and
+  preferred category is informational free text, not cross-checked against this competition's own
+  `CompetitionCategory` names (Assumptions, spec.md). Only name and email are required.
+- **Free-text preferences are never interpreted as markup.** The source spreadsheets observed in
+  the wild contain literal `<br>` text (copy-pasted from elsewhere) inside preference cells — this
+  MUST render as literal text to the organizer, never be parsed/injected as HTML, consistent with
+  Principle VII (no unsanitized `innerHTML`-equivalent rendering of user-supplied text — see the
+  unrelated `bp-alert` icon sanitizer finding from the PR #29 review for why this class of mistake
+  is worth naming explicitly here).
+- **Alternatives considered**: synchronous Keycloak provisioning inside the consolidation request
+  (rejected — performance budget risk at roster scale, no retry on transient failure); persisting
+  the account-creation-time temporary password to reuse verbatim at notify-time (rejected — would
+  be the first place in the codebase to persist a plaintext credential, contradicting R-10's
+  explicit design; a second password-reset call is free or cheap and keeps the current "never
+  persisted" invariant intact); validating BJCP rank/preferred-category against a fixed vocabulary
+  or this competition's FR-052 categories (rejected — no such master list exists for BJCP rank
+  outside individual clubs' own conventions, and FR-052 category cross-checking was explicitly
+  deferred in spec.md Assumptions; both are reasonable future follow-ups, not MVP scope).
+
 ## Dependency justification summary (Principle V gate)
 
 | Dependency | Slice | Why the stack can't already do it |

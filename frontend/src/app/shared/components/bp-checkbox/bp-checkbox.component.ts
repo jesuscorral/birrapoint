@@ -63,7 +63,7 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
       }
 
       .check a {
-        color: var(--color-bp-cobre-600);
+        color: var(--color-bp-cobre-700);
         font-weight: 600;
         text-decoration: none;
       }

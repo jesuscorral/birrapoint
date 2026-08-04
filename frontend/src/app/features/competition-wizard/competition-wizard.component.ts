@@ -11,6 +11,7 @@ import { BasicsStepComponent } from './steps/basics-step.component';
 import { CategoriesStepComponent } from './steps/categories-step.component';
 import { DetailsStepComponent } from './steps/details-step.component';
 import { ImportStepComponent } from './steps/import-step.component';
+import { JudgeImportStepComponent } from './steps/judge-import-step.component';
 
 @Component({
   selector: 'app-competition-wizard',
@@ -22,6 +23,7 @@ import { ImportStepComponent } from './steps/import-step.component';
     DetailsStepComponent,
     CategoriesStepComponent,
     ImportStepComponent,
+    JudgeImportStepComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -141,7 +143,11 @@ import { ImportStepComponent } from './steps/import-step.component';
               </button>
             </li>
             <li class="stepper__connector" aria-hidden="true"></li>
-            <li class="stepper__item" [class.is-active]="currentStep() === 4">
+            <li
+              class="stepper__item"
+              [class.is-active]="currentStep() === 4"
+              [class.is-done]="currentStep() > 4"
+            >
               <button
                 type="button"
                 class="stepper__step"
@@ -149,8 +155,38 @@ import { ImportStepComponent } from './steps/import-step.component';
                 [attr.aria-current]="currentStep() === 4 ? 'step' : null"
                 (click)="goToStep(4)"
               >
-                <span class="stepper__marker" aria-hidden="true">4</span>
+                <span class="stepper__marker" aria-hidden="true">
+                  @if (currentStep() > 4) {
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  } @else {
+                    4
+                  }
+                </span>
                 <span class="stepper__label">Importar cervezas</span>
+              </button>
+            </li>
+            <li class="stepper__connector" aria-hidden="true"></li>
+            <li class="stepper__item" [class.is-active]="currentStep() === 5">
+              <button
+                type="button"
+                class="stepper__step"
+                [disabled]="!canJumpTo(5)"
+                [attr.aria-current]="currentStep() === 5 ? 'step' : null"
+                (click)="goToStep(5)"
+              >
+                <span class="stepper__marker" aria-hidden="true">5</span>
+                <span class="stepper__label">Importar jueces</span>
               </button>
             </li>
           </ol>
@@ -192,6 +228,15 @@ import { ImportStepComponent } from './steps/import-step.component';
                     [competitionId]="competitionId()!"
                     [importId]="importId()"
                     (importIdChange)="importId.set($event)"
+                    (back)="onBack()"
+                    (dirtyChange)="stepDirty.set($event)"
+                  />
+                }
+                @case (5) {
+                  <app-judge-import-step
+                    [competitionId]="competitionId()!"
+                    [judgeImportId]="judgeImportId()"
+                    (judgeImportIdChange)="judgeImportId.set($event)"
                     (back)="onBack()"
                     (dirtyChange)="stepDirty.set($event)"
                   />
@@ -264,7 +309,7 @@ import { ImportStepComponent } from './steps/import-step.component';
         font-weight: 600;
         letter-spacing: 0.09em;
         text-transform: uppercase;
-        color: var(--color-bp-cobre-600);
+        color: var(--color-bp-cobre-700);
         margin-bottom: var(--spacing-2);
       }
 
@@ -433,7 +478,7 @@ export class CompetitionWizardComponent {
   private readonly location = inject(Location);
   private readonly api = inject(CompetitionsApiService);
 
-  protected readonly currentStep = signal<1 | 2 | 3 | 4>(1);
+  protected readonly currentStep = signal<1 | 2 | 3 | 4 | 5>(1);
   protected readonly competitionId = signal<string | null>(null);
   protected readonly competition = signal<CompetitionDetail | null>(null);
   protected readonly loading = signal(false);
@@ -443,6 +488,12 @@ export class CompetitionWizardComponent {
   // thing that survives a step-4 -> step-3 -> step-4 round trip (e.g. to fix a category/style
   // assignment) so the import step can revalidate its pending batch instead of losing it.
   protected readonly importId = signal<string | null>(null);
+  // Same reasoning as importId above, for the judge-roster import batch (step 5). There is no
+  // revalidate endpoint for judge imports (nothing here resolves against data that can change out
+  // from under the batch), but the pending batch id must still survive a step navigation round
+  // trip so JudgeImportStepComponent can re-fetch its current state instead of showing an empty
+  // upload form again.
+  protected readonly judgeImportId = signal<string | null>(null);
   // FR-007: the currently-mounted step's own notion of "has unsaved edits", reported via its
   // dirtyChange output. Read by attemptNavigate() before a Back/stepper jump actually switches
   // currentStep — @switch destroys the leaving step's instance immediately, so this is the only
@@ -450,7 +501,7 @@ export class CompetitionWizardComponent {
   protected readonly stepDirty = signal(false);
   // Non-null while the "discard unsaved edits?" dialog is open; holds the step we'd move to if
   // the organizer confirms.
-  protected readonly pendingStep = signal<1 | 2 | 3 | 4 | null>(null);
+  protected readonly pendingStep = signal<1 | 2 | 3 | 4 | 5 | null>(null);
 
   constructor() {
     const id = this.route.snapshot.paramMap.get('id');
@@ -494,14 +545,14 @@ export class CompetitionWizardComponent {
   }
 
   protected onBack(): void {
-    this.attemptNavigate((this.currentStep() - 1) as 1 | 2 | 3 | 4);
+    this.attemptNavigate((this.currentStep() - 1) as 1 | 2 | 3 | 4 | 5);
   }
 
-  protected canJumpTo(step: 1 | 2 | 3 | 4): boolean {
+  protected canJumpTo(step: 1 | 2 | 3 | 4 | 5): boolean {
     return step === 1 || this.competitionId() !== null;
   }
 
-  protected goToStep(step: 1 | 2 | 3 | 4): void {
+  protected goToStep(step: 1 | 2 | 3 | 4 | 5): void {
     if (!this.canJumpTo(step)) return;
     this.attemptNavigate(step);
   }
@@ -509,7 +560,7 @@ export class CompetitionWizardComponent {
   // FR-007: navigation away from a step with unsaved edits (Back or a stepper jump) prompts the
   // organizer to keep editing or discard and continue, rather than @switch silently destroying
   // the leaving step's in-progress state. A step with no unsaved edits navigates immediately.
-  private attemptNavigate(step: 1 | 2 | 3 | 4): void {
+  private attemptNavigate(step: 1 | 2 | 3 | 4 | 5): void {
     if (step === this.currentStep()) return;
     if (this.stepDirty()) {
       this.pendingStep.set(step);

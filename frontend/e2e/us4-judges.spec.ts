@@ -1,7 +1,10 @@
 import { test, expect, Page } from '@playwright/test';
 
-// quickstart.md scenario 4 / spec.md US4 (FR-014/FR-015): bulk-add judge emails incl. one
-// duplicate -> profiles created, duplicate reported; invitation visible in Mailpit (:8025).
+// quickstart.md scenario 4 / spec.md US4 (FR-014/FR-015/FR-059): bulk-add judge emails incl. one
+// duplicate -> profiles created (no invitation yet), duplicate reported; triggering the separate,
+// explicit "Notify judges" action (FR-059, shared with User Story 14's spreadsheet import) then
+// delivers the invitation, visible in Mailpit (:8025). Registration no longer sends an invitation
+// automatically (Session 2026-08-02 — supersedes the originally-automatic dispatch).
 
 const KEYCLOAK_ORIGIN = 'http://localhost:8081';
 const ORGANIZER_USERNAME = 'organizer';
@@ -11,10 +14,25 @@ const MAILPIT_ORIGIN = 'http://localhost:8025';
 const MAILPIT_POLL_TIMEOUT_MS = 10_000;
 const MAILPIT_POLL_INTERVAL_MS = 500;
 
+// The birrapoint custom Keycloak theme (infra/keycloak/themes/birrapoint/login/login.ftl) renders
+// the submit control as a bare `<input type="submit">` with no id — `#kc-login` (the default
+// Keycloak theme's id, which every other spec in this suite still targets) does not exist here.
 async function submitKeycloakLogin(page: Page, username: string, password: string): Promise<void> {
   await page.locator('#username').fill(username);
   await page.locator('#password').fill(password);
-  await page.locator('#kc-login').click();
+  await page.getByRole('button', { name: 'Log In' }).click();
+}
+
+// FR-001 (Session 2026-08-02): '/' now renders a public welcome page instead of redirecting
+// straight to Keycloak — reach the hosted login via the "Iniciar sesión" action and skip the
+// handoff screen's 1.5s auto-redirect by clicking through it directly.
+async function signIn(page: Page, username: string, password: string): Promise<void> {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+  await page.waitForURL('**/auth/handoff');
+  await page.getByRole('button', { name: /Continuar/ }).click();
+  await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+  await submitKeycloakLogin(page, username, password);
 }
 
 function uniqueCompetitionName(): string {
@@ -26,16 +44,24 @@ function uniqueJudgeEmail(label: string): string {
 }
 
 // Creates a competition via the wizard's Basics step (the judges route needs a real, persisted
-// competitionId) and returns its id, without going through the rest of the wizard.
+// competitionId) and returns its id, without going through the rest of the wizard. Spanish
+// labels/button per the wizard redesign already on this branch (commit 47a77f4). Navigates via the
+// dashboard's own "New competition" link (in-app RouterLink) rather than page.goto() — a full
+// page.goto() to a deep authenticated route forces a reload that re-triggers the Keycloak OAuth
+// redirect dance, which this app does not currently settle from within a reasonable time.
 async function createCompetition(page: Page): Promise<string> {
-  await page.goto('/organizer/competitions/new');
+  await page.getByRole('link', { name: 'New competition' }).click();
 
-  await page.getByLabel('Name').fill(uniqueCompetitionName());
-  await page.getByLabel('Venue').fill('Salón de Actos, Madrid');
-  await page.getByLabel('Start date').fill('2026-09-01');
-  await page.getByLabel('End date').fill('2026-09-03');
+  // bp-input (shared/components/bp-input) reflects its static `id` attribute onto both its host
+  // element and the inner native <input>, producing a duplicate DOM id — <label for> resolves to
+  // the wrong (host) element as a result, so getByLabel() cannot find these fields. Targeting the
+  // native <input> tag directly sidesteps that for functional interaction.
+  await page.locator('input#basics-name').fill(uniqueCompetitionName());
+  await page.locator('input#basics-venue').fill('Salón de Actos, Madrid');
+  await page.locator('input#basics-start').fill('2026-09-01');
+  await page.locator('input#basics-end').fill('2026-09-03');
 
-  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('button', { name: 'Continuar' }).click();
   await page.waitForURL(/\/organizer\/competitions\/[0-9a-fA-F-]{36}$/);
 
   return page.url().split('/').pop()!;
@@ -79,11 +105,31 @@ async function waitForMailpitMessageTo(
   throw new Error(`Timed out waiting for a Mailpit message addressed to ${email}`);
 }
 
-test.describe('US4 — judge registration and automatic invitations', () => {
+// Every email used in this spec is generated fresh per run (crypto.randomUUID()), so an absence
+// check is safe against a plain `messages.length === 0` rather than needing a before/after count
+// delta — Mailpit's own `total` field is the *whole mailbox's* message count, not this query's
+// match count, so it is deliberately not used here. RegisterJudges only ever enqueues
+// ProvisionJudgeAccount, never SendInvitation (R-20/FR-059), so this is a structural absence, not
+// a race — the short buffer only guards against a regression that fires the invitation
+// asynchronously via the DispatchJob queue.
+async function assertNoMailpitMessageTo(request: Page['request'], email: string): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  const response = await request.get(
+    `${MAILPIT_ORIGIN}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`,
+  );
+  if (!response.ok()) {
+    throw new Error(`Mailpit search failed for ${email}: ${response.status()}`);
+  }
+  const body = (await response.json()) as MailpitMessagesResponse;
+  expect(
+    body.messages.length,
+    `expected no Mailpit message to ${email} before "Notificar jueces"`,
+  ).toBe(0);
+}
+
+test.describe('US4 — judge registration with deferred, explicit invitation notification', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
-    await submitKeycloakLogin(page, ORGANIZER_USERNAME, ORGANIZER_PASSWORD);
+    await signIn(page, ORGANIZER_USERNAME, ORGANIZER_PASSWORD);
     await page.waitForURL('**/organizer/dashboard');
   });
 
@@ -119,11 +165,18 @@ test.describe('US4 — judge registration and automatic invitations', () => {
       report.getByText(`${duplicateEmail} — duplicate in the pasted list`),
     ).toBeVisible();
 
-    // Delivery status table lists all three created judges.
+    // Delivery status table lists all three created judges, still Pending — RegisterJudges only
+    // provisions the Keycloak account (ProvisionJudgeAccount), it no longer enqueues the
+    // invitation send (FR-014/Session 2026-08-02).
     const deliveryStatus = page.getByRole('region', { name: 'Delivery status' });
     for (const email of [emailA, emailB, emailC]) {
-      await expect(deliveryStatus.locator(`tr[data-judge-email="${email}"]`)).toBeVisible();
+      const row = deliveryStatus.locator(`tr[data-judge-email="${email}"]`);
+      await expect(row).toBeVisible();
+      await expect(row).toContainText('Pending');
     }
+
+    // No invitation has been sent yet for any of them.
+    await assertNoMailpitMessageTo(page.request, emailA);
 
     // Registering the same email again (a second call) now hits the already-registered path.
     await page.getByLabel('Judge emails (one per line, or comma-separated)').fill(emailA);
@@ -131,8 +184,24 @@ test.describe('US4 — judge registration and automatic invitations', () => {
 
     await expect(report.getByText(`${emailA} — already registered`)).toBeVisible();
 
+    // FR-059: the separate, explicit "Notify judges" action is what actually delivers the
+    // invitation — covering judges from both provisioning paths (this plain email-list flow and
+    // User Story 14's spreadsheet import).
+    await deliveryStatus.getByRole('button', { name: 'Notificar jueces' }).click();
+    await expect(deliveryStatus.getByText('Se han notificado 3 juez(es).')).toBeVisible();
+
     // Invitation delivery is asynchronous (DispatchJob) -- verify it actually landed in Mailpit.
     const message = await waitForMailpitMessageTo(page.request, emailA);
     expect(message.Subject).toContain('invited to judge');
+
+    // The delivery status table reflects the now-Sent invitation once reloaded post-notify.
+    await expect(async () => {
+      await page.reload();
+      await expect(
+        page
+          .getByRole('region', { name: 'Delivery status' })
+          .locator(`tr[data-judge-email="${emailA}"]`),
+      ).toContainText('Sent');
+    }).toPass({ timeout: 10_000 });
   });
 });

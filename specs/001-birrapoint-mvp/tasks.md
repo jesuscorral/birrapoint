@@ -7,11 +7,11 @@ description: "Task list for BirraPoint MVP — Beer Competition Blind-Tasting Pl
 
 **Input**: Design documents from `/specs/001-birrapoint-mvp/`
 
-**Prerequisites**: plan.md, spec.md, data-model.md, contracts/ (rest-api, signalr-hub, import-file), research.md, quickstart.md
+**Prerequisites**: plan.md, spec.md, data-model.md, contracts/ (rest-api, signalr-hub, import-file, judge-import-file), research.md, quickstart.md
 
 **Tests**: MANDATORY (Constitution Principle III). Every user story includes test tasks, written first and failing before implementation. The quickstart scenario numbers referenced below map 1:1 to user stories.
 
-**Organization**: Tasks are grouped by user story (US1–US12 priority order P1 → P3, plus US13 appended 2026-07-21) so each story is an independently implementable, testable increment.
+**Organization**: Tasks are grouped by user story (US1–US12 priority order P1 → P3, plus US13 appended 2026-07-21, US14 appended 2026-08-02) so each story is an independently implementable, testable increment.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -390,6 +390,37 @@ after the organizer returns to a pending import having edited categories mid-flo
 - [X] T108 [FR-054] Backend: `POST /competitions/{id}/imports/{importId}/revalidate` (`RevalidateImport.cs`) — re-resolves category/style/allow-list for every row not `Invalid`/`Excluded` against the competition's current categories, tolerating a stale `ResolvedCompetitionCategoryId` after a `PUT .../categories` full-replace by re-matching raw `CategoryText`/`StyleText`; no-op once `Consolidated`. Integration tests in `ImportApiTests.cs` (category deleted/renamed, style unassigned, row recovers to `Valid`)
 - [X] T109 [FR-054] Frontend: `import-step.component.ts` resumes an in-progress import across wizard step navigation instead of resetting to the upload form — `competition-wizard.component.ts` hoists an `importId` signal (survives the `@switch` destroying/recreating step children) passed down as `[importId]`/`(importIdChange)`; on mount with an existing `importId` the step calls the new `ImportApiService.revalidate()` instead of showing the upload form. Row `error` (specific failure reason, previously computed but never rendered) now shown per unresolved row, not just the coarse status badge. `STATUS_LABELS`/`UNRESOLVED_STATUSES`/status-badge CSS extended for `CategoryStyleMismatch`. Jest specs alongside
 
+## Phase 19: User Story 14 - Judge Roster Import via Spreadsheet (Priority: P1, added 2026-08-02)
+
+**Goal**: Wizard step 5 — `.xlsx` judge roster upload (name/email/BJCP rank/BJCP ID/preferred
+category/preferences), correction screen, consolidation that persists judge profiles and eagerly
+provisions each judge's Keycloak account without sending an invitation; a separate, explicit
+"Notify judges" action (also now covering judges created via the existing US4 email-list flow —
+Session 2026-08-02 unification) delivers the deferred invitations
+
+**Independent Test**: quickstart.md scenario 14 (roster import + correction + consolidate, verify
+no email sent) plus the updated scenario 4 (trigger "Notify judges", verify delivery)
+
+### Tests for User Story 14 (MANDATORY — write first, must fail) ⚠️
+
+- [X] T110 [P] [US14] Unit tests: judge-roster workbook parsing per contracts/judge-import-file.md (header matching, `Valid`/`Invalid` outcomes — missing name/email — duplicate-email-within-file handling) in `backend/tests/BirraPoint.Api.UnitTests/Judges/JudgeWorkbookParserTests.cs`
+- [X] T111 [P] [US14] Contract tests: upload → row results; full row edit; exclude; consolidate blocked with `409 unresolved-import-rows` while any row is `Invalid`; success creates/updates judges, enqueues `ProvisionJudgeAccount` per judge, sends **no** email; `400 invalid-import-file` for malformed uploads in `backend/tests/BirraPoint.Api.IntegrationTests/Judges/JudgeImportApiTests.cs`
+- [X] T112 [P] [US14] Contract tests: `POST /competitions/{id}/judges/notify` enqueues `SendInvitation` only for judges whose `invitationStatus` is `Pending` (not `Sent`/`Failed`), returns `{ queued: [...] }`, no-ops when nothing is pending; `GET /competitions/{id}/judges` response includes the four new roster fields (`null` for email-list-created judges) in `backend/tests/BirraPoint.Api.IntegrationTests/Judges/JudgesApiTests.cs` (extends T039)
+
+### Implementation for User Story 14
+
+- [X] T113 [US14] Domain: `JudgeImportBatch`/`JudgeImportRow` staging entities (mirrors `ImportBatch`/`ImportRow`, T033) in `backend/src/BirraPoint.Api/Features/Judges/JudgeImportBatch.cs`; `Judge` gains `BjcpRank`/`BjcpId`/`PreferredCategory`/`Preferences` columns; `DispatchJobType` gains `ProvisionJudgeAccount`; one EF migration for all of the above
+- [X] T114 [US14] `JudgeWorkbookParser.cs` (ClosedXML, implements contracts/judge-import-file.md) in `backend/src/BirraPoint.Api/Features/Judges/`
+- [X] T115 [US14] Slices `UploadJudgeImport`, `GetJudgeImport`, `EditJudgeImportRow`, `ExcludeJudgeImportRow`, `ConsolidateJudgeImport` (upserts `Judge` + `Invitation{Status=Pending}` per FR-057, enqueues `ProvisionJudgeAccount` after commit, never `SendInvitation`) + endpoints in `backend/src/BirraPoint.Api/Features/Judges/`
+- [X] T116 [US14] `ProvisionJudgeAccountHandler` (`IDispatchJobHandler`) — calls the existing `IKeycloakAdminClient.EnsureUserWithTemporaryPasswordAsync` and discards the returned password (R-20 — never persisted) — in `backend/src/BirraPoint.Api/Features/Judges/ProvisionJudgeAccountHandler.cs`; register it alongside `SendInvitationHandler` wherever `IDispatchJobHandler`s are registered
+- [X] T117 [US14] Modify `RegisterJudgesCommandHandler` (T042): enqueue `ProvisionJudgeAccount` instead of `SendInvitation` on judge creation (unifies FR-014 onto deferred notification, Session 2026-08-02). Add `NotifyJudgesCommand`/`Handler` + `POST /competitions/{id}/judges/notify` (enqueues `SendInvitation` for every `Invitation.Status == Pending` judge in the competition) in `backend/src/BirraPoint.Api/Features/Judges/NotifyJudges.cs`. Extend `GetJudges.cs`'s response DTO with `bjcpRank`/`bjcpId`/`preferredCategory`/`preferences`
+- [X] T118 [US14] Frontend: `frontend/src/app/core/api/judge-import-api.service.ts` (mirrors `import-api.service.ts`: upload/get/editRow/exclude/consolidate against the T115 endpoints) + `notifyJudges()` added to the existing judges API client
+- [X] T119 [US14] Frontend: `frontend/src/app/features/competition-wizard/steps/judge-import-step.component.ts` — wizard step 5, structurally mirrors `import-step.component.ts` (upload form, correction screen editing all six fields, consolidate summary showing created/updated/excluded counts — no "notify" action here, that's post-wizard). `competition-wizard.component.ts` stepper widened to 5 steps; hoists a `judgeImportId` signal (same FR-054-style survive-navigation pattern as `importId`, T109). Jest specs alongside
+- [X] T120 [US14] Frontend: `frontend/src/app/features/judge-management/judge-management.component.ts` (T043) extended — render the four new roster fields per judge; add a "Notificar jueces" bulk action calling `notifyJudges()`, showing how many were queued. Jest specs alongside
+- [X] T121 [US14] E2E scenario 14 + fixture `frontend/e2e/fixtures/judges-with-errors.xlsx` (mirrors contracts/judge-import-file.md's example, plus one row missing an email and one duplicate) in `frontend/e2e/us14-judge-import.spec.ts`; extend `frontend/e2e/us4-judges.spec.ts` (T044) for the deferred-notify behavior change — no Mailpit email immediately after registration; triggering "Notificar jueces" is what delivers it
+
+**Checkpoint**: Judge roster import complete end to end; both judge-provisioning paths (US4, US14) defer notification identically to the same explicit action
+
 ---
 
 ## Dependencies & Execution Order
@@ -413,6 +444,7 @@ after the organizer returns to a pending import having edited categories mid-flo
 - **Polish (Phase 15)**: After desired stories
 - **Deployment & Ops (Phase 16)**: T095 any time after Setup; T096–T098 after Foundational (need the AppHost from T005 and running services); T099 last — it validates the releasable whole
 - **US13 (Phase 17)**: Only needs `GET /competitions` (US2/T027, already built); no dependency on any other P2/P3 story or on Phases 9–16
+- **US14 (Phase 19)**: Needs a competition to import into (US2), same as US3/US4; independent of US5–US13. T117 modifies US4's `RegisterJudgesCommandHandler` (T042) in place, so Phase 19 must land after Phase 6, but nothing in Phases 7–18 depends on Phase 19.
 
 Note: this feature's stories form a pipeline (provisioning → judging → closing), so priority order
 is also the natural dependency order. Each story still has its own independent test checkpoint.
@@ -423,6 +455,7 @@ is also the natural dependency order. Each story still has its own independent t
 - Foundational: T010, T012, T013, T014 in parallel after T009; T019/T020 parallel to backend tasks
 - Within every story: the test tasks [P] run in parallel first; backend slice vs frontend feature tasks are parallelizable across files once tests exist
 - Team split after Phase 2: Dev A US2→US3→US5 (organizer chain), Dev B US1→US4, Dev C US6→US7 (judge chain)
+- Within Phase 19: T110–T112 (tests) in parallel first; T113–T117 (backend) and T118–T120 (frontend) are parallelizable across files once tests exist, same pattern as every other story
 
 ### Parallel Example: User Story 7
 
@@ -464,3 +497,14 @@ valve; Phase 15 hardens budgets, accessibility, and docs before release.
   landing behavior (no way to see/pick an existing competition beyond a direct URL). It has no
   dependency on Phases 9–16 and can be done any time after Phase 4 (US2) lands, since it only needs
   `GET /competitions` to already exist.
+- Phase 19 (US14) was added 2026-08-02 for a richer judge-provisioning path: a `.xlsx` roster
+  import (wizard step 5, mirroring US3's beer-entry import) carrying BJCP rank/ID, preferred
+  category, and free-text preferences per judge, alongside the existing US4 single-email-list flow.
+  Consolidating a roster now eagerly provisions each judge's account (`ProvisionJudgeAccount`
+  background job) without emailing them; a new explicit "Notify judges" action delivers the
+  deferred invitation — and, per the Session 2026-08-02 clarification, this same deferred-
+  notification behavior now also applies to US4's existing flow (T117 modifies T042 in place)
+  rather than the two provisioning paths behaving differently within one competition. R-20
+  (research.md) covers why this needed no new dependency — `EnsureUserWithTemporaryPasswordAsync`
+  (already idempotent, already never persists the password) is called once at provisioning time and
+  again at notify-time, unchanged.

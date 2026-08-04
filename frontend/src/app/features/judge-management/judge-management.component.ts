@@ -1,10 +1,15 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 
 import { ApiError } from '../../core/api/api-error';
 import { JudgeManagementApiService } from './judge-management-api.service';
-import type { JudgeProfile, JudgeSkip, RegisterJudgesResult } from './judge-management-api.service';
+import type {
+  JudgeProfile,
+  JudgeSkip,
+  NotifyJudgesResult,
+  RegisterJudgesResult,
+} from './judge-management-api.service';
 
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError
@@ -83,6 +88,21 @@ function splitEmails(raw: string): string[] {
 
     <section aria-label="Delivery status">
       <h2>Delivery status</h2>
+
+      <button type="button" [disabled]="notifying()" (click)="onNotify()">
+        Notificar {{ pendingCount() }} jueces
+      </button>
+      @if (notifyError(); as message) {
+        <p role="alert">{{ message }}</p>
+      }
+      @if (notifyResult(); as result) {
+        @if (result.queued.length > 0) {
+          <p role="status">Se enviarán {{ result.queued.length }} invitaciones en breve.</p>
+        } @else {
+          <p role="status">No había jueces pendientes de notificar.</p>
+        }
+      }
+
       @if (listError(); as message) {
         <p role="alert">{{ message }}</p>
       }
@@ -127,6 +147,30 @@ function splitEmails(raw: string): string[] {
                 }
               </td>
             </tr>
+            @if (hasRosterInfo(judge)) {
+              <tr [attr.data-judge-roster]="judge.email">
+                <td colspan="6">
+                  <dl>
+                    @if (judge.bjcpRank) {
+                      <dt>Rango BJCP</dt>
+                      <dd>{{ judge.bjcpRank }}</dd>
+                    }
+                    @if (judge.bjcpId) {
+                      <dt>BJCP ID</dt>
+                      <dd>{{ judge.bjcpId }}</dd>
+                    }
+                    @if (judge.preferredCategory) {
+                      <dt>Categoría preferida</dt>
+                      <dd>{{ judge.preferredCategory }}</dd>
+                    }
+                    @if (judge.preferences) {
+                      <dt>Preferencias</dt>
+                      <dd>{{ judge.preferences }}</dd>
+                    }
+                  </dl>
+                </td>
+              </tr>
+            }
           }
         </tbody>
       </table>
@@ -152,6 +196,14 @@ export class JudgeManagementComponent {
   protected readonly editEmailInput = signal('');
   protected readonly editError = signal<string | null>(null);
 
+  protected readonly notifying = signal(false);
+  protected readonly notifyError = signal<string | null>(null);
+  protected readonly notifyResult = signal<NotifyJudgesResult | null>(null);
+
+  protected readonly pendingCount = computed(
+    () => this.judges().filter((judge) => judge.invitationStatus === 'Pending').length,
+  );
+
   protected readonly skipReasonLabel = skipReasonLabel;
 
   constructor() {
@@ -160,6 +212,10 @@ export class JudgeManagementComponent {
 
   protected isBusy(judgeId: string): boolean {
     return this.busyJudgeId() === judgeId;
+  }
+
+  protected hasRosterInfo(judge: JudgeProfile): boolean {
+    return !!(judge.bjcpRank || judge.bjcpId || judge.preferredCategory || judge.preferences);
   }
 
   private loadJudges(): void {
@@ -247,6 +303,39 @@ export class JudgeManagementComponent {
       error: (error: unknown) => {
         this.busyJudgeId.set(null);
         this.editError.set(errorMessage(toGenericApiError(error)));
+      },
+    });
+  }
+
+  // FR-059: single bulk action covering judges from both provisioning paths (plain email-list
+  // registration and judge-roster import consolidation), neither of which sends an invitation.
+  // Not reversible and emails the whole pending roster in one click, so it requires an explicit
+  // confirmation naming the affected count before firing.
+  protected onNotify(): void {
+    if (this.notifying()) {
+      return;
+    }
+
+    const pending = this.pendingCount();
+    if (!window.confirm(`Se enviarán invitaciones a ${pending} juez(es) pendientes. ¿Continuar?`)) {
+      return;
+    }
+
+    this.notifying.set(true);
+    this.notifyError.set(null);
+    this.notifyResult.set(null);
+
+    // The POST only enqueues SendInvitation jobs — it doesn't deliver them synchronously — so the
+    // list is deliberately not refetched here; refetching would show rows still "Pending" right
+    // under a message saying they were notified.
+    this.api.notifyJudges(this.competitionId).subscribe({
+      next: (result) => {
+        this.notifying.set(false);
+        this.notifyResult.set(result);
+      },
+      error: (error: unknown) => {
+        this.notifying.set(false);
+        this.notifyError.set(errorMessage(toGenericApiError(error)));
       },
     });
   }

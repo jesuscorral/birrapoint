@@ -51,6 +51,15 @@ public static class JudgesEndpoints
         .Produces<ResendInvitationResult>()
         .Produces(StatusCodes.Status404NotFound);
 
+        group.MapPost("/notify", async (Guid competitionId, ISender sender, CancellationToken cancellationToken) =>
+        {
+            var result = await sender.Send(new NotifyJudgesCommand(competitionId), cancellationToken);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        })
+        .WithName("NotifyJudges")
+        .Produces<NotifyJudgesResult>()
+        .Produces(StatusCodes.Status404NotFound);
+
         return endpoints;
     }
 }

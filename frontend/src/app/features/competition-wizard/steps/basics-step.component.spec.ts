@@ -270,7 +270,7 @@ describe('BasicsStepComponent', () => {
     const emitted: boolean[] = [];
     fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
 
-    const nameInput = fixture.nativeElement.querySelector('#basics-name input') as HTMLInputElement;
+    const nameInput = fixture.nativeElement.querySelector('input#basics-name') as HTMLInputElement;
     nameInput.value = 'A new name';
     nameInput.dispatchEvent(new Event('input'));
     fixture.detectChanges();

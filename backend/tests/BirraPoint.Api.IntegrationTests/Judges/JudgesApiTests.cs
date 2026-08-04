@@ -64,6 +64,9 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     private static Task<HttpResponseMessage> ResendInvitationAsync(HttpClient client, Guid competitionId, Guid judgeId) =>
         client.PostAsync($"/api/v1/competitions/{competitionId}/judges/{judgeId}/invitation", null);
 
+    private static Task<HttpResponseMessage> NotifyJudgesAsync(HttpClient client, Guid competitionId) =>
+        client.PostAsync($"/api/v1/competitions/{competitionId}/judges/notify", null);
+
     /// <summary>Seeds a Judge row (plus its required Invitation row — RegisterJudges always
     /// creates one alongside the Judge, and handlers assume it exists) directly via AppDbContext.
     /// This is the only way to exercise the judge-already-active gate in a test, since
@@ -115,6 +118,31 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
 
         Assert.Fail($"Timed out waiting for {email}'s invitationStatus to reach '{expectedStatus}'.");
         throw new UnreachableException();
+    }
+
+    /// <summary>Polls until a <see cref="DispatchJobType"/> DispatchJob for this competition
+    /// reaches <see cref="DispatchJobStatus.Completed"/> — used to synchronize with
+    /// ProvisionJudgeAccountHandler, which (unlike SendInvitationHandler) leaves no
+    /// judge/invitation-row side effect to poll for instead (R-20).</summary>
+    private async Task WaitForDispatchJobCompletionAsync(Guid competitionId, DispatchJobType type)
+    {
+        var deadline = DateTime.UtcNow + PollTimeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var completed = await db.DispatchJobs.AnyAsync(j =>
+                j.CompetitionId == competitionId && j.Type == type && j.Status == DispatchJobStatus.Completed);
+
+            if (completed)
+            {
+                return;
+            }
+
+            await Task.Delay(PollInterval);
+        }
+
+        Assert.Fail($"Timed out waiting for a {type} DispatchJob to complete for competition {competitionId}.");
     }
 
     // ---- POST /judges: auth & ownership -----------------------------------------------------
@@ -191,8 +219,11 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Register_a_new_judge_reaches_Sent_invitation_status_via_the_async_dispatch_pipeline()
+    public async Task Register_a_new_judge_enqueues_ProvisionJudgeAccount_and_the_invitation_stays_Pending()
     {
+        // R-20/Session 2026-08-02: RegisterJudges (FR-014) no longer auto-sends an invitation —
+        // it only provisions the Keycloak account in the background. Status only leaves Pending
+        // once the organizer's explicit "Notify judges" action runs (see the Notify_* tests below).
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
         var email = $"async-{Guid.NewGuid():N}@brew.example";
@@ -200,8 +231,12 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await RegisterJudgesAsync(organizer, competitionId, email);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
-        var judge = await PollForInvitationStatusAsync(organizer, competitionId, email);
-        Assert.False(string.IsNullOrWhiteSpace(judge.GetProperty("id").GetString()));
+        await WaitForDispatchJobCompletionAsync(competitionId, DispatchJobType.ProvisionJudgeAccount);
+
+        var listResponse = await GetJudgesAsync(organizer, competitionId);
+        using var document = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync());
+        var judge = document.RootElement.EnumerateArray().Single(j => j.GetProperty("email").GetString() == email);
+        Assert.Equal("Pending", judge.GetProperty("invitationStatus").GetString());
     }
 
     // ---- GET /judges --------------------------------------------------------------------------
@@ -368,9 +403,12 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var competitionId = await CreateCompetitionAsync(organizer);
         var email = $"resend-{Guid.NewGuid():N}@brew.example";
 
-        await RegisterJudgesAsync(organizer, competitionId, email);
-        var firstAttempt = await PollForInvitationStatusAsync(organizer, competitionId, email);
-        var judgeId = firstAttempt.GetProperty("id").GetGuid();
+        // ResendInvitation enqueues SendInvitation regardless of current invitationStatus (per
+        // contract), so this doesn't depend on RegisterJudges' own (now Pending-only) behavior —
+        // the judge id comes straight off the registration response.
+        var registerResponse = await RegisterJudgesAsync(organizer, competitionId, email);
+        using var registerDocument = JsonDocument.Parse(await registerResponse.Content.ReadAsStringAsync());
+        var judgeId = registerDocument.RootElement.GetProperty("created")[0].GetProperty("id").GetGuid();
 
         var response = await ResendInvitationAsync(organizer, competitionId, judgeId);
 
@@ -389,5 +427,112 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await ResendInvitationAsync(other, competitionId, judgeId);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    // ---- GET /judges: US14/FR-057 roster fields -----------------------------------------------
+
+    [Fact]
+    public async Task Get_judges_response_includes_the_four_roster_fields_null_for_email_list_created_judges()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+        var email = $"roster-null-{Guid.NewGuid():N}@brew.example";
+
+        await RegisterJudgesAsync(organizer, competitionId, email);
+
+        var response = await GetJudgesAsync(organizer, competitionId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var judge = document.RootElement.EnumerateArray().Single(j => j.GetProperty("email").GetString() == email);
+        Assert.Equal(JsonValueKind.Null, judge.GetProperty("bjcpRank").ValueKind);
+        Assert.Equal(JsonValueKind.Null, judge.GetProperty("bjcpId").ValueKind);
+        Assert.Equal(JsonValueKind.Null, judge.GetProperty("preferredCategory").ValueKind);
+        Assert.Equal(JsonValueKind.Null, judge.GetProperty("preferences").ValueKind);
+    }
+
+    // ---- POST /judges/notify: FR-059 explicit "Notify judges" action --------------------------
+
+    [Fact]
+    public async Task Notify_without_a_bearer_token_is_rejected_with_401()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await NotifyJudgesAsync(client, Guid.NewGuid());
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Notify_with_judge_role_is_forbidden_with_403()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+
+        using var judge = JudgeClient($"judge-{Guid.NewGuid():N}");
+        var response = await NotifyJudgesAsync(judge, competitionId);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Notify_for_a_competition_owned_by_a_different_organizer_returns_404()
+    {
+        using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(owner);
+
+        using var other = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var response = await NotifyJudgesAsync(other, competitionId);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Notify_is_a_no_op_when_nothing_is_Pending()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+
+        var response = await NotifyJudgesAsync(organizer, competitionId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Empty(document.RootElement.GetProperty("queued").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task Notify_enqueues_SendInvitation_for_every_Pending_judge_and_they_reach_Sent()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+        var email = $"notify-{Guid.NewGuid():N}@brew.example";
+        await RegisterJudgesAsync(organizer, competitionId, email);
+
+        var response = await NotifyJudgesAsync(organizer, competitionId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var queued = document.RootElement.GetProperty("queued").EnumerateArray().ToList();
+        Assert.Single(queued);
+        Assert.Equal(email, queued[0].GetProperty("email").GetString());
+
+        await PollForInvitationStatusAsync(organizer, competitionId, email);
+    }
+
+    [Fact]
+    public async Task Notify_does_not_touch_a_judge_that_is_already_Sent()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+        var email = $"already-sent-{Guid.NewGuid():N}@brew.example";
+        await RegisterJudgesAsync(organizer, competitionId, email);
+        await NotifyJudgesAsync(organizer, competitionId);
+        await PollForInvitationStatusAsync(organizer, competitionId, email);
+
+        var secondNotify = await NotifyJudgesAsync(organizer, competitionId);
+
+        Assert.Equal(HttpStatusCode.OK, secondNotify.StatusCode);
+        using var document = JsonDocument.Parse(await secondNotify.Content.ReadAsStringAsync());
+        Assert.Empty(document.RootElement.GetProperty("queued").EnumerateArray());
     }
 }

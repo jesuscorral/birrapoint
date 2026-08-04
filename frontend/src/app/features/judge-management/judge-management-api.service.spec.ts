@@ -16,6 +16,10 @@ describe('JudgeManagementApiService', () => {
       id: 'j1',
       email: 'ada@example.com',
       displayName: 'Ada Lovelace',
+      bjcpRank: null,
+      bjcpId: null,
+      preferredCategory: null,
+      preferences: null,
       invitationStatus: 'Sent',
       attempts: 1,
       lastError: null,
@@ -82,5 +86,18 @@ describe('JudgeManagementApiService', () => {
     req.flush({ status: 'Pending' });
 
     expect(await result).toEqual({ status: 'Pending' });
+  });
+
+  it('notifyJudges() posts to the bulk notify endpoint with no body', async () => {
+    const result = firstValueFrom(service.notifyJudges('c1'));
+
+    const req = httpMock.expectOne(
+      `${environment.apiBaseUrl}/api/v1/competitions/c1/judges/notify`,
+    );
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({});
+    req.flush({ queued: [{ id: 'j1', email: 'ada@example.com' }] });
+
+    expect(await result).toEqual({ queued: [{ id: 'j1', email: 'ada@example.com' }] });
   });
 });

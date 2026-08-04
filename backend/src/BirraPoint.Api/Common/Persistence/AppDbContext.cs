@@ -1,5 +1,6 @@
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Features.Import;
+using BirraPoint.Api.Features.Judges;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Common.Persistence;
@@ -29,6 +30,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Judge> Judges => Set<Judge>();
 
     public DbSet<Invitation> Invitations => Set<Invitation>();
+
+    public DbSet<JudgeImportBatch> JudgeImportBatches => Set<JudgeImportBatch>();
+
+    public DbSet<JudgeImportRow> JudgeImportRows => Set<JudgeImportRow>();
 
     public DbSet<TastingTable> TastingTables => Set<TastingTable>();
 
