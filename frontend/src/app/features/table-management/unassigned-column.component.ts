@@ -29,9 +29,15 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
         (cdkDropListDropped)="judgesDropped.emit($event)"
       >
         @for (judge of judges(); track judge.id) {
-          <li>
+          <li class="roster-row">
             <app-judge-seat [judge]="judge" (activated)="judgeActivated.emit(judge.id)" />
+            <span class="roster-row__label">
+              <span class="roster-row__name">{{ judge.displayName }}</span>
+              <span class="roster-row__meta">{{ judge.email }}</span>
+            </span>
           </li>
+        } @empty {
+          <li class="roster-row roster-row--empty">Todos los jueces están asignados</li>
         }
       </ul>
 
@@ -44,7 +50,7 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
         (cdkDropListDropped)="beersDropped.emit($event)"
       >
         @for (beer of beers(); track beer.id) {
-          <li>
+          <li class="roster-row">
             <app-beer-token
               [beer]="{
                 id: beer.id,
@@ -53,12 +59,27 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
               }"
               (activated)="beerActivated.emit(beer.id)"
             />
+            <span class="roster-row__label">
+              <span class="roster-row__name">{{ beer.styleName }}</span>
+              <span class="roster-row__meta">{{ beer.abvPercent }}% ABV</span>
+            </span>
           </li>
+        } @empty {
+          <li class="roster-row roster-row--empty">Todas las cervezas están asignadas</li>
         }
       </ul>
     </section>
   `,
   styles: `
+    :host {
+      display: block;
+      position: sticky;
+      top: var(--spacing-4);
+      align-self: start;
+      max-height: calc(100vh - var(--spacing-12));
+      overflow-y: auto;
+    }
+
     .unassigned-column {
       /* --color-bp-border-strong only gives ~1.83:1 against the surface here -- too low for a
          border that's the sole visual affordance of a drag target. --color-bp-text-muted restores
@@ -79,12 +100,53 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
 
     .unassigned-list {
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: column;
       gap: var(--spacing-2);
       margin: 0 0 var(--spacing-4);
       padding: 0;
       list-style: none;
-      min-height: 64px;
+      min-height: 44px;
+    }
+
+    .roster-row {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-2);
+      padding: var(--spacing-2);
+      border-radius: var(--radius-md);
+      background: var(--color-bp-hueso-50);
+      min-width: 0;
+    }
+
+    .roster-row--empty {
+      color: var(--color-bp-text-subtle);
+      font-size: 0.8125rem;
+      font-style: italic;
+      background: transparent;
+      padding: var(--spacing-2) 0;
+    }
+
+    .roster-row__label {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .roster-row__name {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--color-bp-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .roster-row__meta {
+      font-size: 0.75rem;
+      color: var(--color-bp-text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   `,
 })

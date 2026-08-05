@@ -1298,6 +1298,29 @@ and the audit drill-down still shows judge A's earlier submitted total.
   reach Keycloak at all, a pre-existing condition traced (via `git log`) to `welcome.component.ts`
   as last touched by an earlier commit on this same branch, before this change and unrelated to
   anything touched here.
+  **Usability redesign (2026-08-05, organizer feedback)**: the trigonometric-ellipse "physical
+  table" board (judges as seats orbiting a circle, beer tokens centered inside) required opening
+  each seat/token's detail modal to see who or what was actually assigned — fine for a fully-staffed
+  table, but slow for the organizer's *first-pass* assignment across many tables, and the tall
+  circle ate vertical space long before the row got interesting. `MesaCardComponent` and
+  `UnassignedColumnComponent` replaced it with a two-column roster: judges as a vertical list
+  (avatar + full name + email) and beers as a wrapped grid of chips (blind-code token + style name
+  + ABV%), all readable without a click — `JudgeSeatComponent`/`BeerTokenComponent` themselves are
+  untouched (still the actual `cdkDrag` handles, same aria-labels/`data-*` hooks the E2E suite locks
+  onto), just laid out differently by their parents. `seatPosition()`/`SeatPosition` (the ellipse-
+  placement math) and the circular `.mesa-board` are gone as dead code. `TableBoardComponent`
+  wraps the per-table cards in a `.mesa-grid` (`grid-template-columns: repeat(auto-fit,
+  minmax(360px, 1fr))`) beside a `position: sticky` Unassigned column, so multiple tables lay out
+  side by side on a wide screen instead of stacking into one long column — reachable width was the
+  actual blocker: `competition-wizard.component.ts`'s `.wizard-container` caps every step at `40rem`
+  (a deliberate reading-width constraint for the name/venue/date-style steps), which left this grid
+  no room to ever produce more than one column. A `wizard-container--wide` modifier (`75rem`),
+  applied only `[class.wizard-container--wide]="currentStep() === 6"`, opens up step 6 alone; the
+  five form-style steps keep their original width. All existing `mesa-seats`/`mesa-tokens`
+  id/class hooks, `data-judge-id`/`data-entry-id`/`data-table-id`, and the `beer-token--bos-flagged`
+  class survive unchanged — verified against the full Jest suite (still 594/594 passing) and by
+  manually driving the redesigned board in a real browser (Playwright's `us5-tables.spec.ts` itself
+  still can't run, blocked by the pre-existing login `beforeEach` issue noted just above).
 - **`features/judge-tables/`** (T053, US6): the JUDGE role's first real screen —
   `JudgeTablesListComponent` (route `/judge/tables`, the post-login landing) lists assigned tables
   with an order-fixed badge; `JudgeTableOrderComponent` (route `/judge/tables/:tableId`) is the

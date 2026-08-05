@@ -159,17 +159,19 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
         (beersDropped)="onBeersDropped($event)"
       />
 
-      @for (table of tables(); track table.id) {
-        <app-mesa-card
-          [table]="table"
-          [connectedJudgeListIds]="judgeDropListIds()"
-          [connectedBeerListIds]="beerDropListIds()"
-          (judgeActivated)="onJudgeClicked($event)"
-          (beerActivated)="onBeerClicked($event)"
-          (judgesDropped)="onJudgesDropped($event)"
-          (beersDropped)="onBeersDropped($event)"
-        />
-      }
+      <div class="mesa-grid">
+        @for (table of tables(); track table.id) {
+          <app-mesa-card
+            [table]="table"
+            [connectedJudgeListIds]="judgeDropListIds()"
+            [connectedBeerListIds]="beerDropListIds()"
+            (judgeActivated)="onJudgeClicked($event)"
+            (beerActivated)="onBeerClicked($event)"
+            (judgesDropped)="onJudgesDropped($event)"
+            (beersDropped)="onBeersDropped($event)"
+          />
+        }
+      </div>
     </div>
 
     @if (conflictDialog(); as conflicts) {
@@ -235,11 +237,24 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
     }
 
     .table-management-layout {
-      display: flex;
+      display: grid;
+      grid-template-columns: minmax(240px, 300px) 1fr;
       gap: var(--spacing-6);
-      align-items: flex-start;
-      flex-wrap: wrap;
+      align-items: start;
       margin-top: var(--spacing-4);
+    }
+
+    .mesa-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: var(--spacing-6);
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .table-management-layout {
+        grid-template-columns: 1fr;
+      }
     }
 
     .modal-backdrop {
