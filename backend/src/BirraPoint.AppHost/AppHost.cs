@@ -6,28 +6,37 @@ var postgres = builder.AddPostgres("postgres")
     .WithDataVolume()
     .WithLifetime(ContainerLifetime.Persistent);
 var db = postgres.AddDatabase("db", "birrapoint");
+// Keycloak's own store (below) — a second logical database on the same Postgres server/volume.
+// Re-seeding the realm from scratch (birrapoint-realm.json edits, or recovering from the
+// corruption incident ADR-0013 describes) means dropping this database, not clearing a folder —
+// `docker exec <postgres container> psql -U postgres -c 'DROP DATABASE keycloak'` before the next
+// `dotnet run`. Wiping the Postgres data volume now resets Keycloak and the app's own data
+// together, not independently (ADR-0013).
+var keycloakDb = postgres.AddDatabase("keycloakdb", "keycloak");
 
 // Keycloak 26 (constitution: 25+) with the birrapoint realm auto-imported.
 // Bootstrap admin + realm seed credentials are LOCAL-DEV placeholders only;
 // production injects real secrets at deploy time (FR-046).
-// Realm import uses the IGNORE_EXISTING strategy, so it only seeds the realm once — the bind
-// mount below is what makes runtime state (self-registered organizers, judges provisioned via
-// the Admin API) survive container recreation instead of vanishing on every `dotnet run`. A named
-// Docker volume was tried first (matching the Postgres pattern above) but a fresh named volume is
-// created root-owned, and the Keycloak image's dev-mode H2 store runs as its non-root "keycloak"
-// user, which threw AccessDeniedException on keycloakdb.mv.db — a host bind mount avoids that,
-// consistent with the other two bind mounts here. Re-importing birrapoint-realm.json edits
-// therefore requires clearing "infra/keycloak/.data" first.
+// Realm import uses the IGNORE_EXISTING strategy, so it only seeds the realm once. Backed by
+// Postgres (keycloakDb above), not dev-mode's default embedded H2 — H2's single-file store isn't
+// crash-safe and was found silently corrupting itself on an ungraceful stop, breaking stored
+// user credentials while the app's own Postgres data stayed intact; see ADR-0013 for the full
+// incident and why a host bind mount was tried first for H2 (kept only as history there, since
+// H2 is gone).
 var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26.2")
     .WithArgs("start-dev", "--import-realm")
     .WithEnvironment("KC_BOOTSTRAP_ADMIN_USERNAME", "admin")
     .WithEnvironment("KC_BOOTSTRAP_ADMIN_PASSWORD", "admin")
+    .WithEnvironment("KC_DB", "postgres")
+    .WithEnvironment("KC_DB_URL", keycloakDb.Resource.JdbcConnectionString)
+    .WithEnvironment("KC_DB_USERNAME", postgres.Resource.UserNameReference)
+    .WithEnvironment("KC_DB_PASSWORD", postgres.Resource.PasswordParameter)
     .WithBindMount("../../../infra/keycloak", "/opt/keycloak/data/import", isReadOnly: true)
     .WithBindMount("../../../infra/keycloak/themes/birrapoint", "/opt/keycloak/themes/birrapoint", isReadOnly: true)
-    .WithBindMount("../../../infra/keycloak/.data/h2", "/opt/keycloak/data/h2")
     .WithLifetime(ContainerLifetime.Persistent)
     .WithHttpEndpoint(port: 8081, targetPort: 8080, name: "http")
-    .WithExternalHttpEndpoints();
+    .WithExternalHttpEndpoints()
+    .WaitFor(keycloakDb);
 var keycloakHttp = keycloak.GetEndpoint("http");
 
 // Mailpit SMTP sink (invitations/results land here locally; UI/REST API on the http endpoint,
