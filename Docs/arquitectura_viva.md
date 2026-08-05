@@ -319,11 +319,29 @@ and the audit drill-down still shows judge A's earlier submitted total.
 
 | Resource | Implementation | Local endpoint | Notes |
 |---|---|---|---|
-| `postgres` / databases `db`, `keycloakdb` | `postgres:16` container, persistent data volume, persistent lifetime | dynamic port | `db` connection string injected into the API as `ConnectionStrings__db`; `keycloakdb` (added ADR-0013) is Keycloak's own backing store — a second logical database on the same server/volume |
-| `keycloak` | `quay.io/keycloak/keycloak:26.2` container via `AddContainer` (ADR-0001) | http://localhost:8081 | realm `birrapoint` auto-imported from `infra/keycloak/` (roles `ORGANIZER`/`JUDGE`, seeded organizer, PKCE SPA client, admin service-account client with `manage-users`); bootstrap/realm credentials are local-dev placeholders (FR-046). **Backed by Postgres (`keycloakdb`), not dev-mode's default embedded H2 (ADR-0013, 2026-08-05)** — `KC_DB=postgres`/`KC_DB_URL`/`KC_DB_USERNAME`/`KC_DB_PASSWORD` set from the `postgres` resource's own endpoint and generated password parameter. H2's single-file MVStore turned out not to be crash-safe: an ungraceful stop (Docker Desktop restart, host sleep, a force-killed AppHost) silently corrupted it in practice, breaking a real organizer's stored credential — found while debugging that exact "can't log in, did my imported data disappear?" report (the competition data in Postgres was untouched; only the Keycloak-side credential was lost). Only the two remaining bind mounts (realm import, custom theme — both read-only config, never the problem) stay; the old `infra/keycloak/.data/h2` bind mount is gone. **Caveat for anyone hitting this again**: Keycloak's Admin API does not honor a caller-supplied user `id` on creation, so recovering/recreating a Keycloak user after a reset always gets a *new* random `sub` — any Postgres row keyed by the old one (`Organizers.KeycloakUserId`, `Competitions.CreatedByUserId`, `Judges.KeycloakUserId` for an already-provisioned judge) has to be updated by hand to the new `sub`, or that data becomes invisible to its owner even though it's still fully intact. |
+| `postgres` / databases `db`, `keycloakdb` | `postgres:16` container, persistent data volume, persistent lifetime | dynamic port | `db` connection string injected into the API as `ConnectionStrings__db`; `keycloakdb` (ADR-0013) is Keycloak's own backing store — a second logical database on the same server/volume |
+| `keycloak` | `quay.io/keycloak/keycloak:26.2` container via `AddContainer` (ADR-0001), waits for `keycloakdb` | http://localhost:8081 | realm `birrapoint` auto-imported from `infra/keycloak/` (roles `ORGANIZER`/`JUDGE`, seeded organizer, PKCE SPA client, admin service-account client with `manage-users`); bootstrap/realm credentials are local-dev placeholders (FR-046). Backed by Postgres (`keycloakdb`), not dev-mode's default embedded H2 — see ADR-0013 and "Local dev troubleshooting" below for why and how to recover from it |
 | `mailpit` | CommunityToolkit MailPit integration | dynamic SMTP · **http://localhost:8025 (T040, pinned)** | local mail sink for invitations/results; UI/API port fixed (`AddMailPit("mailpit", httpPort: 8025)`) so `frontend/e2e/us4-judges.spec.ts` can poll its REST API deterministically — SMTP endpoint stays dynamic, only injected into the API via `Smtp__Host/Port` |
 | `api` | `BirraPoint.Api` project | http://localhost:5121 · https://localhost:7075 (launchSettings) | receives env: `Keycloak__Authority` (realm URL), `Keycloak__AdminClientId/Secret` (dev placeholder), `Smtp__Host/Port` (from the Mailpit endpoint), `Frontend__BaseUrl` (T041, invitation email login link); waits for the database |
 | `frontend` | `npm start` (ng serve) via `AddNpmApp` | http://localhost:4200 (non-proxied) | matches the SPA client redirect URIs; waits for the API |
+
+### Local dev troubleshooting
+
+**"I can't log in any more / my imported data seems to have disappeared" (ADR-0013)** — check
+Postgres independently of Keycloak before assuming data loss: `docker exec <postgres container>
+psql -U postgres -d birrapoint -c 'SELECT "Id", "Name" FROM "Competitions";'` (competitions,
+entries, and judges live in the `db` database and are unaffected by anything Keycloak-side). Prior
+to ADR-0013, Keycloak's dev-mode H2 store could silently corrupt on an ungraceful stop and break a
+user's login credential while leaving that data completely intact; Postgres-backed Keycloak
+removes the specific failure mode, but the diagnostic habit (check the app's own database first)
+generalizes to any future auth-vs-data split incident.
+
+If a Keycloak user genuinely needs recreating (lost credential, reset realm, etc.): the Admin API
+does **not** honor a caller-supplied `id` on `POST /users` — a recreated user always gets a new
+random `sub`. Any Postgres row keyed by the *old* `sub` needs a one-time manual `UPDATE` to the new
+one, or that data becomes invisible to its owner despite being fully intact:
+`Organizers.KeycloakUserId`, `Competitions.CreatedByUserId`, and `Judges.KeycloakUserId` for any
+judge already provisioned with a Keycloak account.
 
 ## Backend (`backend/`, .NET 10 / C# 14)
 

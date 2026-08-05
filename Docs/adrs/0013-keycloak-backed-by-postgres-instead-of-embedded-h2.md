@@ -6,11 +6,12 @@
 ## Context
 
 Keycloak's `start-dev` mode defaults to an embedded, single-file H2 database (its own
-`keycloakdb.mv.db` MVStore file). ADR 0001 set up Keycloak via a generic `AddContainer`, host
-bind-mounting `infra/keycloak/.data/h2` onto that file specifically so runtime state — self-
-registered organizer accounts, judges provisioned via the Admin API — survives container
-recreation across `dotnet run` restarts, instead of resetting to just the imported realm seed
-every time.
+`keycloakdb.mv.db` MVStore file — unrelated to the `keycloakdb` Aspire *resource* name this ADR
+introduces below, a naming coincidence worth not confusing). ADR 0001 set up Keycloak via a
+generic `AddContainer`; a later change (commit `47a77f4`) added a host bind mount of
+`infra/keycloak/.data/h2` onto that H2 file specifically so runtime state — self-registered
+organizer accounts, judges provisioned via the Admin API — survives container recreation across
+`dotnet run` restarts, instead of resetting to just the imported realm seed every time.
 
 That bind mount kept the *file* around, but H2's MVStore is not crash-safe: it has no WAL/fsync
 discipline comparable to a real RDBMS. In practice, any ungraceful stop of the Keycloak
@@ -31,13 +32,19 @@ Keycloak has supported Postgres as a `KC_DB` backend since well before the versi
 ## Decision
 
 Add a second logical database on the same Postgres server (`postgres.AddDatabase("keycloakdb",
-"keycloak")`) and point the Keycloak container at it via `KC_DB=postgres`, `KC_DB_URL`
-(built from the Postgres resource's own endpoint, `jdbc:postgresql://{host}:{port}/keycloak`),
-`KC_DB_USERNAME=postgres`, and `KC_DB_PASSWORD` (the same generated `PasswordResource` the `db`
-database already uses). Drop the `infra/keycloak/.data/h2` bind mount entirely — H2 is no longer
-in the picture. Keep the two remaining bind mounts (`infra/keycloak` for realm import,
+"keycloak")`) and point the Keycloak container at it via `KC_DB=postgres` plus three values read
+directly off the Postgres resource rather than hand-built — `KC_DB_URL` from
+`keycloakDb.Resource.JdbcConnectionString`, `KC_DB_USERNAME` from
+`postgres.Resource.UserNameReference`, `KC_DB_PASSWORD` from `postgres.Resource.PasswordParameter`
+(the same generated password the `db` database already uses) — so a future rename of the database
+or an explicit username on the `postgres` resource can't silently drift out of sync with what
+Keycloak is told to connect to. Drop the `infra/keycloak/.data/h2` bind mount entirely — H2 is no
+longer in the picture. Keep the two remaining bind mounts (`infra/keycloak` for realm import,
 `infra/keycloak/themes/birrapoint` for the custom login theme), which are read-only config, not
-runtime state, and were never the problem.
+runtime state, and were never the problem. To force a realm re-import (e.g. after editing
+`birrapoint-realm.json`) or to recover from a corruption incident like this one, drop the
+`keycloak` database on the Postgres container before the next `dotnet run` — there is no longer a
+folder to clear.
 
 ## Consequences
 
@@ -57,6 +64,23 @@ runtime state, and were never the problem.
   already-provisioned judge) has to be re-pointed at the new `sub` by hand, once, as part of this
   migration — done directly against Postgres for the one affected organizer account as part of
   landing this change.
-- **Review trigger**: none expected — Postgres-backed Keycloak is the standard production-grade
-  configuration Keycloak itself recommends over dev-mode H2, so this also brings local dev closer
-  to how Phase 16's eventual Azure Container Apps deployment will need to run it.
+- **Negative**: Keycloak's `KC_DB=postgres` switch triggers a Quarkus re-augmentation plus a full
+  Liquibase schema build on its first boot against the new database — noticeably slower than H2's
+  cold start. Nothing in the AppHost `WaitFor`s Keycloak specifically being *ready* (ADR-0001's
+  own noted gap, "no built-in health check"), so this widens an already-latent cold-start race
+  rather than introducing a new one; a manual `WithHttpHealthCheck` against `/realms/birrapoint`
+  (ADR-0001's suggested mitigation) is now more worth doing.
+- **Negative**: wiping the Postgres data volume now resets Keycloak (realm, users, client
+  secrets) and the app's own data together, as one unit, instead of independently — there was no
+  such coupling when Keycloak's state lived in a separate bind-mounted file.
+- **Negative**: Keycloak connects as the Postgres superuser (`postgres`), so it can read/write the
+  `birrapoint` database too — no isolation between the identity store and application data. Fine
+  for local dev; Phase 16's real deployment should give Keycloak its own least-privilege role
+  scoped to just the `keycloak` database.
+- **Negative**: Phase 16's not-yet-built backup job (`infra/backup/`, a `pg_dump`) will need to
+  back up and restore `keycloak` in lockstep with `birrapoint` — restoring one without the other
+  reproduces the exact `sub`-mismatch this ADR's Context section describes needing to fix by hand.
+- **Review trigger**: revisit for Phase 16 — dedicated least-privilege DB role for Keycloak
+  instead of the shared superuser, and re-evaluate the health-check gap above. Otherwise none
+  expected day to day: Postgres-backed Keycloak is the standard production-grade configuration
+  Keycloak itself recommends over dev-mode H2.
