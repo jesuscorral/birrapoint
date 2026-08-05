@@ -6,28 +6,42 @@ var postgres = builder.AddPostgres("postgres")
     .WithDataVolume()
     .WithLifetime(ContainerLifetime.Persistent);
 var db = postgres.AddDatabase("db", "birrapoint");
+// Keycloak's own store (below) — a second logical database on the same Postgres server/volume.
+var keycloakDb = postgres.AddDatabase("keycloakdb", "keycloak");
+var postgresEndpoint = postgres.GetEndpoint("tcp");
 
 // Keycloak 26 (constitution: 25+) with the birrapoint realm auto-imported.
 // Bootstrap admin + realm seed credentials are LOCAL-DEV placeholders only;
 // production injects real secrets at deploy time (FR-046).
-// Realm import uses the IGNORE_EXISTING strategy, so it only seeds the realm once — the bind
-// mount below is what makes runtime state (self-registered organizers, judges provisioned via
-// the Admin API) survive container recreation instead of vanishing on every `dotnet run`. A named
-// Docker volume was tried first (matching the Postgres pattern above) but a fresh named volume is
-// created root-owned, and the Keycloak image's dev-mode H2 store runs as its non-root "keycloak"
-// user, which threw AccessDeniedException on keycloakdb.mv.db — a host bind mount avoids that,
-// consistent with the other two bind mounts here. Re-importing birrapoint-realm.json edits
-// therefore requires clearing "infra/keycloak/.data" first.
+// Realm import uses the IGNORE_EXISTING strategy, so it only seeds the realm once — runtime state
+// (self-registered organizers, judges provisioned via the Admin API) survives container
+// recreation via Keycloak's own database instead of vanishing on every `dotnet run`. This used to
+// be dev-mode's embedded H2, file-backed via a host bind mount ("infra/keycloak/.data/h2" — a
+// named Docker volume was tried first, matching the Postgres pattern above, but a fresh named
+// volume is created root-owned and H2 runs as the image's non-root "keycloak" user, which threw
+// AccessDeniedException). H2's single-file MVStore turned out to be the bigger problem: it is not
+// crash-safe, and an ungraceful stop (Docker Desktop restart, host sleep, a force-killed AppHost)
+// silently corrupted it in practice, breaking existing users' stored credentials while the actual
+// competition data in Postgres stayed completely intact — found 2026-08-05 debugging exactly that
+// ("can't log in any more, did my imported beers/judges disappear?" — they hadn't; only the
+// Keycloak-side credential had). Pointing Keycloak at the same Postgres instance we already run
+// (WAL + fsync, the same durability the app's own data relies on) removes that whole failure mode
+// and the bind-mount permission workaround together.
 var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26.2")
     .WithArgs("start-dev", "--import-realm")
     .WithEnvironment("KC_BOOTSTRAP_ADMIN_USERNAME", "admin")
     .WithEnvironment("KC_BOOTSTRAP_ADMIN_PASSWORD", "admin")
+    .WithEnvironment("KC_DB", "postgres")
+    .WithEnvironment("KC_DB_URL",
+        ReferenceExpression.Create($"jdbc:postgresql://{postgresEndpoint.Property(EndpointProperty.HostAndPort)}/keycloak"))
+    .WithEnvironment("KC_DB_USERNAME", "postgres")
+    .WithEnvironment("KC_DB_PASSWORD", ReferenceExpression.Create($"{postgres.Resource.PasswordParameter}"))
     .WithBindMount("../../../infra/keycloak", "/opt/keycloak/data/import", isReadOnly: true)
     .WithBindMount("../../../infra/keycloak/themes/birrapoint", "/opt/keycloak/themes/birrapoint", isReadOnly: true)
-    .WithBindMount("../../../infra/keycloak/.data/h2", "/opt/keycloak/data/h2")
     .WithLifetime(ContainerLifetime.Persistent)
     .WithHttpEndpoint(port: 8081, targetPort: 8080, name: "http")
-    .WithExternalHttpEndpoints();
+    .WithExternalHttpEndpoints()
+    .WaitFor(keycloakDb);
 var keycloakHttp = keycloak.GetEndpoint("http");
 
 // Mailpit SMTP sink (invitations/results land here locally; UI/REST API on the http endpoint,
