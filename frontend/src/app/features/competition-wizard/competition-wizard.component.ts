@@ -33,7 +33,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
       <bp-topbar homeLink="/organizer/dashboard"></bp-topbar>
 
       <main class="wizard-main">
-        <div class="wizard-container">
+        <div class="wizard-container" [class.wizard-container--wide]="currentStep() === 6">
           <span class="eyebrow">{{
             competitionId() ? 'Editar competición' : 'Crear competición'
           }}</span>
@@ -345,6 +345,13 @@ import { TablesStepComponent } from './steps/tables-step.component';
       .wizard-container {
         width: 100%;
         max-width: 40rem;
+      }
+
+      /* Step 6 (Mesas) needs real screen width to lay out several mesa-cards side by side
+         instead of stacking into one long, scroll-heavy column -- unlike the other steps, which
+         are narrow forms best kept at reading width. */
+      .wizard-container--wide {
+        max-width: 75rem;
       }
 
       .eyebrow {
