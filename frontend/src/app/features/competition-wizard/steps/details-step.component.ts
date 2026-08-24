@@ -64,41 +64,42 @@ function toGenericApiError(error: unknown): ApiError {
     </p>
 
     <form [formGroup]="form" (ngSubmit)="onSaveDraft()">
-      <bp-textarea
-        id="details-description"
-        label="Descripción"
-        formControlName="description"
-        placeholder="Cuéntale a jueces y participantes de qué va esta competición…"
-        [hasError]="!!fieldError('description')"
-        [errorMessage]="fieldError('description') || ''"
-      ></bp-textarea>
+      <div class="form-grid">
+        <bp-textarea
+          class="form-grid__full"
+          id="details-description"
+          label="Descripción"
+          formControlName="description"
+          placeholder="Cuéntale a jueces y participantes de qué va esta competición…"
+          [hasError]="!!fieldError('description')"
+          [errorMessage]="fieldError('description') || ''"
+        ></bp-textarea>
 
-      <bp-input
-        id="details-logo"
-        label="URL del logo"
-        type="url"
-        formControlName="logoUrl"
-        placeholder="https://…"
-        [hasError]="!!fieldError('logoUrl')"
-        [errorMessage]="fieldError('logoUrl') || ''"
-      ></bp-input>
+        <bp-input
+          id="details-logo"
+          label="URL del logo"
+          type="url"
+          formControlName="logoUrl"
+          placeholder="https://…"
+          [hasError]="!!fieldError('logoUrl')"
+          [errorMessage]="fieldError('logoUrl') || ''"
+        ></bp-input>
 
-      <bp-input
-        id="details-entry-limit"
-        label="Límite de inscripciones"
-        type="number"
-        [min]="1"
-        formControlName="entryLimit"
-        placeholder="Sin límite"
-        hint="Deja en blanco si no quieres poner tope."
-        [hasError]="!!fieldError('entryLimit') || !!form.controls.entryLimit.errors?.['min']"
-        [errorMessage]="
-          fieldError('entryLimit') ||
-          (form.controls.entryLimit.errors?.['min'] ? 'Debe ser mayor que cero.' : '')
-        "
-      ></bp-input>
+        <bp-input
+          id="details-entry-limit"
+          label="Límite de inscripciones"
+          type="number"
+          [min]="1"
+          formControlName="entryLimit"
+          placeholder="Sin límite"
+          hint="Deja en blanco si no quieres poner tope."
+          [hasError]="!!fieldError('entryLimit') || !!form.controls.entryLimit.errors?.['min']"
+          [errorMessage]="
+            fieldError('entryLimit') ||
+            (form.controls.entryLimit.errors?.['min'] ? 'Debe ser mayor que cero.' : '')
+          "
+        ></bp-input>
 
-      <div class="field-row">
         <bp-input
           id="details-reg-start"
           label="Inicio de inscripciones"
@@ -129,19 +130,24 @@ function toGenericApiError(error: unknown): ApiError {
         <bp-alert type="error" title="No hemos podido guardar">{{ message }}</bp-alert>
       }
 
+      <!-- Every wizard step below this one shares this exact two-slot bottom bar: "Atrás" navigates
+           to the previous step, "Siguiente" advances — never more than these two, and neither is
+           blocked by unfilled required fields (the organizer can always move between steps; a step
+           left incomplete just shows amber in the stepper above instead of green). -->
       <div class="step-actions">
         <bp-button
           type="button"
-          label="← Volver"
+          label="Atrás"
           variant="ghost"
+          [disabled]="submitting()"
           (clicked)="back.emit()"
         ></bp-button>
         <bp-button
           type="submit"
-          label="Guardar borrador"
+          label="Siguiente"
           variant="primary"
           [loading]="submitting()"
-          [disabled]="form.invalid"
+          [disabled]="submitting()"
         ></bp-button>
       </div>
     </form>
@@ -154,14 +160,20 @@ function toGenericApiError(error: unknown): ApiError {
         font-size: 0.9375rem;
       }
 
-      .field-row {
+      /* Same two-column field layout as step 1 (see basics-step.component.ts) so both form steps
+         fill the shared card width identically. */
+      .form-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: var(--spacing-4);
+        column-gap: var(--spacing-6);
       }
 
-      @media (max-width: 480px) {
-        .field-row {
+      .form-grid__full {
+        grid-column: 1 / -1;
+      }
+
+      @media (max-width: 768px) {
+        .form-grid {
           grid-template-columns: 1fr;
         }
       }
@@ -244,8 +256,21 @@ export class DetailsStepComponent {
     return error.detail ?? error.title;
   }
 
+  // "Siguiente" always advances, whether or not the optional fields on this step validate: a
+  // valid form is saved to the API first and the step advances on success; an invalid form (e.g.
+  // a non-positive entry limit) is left unsaved and the step advances immediately with whatever
+  // was already persisted, rather than blocking navigation on it — the organizer can come back
+  // and fix it later (the stepper marker for this step stays amber until then).
   protected onSaveDraft(): void {
-    if (this.form.invalid || this.submitting()) {
+    if (this.submitting()) {
+      return;
+    }
+
+    if (this.form.invalid) {
+      const current = this.initialValue();
+      if (current) {
+        this.saved.emit(current);
+      }
       return;
     }
 

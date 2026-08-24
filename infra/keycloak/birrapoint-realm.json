@@ -9,6 +9,14 @@
   "duplicateEmailsAllowed": false,
   "sslRequired": "external",
   "loginTheme": "birrapoint",
+  "smtpServer": {
+    "host": "${env.SMTP_HOST}",
+    "port": "${env.SMTP_PORT}",
+    "from": "no-reply@birrapoint.local",
+    "fromDisplayName": "BirraPoint",
+    "auth": "false",
+    "starttls": "false"
+  },
   "internationalizationEnabled": true,
   "supportedLocales": ["es", "en"],
   "defaultLocale": "es",
