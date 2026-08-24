@@ -28,6 +28,9 @@ function tableFixture(overrides: Partial<TableSummary> = {}): TableSummary {
         abvLow: 4.5,
         abvHigh: 5.5,
         notValidForBos: false,
+        competitionCategoryName: null,
+        bjcpCategoryNumber: null,
+        bjcpCategoryName: null,
       },
     ],
     progress: { submitted: 0, total: 1 },
@@ -48,6 +51,9 @@ function entriesFixture(): EntryListItem[] {
       abvHigh: 5.5,
       beerName: 'Golden Helles',
       notValidForBos: false,
+      competitionCategoryName: null,
+      bjcpCategoryNumber: null,
+      bjcpCategoryName: null,
       tastingTableId: 't1',
       tastingTableName: 'Mesa 1',
     },
@@ -61,6 +67,9 @@ function entriesFixture(): EntryListItem[] {
       abvHigh: 7.5,
       beerName: 'Hazy Dream',
       notValidForBos: false,
+      competitionCategoryName: null,
+      bjcpCategoryNumber: null,
+      bjcpCategoryName: null,
       tastingTableId: null,
       tastingTableName: null,
     },
@@ -424,5 +433,28 @@ describe('TableBoardComponent', () => {
 
       expect(emitted).toEqual([true, false]);
     });
+  });
+
+  // T124: the board is a two-column grid (source panel + tables grid) rather than one wrapping
+  // flex row, so every table stays on screen as a drop target while the organizer drags.
+  it('renders every table inside the tables grid beside the unassigned panel', () => {
+    fakeApi.getTables.mockReturnValue(
+      of([tableFixture(), tableFixture({ id: 't2', name: 'Mesa 2' })]),
+    );
+    const fixture = createComponent();
+
+    const grid = fixture.nativeElement.querySelector('.tables-grid') as HTMLElement;
+    expect(grid.querySelectorAll('app-mesa-card').length).toBe(2);
+    expect(
+      fixture.nativeElement.querySelector('.table-management-layout app-unassigned-column'),
+    ).not.toBeNull();
+  });
+
+  it('shows a first-run hint instead of an empty grid when no table exists yet', () => {
+    fakeApi.getTables.mockReturnValue(of([]));
+    const fixture = createComponent();
+
+    const empty = fixture.nativeElement.querySelector('.tables-grid__empty') as HTMLElement;
+    expect(empty.textContent).toContain('Aún no hay mesas');
   });
 });

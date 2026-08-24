@@ -45,6 +45,9 @@
 :root {
   --radius-full: 9999px;
 
+  /* T124: the compact end of the scale — seated beer tokens and judge chips on the tables board
+     need a step below --spacing-2 to stay legible at MesaCard density. */
+  --spacing-1: 0.25rem;
   --spacing-2: 0.5rem;
   --spacing-3: 0.75rem;
   --spacing-4: 1rem;

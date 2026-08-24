@@ -159,17 +159,23 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
         (beersDropped)="onBeersDropped($event)"
       />
 
-      @for (table of tables(); track table.id) {
-        <app-mesa-card
-          [table]="table"
-          [connectedJudgeListIds]="judgeDropListIds()"
-          [connectedBeerListIds]="beerDropListIds()"
-          (judgeActivated)="onJudgeClicked($event)"
-          (beerActivated)="onBeerClicked($event)"
-          (judgesDropped)="onJudgesDropped($event)"
-          (beersDropped)="onBeersDropped($event)"
-        />
-      }
+      <div class="tables-grid">
+        @for (table of tables(); track table.id) {
+          <app-mesa-card
+            [table]="table"
+            [connectedJudgeListIds]="judgeDropListIds()"
+            [connectedBeerListIds]="beerDropListIds()"
+            (judgeActivated)="onJudgeClicked($event)"
+            (beerActivated)="onBeerClicked($event)"
+            (judgesDropped)="onJudgesDropped($event)"
+            (beersDropped)="onBeersDropped($event)"
+          />
+        } @empty {
+          <p class="tables-grid__empty">
+            Aún no hay mesas. Crea la primera arriba y arrastra jueces y cervezas hasta ella.
+          </p>
+        }
+      </div>
     </div>
 
     @if (conflictDialog(); as conflicts) {
@@ -234,12 +240,40 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
       max-width: 20rem;
     }
 
+    /* T124: source panel on the left, every table visible at once on the right. The previous
+       flex-wrap flow put the "Unassigned" column and the tables in one wrapping row, so with more
+       than two or three tables the drop targets fell below the fold while the beers being dragged
+       stayed at the top. */
     .table-management-layout {
-      display: flex;
+      display: grid;
+      grid-template-columns: minmax(16rem, 20rem) 1fr;
       gap: var(--spacing-6);
-      align-items: flex-start;
-      flex-wrap: wrap;
+      align-items: start;
       margin-top: var(--spacing-4);
+    }
+
+    .tables-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+      gap: var(--spacing-4);
+      align-items: start;
+    }
+
+    .tables-grid__empty {
+      grid-column: 1 / -1;
+      margin: 0;
+      padding: var(--spacing-6);
+      border: 1px dashed var(--color-bp-border-strong);
+      border-radius: var(--radius-lg);
+      color: var(--color-bp-text-muted);
+      font-size: 0.875rem;
+      text-align: center;
+    }
+
+    @media (max-width: 900px) {
+      .table-management-layout {
+        grid-template-columns: 1fr;
+      }
     }
 
     .modal-backdrop {
@@ -399,6 +433,9 @@ export class TableBoardComponent implements OnInit {
       id: entry.id,
       blindCode: entry.blindCode,
       styleName: entry.styleName,
+      competitionCategoryName: entry.competitionCategoryName,
+      bjcpCategoryNumber: entry.bjcpCategoryNumber,
+      bjcpCategoryName: entry.bjcpCategoryName,
       abvPercent: entry.abvPercent,
       abvLow: entry.abvLow,
       abvHigh: entry.abvHigh,

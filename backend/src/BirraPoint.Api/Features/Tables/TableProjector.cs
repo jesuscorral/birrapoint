@@ -22,23 +22,48 @@ internal static class TableProjector
         var entryIds = table.Samples.Select(s => s.BeerEntryId).ToList();
         var entries = await dbContext.BeerEntries
             .Where(e => entryIds.Contains(e.Id))
-            .Select(e => new { e.Id, e.BlindCode, e.StyleCode, e.AbvPercent, e.NotValidForBos, e.EntryInstructions })
+            .Select(e => new
+            {
+                e.Id,
+                e.BlindCode,
+                e.StyleCode,
+                e.AbvPercent,
+                e.NotValidForBos,
+                e.EntryInstructions,
+                e.CompetitionCategoryId,
+            })
             .ToListAsync(cancellationToken);
 
         var styleCodes = entries.Select(e => e.StyleCode).Distinct().ToList();
         var styles = await dbContext.BjcpStyles
             .Where(s => styleCodes.Contains(s.Code))
-            .Select(s => new { s.Code, s.Name, s.ABVLow, s.ABVHigh })
+            .Select(s => new { s.Code, s.Name, s.ABVLow, s.ABVHigh, s.CategoryNumber, s.CategoryName })
             .ToListAsync(cancellationToken);
         var styleByCode = styles.ToDictionary(s => s.Code);
+
+        // T124: the organizer-defined competition category (wizard step 3) is a separate axis from
+        // the BJCP taxonomy category carried on the style row — the organizer's own grouping is
+        // what they assign beers to tables by, so both travel on the sample.
+        var categoryIds = entries.Where(e => e.CompetitionCategoryId.HasValue)
+            .Select(e => e.CompetitionCategoryId!.Value).Distinct().ToList();
+        var categoryNameById = categoryIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await dbContext.CompetitionCategories
+                .Where(c => categoryIds.Contains(c.Id))
+                .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
 
         var samples = entries
             .Select(e =>
             {
                 styleByCode.TryGetValue(e.StyleCode, out var style);
+                var competitionCategoryName = e.CompetitionCategoryId.HasValue
+                    && categoryNameById.TryGetValue(e.CompetitionCategoryId.Value, out var name)
+                        ? name
+                        : null;
                 return new TableSampleDto(
                     e.Id, e.BlindCode, e.StyleCode, style?.Name ?? e.StyleCode, style?.ABVLow, style?.ABVHigh,
-                    e.AbvPercent, e.NotValidForBos, e.EntryInstructions);
+                    e.AbvPercent, e.NotValidForBos, e.EntryInstructions,
+                    competitionCategoryName, style?.CategoryNumber, style?.CategoryName);
             })
             .ToList();
 

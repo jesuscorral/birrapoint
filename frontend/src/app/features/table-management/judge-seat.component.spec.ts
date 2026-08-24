@@ -4,43 +4,62 @@ import { JudgeSeatComponent } from './judge-seat.component';
 import type { TableJudge } from './table-management-api.service';
 
 describe('JudgeSeatComponent', () => {
-  function createComponent(judge: TableJudge) {
+  function createComponent(judge: TableJudge, showName?: boolean) {
     const fixture = TestBed.createComponent(JudgeSeatComponent);
     fixture.componentRef.setInput('judge', judge);
+    if (showName !== undefined) {
+      fixture.componentRef.setInput('showName', showName);
+    }
     fixture.detectChanges();
     return fixture;
   }
 
-  it('renders the judge initials and a data-judge-id attribute', () => {
-    const fixture = createComponent({
-      id: 'j1',
-      email: 'ada@example.com',
-      displayName: 'Ada Lovelace',
-    });
+  const ada: TableJudge = { id: 'j1', email: 'ada@example.com', displayName: 'Ada Lovelace' };
 
-    const seat = fixture.nativeElement.querySelector('div') as HTMLDivElement;
-    expect(seat.textContent?.trim()).toBe('AL');
+  it('renders the judge initials and a data-judge-id attribute', () => {
+    const fixture = createComponent(ada);
+
+    const seat = fixture.nativeElement.querySelector('.judge-seat') as HTMLDivElement;
+    expect(seat.querySelector('.judge-seat__avatar')?.textContent?.trim()).toBe('AL');
     expect(seat.getAttribute('data-judge-id')).toBe('j1');
     expect(seat.getAttribute('role')).toBe('button');
+  });
+
+  // T124 — initials alone could not tell two judges apart while seating them at tables.
+  it('shows the full display name under the avatar by default', () => {
+    const fixture = createComponent(ada);
+
+    const seat = fixture.nativeElement.querySelector('.judge-seat') as HTMLDivElement;
+    expect(seat.classList.contains('judge-seat--named')).toBe(true);
+    const name = seat.querySelector('.judge-seat__name') as HTMLElement;
+    expect(name.textContent?.trim()).toBe('Ada Lovelace');
+    // The accessible name already carries it; announcing it twice would duplicate every seat.
+    expect(name.getAttribute('aria-hidden')).toBe('true');
+    expect(seat.getAttribute('aria-label')).toBe('Judge Ada Lovelace — view details');
+  });
+
+  it('falls back to the bare avatar when showName is off', () => {
+    const fixture = createComponent(ada, false);
+
+    const seat = fixture.nativeElement.querySelector('.judge-seat') as HTMLDivElement;
+    expect(seat.classList.contains('judge-seat--named')).toBe(false);
+    expect(seat.querySelector('.judge-seat__name')).toBeNull();
+    expect(seat.textContent?.trim()).toBe('AL');
   });
 
   it('handles a single-word display name', () => {
     const fixture = createComponent({ id: 'j2', email: 'ada@example.com', displayName: 'Ada' });
 
-    const seat = fixture.nativeElement.querySelector('div') as HTMLDivElement;
-    expect(seat.textContent?.trim()).toBe('A');
+    const seat = fixture.nativeElement.querySelector('.judge-seat') as HTMLDivElement;
+    expect(seat.querySelector('.judge-seat__avatar')?.textContent?.trim()).toBe('A');
   });
 
   it('emits activated on Enter keydown (keyboard-accessible click equivalent)', () => {
-    const fixture = createComponent({
-      id: 'j1',
-      email: 'ada@example.com',
-      displayName: 'Ada Lovelace',
-    });
+    const fixture = createComponent(ada);
     const activated = jest.fn();
     fixture.componentInstance.activated.subscribe(activated);
 
-    const seat = fixture.nativeElement.querySelector('div') as HTMLDivElement;
+    const seat = fixture.nativeElement.querySelector('.judge-seat') as HTMLDivElement;
     seat.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
 
     expect(activated).toHaveBeenCalledTimes(1);

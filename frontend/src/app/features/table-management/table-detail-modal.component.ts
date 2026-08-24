@@ -9,6 +9,11 @@ export interface BeerDetailContent {
   id: string;
   blindCode: string;
   styleName: string;
+  // T124: the same two independent category axes the beer token shows — the organizer-defined
+  // competition category (wizard step 3) and the BJCP taxonomy's own.
+  competitionCategoryName: string | null;
+  bjcpCategoryNumber: string | null;
+  bjcpCategoryName: string | null;
   // Real ABV% of this specific beer entry (distinct from abvLow/abvHigh, the BJCP style's
   // declared range — kept alongside it as a secondary/contextual field).
   abvPercent: number;
@@ -62,6 +67,18 @@ export interface TableOption {
               <dt>Style</dt>
               <dd>{{ beer.styleName }}</dd>
             </div>
+            @if (beer.competitionCategoryName; as category) {
+              <div>
+                <dt>Category</dt>
+                <dd>{{ category }}</dd>
+              </div>
+            }
+            @if (bjcpCategoryLabel(); as bjcp) {
+              <div>
+                <dt>BJCP category</dt>
+                <dd>{{ bjcp }}</dd>
+              </div>
+            }
             @if (abvLabel(); as abv) {
               <div>
                 <dt>ABV</dt>
@@ -221,6 +238,19 @@ export class TableDetailModalComponent implements OnInit {
       return real;
     }
     return `${real} (style range ${beer.abvLow ?? '?'}–${beer.abvHigh ?? '?'}%)`;
+  });
+
+  // "21 · IPA" when the catalog row resolved, one half when only one is known, null when the
+  // style code has no catalog row at all (the DTO's documented null case).
+  protected readonly bjcpCategoryLabel = computed(() => {
+    const beer = this.beerContent();
+    if (!beer) {
+      return null;
+    }
+    if (beer.bjcpCategoryNumber && beer.bjcpCategoryName) {
+      return `${beer.bjcpCategoryNumber} · ${beer.bjcpCategoryName}`;
+    }
+    return beer.bjcpCategoryName ?? beer.bjcpCategoryNumber ?? null;
   });
 
   protected readonly assignedTableNames = computed(() => {

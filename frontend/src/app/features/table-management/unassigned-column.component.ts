@@ -10,6 +10,11 @@ import type { JudgeListItem } from './table-management-api.service';
 // T048's "Unassigned" source column — deliberately a plain list (no table/seat iconography), the
 // entry point for dragging a judge/beer onto a MesaCard, and (T048A) an equally valid place to
 // click-open a beer/judge detail.
+//
+// T124: this is now a fixed side panel rather than one more wrapping card in the board flow, and
+// its beers render in the `full` token variant — style, competition category and real ABV are what
+// the organizer picks the next beer to place by, and this is the only place with the width to show
+// them. It scrolls independently so the tables grid beside it stays put while dragging.
 export const UNASSIGNED_JUDGES_LIST_ID = 'judges-unassigned';
 export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
 
@@ -22,7 +27,7 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
     <section class="unassigned-column" aria-label="Unassigned">
       <h3>Jueces sin asignar ({{ judges().length }})</h3>
       <ul
-        class="unassigned-list"
+        class="unassigned-list unassigned-list--judges"
         cdkDropList
         [id]="judgesListId"
         [cdkDropListConnectedTo]="connectedJudgeListIds()"
@@ -33,11 +38,14 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
             <app-judge-seat [judge]="judge" (activated)="judgeActivated.emit(judge.id)" />
           </li>
         }
+        @if (judges().length === 0) {
+          <li class="unassigned-empty" aria-hidden="true">Todos los jueces están asignados</li>
+        }
       </ul>
 
       <h3>Cervezas sin asignar ({{ beers().length }})</h3>
       <ul
-        class="unassigned-list"
+        class="unassigned-list unassigned-list--beers"
         cdkDropList
         [id]="beersListId"
         [cdkDropListConnectedTo]="connectedBeerListIds()"
@@ -46,14 +54,23 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
         @for (beer of beers(); track beer.id) {
           <li>
             <app-beer-token
+              variant="full"
               [beer]="{
                 id: beer.id,
                 blindCode: beer.blindCode,
                 notValidForBos: beer.notValidForBos,
+                styleName: beer.styleName,
+                abvPercent: beer.abvPercent,
+                competitionCategoryName: beer.competitionCategoryName,
+                bjcpCategoryNumber: beer.bjcpCategoryNumber,
+                bjcpCategoryName: beer.bjcpCategoryName,
               }"
               (activated)="beerActivated.emit(beer.id)"
             />
           </li>
+        }
+        @if (beers().length === 0) {
+          <li class="unassigned-empty" aria-hidden="true">Todas las cervezas están asignadas</li>
         }
       </ul>
     </section>
@@ -67,6 +84,14 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
       border-radius: var(--radius-lg);
       padding: var(--spacing-4);
       background: var(--color-bp-surface);
+      /* Sticks alongside the tables grid so the source list stays reachable while the organizer
+         scrolls through tables; capped so a 200-entry competition scrolls inside the panel rather
+         than pushing the grid off screen. */
+      position: sticky;
+      top: var(--spacing-4);
+      max-height: calc(100vh - var(--spacing-12));
+      overflow-y: auto;
+      overscroll-behavior: contain;
     }
 
     .unassigned-column h3 {
@@ -79,12 +104,35 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
 
     .unassigned-list {
       display: flex;
-      flex-wrap: wrap;
       gap: var(--spacing-2);
       margin: 0 0 var(--spacing-4);
       padding: 0;
       list-style: none;
       min-height: 64px;
+    }
+
+    .unassigned-list--judges {
+      flex-wrap: wrap;
+    }
+
+    /* One card per row: the detailed beer token is a horizontal card, so wrapping them side by side
+       would truncate the style name this variant exists to show. */
+    .unassigned-list--beers {
+      flex-direction: column;
+    }
+
+    .unassigned-empty {
+      color: var(--color-bp-text-muted);
+      font-size: 0.8125rem;
+      align-self: center;
+    }
+
+    @media (max-width: 900px) {
+      .unassigned-column {
+        position: static;
+        max-height: none;
+        overflow-y: visible;
+      }
     }
   `,
 })

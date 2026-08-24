@@ -13,7 +13,14 @@ public sealed record TableSampleDto(
     decimal? AbvHigh,
     decimal AbvPercent,
     bool NotValidForBos,
-    string? EntryInstructions);
+    string? EntryInstructions,
+    // T124: the organizer-defined competition category (wizard step 3) this entry was imported
+    // under — null for entries seeded outside the Import slice, which never get one assigned.
+    string? CompetitionCategoryName,
+    // T124: the BJCP taxonomy's own category (e.g. "21"/"IPA"), a completely independent axis
+    // from CompetitionCategoryName — null only when StyleCode has no matching catalog row.
+    string? BjcpCategoryNumber,
+    string? BjcpCategoryName);
 
 public sealed record TableProgressDto(int Submitted, int Total);
 

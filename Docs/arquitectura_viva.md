@@ -1298,6 +1298,43 @@ and the audit drill-down still shows judge A's earlier submitted total.
   reach Keycloak at all, a pre-existing condition traced (via `git log`) to `welcome.component.ts`
   as last touched by an earlier commit on this same branch, before this change and unrelated to
   anything touched here.
+
+  **T124 — the step-6 assignment UI/UX pass.** Two findings drove it. First, the organizer picks
+  which table a beer belongs on by its *style, category and strength*, and none of that was on
+  screen: the beer token was a 64×64 square showing only the blind code, so every decision needed a
+  round trip through the detail modal. Second, `BeerEntry.CompetitionCategoryId` — the
+  organizer-defined wizard-step-3 grouping, populated by import consolidation since T118 — was
+  never projected into any DTO, so the frontend physically could not show it. `TableSampleDto` and
+  `EntryDto` now carry `CompetitionCategoryName` plus `BjcpCategoryNumber`/`BjcpCategoryName`; the
+  two are **independent axes** (`Domain/CompetitionCategory.cs` says so explicitly) and are
+  surfaced as such rather than collapsed into one "category" field. No migration — the column
+  already existed; `TableProjector.cs`/`ListEntries.cs` gained the joins, `contracts/rest-api.md`
+  the additive amendment.
+
+  On the frontend `beer-token.component.ts` grew a `full`/`mini` variant split: `full` (the
+  "Unassigned" panel) is a full-width card with a beer-glass icon, style name, both category chips
+  and real ABV%; `mini` (seated on a MesaCard) stays a compact code + ABV pill, since a table's own
+  aggregate stats already carry the balance picture and a dozen full cards per table would not fit.
+  `judge-seat.component.ts` shows the display name under the initials avatar (`showName`, default
+  on) — two-line clamped, `aria-hidden` because the accessible name already announces it.
+  `mesa-card.component.ts` dropped the oval physical-table board: seats arranged around an ellipse
+  cannot carry a full name without colliding, and its fixed 1.4:1 aspect ratio made every card tall
+  enough that only two or three tables fitted on screen — directly against what the screen is for.
+  In its place, a compact card where "Cervezas" and "Media ABV" take primary visual weight (they
+  are what a table is balanced on), style names get their own line instead of being crammed into
+  the stat value as `3 (A, B, C)`, and both drop zones keep a tinted surface plus an empty-state
+  hint so they read as targets while still empty. `table-board.component.ts` became a two-column
+  grid — sticky source panel, `repeat(auto-fill, minmax(15rem, 1fr))` tables grid, single column
+  under 900px — replacing the wrapping flex row that pushed drop targets below the fold as soon as
+  a competition had more than two or three tables.
+
+  Every E2E-locked contract survived byte-for-byte and was re-verified by inspection against all
+  nine dependent specs: the `Beer {code} — view details` / `Judge {name} — view details` accessible
+  names, the `beer-token--bos-flagged` class, the `judges-*`/`beers-*` drop-list ids,
+  `dd[data-stat="judges"|"beers"]`, and the **English** `New table name` / `Add table` form strings
+  (deliberately not translated with the rest of the board — nine specs address them by label). The new
+  visual detail reaches screen readers through `aria-describedby` rather than the accessible name,
+  for exactly that reason: WCAG 1.3.1 satisfied without moving a locked name.
 - **`features/judge-tables/`** (T053, US6): the JUDGE role's first real screen —
   `JudgeTablesListComponent` (route `/judge/tables`, the post-login landing) lists assigned tables
   with an order-fixed badge; `JudgeTableOrderComponent` (route `/judge/tables/:tableId`) is the
