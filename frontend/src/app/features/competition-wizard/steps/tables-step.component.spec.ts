@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 
 import { EntriesApiService } from '../../../core/api/entries-api.service';
@@ -64,6 +64,15 @@ describe('TablesStepComponent', () => {
     expect(h2?.textContent?.trim()).toBe('Mesas');
   });
 
+  it('renders exactly one bottom-bar button, labeled "Atrás" (the last step has no next step to advance to)', () => {
+    const fixture = createComponent();
+
+    const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
+      (button: HTMLButtonElement) => button.textContent?.trim(),
+    );
+    expect(buttons).toEqual(['Atrás']);
+  });
+
   it('emits dirtyChange(false) on init (forwarded from the embedded table-board)', () => {
     const fixture = TestBed.createComponent(TablesStepComponent);
     const emitted: boolean[] = [];
@@ -87,23 +96,13 @@ describe('TablesStepComponent', () => {
     expect(emitted).toEqual([true]);
   });
 
-  it('emits back when "← Volver" is clicked', () => {
+  it('emits back when "Atrás" is clicked', () => {
     const fixture = createComponent();
     const emitted: void[] = [];
     fixture.componentInstance.back.subscribe(() => emitted.push(undefined));
 
-    buttonWithText(fixture.nativeElement, '← Volver').click();
+    buttonWithText(fixture.nativeElement, 'Atrás').click();
 
     expect(emitted.length).toBe(1);
-  });
-
-  it('navigates to /organizer/dashboard when "Ir al panel de organizador" is clicked', () => {
-    const fixture = createComponent();
-    const router = TestBed.inject(Router);
-    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
-
-    buttonWithText(fixture.nativeElement, 'Ir al panel de organizador').click();
-
-    expect(navigateSpy).toHaveBeenCalledWith('/organizer/dashboard');
   });
 });

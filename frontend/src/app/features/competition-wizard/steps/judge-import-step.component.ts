@@ -9,7 +9,6 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 
 import { ApiError } from '../../../core/api/api-error';
 import { JudgeImportApiService } from '../../../core/api/judge-import-api.service';
@@ -22,6 +21,7 @@ import type {
 } from '../../../core/api/judge-import-api.service';
 import { BpAlertComponent } from '../../../shared/components/bp-alert/bp-alert.component';
 import { BpButtonComponent } from '../../../shared/components/bp-button/bp-button.component';
+import { BpFileDropzoneComponent } from '../../../shared/components/bp-file-dropzone/bp-file-dropzone.component';
 import { BpInputComponent } from '../../../shared/components/bp-input/bp-input.component';
 import { BpTextareaComponent } from '../../../shared/components/bp-textarea/bp-textarea.component';
 
@@ -72,13 +72,7 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
 
 @Component({
   selector: 'app-judge-import-step',
-  imports: [
-    FormsModule,
-    BpButtonComponent,
-    BpInputComponent,
-    BpTextareaComponent,
-    BpAlertComponent,
-  ],
+  imports: [BpButtonComponent, BpFileDropzoneComponent, BpInputComponent, BpTextareaComponent, BpAlertComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (loading()) {
@@ -97,37 +91,20 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
       }
 
       @if (!importBatch()) {
-        <form (ngSubmit)="onUpload()">
-          <label class="upload-label" for="judge-import-file">Listado de jueces (.xlsx)</label>
-          <input
-            id="judge-import-file"
-            type="file"
-            accept=".xlsx"
-            (change)="onFileSelected($event)"
-          />
+        <div class="upload-phase">
+          <bp-file-dropzone
+            inputId="judge-import-file"
+            ariaLabel="Listado de jueces (.xlsx)"
+            hint="Listado de jueces del club en formato .xlsx"
+            [(file)]="selectedFile"
+          ></bp-file-dropzone>
 
           @if (uploadError(); as err) {
             <bp-alert type="error" title="No hemos podido subir el archivo">{{
               bannerMessage(err)
             }}</bp-alert>
           }
-
-          <div class="step-actions">
-            <bp-button
-              type="button"
-              label="← Volver"
-              variant="ghost"
-              (clicked)="back.emit()"
-            ></bp-button>
-            <bp-button
-              type="submit"
-              label="Subir archivo"
-              variant="primary"
-              [loading]="uploading()"
-              [disabled]="!selectedFile() || uploading()"
-            ></bp-button>
-          </div>
-        </form>
+        </div>
       } @else {
         <section class="judge-import-rows" aria-label="Jueces importados">
           @for (row of importBatch()!.rows; track row.rowNumber; let i = $index) {
@@ -253,34 +230,29 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
               Omitidos: {{ result.skipped.length }} (correos duplicados en el archivo).
             }
           </bp-alert>
-
-          <div class="step-actions">
-            <bp-button
-              type="button"
-              label="Continuar"
-              variant="primary"
-              (clicked)="saved.emit()"
-            ></bp-button>
-          </div>
-        } @else {
-          <div class="step-actions">
-            <bp-button
-              type="button"
-              label="← Volver"
-              variant="ghost"
-              (clicked)="back.emit()"
-            ></bp-button>
-            <bp-button
-              type="button"
-              label="Consolidar"
-              variant="primary"
-              [loading]="consolidating()"
-              [disabled]="unresolvedCount() > 0 || consolidating()"
-              (clicked)="onConsolidate()"
-            ></bp-button>
-          </div>
         }
       }
+
+      <!-- Same two-slot "Atrás" / "Siguiente" bottom bar as every other wizard step. Importing
+           judges is optional, so "Siguiente" is never blocked here: it uploads the selected file,
+           then consolidates once every row resolves, advancing to the next step in between clicks
+           so the organizer always sees the result of what just happened — see onNext(). -->
+      <div class="step-actions">
+        <bp-button
+          type="button"
+          label="Atrás"
+          variant="ghost"
+          [disabled]="uploading() || consolidating()"
+          (clicked)="back.emit()"
+        ></bp-button>
+        <bp-button
+          type="button"
+          label="Siguiente"
+          variant="primary"
+          [loading]="uploading() || consolidating()"
+          (clicked)="onNext()"
+        ></bp-button>
+      </div>
     }
   `,
   styles: [
@@ -291,19 +263,10 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
         font-size: 0.9375rem;
       }
 
-      form {
+      .upload-phase {
         display: flex;
         flex-direction: column;
         gap: var(--spacing-4);
-      }
-
-      .upload-label {
-        font-weight: 600;
-        color: var(--color-bp-text);
-      }
-
-      input[type='file'] {
-        min-height: 44px;
       }
 
       .judge-import-rows {
@@ -406,7 +369,7 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin: 0 calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
+        margin: var(--spacing-8) calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
         padding: var(--spacing-4) var(--spacing-8) var(--spacing-6);
         border-top: 1px solid var(--color-bp-border);
         position: sticky;
@@ -417,7 +380,7 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
 
       @media (max-width: 640px) {
         .step-actions {
-          margin: 0 calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
+          margin: var(--spacing-8) calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
           padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
         }
       }
@@ -439,6 +402,9 @@ export class JudgeImportStepComponent implements OnInit {
   readonly saved = output<void>();
   readonly back = output<void>();
   readonly dirtyChange = output<boolean>();
+  // Drives the stepper marker colour in the wizard shell (green once every row of any pending
+  // batch resolves, amber while rows still need a fix).
+  readonly statusChange = output<'complete' | 'partial'>();
 
   protected readonly loading = signal(false);
   protected readonly loadError = signal<ApiError | null>(null);
@@ -467,9 +433,19 @@ export class JudgeImportStepComponent implements OnInit {
       this.editingIndex() !== null || (this.selectedFile() !== null && this.importBatch() === null),
   );
 
+  // Importing judges is optional — nothing here is a required field — so the only thing that can
+  // be "missing" is a row this step itself flagged as invalid. Complete whenever there's no
+  // pending batch row left to fix; partial only while unresolvedCount() > 0.
+  protected readonly judgeImportStatus = computed<'complete' | 'partial'>(() =>
+    this.unresolvedCount() === 0 ? 'complete' : 'partial',
+  );
+
   constructor() {
     effect(() => {
       this.dirtyChange.emit(this.isDirty());
+    });
+    effect(() => {
+      this.statusChange.emit(this.judgeImportStatus());
     });
   }
 
@@ -503,9 +479,24 @@ export class JudgeImportStepComponent implements OnInit {
     return error.detail ?? error.title;
   }
 
-  protected onFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.selectedFile.set(input.files?.[0] ?? null);
+  // "Siguiente": uploads the selected file if one is chosen and not yet processed; otherwise
+  // consolidates a fully-resolved pending batch; otherwise there's nothing left to do at this
+  // step, so it simply advances (emits saved). An unresolved batch (or none at all) never blocks
+  // navigation — see judgeImportStatus() above for how that's surfaced instead, via the stepper
+  // marker.
+  protected onNext(): void {
+    if (this.uploading() || this.rowSaving() || this.consolidating()) {
+      return;
+    }
+    if (this.selectedFile() && !this.importBatch()) {
+      this.onUpload();
+      return;
+    }
+    if (this.importBatch() && !this.consolidateResult() && this.unresolvedCount() === 0) {
+      this.onConsolidate();
+      return;
+    }
+    this.saved.emit();
   }
 
   protected onUpload(): void {

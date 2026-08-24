@@ -1,6 +1,13 @@
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Location } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
@@ -43,188 +50,43 @@ import { TablesStepComponent } from './steps/tables-step.component';
 
           <!-- Stepper -->
           <ol class="stepper" aria-label="Progreso del asistente">
-            <li
-              class="stepper__item"
-              [class.is-active]="currentStep() === 1"
-              [class.is-done]="currentStep() > 1"
-            >
-              <button
-                type="button"
-                class="stepper__step"
-                [disabled]="!canJumpTo(1)"
-                [attr.aria-current]="currentStep() === 1 ? 'step' : null"
-                (click)="goToStep(1)"
+            @for (step of steps; track step.number) {
+              <li
+                class="stepper__item"
+                [class.is-active]="currentStep() === step.number"
+                [class.is-reached]="currentStep() >= step.number"
+                [class.is-complete]="stepStatus(step.number) === 'complete'"
+                [class.is-partial]="stepStatus(step.number) === 'partial'"
               >
-                <span class="stepper__marker" aria-hidden="true">
-                  @if (currentStep() > 1) {
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="3"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path d="M20 6 9 17l-5-5" />
-                    </svg>
-                  } @else {
-                    1
-                  }
-                </span>
-                <span class="stepper__label">Datos básicos</span>
-              </button>
-            </li>
-            <li class="stepper__connector" aria-hidden="true"></li>
-            <li
-              class="stepper__item"
-              [class.is-active]="currentStep() === 2"
-              [class.is-done]="currentStep() > 2"
-            >
-              <button
-                type="button"
-                class="stepper__step"
-                [disabled]="!canJumpTo(2)"
-                [attr.aria-current]="currentStep() === 2 ? 'step' : null"
-                (click)="goToStep(2)"
-              >
-                <span class="stepper__marker" aria-hidden="true">
-                  @if (currentStep() > 2) {
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="3"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path d="M20 6 9 17l-5-5" />
-                    </svg>
-                  } @else {
-                    2
-                  }
-                </span>
-                <span class="stepper__label">Detalles</span>
-              </button>
-            </li>
-            <li class="stepper__connector" aria-hidden="true"></li>
-            <li
-              class="stepper__item"
-              [class.is-active]="currentStep() === 3"
-              [class.is-done]="currentStep() > 3"
-            >
-              <button
-                type="button"
-                class="stepper__step"
-                [disabled]="!canJumpTo(3)"
-                [attr.aria-current]="currentStep() === 3 ? 'step' : null"
-                (click)="goToStep(3)"
-              >
-                <span class="stepper__marker" aria-hidden="true">
-                  @if (currentStep() > 3) {
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="3"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path d="M20 6 9 17l-5-5" />
-                    </svg>
-                  } @else {
-                    3
-                  }
-                </span>
-                <span class="stepper__label">Estilos</span>
-              </button>
-            </li>
-            <li class="stepper__connector" aria-hidden="true"></li>
-            <li
-              class="stepper__item"
-              [class.is-active]="currentStep() === 4"
-              [class.is-done]="currentStep() > 4"
-            >
-              <button
-                type="button"
-                class="stepper__step"
-                [disabled]="!canJumpTo(4)"
-                [attr.aria-current]="currentStep() === 4 ? 'step' : null"
-                (click)="goToStep(4)"
-              >
-                <span class="stepper__marker" aria-hidden="true">
-                  @if (currentStep() > 4) {
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="3"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path d="M20 6 9 17l-5-5" />
-                    </svg>
-                  } @else {
-                    4
-                  }
-                </span>
-                <span class="stepper__label">Importar cervezas</span>
-              </button>
-            </li>
-            <li class="stepper__connector" aria-hidden="true"></li>
-            <li
-              class="stepper__item"
-              [class.is-active]="currentStep() === 5"
-              [class.is-done]="currentStep() > 5"
-            >
-              <button
-                type="button"
-                class="stepper__step"
-                [disabled]="!canJumpTo(5)"
-                [attr.aria-current]="currentStep() === 5 ? 'step' : null"
-                (click)="goToStep(5)"
-              >
-                <span class="stepper__marker" aria-hidden="true">
-                  @if (currentStep() > 5) {
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="3"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path d="M20 6 9 17l-5-5" />
-                    </svg>
-                  } @else {
-                    5
-                  }
-                </span>
-                <span class="stepper__label">Importar jueces</span>
-              </button>
-            </li>
-            <li class="stepper__connector" aria-hidden="true"></li>
-            <li class="stepper__item" [class.is-active]="currentStep() === 6">
-              <button
-                type="button"
-                class="stepper__step"
-                [disabled]="!canJumpTo(6)"
-                [attr.aria-current]="currentStep() === 6 ? 'step' : null"
-                (click)="goToStep(6)"
-              >
-                <span class="stepper__marker" aria-hidden="true">6</span>
-                <span class="stepper__label">Mesas</span>
-              </button>
-            </li>
+                <button
+                  type="button"
+                  class="stepper__step"
+                  [disabled]="!canJumpTo(step.number)"
+                  [attr.aria-current]="currentStep() === step.number ? 'step' : null"
+                  (click)="goToStep(step.number)"
+                >
+                  <span class="stepper__marker" aria-hidden="true">
+                    @if (stepStatus(step.number) === 'complete') {
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="3"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    } @else {
+                      {{ step.number }}
+                    }
+                  </span>
+                  <span class="stepper__label">{{ step.label }}</span>
+                </button>
+              </li>
+            }
           </ol>
 
           <div class="wizard-card">
@@ -257,6 +119,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
                     (saved)="onCategoriesSaved()"
                     (back)="onBack()"
                     (dirtyChange)="stepDirty.set($event)"
+                    (statusChange)="categoriesStatus.set($event)"
                   />
                 }
                 @case (4) {
@@ -264,8 +127,10 @@ import { TablesStepComponent } from './steps/tables-step.component';
                     [competitionId]="competitionId()!"
                     [importId]="importId()"
                     (importIdChange)="importId.set($event)"
+                    (saved)="onImportSaved()"
                     (back)="onBack()"
                     (dirtyChange)="stepDirty.set($event)"
+                    (statusChange)="importStatus.set($event)"
                   />
                 }
                 @case (5) {
@@ -276,6 +141,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
                     (saved)="onJudgeImportSaved()"
                     (back)="onBack()"
                     (dirtyChange)="stepDirty.set($event)"
+                    (statusChange)="judgeImportStatus.set($event)"
                   />
                 }
                 @case (6) {
@@ -283,6 +149,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
                     [competitionId]="competitionId()!"
                     (back)="onBack()"
                     (dirtyChange)="stepDirty.set($event)"
+                    (statusChange)="tablesStatus.set($event)"
                   />
                 }
               }
@@ -342,9 +209,13 @@ import { TablesStepComponent } from './steps/tables-step.component';
         padding: var(--spacing-10) var(--spacing-6) var(--spacing-16);
       }
 
+      /* One width for every step. The browse-and-act steps (style catalog, imported entries,
+         tables) need real width — organizers work from a desktop — and the form steps fill it by
+         laying their fields out in two columns rather than stretching one field across the card,
+         so the shell never resizes between steps. */
       .wizard-container {
         width: 100%;
-        max-width: 40rem;
+        max-width: 64rem;
       }
 
       .eyebrow {
@@ -367,28 +238,53 @@ import { TablesStepComponent } from './steps/tables-step.component';
         margin: 0 0 var(--spacing-8);
       }
 
-      /* --- Stepper --- */
+      /* --- Stepper ---
+         Equal-width columns with the label under the marker: 6 steps always fit the container
+         width, so the row never overflows into a horizontal scroll. */
       .stepper {
-        display: flex;
-        align-items: center;
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
         list-style: none;
         margin: 0 0 var(--spacing-8);
         padding: 0;
       }
 
       .stepper__item {
+        position: relative;
         display: flex;
-        align-items: center;
-        flex: none;
+        justify-content: center;
+      }
+
+      /* The connector spans marker-centre to marker-centre minus the marker's outer radius (17px
+         with its border) plus a 6px breathing gap, so it stops short of both circles instead of
+         running underneath the step numbers. */
+      .stepper__item + .stepper__item::before {
+        content: '';
+        position: absolute;
+        top: 15px;
+        right: calc(50% + 23px);
+        left: calc(-50% + 23px);
+        height: 1.5px;
+        background: var(--color-bp-border-strong);
+      }
+
+      .stepper__item.is-active::before,
+      .stepper__item.is-reached::before {
+        background: var(--color-bp-exito-600);
       }
 
       .stepper__step {
+        position: relative;
+        /* Above the connectors regardless of sibling paint order. */
+        z-index: 1;
         display: flex;
+        flex-direction: column;
         align-items: center;
-        gap: var(--spacing-3);
+        gap: var(--spacing-2);
+        width: 100%;
         border: none;
         background: none;
-        padding: 0;
+        padding: 0 0.25rem;
         font: inherit;
         cursor: pointer;
       }
@@ -403,6 +299,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
         outline-offset: 2px;
       }
 
+      /* Never-visited default: no fill, just the outline and the number. */
       .stepper__marker {
         display: grid;
         place-items: center;
@@ -412,7 +309,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
         border-radius: 50%;
         font-size: 0.875rem;
         font-weight: 700;
-        background: var(--color-bp-hueso-200);
+        background: transparent;
         color: var(--color-bp-text-muted);
         border: 1.5px solid var(--color-bp-border-strong);
         transition: all 0.15s ease;
@@ -424,34 +321,38 @@ import { TablesStepComponent } from './steps/tables-step.component';
         color: #fff;
       }
 
-      .stepper__item.is-done .stepper__marker {
+      /* Passed and fully filled in. */
+      .stepper__item.is-complete .stepper__marker {
         background: var(--color-bp-exito-600);
         border-color: var(--color-bp-exito-600);
         color: #fff;
       }
 
+      /* Passed but still missing data. */
+      .stepper__item.is-partial .stepper__marker {
+        background: var(--color-bp-aviso-600);
+        border-color: var(--color-bp-aviso-600);
+        color: #fff;
+      }
+
       .stepper__label {
-        font-size: 0.875rem;
+        font-size: 0.8125rem;
         font-weight: 600;
+        line-height: 1.25;
+        text-align: center;
+        text-wrap: balance;
         color: var(--color-bp-text-muted);
       }
 
       .stepper__item.is-active .stepper__label,
-      .stepper__item.is-done .stepper__label {
+      .stepper__item.is-complete .stepper__label,
+      .stepper__item.is-partial .stepper__label {
         color: var(--color-bp-text);
       }
 
-      .stepper__connector {
-        flex: 1 1 auto;
-        height: 1.5px;
-        background: var(--color-bp-border-strong);
-        margin: 0 var(--spacing-3);
-        min-width: 24px;
-      }
-
-      @media (max-width: 480px) {
+      @media (max-width: 640px) {
         .stepper__label {
-          display: none;
+          font-size: 0.6875rem;
         }
       }
 
@@ -522,6 +423,15 @@ export class CompetitionWizardComponent {
   private readonly location = inject(Location);
   private readonly api = inject(CompetitionsApiService);
 
+  protected readonly steps: { number: 1 | 2 | 3 | 4 | 5 | 6; label: string }[] = [
+    { number: 1, label: 'Datos básicos' },
+    { number: 2, label: 'Detalles' },
+    { number: 3, label: 'Estilos' },
+    { number: 4, label: 'Importar cervezas' },
+    { number: 5, label: 'Importar jueces' },
+    { number: 6, label: 'Mesas' },
+  ];
+
   protected readonly currentStep = signal<1 | 2 | 3 | 4 | 5 | 6>(1);
   protected readonly competitionId = signal<string | null>(null);
   protected readonly competition = signal<CompetitionDetail | null>(null);
@@ -547,7 +457,50 @@ export class CompetitionWizardComponent {
   // the organizer confirms.
   protected readonly pendingStep = signal<1 | 2 | 3 | 4 | 5 | 6 | null>(null);
 
+  // Every step number that currentStep has ever landed on this session — the stepper marker for a
+  // step colours in (green/orange) only once it's been passed; a step never reached yet stays
+  // empty even if it's reachable via the stepper (canJumpTo lets you jump ahead once
+  // competitionId is set).
+  protected readonly visitedSteps = signal<ReadonlySet<number>>(new Set([1]));
+
+  // Steps 3-6 report their own completeness (each depends on data this shell doesn't otherwise
+  // load — categories/styles, import rows, judge rows, table assignments) via a statusChange
+  // output, same pattern as the existing dirtyChange wiring. Defaults to 'partial' until the step
+  // has actually mounted and reported in, and — because @switch destroys/recreates the
+  // non-matching step on every navigation — keeps whatever it last reported after the organizer
+  // navigates away.
+  protected readonly categoriesStatus = signal<'complete' | 'partial'>('partial');
+  protected readonly importStatus = signal<'complete' | 'partial'>('partial');
+  protected readonly judgeImportStatus = signal<'complete' | 'partial'>('partial');
+  protected readonly tablesStatus = signal<'complete' | 'partial'>('partial');
+
+  // Steps 1-2 write straight to the `competition` record this shell already holds, so their
+  // completeness is derived from it directly rather than needing their own statusChange output.
+  // Step 1's required fields (name, venue, startDate, endDate — see basics-step.component.ts) are
+  // already enforced before the record can be saved, so this is 'complete' the moment the record
+  // exists.
+  protected readonly basicsStatus = computed<'complete' | 'partial'>(() => {
+    const c = this.competition();
+    return c && c.name && c.venue && c.startDate && c.endDate ? 'complete' : 'partial';
+  });
+
+  // Every field on step 2 is optional (see details-step.component.ts) — there is no required
+  // field that can be "missing", so per the completion rule (complete = every required field
+  // filled) this step is complete as soon as it's been visited and the competition exists.
+  protected readonly detailsStatus = computed<'complete' | 'partial'>(() =>
+    this.competition() ? 'complete' : 'partial',
+  );
+
   constructor() {
+    // currentStep starts at 1 and visitedSteps is seeded with 1, so this only ever adds steps 2-6
+    // as the organizer actually reaches them.
+    effect(() => {
+      const step = this.currentStep();
+      if (!this.visitedSteps().has(step)) {
+        this.visitedSteps.update((set) => new Set(set).add(step));
+      }
+    });
+
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.competitionId.set(id);
@@ -588,6 +541,10 @@ export class CompetitionWizardComponent {
     this.currentStep.set(4);
   }
 
+  protected onImportSaved(): void {
+    this.currentStep.set(5);
+  }
+
   protected onJudgeImportSaved(): void {
     this.currentStep.set(6);
   }
@@ -598,6 +555,30 @@ export class CompetitionWizardComponent {
 
   protected canJumpTo(step: 1 | 2 | 3 | 4 | 5 | 6): boolean {
     return step === 1 || this.competitionId() !== null;
+  }
+
+  // Stepper marker colour for a given step: null keeps the empty, uncoloured look (either it's
+  // the active step, still shown with its own copper highlight, or it has never been visited);
+  // otherwise 'complete' (green check, every required field on that step is filled) or 'partial'
+  // (amber circle with the step number, something required is still missing).
+  protected stepStatus(step: 1 | 2 | 3 | 4 | 5 | 6): 'complete' | 'partial' | null {
+    if (this.currentStep() === step || !this.visitedSteps().has(step)) {
+      return null;
+    }
+    switch (step) {
+      case 1:
+        return this.basicsStatus();
+      case 2:
+        return this.detailsStatus();
+      case 3:
+        return this.categoriesStatus();
+      case 4:
+        return this.importStatus();
+      case 5:
+        return this.judgeImportStatus();
+      case 6:
+        return this.tablesStatus();
+    }
   }
 
   protected goToStep(step: 1 | 2 | 3 | 4 | 5 | 6): void {

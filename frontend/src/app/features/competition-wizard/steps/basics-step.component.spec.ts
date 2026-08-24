@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
 import { ApiError } from '../../../core/api/api-error';
@@ -40,6 +40,9 @@ describe('BasicsStepComponent', () => {
     return fixture;
   }
 
+  // Step 1 is the only wizard step where "Siguiente" stays gated on validity — every later step
+  // needs the competition id this step creates, so there is nowhere valid to navigate to without
+  // it (see basics-step.component.ts).
   it('disables Next while required fields are empty or invalid', () => {
     const fixture = createComponent();
     const button = fixture.nativeElement.querySelector(
@@ -71,6 +74,14 @@ describe('BasicsStepComponent', () => {
       'button[type="submit"]',
     ) as HTMLButtonElement;
     expect(button.disabled).toBe(false);
+  });
+
+  it('renders exactly one bottom-bar button, labeled "Siguiente" (step 1 has no previous step)', () => {
+    const fixture = createComponent();
+
+    const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')];
+    expect(buttons.length).toBe(1);
+    expect((buttons[0] as HTMLButtonElement).textContent?.trim()).toBe('Siguiente');
   });
 
   it('calls create() with only the basics fields when there is no competition id yet', () => {
@@ -164,82 +175,6 @@ describe('BasicsStepComponent', () => {
 
     expect(emitted).toEqual([]);
     expect(fixture.nativeElement.textContent).toContain('Name is already in use');
-  });
-
-  it('opens a save-or-discard dialog instead of navigating immediately on "Volver al listado"', () => {
-    const fixture = createComponent();
-
-    const backButton = fixture.nativeElement.querySelector(
-      '.back-to-list-link',
-    ) as HTMLButtonElement;
-    backButton.click();
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeTruthy();
-  });
-
-  it('discards without saving and navigates to the organizer dashboard', () => {
-    const fixture = createComponent();
-    const router = TestBed.inject(Router);
-    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
-
-    fixture.componentInstance['onRequestBack']();
-    fixture.componentInstance['onDiscardAndLeave']();
-    fixture.detectChanges();
-
-    expect(fakeApi.create).not.toHaveBeenCalled();
-    expect(fakeApi.update).not.toHaveBeenCalled();
-    expect(navigateSpy).toHaveBeenCalledWith('/organizer/dashboard');
-    expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeFalsy();
-  });
-
-  it('closes the dialog without navigating on "Cancelar"', () => {
-    const fixture = createComponent();
-    const router = TestBed.inject(Router);
-    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
-
-    fixture.componentInstance['onRequestBack']();
-    fixture.componentInstance['onCancelBackConfirm']();
-    fixture.detectChanges();
-
-    expect(navigateSpy).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeFalsy();
-  });
-
-  it('saves as a draft and navigates to the organizer dashboard on "Guardar borrador"', () => {
-    fakeApi.create.mockReturnValue(of(detailFixture()));
-    const fixture = createComponent();
-    fixture.componentInstance.form.setValue({
-      name: 'Golden Ale Cup',
-      venue: 'Town Hall',
-      startDate: '2026-08-01',
-      endDate: '2026-08-02',
-    });
-    const router = TestBed.inject(Router);
-    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
-
-    fixture.componentInstance['onRequestBack']();
-    fixture.componentInstance['onSaveAndLeave']();
-
-    expect(fakeApi.create).toHaveBeenCalledWith({
-      name: 'Golden Ale Cup',
-      venue: 'Town Hall',
-      startDate: '2026-08-01',
-      endDate: '2026-08-02',
-    });
-    expect(navigateSpy).toHaveBeenCalledWith('/organizer/dashboard');
-  });
-
-  it('does not save or navigate on "Guardar borrador" while required fields are missing', () => {
-    const fixture = createComponent();
-    const router = TestBed.inject(Router);
-    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
-
-    fixture.componentInstance['onRequestBack']();
-    fixture.componentInstance['onSaveAndLeave']();
-
-    expect(fakeApi.create).not.toHaveBeenCalled();
-    expect(navigateSpy).not.toHaveBeenCalled();
   });
 
   it('prefills the form from initialValue (resume-with-data)', () => {

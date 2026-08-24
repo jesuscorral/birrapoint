@@ -1196,6 +1196,78 @@ judge already provisioned with a Keycloak account.
       `640px` breakpoint override matching the card's own responsive padding drop to `--spacing-6`)
       so the bar reads as part of the card rather than a gap-floating overlay. Pure CSS — not
       exercised by Jest/jsdom (no real layout engine), verified in a live browser instead.
+    - **Desktop-first density pass (2026-08-05)**: the organizer provisions competitions from a
+      computer (only the judge flows are phone/tablet-first), so three layout problems were fixed
+      together. (1) **Stepper**: six items laid out as one horizontal row of marker + inline label
+      no longer fit the 40rem `.wizard-container` and forced a horizontal scroll; it is now a
+      `grid-template-columns: repeat(6, 1fr)` row with the label *under* its marker and the
+      connector line drawn as an `.stepper__item + .stepper__item::before` pseudo-element, so it
+      fits any width down to 390px with no overflow (the six duplicated `<li>` blocks collapsed
+      into an `@for` over a `steps` array). (2) **Step 3 (`categories-step`)**: the BJCP catalog
+      rendered ~125 styles as one flat column of full-width `<select>` rows — a ~9,000px-tall page.
+      It is now a two-column `.styles-layout` (sticky categories panel + catalog) inside a
+      `wizard-container--wide` (72rem, bound to `currentStep() === 3` only, per the deliberate
+      narrow default for the form-heavy steps), with each BJCP group as a collapsed `<details>`
+      tile carrying an assigned/total badge, a code/name search box that auto-expands its matches,
+      an "Expandir todo" toggle, and two-up style rows inside an open group — ~1,500px collapsed.
+      (3) **Step 4 (`import-step`)**: the bare `<input type="file">` became a clickable/drag-and-drop
+      `.dropzone` (`<label for>` wrapping the input, showing the chosen filename and size). The
+      input is clipped (`clip-path: inset(50%)`), *not* `opacity: 0` — verified in the live browser
+      that an `opacity: 0` input disappears from the accessibility tree entirely, which would have
+      left the dropzone pointer-only; clipped, it keeps both keyboard focus and its `aria-label`
+      accessible name. All three are pure layout, invisible to Jest/jsdom (no layout engine) —
+      verified in a live browser by measuring `scrollWidth` vs `clientWidth`, page height, and the
+      rendered accessibility tree.
+    - **Follow-up pass, same day (organizer feedback)**: (a) **group assignment without expanding**
+      — the `<details>`/`<summary>` group became a plain `div` with an always-visible
+      `.style-group__header` (toggle `<button aria-expanded/aria-controls>` + the bulk `<select>`
+      side by side) and a `[hidden]`-toggled `.style-group__rows`. Interactive controls inside a
+      `<summary>` are a keyboard/AT trap (and clicking one toggles the disclosure), so the native
+      element was dropped rather than worked around. The group select now also *reports* state
+      instead of resetting to a placeholder: `groupCategoryIndex()` returns the shared category
+      index, `-1` when nothing in the group is assigned, or `'mixed'` (rendered as a disabled
+      "Varias categorías" option) when the group is split — so a collapsed header shows what a
+      group is assigned to. `onBulkAssignGroup` now treats `''` as "clear the group" (the rendered
+      "Sin asignar" option) while still accepting the older `'unassign'` sentinel; the spec that
+      pinned the old reset-to-placeholder behavior was rewritten, plus new specs for the mixed
+      state, header-only assignment, and single-group toggling. Tiles are `minmax(22rem, 1fr)` so
+      two columns survive the extra select (~1,900px collapsed, up from ~1,500px — the cost of
+      making every group's assignment visible without a click). (b) **Import row summary**: a long
+      style name used to push "Editar"/"Excluir" onto a second line because `.import-row__summary`
+      was a wrapping flex row; it is now a 4-column grid (`auto minmax(0,1fr) auto auto`) with the
+      participant/category/style texts in their own nested `.import-row__facts` grid, so long text
+      wraps *inside its cell* and the action buttons stay pinned right on one line (verified live:
+      row height grows, button x-position doesn't move). Step 4 also joined step 3 in
+      `wizard-container--wide`. "Editar" gained the same per-row `ariaLabel` that "Excluir"
+      already had.
+    - **Homogeneity pass (2026-08-06, organizer feedback)**: the wizard shell resized between
+      steps (40rem for the form steps, 72rem for steps 3–4) and the stepper connector ran
+      underneath the step numbers. Both fixed, plus one control inconsistency:
+      (a) **One container width for every step** — `wizard-container--wide` and its
+      `[class.…]="currentStep() === 3 || currentStep() === 4"` binding are gone;
+      `.wizard-container` is a flat `max-width: 64rem` for all six steps, so the card/shell never
+      resizes on navigation. The browse-and-act steps absorb the 8rem loss versus the old wide
+      cap via tighter tracks (`categories-step`'s `.styles-layout` sidebar `minmax(15rem, 18rem)`,
+      its `.style-groups` tiles `minmax(18rem, 1fr)`), keeping the same two-up tile layout.
+      (b) **Form steps fill that width instead of stretching single controls across it** — steps 1
+      and 2 lay their fields out in a `.form-grid` (`1fr 1fr`, column gap only since each field
+      carries its own `margin-bottom`; single column under 768px), with the step-2 description
+      textarea spanning both columns (`.form-grid__full`). This replaces the old dates-only
+      `.field-row`.
+      (c) **Stepper connector clears the markers** — `.stepper__item + .stepper__item::before`
+      insets by `calc(±50% ∓ 23px)` (marker outer radius 17px + a 6px gap) instead of running
+      centre-to-centre, and `.stepper__step` takes `z-index: 1` so a marker always paints above a
+      connector regardless of sibling paint order. Measured live: 3–6px clearance on both ends of
+      all five segments, no overlap.
+      (d) **Shared `bp-file-dropzone`** (`shared/components/bp-file-dropzone/`) — step 5's judge
+      roster upload was still a bare `<input type="file">` next to a `.upload-label` while step 4
+      had the drag-and-drop dropzone. The dropzone (markup, CSS, drag handlers, filename/size
+      display, and the clipped-not-hidden input rationale above) moved into a standalone component
+      with `inputId`/`ariaLabel`/`accept`/`prompt`/`hint`/`disabled` inputs and a
+      `model<File | null>` for two-way `[(file)]` binding; both import steps now render it, so the
+      two upload controls cannot drift apart again. Each step keeps its own `aria-label`
+      ("Archivo de inscripciones (.xlsx)" / "Listado de jueces (.xlsx)"), the ids `import-file` /
+      `judge-import-file`, and step 4 keeps its zero-categories `disabled` gate.
   **Step 5 (T119, US14, undocumented until now)**: `JudgeImportStepComponent`
   (`steps/judge-import-step.component.ts`) — judge-roster `.xlsx` upload, structurally mirroring
   step 4's upload/row-list/per-row-edit/consolidate shape (`JudgeImportApiService` mirrors

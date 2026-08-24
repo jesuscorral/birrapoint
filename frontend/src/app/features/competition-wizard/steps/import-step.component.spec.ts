@@ -1,5 +1,4 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
 import { CatalogApiService } from '../../../core/api/catalog-api.service';
@@ -115,7 +114,6 @@ describe('ImportStepComponent', () => {
         { provide: CatalogApiService, useValue: fakeCatalogApi },
         { provide: CompetitionsApiService, useValue: fakeCompetitionsApi },
         { provide: EntriesApiService, useValue: fakeEntriesApi },
-        provideRouter([]),
       ],
     });
   });
@@ -155,6 +153,15 @@ describe('ImportStepComponent', () => {
     return fixture;
   }
 
+  it('renders exactly two bottom-bar buttons, labeled "Atrás" and "Siguiente"', () => {
+    const fixture = createComponent();
+
+    const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
+      (button: HTMLButtonElement) => button.textContent?.trim(),
+    );
+    expect(buttons).toEqual(['Atrás', 'Siguiente']);
+  });
+
   it('shows an empty-state alert and disables the upload control when the competition has zero categories', () => {
     fakeCompetitionsApi.getCategories.mockReturnValue(
       of(categoriesResponseFixture({ categories: [] })),
@@ -166,14 +173,13 @@ describe('ImportStepComponent', () => {
     expect(fileInput.disabled).toBe(true);
   });
 
-  it('binds the native form submit event to onUpload via ngSubmit (regression: FormsModule must be imported, or a submit click falls through to a real page navigation)', () => {
+  it('uploads the selected file when "Siguiente" is clicked and no batch exists yet', () => {
     fakeImportApi.upload.mockReturnValue(of(batchFixture([rowFixture({ rowNumber: 1 })])));
     const fixture = createComponent();
     selectFile(fixture, new File(['data'], 'entries.xlsx'));
     fixture.detectChanges();
 
-    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
-    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    buttonWithText(fixture.nativeElement, 'Siguiente').click();
     fixture.detectChanges();
 
     expect(fakeImportApi.upload).toHaveBeenCalledWith('c1', expect.any(File));
@@ -332,7 +338,7 @@ describe('ImportStepComponent', () => {
     expect(buttonWithText(fixture.nativeElement, 'Guardar fila')).toBeTruthy();
   });
 
-  it('keeps Consolidar disabled while any row is unresolved, and enables it once every row is resolved', () => {
+  it('does not consolidate while any row is unresolved — "Siguiente" just advances instead, leaving the batch pending', () => {
     const fixture = uploadedFixture([
       rowFixture({ rowNumber: 1, status: 'Valid' }),
       rowFixture({
@@ -342,23 +348,19 @@ describe('ImportStepComponent', () => {
         data: rowDataFixture({ participantName: null }),
       }),
     ]);
+    const emitted: void[] = [];
+    fixture.componentInstance.saved.subscribe(() => emitted.push(undefined));
 
-    const consolidateButton = buttonWithText(fixture.nativeElement, 'Consolidar');
-    expect(consolidateButton.disabled).toBe(true);
+    buttonWithText(fixture.nativeElement, 'Siguiente').click();
 
-    const row2 = fixture.nativeElement.querySelectorAll('.import-row')[1] as Element;
-    fakeImportApi.excludeRow.mockReturnValue(of(rowFixture({ rowNumber: 2, status: 'Excluded' })));
-    buttonWithText(row2, 'Excluir').click();
-    fixture.detectChanges();
-
-    const consolidateButtonAfter = buttonWithText(fixture.nativeElement, 'Consolidar');
-    expect(consolidateButtonAfter.disabled).toBe(false);
+    expect(fakeImportApi.consolidate).not.toHaveBeenCalled();
+    expect(emitted.length).toBe(1);
   });
 
-  it('consolidates successfully, shows the summary, and only navigates once the organizer confirms', () => {
+  it('consolidates once every row is resolved, shows the summary, and only advances on a second "Siguiente" click', () => {
     const fixture = uploadedFixture([rowFixture({ rowNumber: 1, status: 'Valid' })]);
-    const router = TestBed.inject(Router);
-    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
+    const emitted: void[] = [];
+    fixture.componentInstance.saved.subscribe(() => emitted.push(undefined));
 
     fakeImportApi.consolidate.mockReturnValue(
       of({
@@ -367,27 +369,26 @@ describe('ImportStepComponent', () => {
         entries: [{ id: 'e1', blindCode: 'AB12', styleCode: '21C' }],
       }),
     );
-    buttonWithText(fixture.nativeElement, 'Consolidar').click();
+    buttonWithText(fixture.nativeElement, 'Siguiente').click();
     fixture.detectChanges();
 
     expect(fakeImportApi.consolidate).toHaveBeenCalledWith('c1', 'i1');
     expect(fixture.nativeElement.textContent).toContain('Importadas: 1');
-    expect(navigateSpy).not.toHaveBeenCalled();
-    const buttons = [...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[];
-    expect(buttons.some((button) => button.textContent?.trim() === 'Consolidar')).toBe(false);
+    expect(emitted.length).toBe(0);
 
-    buttonWithText(fixture.nativeElement, 'Ir al panel de organizador').click();
+    buttonWithText(fixture.nativeElement, 'Siguiente').click();
     fixture.detectChanges();
 
-    expect(navigateSpy).toHaveBeenCalledWith('/organizer/dashboard');
+    expect(emitted.length).toBe(1);
+    expect(fakeImportApi.consolidate).toHaveBeenCalledTimes(1);
   });
 
-  it('emits back when "← Volver" is clicked', () => {
+  it('emits back when "Atrás" is clicked', () => {
     const fixture = createComponent();
     const emitted: void[] = [];
     fixture.componentInstance.back.subscribe(() => emitted.push(undefined));
 
-    buttonWithText(fixture.nativeElement, '← Volver').click();
+    buttonWithText(fixture.nativeElement, 'Atrás').click();
 
     expect(emitted.length).toBe(1);
   });
@@ -498,8 +499,6 @@ describe('ImportStepComponent', () => {
       rowFixture({ rowNumber: 1, status: 'CategoryStyleMismatch', error: 'x' }),
     ]);
 
-    const consolidateButton = buttonWithText(fixture.nativeElement, 'Consolidar');
-    expect(consolidateButton.disabled).toBe(true);
     expect(fixture.nativeElement.textContent).toContain('1 fila(s) necesitan corrección');
   });
 

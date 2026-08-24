@@ -7,11 +7,24 @@ var postgres = builder.AddPostgres("postgres")
     .WithLifetime(ContainerLifetime.Persistent);
 var db = postgres.AddDatabase("db", "birrapoint");
 // Keycloak's own store (below) — a second logical database on the same Postgres server/volume.
-// Re-seeding the realm from scratch (birrapoint-realm.json edits, or recovering from the
-// corruption incident ADR-0013 describes) means dropping this database, not clearing a folder —
-// `docker exec <postgres container> psql -U postgres -c 'DROP DATABASE keycloak'` before the next
-// `dotnet run`. Wiping the Postgres data volume now resets Keycloak and the app's own data
-// together, not independently (ADR-0013).
+// This is where every registered organizer/judge account and its password credential lives, so it
+// survives `dotnet run` restarts and container recreation; only destroying the Postgres volume or
+// this database loses them (ADR-0013).
+//
+// Realm import runs with IGNORE_EXISTING (see the Keycloak resource below), so once the realm is
+// seeded, later edits to birrapoint-realm.json are NEVER applied to it — realm-level settings
+// (SMTP, themes, flows) drift silently between the file and the running realm. Apply those through
+// the admin console/Admin REST API on the running realm, or re-seed from scratch.
+//
+// !! Re-seeding means `docker exec <postgres container> psql -U postgres -c 'DROP DATABASE
+// keycloak'` before the next `dotnet run`, and that DELETES EVERY USER created since the seed —
+// their app data (Organizers, Competitions…) stays in the `birrapoint` database but is orphaned,
+// because it is keyed by Keycloak user id and a re-registered account gets a new one. Export the
+// realm first (`docker exec <keycloak container> /opt/keycloak/bin/kc.sh export --dir /tmp/export
+// --realm birrapoint --users realm_file`, then `docker cp` it out) whenever those accounts matter.
+// To restore access to an existing account, do NOT re-seed: use the login page's
+// "¿Olvidaste tu contraseña?" (realm resetPasswordAllowed, mail lands in Mailpit) or reset the
+// password from the admin console — both keep the user id, and with it all of that user's data.
 var keycloakDb = postgres.AddDatabase("keycloakdb", "keycloak");
 
 // Keycloak 26 (constitution: 25+) with the birrapoint realm auto-imported.
@@ -44,6 +57,14 @@ var keycloakHttp = keycloak.GetEndpoint("http");
 // a deterministic address to reach Mailpit's REST API).
 var mailpit = builder.AddMailPit("mailpit", httpPort: 8025);
 var smtp = mailpit.GetEndpoint("smtp");
+
+// Keycloak's own "Forgot Password" flow (resetPasswordAllowed in the realm) sends its email
+// directly from the Keycloak server — it needs the realm's smtpServer block below wired to
+// Mailpit too, separately from the api project's Smtp__Host/Port above (app-side invitations).
+keycloak
+    .WithEnvironment("SMTP_HOST", ReferenceExpression.Create($"{smtp.Property(EndpointProperty.Host)}"))
+    .WithEnvironment("SMTP_PORT", ReferenceExpression.Create($"{smtp.Property(EndpointProperty.Port)}"))
+    .WaitFor(mailpit);
 
 // Backend API: EF migrations + BJCP seed run on startup in Development (T009/T010).
 var api = builder.AddProject<Projects.BirraPoint_Api>("api")

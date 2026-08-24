@@ -42,6 +42,15 @@ describe('DetailsStepComponent', () => {
     return fixture;
   }
 
+  it('renders exactly two bottom-bar buttons, labeled "Atrás" and "Siguiente"', () => {
+    const fixture = createComponent();
+
+    const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
+      (button: HTMLButtonElement) => button.textContent?.trim(),
+    );
+    expect(buttons).toEqual(['Atrás', 'Siguiente']);
+  });
+
   it('calls update() with the full accumulated form state (basics + details) on Save Draft', () => {
     fakeApi.update.mockReturnValue(of(detailFixture()));
     const fixture = createComponent();
@@ -72,8 +81,8 @@ describe('DetailsStepComponent', () => {
     fakeApi.update.mockReturnValue(of(detailFixture()));
     const fixture = createComponent();
 
-    // The step now also renders a "Volver" (back) button before the submit button — target the
-    // submit button specifically rather than the first <button> in DOM order.
+    // The bottom bar renders "Atrás" before "Siguiente" — target the submit button specifically
+    // rather than the first <button> in DOM order.
     const button = fixture.nativeElement.querySelector(
       'button[type="submit"]',
     ) as HTMLButtonElement;
@@ -94,7 +103,7 @@ describe('DetailsStepComponent', () => {
     });
   });
 
-  it('disables Save Draft when entryLimit is not positive', () => {
+  it('never disables "Siguiente" on validation — an invalid entryLimit is left unsaved and the step advances anyway', () => {
     const fixture = createComponent();
     fixture.componentInstance.form.patchValue({ entryLimit: 0 });
     fixture.detectChanges();
@@ -102,10 +111,18 @@ describe('DetailsStepComponent', () => {
     const button = fixture.nativeElement.querySelector(
       'button[type="submit"]',
     ) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
+    expect(button.disabled).toBe(false);
+
+    const emitted: CompetitionDetail[] = [];
+    fixture.componentInstance.saved.subscribe((value) => emitted.push(value));
+
+    fixture.componentInstance.onSaveDraft();
+
+    expect(fakeApi.update).not.toHaveBeenCalled();
+    expect(emitted).toEqual([detailFixture()]);
   });
 
-  it('disables Save Draft when registrationEnd is before registrationStart', () => {
+  it('never disables "Siguiente" when registrationEnd is before registrationStart — advances without saving instead', () => {
     const fixture = createComponent();
     fixture.componentInstance.form.patchValue({
       registrationStart: '2026-07-01',
@@ -116,7 +133,15 @@ describe('DetailsStepComponent', () => {
     const button = fixture.nativeElement.querySelector(
       'button[type="submit"]',
     ) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
+    expect(button.disabled).toBe(false);
+
+    const emitted: CompetitionDetail[] = [];
+    fixture.componentInstance.saved.subscribe((value) => emitted.push(value));
+
+    fixture.componentInstance.onSaveDraft();
+
+    expect(fakeApi.update).not.toHaveBeenCalled();
+    expect(emitted).toEqual([detailFixture()]);
   });
 
   it('emits saved instead of navigating directly — the wizard shell now owns advancing past this step', () => {
@@ -140,6 +165,18 @@ describe('DetailsStepComponent', () => {
     fixture.componentInstance.onSaveDraft();
 
     expect(emitted).toEqual([detail]);
+  });
+
+  it('emits back when "Atrás" is clicked', () => {
+    const fixture = createComponent();
+    const emitted: void[] = [];
+    fixture.componentInstance.back.subscribe(() => emitted.push(undefined));
+
+    const buttons = [...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[];
+    const backButton = buttons.find((button) => button.textContent?.trim() === 'Atrás');
+    backButton?.click();
+
+    expect(emitted.length).toBe(1);
   });
 
   it('surfaces an ApiError banner and stays on the page instead of navigating away', () => {
