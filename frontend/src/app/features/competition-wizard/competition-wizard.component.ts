@@ -1,7 +1,7 @@
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Location } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
 import type { CompetitionDetail } from '../../core/api/competitions-api.service';
@@ -34,12 +34,22 @@ import { TablesStepComponent } from './steps/tables-step.component';
 
       <main class="wizard-main">
         <div class="wizard-container">
-          <span class="eyebrow">{{
-            competitionId() ? 'Editar competición' : 'Crear competición'
-          }}</span>
-          <h1 class="wizard-title">
-            {{ competition()?.name || 'Registra tu competición' }}
-          </h1>
+          <div class="wizard-header">
+            <div>
+              <span class="eyebrow">{{
+                competitionId() ? 'Editar competición' : 'Crear competición'
+              }}</span>
+              <h1 class="wizard-title">
+                {{ competition()?.name || 'Registra tu competición' }}
+              </h1>
+            </div>
+            <!-- T125: hoisted out of the step action bars, where it existed on steps 1 and 3 only
+                 and competed with "Atrás" for the same corner. One exit affordance, same place on
+                 all six steps, guarded by the wizard's own unsaved-changes dialog. -->
+            <button type="button" class="back-to-list-link" (click)="onRequestExit()">
+              ← Volver al listado
+            </button>
+          </div>
 
           <!-- Stepper -->
           <ol class="stepper" aria-label="Progreso del asistente">
@@ -264,6 +274,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
                     [competitionId]="competitionId()!"
                     [importId]="importId()"
                     (importIdChange)="importId.set($event)"
+                    (saved)="onImportSaved()"
                     (back)="onBack()"
                     (dirtyChange)="stepDirty.set($event)"
                   />
@@ -292,7 +303,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
       </main>
     </div>
 
-    @if (pendingStep() !== null) {
+    @if (pendingStep() !== null || pendingExit()) {
       <div class="modal-backdrop" role="presentation" (click)="onKeepEditing()">
         <div
           role="alertdialog"
@@ -320,6 +331,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
               (clicked)="onDiscardAndNavigate()"
             ></bp-button>
           </div>
+          <p class="modal-hint">Para conservarlos, usa «Guardar borrador» antes de salir.</p>
         </div>
       </div>
     }
@@ -342,9 +354,44 @@ import { TablesStepComponent } from './steps/tables-step.component';
         padding: var(--spacing-10) var(--spacing-6) var(--spacing-16);
       }
 
+      /* T125: the organizer console is desktop-first. The shell now spans the viewport (capped so
+         it does not sprawl on ultrawide displays) and each step decides its own inner measure —
+         the form steps wrap their fields in .step-form to keep a readable column, while the
+         import and table-assignment steps use the full width they actually need. */
       .wizard-container {
         width: 100%;
-        max-width: 40rem;
+        max-width: 96rem;
+      }
+
+      .wizard-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: var(--spacing-4);
+        flex-wrap: wrap;
+      }
+
+      .back-to-list-link {
+        border: none;
+        background: none;
+        padding: var(--spacing-2) 0;
+        font: inherit;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--color-bp-text-muted);
+        cursor: pointer;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      .back-to-list-link:hover {
+        color: var(--color-bp-text);
+      }
+
+      .back-to-list-link:focus-visible {
+        outline: 2px solid var(--color-bp-cobre-500);
+        outline-offset: 2px;
+        border-radius: var(--radius-sm);
       }
 
       .eyebrow {
@@ -365,6 +412,12 @@ import { TablesStepComponent } from './steps/tables-step.component';
         letter-spacing: -0.02em;
         color: var(--color-bp-text);
         margin: 0 0 var(--spacing-8);
+      }
+
+      .modal-hint {
+        margin: var(--spacing-4) 0 0;
+        font-size: 0.8125rem;
+        color: var(--color-bp-text-muted);
       }
 
       /* --- Stepper --- */
@@ -462,11 +515,14 @@ import { TablesStepComponent } from './steps/tables-step.component';
         border-radius: var(--radius-lg);
         box-shadow: var(--shadow-md);
         padding: var(--spacing-8);
+        /* Read by bp-step-actions so its sticky footer bleeds to the card's own edges. */
+        --bp-step-actions-inset: var(--spacing-8);
       }
 
       @media (max-width: 640px) {
         .wizard-card {
           padding: var(--spacing-6);
+          --bp-step-actions-inset: var(--spacing-6);
         }
       }
 
@@ -521,6 +577,7 @@ export class CompetitionWizardComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly location = inject(Location);
   private readonly api = inject(CompetitionsApiService);
+  private readonly router = inject(Router);
 
   protected readonly currentStep = signal<1 | 2 | 3 | 4 | 5 | 6>(1);
   protected readonly competitionId = signal<string | null>(null);
@@ -546,6 +603,9 @@ export class CompetitionWizardComponent {
   // Non-null while the "discard unsaved edits?" dialog is open; holds the step we'd move to if
   // the organizer confirms.
   protected readonly pendingStep = signal<1 | 2 | 3 | 4 | 5 | 6 | null>(null);
+  // T125's header "Volver al listado" shares pendingStep's dialog: same FR-007 question, different
+  // destination, so the two intents are tracked separately but rendered by one alertdialog.
+  protected readonly pendingExit = signal(false);
 
   constructor() {
     const id = this.route.snapshot.paramMap.get('id');
@@ -588,6 +648,10 @@ export class CompetitionWizardComponent {
     this.currentStep.set(4);
   }
 
+  protected onImportSaved(): void {
+    this.currentStep.set(5);
+  }
+
   protected onJudgeImportSaved(): void {
     this.currentStep.set(6);
   }
@@ -617,14 +681,30 @@ export class CompetitionWizardComponent {
     this.currentStep.set(step);
   }
 
+  // FR-007 again, for leaving the wizard entirely rather than moving between its steps.
+  protected onRequestExit(): void {
+    if (this.stepDirty()) {
+      this.pendingExit.set(true);
+      return;
+    }
+    this.router.navigateByUrl('/organizer/dashboard');
+  }
+
   protected onKeepEditing(): void {
     this.pendingStep.set(null);
+    this.pendingExit.set(false);
   }
 
   protected onDiscardAndNavigate(): void {
     const step = this.pendingStep();
+    const leaving = this.pendingExit();
     this.pendingStep.set(null);
+    this.pendingExit.set(false);
     this.stepDirty.set(false);
+    if (leaving) {
+      this.router.navigateByUrl('/organizer/dashboard');
+      return;
+    }
     if (step !== null) {
       this.currentStep.set(step);
     }

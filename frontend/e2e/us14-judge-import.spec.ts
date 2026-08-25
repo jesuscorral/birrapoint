@@ -63,7 +63,8 @@ async function createCompetition(page: Page): Promise<string> {
   await page.getByLabel('Fecha de inicio').fill('2026-09-01');
   await page.getByLabel('Fecha de fin').fill('2026-09-03');
 
-  await page.getByRole('button', { name: 'Continuar' }).click();
+  // T125: the wizard's forward action is "Siguiente" on every step now.
+  await page.getByRole('button', { name: 'Siguiente' }).click();
   await page.waitForURL(/\/organizer\/competitions\/[0-9a-fA-F-]{36}$/);
 
   return page.url().split('/').pop()!;

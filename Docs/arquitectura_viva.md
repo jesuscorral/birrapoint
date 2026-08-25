@@ -1335,6 +1335,47 @@ and the audit drill-down still shows judge A's earlier submitted total.
   (deliberately not translated with the rest of the board — nine specs address them by label). The new
   visual detail reaches screen readers through `aria-describedby` rather than the accessible name,
   for exactly that reason: WCAG 1.3.1 satisfied without moving a locked name.
+  **T125 — the wizard shell, one action bar, and the step-6 rail.** Three problems, one task.
+  (1) `.wizard-container` was capped at `40rem`. That is right for a form and wrong for everything
+  else the organizer console does, so on a 1900px display step 6 rendered its two-column board
+  inside 640px and collapsed to a single stacked column. The shell now spans `min(100%, 96rem)`
+  and the *steps* decide their own measure: `basics`/`details` wrap their fields in `.step-form`
+  (`max-width: 40rem; margin-inline: auto`), while the category, import and table steps use the
+  width they actually need. (2) Six steps had each grown their own `.step-actions` div and they
+  had drifted — a raw `<button>` link on step 1 where the others had a ghost `bp-button`, a primary
+  reading "Guardar borrador" on step 2 where every other step said "Continuar", two competing back
+  affordances side by side on step 3, and no forward action at all on step 6.
+  `shared/components/bp-step-actions/` is now the single bar: **Atrás** left, the step's own
+  actions projected into the **centre**, the forward action **right** — "Siguiente" everywhere,
+  "Finalizar" on the terminal step. A step chooses labels and centre content and never re-decides
+  the layout. "Volver al listado" moved up to the wizard header, where it exists once for all six
+  steps instead of on two of them, and reuses the shell's own FR-007 unsaved-changes dialog
+  (`pendingExit`); that retired the bespoke save-or-discard dialogs inside `basics-step` and
+  `categories-step`, and promoted "Guardar borrador" from something buried in a leave-confirmation
+  dialog to a first-class centre action. `import-step` gained the `saved` output it never had, so
+  step 4 advances to step 5 rather than dead-ending at "Ir al panel de organizador".
+
+  (3) Step 6's own layout. T124's side-by-side grid was still wrong for the actual task: with the
+  source panel beside the tables, placing a beer meant scrolling a one-column list while the drop
+  targets scrolled away with it. The tables now live in a `position: sticky` rail across the top —
+  compact cards, scrolled horizontally rather than wrapped, so the rail's height does not grow with
+  the table count — and the unassigned pool sits below as a `repeat(auto-fill, minmax(15rem, 1fr))`
+  grid, roughly six beers per row. Drag distance is short and no table ever leaves the viewport.
+  `mesa-card` gained a `compact` variant whose seated zones cap their height and scroll internally,
+  which is what keeps the rail a fixed height. A toolbar over the pool filters by blind code or
+  style text, by style, and by competition category; filtering is strictly presentational — it
+  narrows what the pool renders and never touches an assignment, so a filtered-out beer stays
+  exactly where it was, and the heading reads "n de N" while a filter is active so a short list is
+  never mistaken for a nearly-finished one.
+
+  **Recorded debt found here, not caused here**: `us2-wizard.spec.ts`, `us3-import.spec.ts`,
+  `us3-import-scale.spec.ts` and `e2e/a11y/routes.a11y.spec.ts` still drive the wizard through
+  pre-translation English labels (`Next`, `Save Draft`, `Upload`, `Consolidate`,
+  `getByLabel('Name')`, the heading `Import beer entries`) and a standalone `/import` route that no
+  longer exists. They have been stale since the wizard was translated and folded into six steps —
+  `us4-judges.spec.ts` and `us14-judge-import.spec.ts`, written later, use the real Spanish
+  labels and were updated here. Rewriting the other four needs a live Aspire stack to run them
+  against; done blind it would be guesswork.
 - **`features/judge-tables/`** (T053, US6): the JUDGE role's first real screen —
   `JudgeTablesListComponent` (route `/judge/tables`, the post-login landing) lists assigned tables
   with an order-fixed badge; `JudgeTableOrderComponent` (route `/judge/tables/:tableId`) is the

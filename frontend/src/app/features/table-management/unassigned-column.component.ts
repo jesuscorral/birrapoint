@@ -1,6 +1,6 @@
 import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 import { CdkDropList } from '@angular/cdk/drag-drop';
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 import type { EntryListItem } from '../../core/api/entries-api.service';
 import { BeerTokenComponent } from './beer-token.component';
@@ -43,7 +43,7 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
         }
       </ul>
 
-      <h3>Cervezas sin asignar ({{ beers().length }})</h3>
+      <h3>Cervezas sin asignar ({{ beersCountLabel() }})</h3>
       <ul
         class="unassigned-list unassigned-list--beers"
         cdkDropList
@@ -70,7 +70,7 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
           </li>
         }
         @if (beers().length === 0) {
-          <li class="unassigned-empty" aria-hidden="true">Todas las cervezas están asignadas</li>
+          <li class="unassigned-empty" aria-hidden="true">{{ emptyBeersLabel() }}</li>
         }
       </ul>
     </section>
@@ -84,14 +84,6 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
       border-radius: var(--radius-lg);
       padding: var(--spacing-4);
       background: var(--color-bp-surface);
-      /* Sticks alongside the tables grid so the source list stays reachable while the organizer
-         scrolls through tables; capped so a 200-entry competition scrolls inside the panel rather
-         than pushing the grid off screen. */
-      position: sticky;
-      top: var(--spacing-4);
-      max-height: calc(100vh - var(--spacing-12));
-      overflow-y: auto;
-      overscroll-behavior: contain;
     }
 
     .unassigned-column h3 {
@@ -103,8 +95,6 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
     }
 
     .unassigned-list {
-      display: flex;
-      gap: var(--spacing-2);
       margin: 0 0 var(--spacing-4);
       padding: 0;
       list-style: none;
@@ -112,33 +102,35 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
     }
 
     .unassigned-list--judges {
+      display: flex;
       flex-wrap: wrap;
+      gap: var(--spacing-2);
     }
 
-    /* One card per row: the detailed beer token is a horizontal card, so wrapping them side by side
-       would truncate the style name this variant exists to show. */
+    /* T125: the pool is the full width of the board now, not a sidebar, so beers lay out as a
+       grid — roughly six per row on a desktop screen, which is what lets the organizer see the
+       whole unassigned set without scrolling past the tables rail. */
     .unassigned-list--beers {
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+      gap: var(--spacing-2);
+      align-content: start;
     }
 
     .unassigned-empty {
+      grid-column: 1 / -1;
       color: var(--color-bp-text-muted);
       font-size: 0.8125rem;
       align-self: center;
-    }
-
-    @media (max-width: 900px) {
-      .unassigned-column {
-        position: static;
-        max-height: none;
-        overflow-y: visible;
-      }
     }
   `,
 })
 export class UnassignedColumnComponent {
   readonly judges = input.required<JudgeListItem[]>();
   readonly beers = input.required<EntryListItem[]>();
+  // The unfiltered size of the pool, so the heading can distinguish "3 left to place" from
+  // "3 match the current filter" (T125's toolbar). Null when the board applies no filter.
+  readonly beersTotal = input<number | null>(null);
   readonly connectedJudgeListIds = input.required<string[]>();
   readonly connectedBeerListIds = input.required<string[]>();
 
@@ -149,4 +141,16 @@ export class UnassignedColumnComponent {
 
   protected readonly judgesListId = UNASSIGNED_JUDGES_LIST_ID;
   protected readonly beersListId = UNASSIGNED_BEERS_LIST_ID;
+
+  protected readonly beersCountLabel = computed(() => {
+    const shown = this.beers().length;
+    const total = this.beersTotal();
+    return total === null || total === shown ? `${shown}` : `${shown} de ${total}`;
+  });
+
+  protected readonly emptyBeersLabel = computed(() =>
+    (this.beersTotal() ?? 0) > 0
+      ? 'Ninguna cerveza coincide con el filtro'
+      : 'Todas las cervezas están asignadas',
+  );
 }

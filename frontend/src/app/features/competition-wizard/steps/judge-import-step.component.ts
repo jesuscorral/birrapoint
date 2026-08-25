@@ -22,6 +22,7 @@ import type {
 } from '../../../core/api/judge-import-api.service';
 import { BpAlertComponent } from '../../../shared/components/bp-alert/bp-alert.component';
 import { BpButtonComponent } from '../../../shared/components/bp-button/bp-button.component';
+import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
 import { BpInputComponent } from '../../../shared/components/bp-input/bp-input.component';
 import { BpTextareaComponent } from '../../../shared/components/bp-textarea/bp-textarea.component';
 
@@ -75,6 +76,7 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
   imports: [
     FormsModule,
     BpButtonComponent,
+    BpStepActionsComponent,
     BpInputComponent,
     BpTextareaComponent,
     BpAlertComponent,
@@ -112,21 +114,15 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
             }}</bp-alert>
           }
 
-          <div class="step-actions">
-            <bp-button
-              type="button"
-              label="← Volver"
-              variant="ghost"
-              (clicked)="back.emit()"
-            ></bp-button>
+          <bp-step-actions (back)="back.emit()" (next)="saved.emit()">
             <bp-button
               type="submit"
               label="Subir archivo"
-              variant="primary"
+              variant="secondary"
               [loading]="uploading()"
               [disabled]="!selectedFile() || uploading()"
             ></bp-button>
-          </div>
+          </bp-step-actions>
         </form>
       } @else {
         <section class="judge-import-rows" aria-label="Jueces importados">
@@ -253,33 +249,20 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
               Omitidos: {{ result.skipped.length }} (correos duplicados en el archivo).
             }
           </bp-alert>
+        }
 
-          <div class="step-actions">
-            <bp-button
-              type="button"
-              label="Continuar"
-              variant="primary"
-              (clicked)="saved.emit()"
-            ></bp-button>
-          </div>
-        } @else {
-          <div class="step-actions">
-            <bp-button
-              type="button"
-              label="← Volver"
-              variant="ghost"
-              (clicked)="back.emit()"
-            ></bp-button>
+        <bp-step-actions (back)="back.emit()" (next)="saved.emit()">
+          @if (!consolidateResult()) {
             <bp-button
               type="button"
               label="Consolidar"
-              variant="primary"
+              variant="secondary"
               [loading]="consolidating()"
               [disabled]="unresolvedCount() > 0 || consolidating()"
               (clicked)="onConsolidate()"
             ></bp-button>
-          </div>
-        }
+          }
+        </bp-step-actions>
       }
     }
   `,
@@ -400,26 +383,6 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
         color: var(--color-bp-text-muted);
         font-size: 0.875rem;
         margin: 0 0 var(--spacing-4);
-      }
-
-      .step-actions {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: 0 calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
-        padding: var(--spacing-4) var(--spacing-8) var(--spacing-6);
-        border-top: 1px solid var(--color-bp-border);
-        position: sticky;
-        bottom: 0;
-        background: var(--color-bp-surface);
-        z-index: 1;
-      }
-
-      @media (max-width: 640px) {
-        .step-actions {
-          margin: 0 calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
-          padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
-        }
       }
     `,
   ],

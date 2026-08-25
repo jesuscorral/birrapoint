@@ -10,7 +10,6 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
@@ -32,6 +31,7 @@ import type {
 } from '../../../core/api/import-api.service';
 import { BpAlertComponent } from '../../../shared/components/bp-alert/bp-alert.component';
 import { BpButtonComponent } from '../../../shared/components/bp-button/bp-button.component';
+import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
 import { BpInputComponent } from '../../../shared/components/bp-input/bp-input.component';
 import { BpTextareaComponent } from '../../../shared/components/bp-textarea/bp-textarea.component';
 import { StylePickerComponent } from '../../entry-import/style-picker.component';
@@ -128,6 +128,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
   imports: [
     FormsModule,
     BpButtonComponent,
+    BpStepActionsComponent,
     BpInputComponent,
     BpTextareaComponent,
     BpAlertComponent,
@@ -181,14 +182,6 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
                 </li>
               }
             </ul>
-            <div class="step-actions">
-              <bp-button
-                type="button"
-                label="Ir al panel de organizador"
-                variant="primary"
-                (clicked)="goToDashboard()"
-              ></bp-button>
-            </div>
           </section>
         }
         <form (ngSubmit)="onUpload()">
@@ -207,21 +200,15 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
             }}</bp-alert>
           }
 
-          <div class="step-actions">
-            <bp-button
-              type="button"
-              label="← Volver"
-              variant="ghost"
-              (clicked)="back.emit()"
-            ></bp-button>
+          <bp-step-actions (back)="back.emit()" (next)="saved.emit()">
             <bp-button
               type="submit"
               label="Subir archivo"
-              variant="primary"
+              variant="secondary"
               [loading]="uploading()"
               [disabled]="!selectedFile() || uploading() || categories().length === 0"
             ></bp-button>
-          </div>
+          </bp-step-actions>
         </form>
       } @else {
         <section class="import-rows" aria-label="Filas importadas">
@@ -443,33 +430,20 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
           <bp-alert type="success" title="Importación consolidada">
             Importadas: {{ result.imported }}. Excluidas: {{ result.excluded }}.
           </bp-alert>
+        }
 
-          <div class="step-actions">
-            <bp-button
-              type="button"
-              label="Ir al panel de organizador"
-              variant="primary"
-              (clicked)="goToDashboard()"
-            ></bp-button>
-          </div>
-        } @else {
-          <div class="step-actions">
-            <bp-button
-              type="button"
-              label="← Volver"
-              variant="ghost"
-              (clicked)="back.emit()"
-            ></bp-button>
+        <bp-step-actions (back)="back.emit()" (next)="saved.emit()">
+          @if (!consolidateResult()) {
             <bp-button
               type="button"
               label="Consolidar"
-              variant="primary"
+              variant="secondary"
               [loading]="consolidating()"
               [disabled]="unresolvedCount() > 0 || consolidating()"
               (clicked)="onConsolidate()"
             ></bp-button>
-          </div>
-        }
+          }
+        </bp-step-actions>
       }
     }
   `,
@@ -664,26 +638,6 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
         font-size: 0.875rem;
         margin: 0 0 var(--spacing-4);
       }
-
-      .step-actions {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: 0 calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
-        padding: var(--spacing-4) var(--spacing-8) var(--spacing-6);
-        border-top: 1px solid var(--color-bp-border);
-        position: sticky;
-        bottom: 0;
-        background: var(--color-bp-surface);
-        z-index: 1;
-      }
-
-      @media (max-width: 640px) {
-        .step-actions {
-          margin: 0 calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
-          padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
-        }
-      }
     `,
   ],
 })
@@ -692,7 +646,6 @@ export class ImportStepComponent implements OnInit {
   private readonly catalogApi = inject(CatalogApiService);
   private readonly competitionsApi = inject(CompetitionsApiService);
   private readonly entriesApi = inject(EntriesApiService);
-  private readonly router = inject(Router);
 
   readonly competitionId = input.required<string>();
   // Hoisted onto the wizard (see competition-wizard.component.ts) so a pending import batch
@@ -701,6 +654,9 @@ export class ImportStepComponent implements OnInit {
   readonly importId = input<string | null>(null);
   readonly importIdChange = output<string>();
   readonly back = output<void>();
+  // T125: step 4 previously dead-ended at "Ir al panel de organizador". It now advances to
+  // step 5 like every other step, whether or not a batch was consolidated on this visit.
+  readonly saved = output<void>();
   // See basics-step.component.ts for why the wizard shell needs this (FR-007 stay-or-discard
   // prompt on Back/stepper navigation). Unsaved-edit here means either an open row editor whose
   // draft hasn't been saved, or a chosen file not yet uploaded.
@@ -948,9 +904,5 @@ export class ImportStepComponent implements OnInit {
         this.consolidateError.set(toGenericApiError(error));
       },
     });
-  }
-
-  protected goToDashboard(): void {
-    this.router.navigateByUrl('/organizer/dashboard');
   }
 }

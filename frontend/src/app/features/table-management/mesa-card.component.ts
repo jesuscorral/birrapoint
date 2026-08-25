@@ -18,7 +18,11 @@ import type { TableSummary } from './table-management-api.service';
   imports: [CdkDropList, JudgeSeatComponent, BeerTokenComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <article class="mesa-card" [attr.data-table-id]="table().id">
+    <article
+      class="mesa-card"
+      [class.mesa-card--compact]="compact()"
+      [attr.data-table-id]="table().id"
+    >
       <header class="mesa-header">
         <h3>{{ table().name }}</h3>
 
@@ -201,6 +205,30 @@ import type { TableSummary } from './table-management-api.service';
       border-color: var(--color-bp-cobre-300);
     }
 
+    .mesa-card--compact {
+      gap: var(--spacing-2);
+      padding: var(--spacing-3);
+    }
+
+    .mesa-card--compact .mesa-stats {
+      gap: var(--spacing-1) var(--spacing-3);
+    }
+
+    .mesa-card--compact .mesa-stats__item--primary dd {
+      font-size: 1.125rem;
+    }
+
+    .mesa-card--compact .mesa-styles {
+      -webkit-line-clamp: 1;
+    }
+
+    .mesa-card--compact .mesa-seats,
+    .mesa-card--compact .mesa-tokens {
+      max-height: 7.5rem;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
     .mesa-empty {
       /* --color-bp-text-muted on the tinted zone surfaces is >4.5:1; text-subtle would not be. */
       color: var(--color-bp-text-muted);
@@ -213,6 +241,9 @@ import type { TableSummary } from './table-management-api.service';
 })
 export class MesaCardComponent {
   readonly table = input.required<TableSummary>();
+  // T125: the board's sticky rail keeps every table on screen at once, so the seated zones cap
+  // their height and scroll internally instead of growing the card until the rail no longer fits.
+  readonly compact = input(false);
   readonly connectedJudgeListIds = input.required<string[]>();
   readonly connectedBeerListIds = input.required<string[]>();
 

@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { AbstractControl, ValidationErrors } from '@angular/forms';
+import { Router } from '@angular/router';
 
 import { ApiError } from '../../../core/api/api-error';
 import { CompetitionsApiService } from '../../../core/api/competitions-api.service';
@@ -17,6 +18,7 @@ import type {
   CompetitionPayload,
 } from '../../../core/api/competitions-api.service';
 import { BpButtonComponent } from '../../../shared/components/bp-button/bp-button.component';
+import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
 import { BpInputComponent } from '../../../shared/components/bp-input/bp-input.component';
 import { BpTextareaComponent } from '../../../shared/components/bp-textarea/bp-textarea.component';
 import { BpAlertComponent } from '../../../shared/components/bp-alert/bp-alert.component';
@@ -52,6 +54,7 @@ function toGenericApiError(error: unknown): ApiError {
   imports: [
     ReactiveFormsModule,
     BpButtonComponent,
+    BpStepActionsComponent,
     BpInputComponent,
     BpTextareaComponent,
     BpAlertComponent,
@@ -64,86 +67,88 @@ function toGenericApiError(error: unknown): ApiError {
     </p>
 
     <form [formGroup]="form" (ngSubmit)="onSaveDraft()">
-      <bp-textarea
-        id="details-description"
-        label="Descripción"
-        formControlName="description"
-        placeholder="Cuéntale a jueces y participantes de qué va esta competición…"
-        [hasError]="!!fieldError('description')"
-        [errorMessage]="fieldError('description') || ''"
-      ></bp-textarea>
+      <div class="step-form">
+        <bp-textarea
+          id="details-description"
+          label="Descripción"
+          formControlName="description"
+          placeholder="Cuéntale a jueces y participantes de qué va esta competición…"
+          [hasError]="!!fieldError('description')"
+          [errorMessage]="fieldError('description') || ''"
+        ></bp-textarea>
 
-      <bp-input
-        id="details-logo"
-        label="URL del logo"
-        type="url"
-        formControlName="logoUrl"
-        placeholder="https://…"
-        [hasError]="!!fieldError('logoUrl')"
-        [errorMessage]="fieldError('logoUrl') || ''"
-      ></bp-input>
-
-      <bp-input
-        id="details-entry-limit"
-        label="Límite de inscripciones"
-        type="number"
-        [min]="1"
-        formControlName="entryLimit"
-        placeholder="Sin límite"
-        hint="Deja en blanco si no quieres poner tope."
-        [hasError]="!!fieldError('entryLimit') || !!form.controls.entryLimit.errors?.['min']"
-        [errorMessage]="
-          fieldError('entryLimit') ||
-          (form.controls.entryLimit.errors?.['min'] ? 'Debe ser mayor que cero.' : '')
-        "
-      ></bp-input>
-
-      <div class="field-row">
         <bp-input
-          id="details-reg-start"
-          label="Inicio de inscripciones"
-          type="date"
-          formControlName="registrationStart"
-          [hasError]="!!fieldError('registrationStart')"
-          [errorMessage]="fieldError('registrationStart') || ''"
+          id="details-logo"
+          label="URL del logo"
+          type="url"
+          formControlName="logoUrl"
+          placeholder="https://…"
+          [hasError]="!!fieldError('logoUrl')"
+          [errorMessage]="fieldError('logoUrl') || ''"
         ></bp-input>
 
         <bp-input
-          id="details-reg-end"
-          label="Fin de inscripciones"
-          type="date"
-          formControlName="registrationEnd"
-          [hasError]="
-            !!fieldError('registrationEnd') || form.errors?.['registrationEndBeforeStart']
-          "
+          id="details-entry-limit"
+          label="Límite de inscripciones"
+          type="number"
+          [min]="1"
+          formControlName="entryLimit"
+          placeholder="Sin límite"
+          hint="Deja en blanco si no quieres poner tope."
+          [hasError]="!!fieldError('entryLimit') || !!form.controls.entryLimit.errors?.['min']"
           [errorMessage]="
-            fieldError('registrationEnd') ||
-            (form.errors?.['registrationEndBeforeStart']
-              ? 'Debe ser igual o posterior al inicio de inscripciones.'
-              : '')
+            fieldError('entryLimit') ||
+            (form.controls.entryLimit.errors?.['min'] ? 'Debe ser mayor que cero.' : '')
           "
         ></bp-input>
+
+        <div class="field-row">
+          <bp-input
+            id="details-reg-start"
+            label="Inicio de inscripciones"
+            type="date"
+            formControlName="registrationStart"
+            [hasError]="!!fieldError('registrationStart')"
+            [errorMessage]="fieldError('registrationStart') || ''"
+          ></bp-input>
+
+          <bp-input
+            id="details-reg-end"
+            label="Fin de inscripciones"
+            type="date"
+            formControlName="registrationEnd"
+            [hasError]="
+              !!fieldError('registrationEnd') || form.errors?.['registrationEndBeforeStart']
+            "
+            [errorMessage]="
+              fieldError('registrationEnd') ||
+              (form.errors?.['registrationEndBeforeStart']
+                ? 'Debe ser igual o posterior al inicio de inscripciones.'
+                : '')
+            "
+          ></bp-input>
+        </div>
+
+        @if (bannerError(); as message) {
+          <bp-alert type="error" title="No hemos podido guardar">{{ message }}</bp-alert>
+        }
       </div>
 
-      @if (bannerError(); as message) {
-        <bp-alert type="error" title="No hemos podido guardar">{{ message }}</bp-alert>
-      }
-
-      <div class="step-actions">
+      <bp-step-actions
+        nextType="submit"
+        [nextLoading]="submitting()"
+        [nextDisabled]="form.invalid"
+        (back)="back.emit()"
+      >
         <bp-button
           type="button"
-          label="← Volver"
-          variant="ghost"
-          (clicked)="back.emit()"
-        ></bp-button>
-        <bp-button
-          type="submit"
           label="Guardar borrador"
-          variant="primary"
+          variant="secondary"
           [loading]="submitting()"
           [disabled]="form.invalid"
+          (clicked)="onSaveAndLeave()"
         ></bp-button>
-      </div>
+      </bp-step-actions>
     </form>
   `,
   styles: [
@@ -152,6 +157,19 @@ function toGenericApiError(error: unknown): ApiError {
         margin: 0 0 var(--spacing-6);
         color: var(--color-bp-text-muted);
         font-size: 0.9375rem;
+        max-width: 40rem;
+        margin-inline: auto;
+      }
+
+      /* T125: the wizard shell is full width now, so form steps keep their own readable measure
+         here instead of relying on a narrow shell. The action bar stays outside this wrapper: it
+         is the card's footer and spans the card's full width on every step. */
+      .step-form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-4);
+        max-width: 40rem;
+        margin-inline: auto;
       }
 
       .field-row {
@@ -165,31 +183,12 @@ function toGenericApiError(error: unknown): ApiError {
           grid-template-columns: 1fr;
         }
       }
-
-      .step-actions {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: 0 calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
-        padding: var(--spacing-4) var(--spacing-8) var(--spacing-6);
-        border-top: 1px solid var(--color-bp-border);
-        position: sticky;
-        bottom: 0;
-        background: var(--color-bp-surface);
-        z-index: 1;
-      }
-
-      @media (max-width: 640px) {
-        .step-actions {
-          margin: 0 calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
-          padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
-        }
-      }
     `,
   ],
 })
 export class DetailsStepComponent {
   private readonly api = inject(CompetitionsApiService);
+  private readonly router = inject(Router);
 
   readonly competitionId = input.required<string>();
   readonly initialValue = input<CompetitionDetail | null>(null);
@@ -244,7 +243,18 @@ export class DetailsStepComponent {
     return error.detail ?? error.title;
   }
 
+  // The action bar's forward button: save, then let the wizard advance to step 3.
   protected onSaveDraft(): void {
+    this.save((detail) => this.saved.emit(detail));
+  }
+
+  // T125: the centre "Guardar borrador" — same PUT, but the organizer leaves the wizard instead of
+  // advancing. Mirrors basics-step/categories-step so the button means one thing in every step.
+  protected onSaveAndLeave(): void {
+    this.save(() => this.router.navigateByUrl('/organizer/dashboard'));
+  }
+
+  private save(onSuccess: (detail: CompetitionDetail) => void): void {
     if (this.form.invalid || this.submitting()) {
       return;
     }
@@ -265,7 +275,7 @@ export class DetailsStepComponent {
     this.api.update(this.competitionId(), payload).subscribe({
       next: (detail) => {
         this.submitting.set(false);
-        this.saved.emit(detail);
+        onSuccess(detail);
       },
       error: (error: unknown) => {
         this.submitting.set(false);

@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, input, output } from '@angu
 import { Router } from '@angular/router';
 
 import { TableBoardComponent } from '../../table-management/table-board.component';
-import { BpButtonComponent } from '../../../shared/components/bp-button/bp-button.component';
+import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
 
 // T123: wizard step 6 ("Mesas") — a thin wrapper embedding the already-fully-built,
 // route-agnostic TableBoardComponent, following the same input/output contract every other
@@ -11,7 +11,7 @@ import { BpButtonComponent } from '../../../shared/components/bp-button/bp-butto
 // this step existed).
 @Component({
   selector: 'app-tables-step',
-  imports: [TableBoardComponent, BpButtonComponent],
+  imports: [TableBoardComponent, BpStepActionsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <p class="step-lead">
@@ -26,15 +26,9 @@ import { BpButtonComponent } from '../../../shared/components/bp-button/bp-butto
       (dirtyChange)="dirtyChange.emit($event)"
     />
 
-    <div class="step-actions">
-      <bp-button type="button" label="← Volver" variant="ghost" (clicked)="back.emit()"></bp-button>
-      <bp-button
-        type="button"
-        label="Ir al panel de organizador"
-        variant="primary"
-        (clicked)="goToDashboard()"
-      ></bp-button>
-    </div>
+    <!-- Last step, so the forward action closes the wizard instead of advancing. Same bar, same
+         places — only the label changes. -->
+    <bp-step-actions nextLabel="Finalizar" (back)="back.emit()" (next)="goToDashboard()" />
   `,
   styles: [
     `
@@ -42,26 +36,6 @@ import { BpButtonComponent } from '../../../shared/components/bp-button/bp-butto
         margin: 0 0 var(--spacing-6);
         color: var(--color-bp-text-muted);
         font-size: 0.9375rem;
-      }
-
-      .step-actions {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: var(--spacing-8) calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
-        padding: var(--spacing-4) var(--spacing-8) var(--spacing-6);
-        border-top: 1px solid var(--color-bp-border);
-        position: sticky;
-        bottom: 0;
-        background: var(--color-bp-surface);
-        z-index: 1;
-      }
-
-      @media (max-width: 640px) {
-        .step-actions {
-          margin: var(--spacing-8) calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
-          padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
-        }
       }
     `,
   ],

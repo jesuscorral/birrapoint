@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
 import { CatalogApiService } from '../../../core/api/catalog-api.service';
@@ -358,10 +358,10 @@ describe('ImportStepComponent', () => {
     expect(consolidateButtonAfter.disabled).toBe(false);
   });
 
-  it('consolidates successfully, shows the summary, and only navigates once the organizer confirms', () => {
+  it('consolidates successfully, shows the summary, and only advances once the organizer confirms', () => {
     const fixture = uploadedFixture([rowFixture({ rowNumber: 1, status: 'Valid' })]);
-    const router = TestBed.inject(Router);
-    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
+    const savedEmitted: void[] = [];
+    fixture.componentInstance.saved.subscribe(() => savedEmitted.push(undefined));
 
     fakeImportApi.consolidate.mockReturnValue(
       of({
@@ -375,22 +375,24 @@ describe('ImportStepComponent', () => {
 
     expect(fakeImportApi.consolidate).toHaveBeenCalledWith('c1', 'i1');
     expect(fixture.nativeElement.textContent).toContain('Importadas: 1');
-    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(savedEmitted.length).toBe(0);
+    // T125: once consolidated there is nothing left to consolidate, so the centre zone empties and
+    // only the shared bar's own Atrás/Siguiente remain.
     const buttons = [...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[];
     expect(buttons.some((button) => button.textContent?.trim() === 'Consolidar')).toBe(false);
 
-    buttonWithText(fixture.nativeElement, 'Ir al panel de organizador').click();
+    buttonWithText(fixture.nativeElement, 'Siguiente').click();
     fixture.detectChanges();
 
-    expect(navigateSpy).toHaveBeenCalledWith('/organizer/dashboard');
+    expect(savedEmitted.length).toBe(1);
   });
 
-  it('emits back when "← Volver" is clicked', () => {
+  it('emits back when "Atrás" is clicked', () => {
     const fixture = createComponent();
     const emitted: void[] = [];
     fixture.componentInstance.back.subscribe(() => emitted.push(undefined));
 
-    buttonWithText(fixture.nativeElement, '← Volver').click();
+    buttonWithText(fixture.nativeElement, 'Atrás').click();
 
     expect(emitted.length).toBe(1);
   });

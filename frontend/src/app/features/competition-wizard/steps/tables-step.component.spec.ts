@@ -87,22 +87,22 @@ describe('TablesStepComponent', () => {
     expect(emitted).toEqual([true]);
   });
 
-  it('emits back when "← Volver" is clicked', () => {
+  it('emits back when "Atrás" is clicked', () => {
     const fixture = createComponent();
     const emitted: void[] = [];
     fixture.componentInstance.back.subscribe(() => emitted.push(undefined));
 
-    buttonWithText(fixture.nativeElement, '← Volver').click();
+    buttonWithText(fixture.nativeElement, 'Atrás').click();
 
     expect(emitted.length).toBe(1);
   });
 
-  it('navigates to /organizer/dashboard when "Ir al panel de organizador" is clicked', () => {
+  it('navigates to /organizer/dashboard when the terminal "Finalizar" is clicked', () => {
     const fixture = createComponent();
     const router = TestBed.inject(Router);
     const navigateSpy = jest.spyOn(router, 'navigateByUrl');
 
-    buttonWithText(fixture.nativeElement, 'Ir al panel de organizador').click();
+    buttonWithText(fixture.nativeElement, 'Finalizar').click();
 
     expect(navigateSpy).toHaveBeenCalledWith('/organizer/dashboard');
   });

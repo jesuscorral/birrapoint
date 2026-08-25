@@ -24,6 +24,16 @@ function detailFixture(overrides: Partial<CompetitionDetail> = {}): CompetitionD
   };
 }
 
+function buttonWithText(root: Element, text: string): HTMLButtonElement {
+  const match = [...root.querySelectorAll('button')].find(
+    (button) => button.textContent?.trim() === text,
+  );
+  if (!match) {
+    throw new Error(`No button with text "${text}" found`);
+  }
+  return match as HTMLButtonElement;
+}
+
 describe('BasicsStepComponent', () => {
   let fakeApi: { create: jest.Mock; update: jest.Mock; getById: jest.Mock };
 
@@ -166,46 +176,9 @@ describe('BasicsStepComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Name is already in use');
   });
 
-  it('opens a save-or-discard dialog instead of navigating immediately on "Volver al listado"', () => {
-    const fixture = createComponent();
-
-    const backButton = fixture.nativeElement.querySelector(
-      '.back-to-list-link',
-    ) as HTMLButtonElement;
-    backButton.click();
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeTruthy();
-  });
-
-  it('discards without saving and navigates to the organizer dashboard', () => {
-    const fixture = createComponent();
-    const router = TestBed.inject(Router);
-    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
-
-    fixture.componentInstance['onRequestBack']();
-    fixture.componentInstance['onDiscardAndLeave']();
-    fixture.detectChanges();
-
-    expect(fakeApi.create).not.toHaveBeenCalled();
-    expect(fakeApi.update).not.toHaveBeenCalled();
-    expect(navigateSpy).toHaveBeenCalledWith('/organizer/dashboard');
-    expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeFalsy();
-  });
-
-  it('closes the dialog without navigating on "Cancelar"', () => {
-    const fixture = createComponent();
-    const router = TestBed.inject(Router);
-    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
-
-    fixture.componentInstance['onRequestBack']();
-    fixture.componentInstance['onCancelBackConfirm']();
-    fixture.detectChanges();
-
-    expect(navigateSpy).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeFalsy();
-  });
-
+  // T125: leaving the wizard moved to the shell's own header link, guarded by the wizard's
+  // unsaved-changes dialog. What remains here is the action bar's "Guardar borrador", which now
+  // saves directly instead of only existing inside a leave-confirmation dialog.
   it('saves as a draft and navigates to the organizer dashboard on "Guardar borrador"', () => {
     fakeApi.create.mockReturnValue(of(detailFixture()));
     const fixture = createComponent();
@@ -215,11 +188,11 @@ describe('BasicsStepComponent', () => {
       startDate: '2026-08-01',
       endDate: '2026-08-02',
     });
+    fixture.detectChanges();
     const router = TestBed.inject(Router);
     const navigateSpy = jest.spyOn(router, 'navigateByUrl');
 
-    fixture.componentInstance['onRequestBack']();
-    fixture.componentInstance['onSaveAndLeave']();
+    buttonWithText(fixture.nativeElement, 'Guardar borrador').click();
 
     expect(fakeApi.create).toHaveBeenCalledWith({
       name: 'Golden Ale Cup',
@@ -235,11 +208,20 @@ describe('BasicsStepComponent', () => {
     const router = TestBed.inject(Router);
     const navigateSpy = jest.spyOn(router, 'navigateByUrl');
 
-    fixture.componentInstance['onRequestBack']();
-    fixture.componentInstance['onSaveAndLeave']();
+    fixture.componentInstance['onSaveDraft']();
 
     expect(fakeApi.create).not.toHaveBeenCalled();
     expect(navigateSpy).not.toHaveBeenCalled();
+  });
+
+  it('renders the shared action bar: no Atrás on the first step, Siguiente on the right', () => {
+    const fixture = createComponent();
+
+    expect(fixture.nativeElement.querySelector('bp-step-actions')).not.toBeNull();
+    const end = fixture.nativeElement.querySelector('.step-actions__zone--end') as HTMLElement;
+    expect(end.textContent?.trim()).toBe('Siguiente');
+    const start = fixture.nativeElement.querySelector('.step-actions__zone--start') as HTMLElement;
+    expect(start.textContent?.trim()).toBe('');
   });
 
   it('prefills the form from initialValue (resume-with-data)', () => {

@@ -1,4 +1,3 @@
-import { CdkTrapFocus } from '@angular/cdk/a11y';
 import type { OnInit } from '@angular/core';
 import {
   ChangeDetectionStrategy,
@@ -19,6 +18,7 @@ import type { StyleSummary } from '../../../core/api/catalog-api.service';
 import { CompetitionsApiService } from '../../../core/api/competitions-api.service';
 import type { CompetitionCategoryPayload } from '../../../core/api/competitions-api.service';
 import { BpButtonComponent } from '../../../shared/components/bp-button/bp-button.component';
+import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
 import { BpInputComponent } from '../../../shared/components/bp-input/bp-input.component';
 import { BpAlertComponent } from '../../../shared/components/bp-alert/bp-alert.component';
 
@@ -42,7 +42,7 @@ function toGenericApiError(error: unknown): ApiError {
 
 @Component({
   selector: 'app-categories-step',
-  imports: [CdkTrapFocus, BpButtonComponent, BpInputComponent, BpAlertComponent],
+  imports: [BpButtonComponent, BpStepActionsComponent, BpInputComponent, BpAlertComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (loading()) {
@@ -153,77 +153,21 @@ function toGenericApiError(error: unknown): ApiError {
         <bp-alert type="error" title="No hemos podido guardar">{{ message }}</bp-alert>
       }
 
-      <div class="step-actions">
-        <div class="step-actions__left">
-          <bp-button
-            type="button"
-            label="← Volver"
-            variant="ghost"
-            (clicked)="back.emit()"
-          ></bp-button>
-          <button type="button" class="back-to-list-link" (click)="onRequestBack()">
-            ← Volver al listado
-          </button>
-        </div>
+      <bp-step-actions
+        [nextLoading]="submitting()"
+        [nextDisabled]="!canFinish()"
+        (back)="back.emit()"
+        (next)="onFinish()"
+      >
         <bp-button
-          type="submit"
-          label="Continuar"
-          variant="primary"
+          type="button"
+          label="Guardar borrador"
+          variant="secondary"
           [loading]="submitting()"
           [disabled]="!canFinish()"
-          (clicked)="onFinish()"
+          (clicked)="onSaveAndLeave()"
         ></bp-button>
-      </div>
-    }
-
-    @if (confirmingBack()) {
-      <div class="modal-backdrop" role="presentation" (click)="onCancelBackConfirm()">
-        <div
-          role="alertdialog"
-          aria-modal="true"
-          aria-label="Cambios sin guardar"
-          class="modal-panel"
-          cdkTrapFocus
-          cdkTrapFocusAutoCapture
-          (click)="$event.stopPropagation()"
-          (keydown.escape)="onCancelBackConfirm()"
-        >
-          <h2>¿Guardar los cambios?</h2>
-          <p>
-            Puedes guardar esta competición como borrador antes de salir, o descartar los cambios y
-            volver al listado de competiciones.
-          </p>
-          @if (!canFinish()) {
-            <p class="modal-hint">
-              Asigna al menos un estilo a una categoría con nombre para poder guardar como borrador.
-            </p>
-          }
-          <div class="modal-actions">
-            <bp-button
-              type="button"
-              label="Guardar borrador"
-              variant="primary"
-              [loading]="submitting()"
-              [disabled]="!canFinish()"
-              (clicked)="onSaveAndLeave()"
-            ></bp-button>
-            <bp-button
-              type="button"
-              label="Descartar cambios"
-              variant="secondary"
-              [disabled]="submitting()"
-              (clicked)="onDiscardAndLeave()"
-            ></bp-button>
-            <bp-button
-              type="button"
-              label="Cancelar"
-              variant="ghost"
-              [disabled]="submitting()"
-              (clicked)="onCancelBackConfirm()"
-            ></bp-button>
-          </div>
-        </div>
-      </div>
+      </bp-step-actions>
     }
   `,
   styles: [
@@ -340,101 +284,6 @@ function toGenericApiError(error: unknown): ApiError {
         background: var(--color-bp-surface);
         color: var(--color-bp-text);
       }
-
-      .step-actions {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: var(--spacing-3);
-        margin: 0 calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
-        padding: var(--spacing-4) var(--spacing-8) var(--spacing-6);
-        border-top: 1px solid var(--color-bp-border);
-        position: sticky;
-        bottom: 0;
-        background: var(--color-bp-surface);
-        z-index: 1;
-      }
-
-      @media (max-width: 640px) {
-        .step-actions {
-          margin: 0 calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
-          padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
-        }
-      }
-
-      .step-actions__left {
-        display: flex;
-        align-items: center;
-        gap: var(--spacing-2);
-      }
-
-      .back-to-list-link {
-        display: inline-flex;
-        align-items: center;
-        min-height: 44px;
-        padding: 0 var(--spacing-3);
-        border-radius: var(--radius-md);
-        color: var(--color-bp-text-muted);
-        font-weight: 600;
-        text-decoration: none;
-        transition:
-          background 0.15s ease,
-          color 0.15s ease;
-      }
-
-      .back-to-list-link:hover {
-        background: var(--color-bp-hueso-100);
-        color: var(--color-bp-text);
-      }
-
-      .back-to-list-link:focus-visible {
-        outline: 2px solid var(--color-bp-cobre-500);
-        outline-offset: 2px;
-      }
-
-      .modal-backdrop {
-        position: fixed;
-        inset: 0;
-        background: rgba(4, 23, 18, 0.45);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: var(--spacing-4);
-        z-index: 10;
-      }
-
-      .modal-panel {
-        background: var(--color-bp-surface);
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-lg);
-        padding: var(--spacing-6);
-        max-width: 26rem;
-      }
-
-      .modal-panel h2 {
-        font-family: 'Fraunces', serif;
-        font-size: 1.25rem;
-        margin: 0 0 var(--spacing-3);
-        color: var(--color-bp-text);
-      }
-
-      .modal-panel p {
-        color: var(--color-bp-text-muted);
-        margin: 0 0 var(--spacing-4);
-      }
-
-      .modal-hint {
-        color: var(--color-bp-danger-600) !important;
-        font-size: 0.875rem;
-      }
-
-      .modal-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--spacing-3);
-        margin-top: var(--spacing-6);
-      }
     `,
   ],
 })
@@ -456,7 +305,6 @@ export class CategoriesStepComponent implements OnInit {
   protected readonly categories = signal<CategoryRow[]>([]);
   protected readonly submitting = signal(false);
   protected readonly apiError = signal<ApiError | null>(null);
-  protected readonly confirmingBack = signal(false);
   protected readonly editingIndex = signal<number | null>(null);
   private readonly loadedSnapshot = signal<string>('');
 
@@ -624,25 +472,13 @@ export class CategoriesStepComponent implements OnInit {
     });
   }
 
-  protected onRequestBack(): void {
-    this.confirmingBack.set(true);
-  }
-
-  protected onCancelBackConfirm(): void {
-    this.confirmingBack.set(false);
-  }
-
-  protected onDiscardAndLeave(): void {
-    this.confirmingBack.set(false);
-    this.router.navigateByUrl('/organizer/dashboard');
-  }
-
+  // T125: "Guardar borrador" moved from a leave-confirmation dialog into the shared action bar's
+  // centre zone; leaving the wizard is now the header's "Volver al listado".
   protected onSaveAndLeave(): void {
     if (!this.canFinish() || this.submitting()) {
       return;
     }
 
-    this.confirmingBack.set(false);
     this.submitting.set(true);
     this.apiError.set(null);
 

@@ -32,6 +32,16 @@ function groupStyleFixtures(): StyleSummary[] {
   ];
 }
 
+function buttonWithText(root: Element, text: string): HTMLButtonElement {
+  const match = [...root.querySelectorAll('button')].find(
+    (button) => button.textContent?.trim() === text,
+  );
+  if (!match) {
+    throw new Error(`No button with text "${text}" found`);
+  }
+  return match as HTMLButtonElement;
+}
+
 describe('CategoriesStepComponent', () => {
   let fakeCatalogApi: { getStyles: jest.Mock };
   let fakeCompetitionsApi: { getCategories: jest.Mock; setCategories: jest.Mock };
@@ -328,7 +338,7 @@ describe('CategoriesStepComponent', () => {
     expect(fixture.componentInstance.categories()[0].styleCodes).toEqual(['18A', '18B', '18C']);
   });
 
-  it('disables "Continuar" until at least one category has at least one style', () => {
+  it('disables "Siguiente" until at least one category has at least one style', () => {
     fakeCatalogApi.getStyles.mockReturnValue(of([styleFixture()]));
     fakeCompetitionsApi.getCategories.mockReturnValue(
       of(
@@ -340,8 +350,9 @@ describe('CategoriesStepComponent', () => {
     const fixture = createComponent();
 
     const finishButton = fixture.nativeElement.querySelector(
-      'button[type="submit"]',
+      '.step-actions__zone--end button',
     ) as HTMLButtonElement;
+    expect(finishButton.textContent?.trim()).toBe('Siguiente');
     expect(finishButton.disabled).toBe(true);
 
     fixture.componentInstance.onAssignStyle('18A', '0');
@@ -385,54 +396,40 @@ describe('CategoriesStepComponent', () => {
     expect(navigateSpy).not.toHaveBeenCalled();
   });
 
-  it('opens a save-or-discard dialog instead of navigating immediately on "Volver al listado"', () => {
-    const fixture = createComponent();
-
-    const backButton = fixture.nativeElement.querySelector(
-      '.back-to-list-link',
-    ) as HTMLButtonElement;
-    backButton.click();
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeTruthy();
-  });
-
-  it('discards without saving and navigates to the organizer dashboard', () => {
+  // T125: the save-or-discard dialog moved to the wizard shell, which owns "Volver al listado"
+  // for all six steps. "Guardar borrador" is now a first-class action in the shared bar.
+  it('saves and navigates to the organizer dashboard on "Guardar borrador"', () => {
+    fakeCatalogApi.getStyles.mockReturnValue(of([styleFixture()]));
+    const assigned = categoriesResponseFixture({
+      categories: [{ id: 'cat-1', name: 'Estilos clásicos', displayOrder: 0, styleCodes: ['18A'] }],
+    });
+    fakeCompetitionsApi.getCategories.mockReturnValue(of(assigned));
+    fakeCompetitionsApi.setCategories.mockReturnValue(of(assigned));
     const fixture = createComponent();
     const router = TestBed.inject(Router);
     const navigateSpy = jest.spyOn(router, 'navigateByUrl');
 
-    fixture.componentInstance['onRequestBack']();
-    fixture.componentInstance['onDiscardAndLeave']();
-    fixture.detectChanges();
+    buttonWithText(fixture.nativeElement, 'Guardar borrador').click();
 
-    expect(fakeCompetitionsApi.setCategories).not.toHaveBeenCalled();
+    expect(fakeCompetitionsApi.setCategories).toHaveBeenCalled();
     expect(navigateSpy).toHaveBeenCalledWith('/organizer/dashboard');
-    expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeFalsy();
   });
 
-  it('closes the dialog without navigating on "Cancelar"', () => {
-    const fixture = createComponent();
-    const router = TestBed.inject(Router);
-    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
-
-    fixture.componentInstance['onRequestBack']();
-    fixture.componentInstance['onCancelBackConfirm']();
-    fixture.detectChanges();
-
-    expect(navigateSpy).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeFalsy();
-  });
-
-  it('disables "Guardar borrador" in the confirm dialog while canFinish() is false', () => {
+  it('disables "Guardar borrador" while canFinish() is false', () => {
+    fakeCatalogApi.getStyles.mockReturnValue(of([styleFixture()]));
+    fakeCompetitionsApi.getCategories.mockReturnValue(
+      of(
+        categoriesResponseFixture({
+          categories: [{ id: 'cat-1', name: 'A', displayOrder: 0, styleCodes: [] }],
+        }),
+      ),
+    );
     const fixture = createComponent();
 
-    fixture.componentInstance['onRequestBack']();
-    fixture.detectChanges();
-
-    const saveButton = fixture.nativeElement.querySelectorAll(
-      '.modal-actions button',
-    )[0] as HTMLButtonElement;
+    const saveButton = fixture.nativeElement.querySelector(
+      '.step-actions__zone--center button',
+    ) as HTMLButtonElement;
+    expect(saveButton.textContent?.trim()).toBe('Guardar borrador');
     expect(saveButton.disabled).toBe(true);
   });
 
@@ -468,7 +465,7 @@ describe('CategoriesStepComponent', () => {
     expect(emitted).toEqual([true]);
   });
 
-  it('emits back when the "← Volver" button is clicked', () => {
+  it('emits back when the "Atrás" button is clicked', () => {
     const fixture = createComponent();
     const emitted: void[] = [];
     fixture.componentInstance.back.subscribe(() => emitted.push(undefined));
@@ -476,10 +473,7 @@ describe('CategoriesStepComponent', () => {
     const buttons = Array.from(
       fixture.nativeElement.querySelectorAll('button'),
     ) as HTMLButtonElement[];
-    const backButton = buttons.find(
-      (button) =>
-        button.textContent?.includes('Volver') && !button.className.includes('back-to-list-link'),
-    );
+    const backButton = buttons.find((button) => button.textContent?.trim() === 'Atrás');
     backButton?.click();
 
     expect(emitted.length).toBe(1);

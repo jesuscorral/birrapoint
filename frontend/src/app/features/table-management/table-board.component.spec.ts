@@ -435,26 +435,113 @@ describe('TableBoardComponent', () => {
     });
   });
 
-  // T124: the board is a two-column grid (source panel + tables grid) rather than one wrapping
-  // flex row, so every table stays on screen as a drop target while the organizer drags.
-  it('renders every table inside the tables grid beside the unassigned panel', () => {
+  // T125: the tables live in a sticky rail above the pool rather than a side-by-side grid, so
+  // every one of them stays on screen as a drop target while the organizer scrolls the beers.
+  it('renders every table inside the sticky rail, above the unassigned pool', () => {
     fakeApi.getTables.mockReturnValue(
       of([tableFixture(), tableFixture({ id: 't2', name: 'Mesa 2' })]),
     );
     const fixture = createComponent();
 
-    const grid = fixture.nativeElement.querySelector('.tables-grid') as HTMLElement;
-    expect(grid.querySelectorAll('app-mesa-card').length).toBe(2);
-    expect(
-      fixture.nativeElement.querySelector('.table-management-layout app-unassigned-column'),
-    ).not.toBeNull();
+    const rail = fixture.nativeElement.querySelector('.board-rail') as HTMLElement;
+    expect(rail.querySelectorAll('app-mesa-card').length).toBe(2);
+    expect(rail.textContent).toContain('Mesas (2)');
+    // The "Add table" form moved into the rail head, so creating a table and dropping onto it are
+    // the same region of the screen.
+    expect(rail.querySelector('#new-table-name')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('app-unassigned-column')).not.toBeNull();
   });
 
-  it('shows a first-run hint instead of an empty grid when no table exists yet', () => {
+  it('seats the rail cards in their compact form', () => {
+    const fixture = createComponent();
+
+    expect(fixture.nativeElement.querySelector('.mesa-card--compact')).not.toBeNull();
+  });
+
+  it('shows a first-run hint instead of an empty rail when no table exists yet', () => {
     fakeApi.getTables.mockReturnValue(of([]));
     const fixture = createComponent();
 
-    const empty = fixture.nativeElement.querySelector('.tables-grid__empty') as HTMLElement;
+    const empty = fixture.nativeElement.querySelector('.board-rail__empty') as HTMLElement;
     expect(empty.textContent).toContain('Aún no hay mesas');
+  });
+
+  describe('pool filters (T125)', () => {
+    function poolTokens(fixture: ReturnType<typeof createComponent>): string[] {
+      return [...fixture.nativeElement.querySelectorAll('#beers-unassigned [data-entry-id]')].map(
+        (token) => (token as HTMLElement).getAttribute('data-entry-id') ?? '',
+      );
+    }
+
+    function multiEntryFixture(): EntryListItem[] {
+      return [
+        {
+          ...entriesFixture()[1],
+          id: 'e2',
+          blindCode: 'CD34',
+          styleName: 'American IPA',
+          competitionCategoryName: 'Lupuladas',
+          tastingTableId: null,
+        },
+        {
+          ...entriesFixture()[1],
+          id: 'e3',
+          blindCode: 'EF56',
+          styleName: 'Munich Helles',
+          competitionCategoryName: 'Clásicos',
+          tastingTableId: null,
+        },
+      ];
+    }
+
+    it('filters the pool by blind code or style, without touching what is assigned', () => {
+      fakeEntriesApi.getEntries.mockReturnValue(of(multiEntryFixture()));
+      const fixture = createComponent();
+      expect(poolTokens(fixture)).toEqual(['e2', 'e3']);
+
+      const search = fixture.nativeElement.querySelector(
+        'input[type="search"]',
+      ) as HTMLInputElement;
+      search.value = 'helles';
+      search.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      expect(poolTokens(fixture)).toEqual(['e3']);
+      // Filtering is presentational: the tables' own membership is untouched.
+      expect(fakeApi.updateTable).not.toHaveBeenCalled();
+    });
+
+    it('filters the pool by competition category', () => {
+      fakeEntriesApi.getEntries.mockReturnValue(of(multiEntryFixture()));
+      const fixture = createComponent();
+
+      const selects = [...fixture.nativeElement.querySelectorAll('select')] as HTMLSelectElement[];
+      const categorySelect = selects[1];
+      categorySelect.value = 'Lupuladas';
+      categorySelect.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect(poolTokens(fixture)).toEqual(['e2']);
+    });
+
+    it('reports the filtered count against the pool total, and clears back to everything', () => {
+      fakeEntriesApi.getEntries.mockReturnValue(of(multiEntryFixture()));
+      const fixture = createComponent();
+
+      const search = fixture.nativeElement.querySelector(
+        'input[type="search"]',
+      ) as HTMLInputElement;
+      search.value = 'CD34';
+      search.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Cervezas sin asignar (1 de 2)');
+
+      buttonWithText(fixture.nativeElement, 'Limpiar filtros').click();
+      fixture.detectChanges();
+
+      expect(poolTokens(fixture)).toEqual(['e2', 'e3']);
+      expect(fixture.nativeElement.textContent).toContain('Cervezas sin asignar (2)');
+    });
   });
 });

@@ -1,4 +1,3 @@
-import { CdkTrapFocus } from '@angular/cdk/a11y';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -19,6 +18,7 @@ import type {
   CompetitionPayload,
 } from '../../../core/api/competitions-api.service';
 import { BpButtonComponent } from '../../../shared/components/bp-button/bp-button.component';
+import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
 import { BpInputComponent } from '../../../shared/components/bp-input/bp-input.component';
 import { BpAlertComponent } from '../../../shared/components/bp-alert/bp-alert.component';
 
@@ -62,8 +62,8 @@ function toGenericApiError(error: unknown): ApiError {
   selector: 'app-basics-step',
   imports: [
     ReactiveFormsModule,
-    CdkTrapFocus,
     BpButtonComponent,
+    BpStepActionsComponent,
     BpInputComponent,
     BpAlertComponent,
   ],
@@ -76,120 +76,75 @@ function toGenericApiError(error: unknown): ApiError {
     </p>
 
     <form [formGroup]="form" (ngSubmit)="onNext()">
-      <bp-input
-        id="basics-name"
-        label="Nombre de la competición"
-        formControlName="name"
-        [required]="true"
-        placeholder="Copa BirraPoint 2026"
-        [hasError]="!!fieldError('name')"
-        [errorMessage]="fieldError('name') || ''"
-      ></bp-input>
-
-      <bp-input
-        id="basics-venue"
-        label="Sede / ubicación"
-        formControlName="venue"
-        [required]="true"
-        placeholder="Nave de cata, Madrid"
-        [hasError]="!!fieldError('venue')"
-        [errorMessage]="fieldError('venue') || ''"
-      ></bp-input>
-
-      <div class="field-row">
+      <div class="step-form">
         <bp-input
-          id="basics-start"
-          label="Fecha de inicio"
-          type="date"
-          formControlName="startDate"
+          id="basics-name"
+          label="Nombre de la competición"
+          formControlName="name"
           [required]="true"
-          [hasError]="!!fieldError('startDate')"
-          [errorMessage]="fieldError('startDate') || ''"
+          placeholder="Copa BirraPoint 2026"
+          [hasError]="!!fieldError('name')"
+          [errorMessage]="fieldError('name') || ''"
         ></bp-input>
 
         <bp-input
-          id="basics-end"
-          label="Fecha de fin"
-          type="date"
-          formControlName="endDate"
+          id="basics-venue"
+          label="Sede / ubicación"
+          formControlName="venue"
           [required]="true"
-          [hasError]="!!fieldError('endDate') || form.errors?.['endBeforeStart']"
-          [errorMessage]="
-            fieldError('endDate') ||
-            (form.errors?.['endBeforeStart']
-              ? 'Debe ser igual o posterior a la fecha de inicio.'
-              : '')
-          "
+          placeholder="Nave de cata, Madrid"
+          [hasError]="!!fieldError('venue')"
+          [errorMessage]="fieldError('venue') || ''"
         ></bp-input>
+
+        <div class="field-row">
+          <bp-input
+            id="basics-start"
+            label="Fecha de inicio"
+            type="date"
+            formControlName="startDate"
+            [required]="true"
+            [hasError]="!!fieldError('startDate')"
+            [errorMessage]="fieldError('startDate') || ''"
+          ></bp-input>
+
+          <bp-input
+            id="basics-end"
+            label="Fecha de fin"
+            type="date"
+            formControlName="endDate"
+            [required]="true"
+            [hasError]="!!fieldError('endDate') || form.errors?.['endBeforeStart']"
+            [errorMessage]="
+              fieldError('endDate') ||
+              (form.errors?.['endBeforeStart']
+                ? 'Debe ser igual o posterior a la fecha de inicio.'
+                : '')
+            "
+          ></bp-input>
+        </div>
+
+        @if (bannerError(); as message) {
+          <bp-alert type="error" title="No hemos podido guardar">{{ message }}</bp-alert>
+        }
       </div>
 
-      @if (bannerError(); as message) {
-        <bp-alert type="error" title="No hemos podido guardar">{{ message }}</bp-alert>
-      }
-
-      <div class="step-actions">
-        <button type="button" class="back-to-list-link" (click)="onRequestBack()">
-          ← Volver al listado
-        </button>
+      <bp-step-actions
+        [showBack]="false"
+        nextType="submit"
+        [nextLoading]="submitting()"
+        [nextDisabled]="form.invalid"
+      >
         <bp-button
-          type="submit"
-          label="Continuar"
-          variant="primary"
+          type="button"
+          label="Guardar borrador"
+          variant="secondary"
           [loading]="submitting()"
           [disabled]="form.invalid"
+          (clicked)="onSaveDraft()"
         ></bp-button>
-      </div>
+      </bp-step-actions>
     </form>
-
-    @if (confirmingBack()) {
-      <div class="modal-backdrop" role="presentation" (click)="onCancelBackConfirm()">
-        <div
-          role="alertdialog"
-          aria-modal="true"
-          aria-label="Cambios sin guardar"
-          class="modal-panel"
-          cdkTrapFocus
-          cdkTrapFocusAutoCapture
-          (click)="$event.stopPropagation()"
-          (keydown.escape)="onCancelBackConfirm()"
-        >
-          <h2>¿Guardar los cambios?</h2>
-          <p>
-            Puedes guardar esta competición como borrador antes de salir, o descartar los cambios y
-            volver al listado de competiciones.
-          </p>
-          @if (form.invalid) {
-            <p class="modal-hint">
-              Completa nombre, sede y fechas para poder guardar como borrador.
-            </p>
-          }
-          <div class="modal-actions">
-            <bp-button
-              type="button"
-              label="Guardar borrador"
-              variant="primary"
-              [loading]="submitting()"
-              [disabled]="form.invalid"
-              (clicked)="onSaveAndLeave()"
-            ></bp-button>
-            <bp-button
-              type="button"
-              label="Descartar cambios"
-              variant="secondary"
-              [disabled]="submitting()"
-              (clicked)="onDiscardAndLeave()"
-            ></bp-button>
-            <bp-button
-              type="button"
-              label="Cancelar"
-              variant="ghost"
-              [disabled]="submitting()"
-              (clicked)="onCancelBackConfirm()"
-            ></bp-button>
-          </div>
-        </div>
-      </div>
-    }
   `,
   styles: [
     `
@@ -197,6 +152,19 @@ function toGenericApiError(error: unknown): ApiError {
         margin: 0 0 var(--spacing-6);
         color: var(--color-bp-text-muted);
         font-size: 0.9375rem;
+        max-width: 40rem;
+        margin-inline: auto;
+      }
+
+      /* T125: the wizard shell is full width now, so form steps keep their own readable measure
+         here instead of relying on a narrow shell. The action bar stays outside this wrapper: it
+         is the card's footer and spans the card's full width on every step. */
+      .step-form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-4);
+        max-width: 40rem;
+        margin-inline: auto;
       }
 
       .field-row {
@@ -209,93 +177,6 @@ function toGenericApiError(error: unknown): ApiError {
         .field-row {
           grid-template-columns: 1fr;
         }
-      }
-
-      .step-actions {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: 0 calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
-        padding: var(--spacing-4) var(--spacing-8) var(--spacing-6);
-        border-top: 1px solid var(--color-bp-border);
-        position: sticky;
-        bottom: 0;
-        background: var(--color-bp-surface);
-        z-index: 1;
-      }
-
-      @media (max-width: 640px) {
-        .step-actions {
-          margin: 0 calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
-          padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
-        }
-      }
-
-      .back-to-list-link {
-        display: inline-flex;
-        align-items: center;
-        min-height: 44px;
-        padding: 0 var(--spacing-3);
-        border-radius: var(--radius-md);
-        color: var(--color-bp-text-muted);
-        font-weight: 600;
-        text-decoration: none;
-        transition:
-          background 0.15s ease,
-          color 0.15s ease;
-      }
-
-      .back-to-list-link:hover {
-        background: var(--color-bp-hueso-100);
-        color: var(--color-bp-text);
-      }
-
-      .back-to-list-link:focus-visible {
-        outline: 2px solid var(--color-bp-cobre-500);
-        outline-offset: 2px;
-      }
-
-      .modal-backdrop {
-        position: fixed;
-        inset: 0;
-        background: rgba(4, 23, 18, 0.45);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: var(--spacing-4);
-        z-index: 10;
-      }
-
-      .modal-panel {
-        background: var(--color-bp-surface);
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-lg);
-        padding: var(--spacing-6);
-        max-width: 26rem;
-      }
-
-      .modal-panel h2 {
-        font-family: 'Fraunces', serif;
-        font-size: 1.25rem;
-        margin: 0 0 var(--spacing-3);
-        color: var(--color-bp-text);
-      }
-
-      .modal-panel p {
-        color: var(--color-bp-text-muted);
-        margin: 0 0 var(--spacing-4);
-      }
-
-      .modal-hint {
-        color: var(--color-bp-danger-600) !important;
-        font-size: 0.875rem;
-      }
-
-      .modal-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--spacing-3);
-        margin-top: var(--spacing-6);
       }
     `,
   ],
@@ -312,8 +193,6 @@ export class BasicsStepComponent {
   // is a plain getter (not a signal) — only real user input marks a control dirty, so the
   // constructor's own patchValue-from-initialValue effect below never trips a false positive.
   readonly dirtyChange = output<boolean>();
-
-  protected readonly confirmingBack = signal(false);
 
   protected readonly form = new FormGroup(
     {
@@ -383,28 +262,14 @@ export class BasicsStepComponent {
     });
   }
 
-  protected onRequestBack(): void {
-    this.confirmingBack.set(true);
-  }
-
-  protected onCancelBackConfirm(): void {
-    this.confirmingBack.set(false);
-  }
-
-  protected onDiscardAndLeave(): void {
-    this.confirmingBack.set(false);
-    this.router.navigateByUrl('/organizer/dashboard');
-  }
-
-  protected onSaveAndLeave(): void {
+  // T125: "Guardar borrador" now lives in the shared action bar's centre zone instead of inside a
+  // leave-confirmation dialog — the organizer can save and step away at any point, and the wizard
+  // header's own "Volver al listado" handles the unsaved-changes prompt.
+  protected onSaveDraft(): void {
     if (this.form.invalid || this.submitting()) {
       return;
     }
 
-    // Close the dialog before the request resolves rather than after: on success there's nothing
-    // left to confirm, and on failure the underlying step is what shows the error (banner or
-    // per-field, same as onNext) — a dialog with no error slot of its own would otherwise hide it.
-    this.confirmingBack.set(false);
     this.submitting.set(true);
     this.apiError.set(null);
 

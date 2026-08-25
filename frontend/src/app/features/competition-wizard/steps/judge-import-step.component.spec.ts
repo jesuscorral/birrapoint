@@ -230,7 +230,7 @@ describe('JudgeImportStepComponent', () => {
     const buttons = [...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[];
     expect(buttons.some((button) => button.textContent?.trim() === 'Consolidar')).toBe(false);
 
-    buttonWithText(fixture.nativeElement, 'Continuar').click();
+    buttonWithText(fixture.nativeElement, 'Siguiente').click();
     fixture.detectChanges();
 
     expect(savedEmitted.length).toBe(1);
@@ -280,12 +280,12 @@ describe('JudgeImportStepComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('No hemos podido consolidar');
   });
 
-  it('emits back when "← Volver" is clicked', () => {
+  it('emits back when "Atrás" is clicked', () => {
     const fixture = createComponent();
     const emitted: void[] = [];
     fixture.componentInstance.back.subscribe(() => emitted.push(undefined));
 
-    buttonWithText(fixture.nativeElement, '← Volver').click();
+    buttonWithText(fixture.nativeElement, 'Atrás').click();
 
     expect(emitted.length).toBe(1);
   });

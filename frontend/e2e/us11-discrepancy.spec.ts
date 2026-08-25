@@ -73,11 +73,31 @@ interface SectionInput {
 // fieldset/legend/label markup) -- one builder covers both the initial submit and the adjustment.
 function buildSections(scores: ScoreSet, tag: string): SectionInput[] {
   return [
-    { legend: 'Aroma', score: scores.aroma, comment: `${tag} aroma note, long enough to satisfy the minimum comment length rule.` },
-    { legend: 'Appearance', score: scores.appearance, comment: `${tag} appearance note, long enough to satisfy the minimum length rule.` },
-    { legend: 'Flavor', score: scores.flavor, comment: `${tag} flavor note, long enough to satisfy the minimum comment length rule.` },
-    { legend: 'Mouthfeel', score: scores.mouthfeel, comment: `${tag} mouthfeel note, long enough to satisfy the minimum length rule.` },
-    { legend: 'Overall Impression', score: scores.overall, comment: `${tag} overall note, long enough to satisfy the minimum length rule.` },
+    {
+      legend: 'Aroma',
+      score: scores.aroma,
+      comment: `${tag} aroma note, long enough to satisfy the minimum comment length rule.`,
+    },
+    {
+      legend: 'Appearance',
+      score: scores.appearance,
+      comment: `${tag} appearance note, long enough to satisfy the minimum length rule.`,
+    },
+    {
+      legend: 'Flavor',
+      score: scores.flavor,
+      comment: `${tag} flavor note, long enough to satisfy the minimum comment length rule.`,
+    },
+    {
+      legend: 'Mouthfeel',
+      score: scores.mouthfeel,
+      comment: `${tag} mouthfeel note, long enough to satisfy the minimum length rule.`,
+    },
+    {
+      legend: 'Overall Impression',
+      score: scores.overall,
+      comment: `${tag} overall note, long enough to satisfy the minimum length rule.`,
+    },
   ];
 }
 
@@ -382,8 +402,14 @@ test.describe('US11 — discrepancy consensus', () => {
     await expect(report.getByText(judgeA.email, { exact: true })).toBeVisible();
     await expect(report.getByText(judgeB.email, { exact: true })).toBeVisible();
 
-    const judgeATempPassword = await readTemporaryPasswordFromInvitation(page.request, judgeA.email);
-    const judgeBTempPassword = await readTemporaryPasswordFromInvitation(page.request, judgeB.email);
+    const judgeATempPassword = await readTemporaryPasswordFromInvitation(
+      page.request,
+      judgeA.email,
+    );
+    const judgeBTempPassword = await readTemporaryPasswordFromInvitation(
+      page.request,
+      judgeB.email,
+    );
 
     await page.goto(`/organizer/competitions/${competitionId}/tables`);
     await expect(page.getByRole('heading', { name: 'Table management' })).toBeVisible();
@@ -543,9 +569,9 @@ test.describe('US11 — discrepancy consensus', () => {
       const totalsRowsA = openAlertCardsA.locator('table.totals-table tbody tr');
       await expect(totalsRowsA).toHaveCount(2);
       await expect(totalsRowsA.filter({ hasText: String(JUDGE_A_TOTAL) })).toContainText('(you)');
-      await expect(
-        totalsRowsA.filter({ hasText: String(JUDGE_B_TOTAL) }),
-      ).not.toContainText('(you)');
+      await expect(totalsRowsA.filter({ hasText: String(JUDGE_B_TOTAL) })).not.toContainText(
+        '(you)',
+      );
 
       // --- Attempt to close the table (from judge A): blocked with 409 discrepancy-open, UI
       // surfaces the blind code and a link to resolve ---
@@ -572,9 +598,7 @@ test.describe('US11 — discrepancy consensus', () => {
       const closeErrorA = pageA.locator('[role="alert"]');
       await expect(closeErrorA).toContainText('Unresolved discrepancies');
       await expect(closeErrorA).toContainText(blindCode);
-      await expect(
-        closeErrorA.getByRole('link', { name: 'Resolve discrepancies' }),
-      ).toBeVisible();
+      await expect(closeErrorA.getByRole('link', { name: 'Resolve discrepancies' })).toBeVisible();
 
       // --- Resolve: judge B adjusts their evaluation to within 7 points of judge A's total ---
       await pageB.goto(`/judge/tables/${mesa1Id}/discrepancies`);
