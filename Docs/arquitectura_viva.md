@@ -1368,6 +1368,30 @@ and the audit drill-down still shows judge A's earlier submitted total.
   exactly where it was, and the heading reads "n de N" while a filter is active so a short list is
   never mistaken for a nearly-finished one.
 
+  **T125b — what the first pass got wrong.** Seen on a real 1900px screen, the shell still had
+  its content flush against the viewport edges. The cause was not a missing rule but an invalid
+  one: `.wizard-main`'s `padding: var(--spacing-10) var(--spacing-6) var(--spacing-16)` referenced
+  a token that `styles.css` never defined, and one unresolved `var()` invalidates the entire
+  shorthand at computed-value time — so the wizard had been rendering with **no padding at all**,
+  in every step, since that rule was written. `--spacing-16` is now defined, the gutters widen at
+  1280px and 1800px, and the container is capped at 88rem rather than 96rem so the card stops
+  chasing the last pixel.
+
+  The board order also inverted: the unassigned pool and its toolbar read first, the tables rail
+  sits underneath. That matches the actual task — scan what is left to place, then drop downward —
+  and it removes the need for any sticky positioning, because the pool's beer grid is capped at
+  `40vh` and scrolls inside itself, so it cannot push the rail out of view exactly when the
+  organizer has the most left to do. Rail cards went 17rem → 13rem (about six across a desktop
+  board before the rail scrolls at all) with `5.5rem` internally-scrolling zones, and
+  `judge-seat.component.ts` gained a `dense` input that lays avatar and one-line name in a row: the
+  stacked form was what made the cards tall, and simply dropping the name would have undone the
+  T124 change that put it there. "Add table" left its header row for a dashed tile inside the
+  rail's own horizontal scroller — zero vertical cost, both controls still rendered and labelled
+  for the E2E specs that address them by label. Finally an "Ordenar por" control (estilo by
+  default, since balancing a table is spreading styles across it), kept separate from the filters:
+  "Limpiar filtros" does not reset it, because silently reshuffling the pool someone is working
+  through is worse than leaving a sort applied.
+
   **Recorded debt found here, not caused here**: `us2-wizard.spec.ts`, `us3-import.spec.ts`,
   `us3-import-scale.spec.ts` and `e2e/a11y/routes.a11y.spec.ts` still drive the wizard through
   pre-translation English labels (`Next`, `Save Draft`, `Upload`, `Consolidate`,

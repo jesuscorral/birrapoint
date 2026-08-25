@@ -32,6 +32,7 @@ function initialsOf(displayName: string): string {
       [cdkDragData]="judge().id"
       class="judge-seat"
       [class.judge-seat--named]="showName()"
+      [class.judge-seat--dense]="dense()"
       [attr.data-judge-id]="judge().id"
       role="button"
       tabindex="0"
@@ -103,6 +104,29 @@ function initialsOf(displayName: string): string {
       overflow-wrap: anywhere;
     }
 
+    .judge-seat--dense {
+      flex-direction: row;
+      width: auto;
+      max-width: 100%;
+      gap: var(--spacing-1);
+      padding: 0 var(--spacing-1) 0 0;
+    }
+
+    .judge-seat--dense .judge-seat__avatar {
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      min-height: 28px;
+      font-size: 0.625rem;
+    }
+
+    .judge-seat--dense .judge-seat__name {
+      font-size: 0.6875rem;
+      -webkit-line-clamp: 1;
+      max-width: 6rem;
+      text-align: left;
+    }
+
     .judge-seat:focus-visible {
       outline: 2px solid var(--color-bp-verde-600);
       outline-offset: 2px;
@@ -114,6 +138,10 @@ export class JudgeSeatComponent {
   // Defaults to the named form — every current call site wants it (T124). Kept as an input rather
   // than hardcoded so a future dense view can fall back to the bare avatar without a fork.
   readonly showName = input(true);
+  // T125b: seated inside a rail card the avatar-over-name stack is what made those cards tall, so
+  // the dense form lays the two out in a row with a one-line name. The name stays visible — losing
+  // it was the whole complaint that put it there.
+  readonly dense = input(false);
   readonly activated = output<void>();
 
   protected readonly initials = computed(() => initialsOf(this.judge().displayName));

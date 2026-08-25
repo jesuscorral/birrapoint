@@ -348,10 +348,31 @@ import { TablesStepComponent } from './steps/tables-step.component';
         min-height: 100vh;
       }
 
+      /* T125b: real breathing room at the sides. The shell spans the viewport but the content
+         never runs up against it — the gutter widens with the screen instead of the card growing
+         to fill every last pixel. */
       .wizard-main {
         display: flex;
         justify-content: center;
-        padding: var(--spacing-10) var(--spacing-6) var(--spacing-16);
+        padding: var(--spacing-10) var(--spacing-8) var(--spacing-16);
+      }
+
+      @media (min-width: 1280px) {
+        .wizard-main {
+          padding-inline: var(--spacing-12);
+        }
+      }
+
+      @media (min-width: 1800px) {
+        .wizard-main {
+          padding-inline: var(--spacing-16);
+        }
+      }
+
+      @media (max-width: 640px) {
+        .wizard-main {
+          padding: var(--spacing-8) var(--spacing-4) var(--spacing-12);
+        }
       }
 
       /* T125: the organizer console is desktop-first. The shell now spans the viewport (capped so
@@ -360,7 +381,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
          import and table-assignment steps use the full width they actually need. */
       .wizard-container {
         width: 100%;
-        max-width: 96rem;
+        max-width: 88rem;
       }
 
       .wizard-header {

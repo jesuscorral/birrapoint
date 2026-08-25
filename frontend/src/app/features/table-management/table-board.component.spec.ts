@@ -446,9 +446,6 @@ describe('TableBoardComponent', () => {
     const rail = fixture.nativeElement.querySelector('.board-rail') as HTMLElement;
     expect(rail.querySelectorAll('app-mesa-card').length).toBe(2);
     expect(rail.textContent).toContain('Mesas (2)');
-    // The "Add table" form moved into the rail head, so creating a table and dropping onto it are
-    // the same region of the screen.
-    expect(rail.querySelector('#new-table-name')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('app-unassigned-column')).not.toBeNull();
   });
 
@@ -458,12 +455,34 @@ describe('TableBoardComponent', () => {
     expect(fixture.nativeElement.querySelector('.mesa-card--compact')).not.toBeNull();
   });
 
-  it('shows a first-run hint instead of an empty rail when no table exists yet', () => {
+  it('shows a first-run hint inside the add-table tile when no table exists yet', () => {
     fakeApi.getTables.mockReturnValue(of([]));
     const fixture = createComponent();
 
-    const empty = fixture.nativeElement.querySelector('.board-rail__empty') as HTMLElement;
-    expect(empty.textContent).toContain('Aún no hay mesas');
+    const hint = fixture.nativeElement.querySelector('.add-table__hint') as HTMLElement;
+    expect(hint.textContent).toContain('Crea la primera mesa');
+    // …and disappears once there is one, so the tile stops competing with the tables for width.
+    fakeApi.getTables.mockReturnValue(of([tableFixture()]));
+    const withTable = createComponent();
+    expect(withTable.nativeElement.querySelector('.add-table__hint')).toBeNull();
+  });
+
+  // T125b: pending work reads first, tables underneath — the organizer scans what is left to
+  // place and drops downward into the rail.
+  it('renders the unassigned pool above the tables rail', () => {
+    const fixture = createComponent();
+
+    const pool = fixture.nativeElement.querySelector('app-unassigned-column') as HTMLElement;
+    const rail = fixture.nativeElement.querySelector('.board-rail') as HTMLElement;
+    expect(pool.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('keeps the add-table controls inside the rail so they cost no vertical space', () => {
+    const fixture = createComponent();
+
+    const rail = fixture.nativeElement.querySelector('.board-rail') as HTMLElement;
+    expect(rail.querySelector('#new-table-name')).not.toBeNull();
+    expect(rail.querySelector('.board-rail__list .add-table')).not.toBeNull();
   });
 
   describe('pool filters (T125)', () => {
@@ -522,6 +541,41 @@ describe('TableBoardComponent', () => {
       fixture.detectChanges();
 
       expect(poolTokens(fixture)).toEqual(['e2']);
+    });
+
+    it('orders the pool by style by default, and re-orders on demand without losing anything', () => {
+      fakeEntriesApi.getEntries.mockReturnValue(of(multiEntryFixture()));
+      const fixture = createComponent();
+
+      // 'American IPA' before 'Munich Helles'.
+      expect(poolTokens(fixture)).toEqual(['e2', 'e3']);
+
+      const selects = [...fixture.nativeElement.querySelectorAll('select')] as HTMLSelectElement[];
+      const sortSelect = selects[2];
+      sortSelect.value = 'abv';
+      sortSelect.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      // Both fixtures share an ABV, so the blind-code tiebreak decides: CD34 before EF56.
+      expect(poolTokens(fixture)).toEqual(['e2', 'e3']);
+      expect(poolTokens(fixture).length).toBe(2);
+    });
+
+    it('sorts entries without a competition category last rather than clumping them first', () => {
+      fakeEntriesApi.getEntries.mockReturnValue(
+        of([
+          { ...multiEntryFixture()[0], id: 'e2', competitionCategoryName: null },
+          { ...multiEntryFixture()[1], id: 'e3', competitionCategoryName: 'Clásicos' },
+        ]),
+      );
+      const fixture = createComponent();
+
+      const selects = [...fixture.nativeElement.querySelectorAll('select')] as HTMLSelectElement[];
+      selects[2].value = 'category';
+      selects[2].dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect(poolTokens(fixture)).toEqual(['e3', 'e2']);
     });
 
     it('reports the filtered count against the pool total, and clears back to everything', () => {

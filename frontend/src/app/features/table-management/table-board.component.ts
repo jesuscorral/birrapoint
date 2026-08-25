@@ -62,6 +62,11 @@ interface RawConflict {
   beerEntryIds: string[];
 }
 
+// Pool ordering (T125b). 'style' groups like styles together, which is how a balanced table gets
+// built; 'category' does the same for the organizer's own step-3 grouping; 'abv' surfaces the
+// strongest beers first when balancing mean alcohol; 'code' is the API's own order.
+type BeerSort = 'style' | 'category' | 'abv' | 'code';
+
 export interface ResolvedConflict {
   judgeDisplayName: string;
   blindCodes: string[];
@@ -127,57 +132,9 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
       <bp-alert type="error" title="No hemos podido mover el elemento">{{ message }}</bp-alert>
     }
 
-    <!-- T125: the tables live in a sticky rail at the top of the board, so they stay on screen
-         as drop targets no matter how far the organizer scrolls the pool below. Previously the
-         source column and the tables shared one wrapping flex row, which pushed every table below
-         the fold as soon as a competition had more than two or three of them. -->
-    <div class="board-rail">
-      <div class="board-rail__head">
-        <h3 class="board-rail__title">Mesas ({{ tables().length }})</h3>
-        <section aria-label="Add table" class="add-table">
-          <bp-input
-            id="new-table-name"
-            label="New table name"
-            [value]="newTableName()"
-            (valueChange)="newTableName.set($event)"
-          ></bp-input>
-          <bp-button
-            type="button"
-            label="Add table"
-            variant="primary"
-            [loading]="creatingTable()"
-            [disabled]="!newTableName().trim() || creatingTable()"
-            (clicked)="onCreateTable()"
-          ></bp-button>
-        </section>
-      </div>
-
-      @if (createError(); as message) {
-        <bp-alert type="error" title="No hemos podido crear la mesa">{{ message }}</bp-alert>
-      }
-
-      <ul class="board-rail__list">
-        @for (table of tables(); track table.id) {
-          <li>
-            <app-mesa-card
-              [table]="table"
-              [compact]="true"
-              [connectedJudgeListIds]="judgeDropListIds()"
-              [connectedBeerListIds]="beerDropListIds()"
-              (judgeActivated)="onJudgeClicked($event)"
-              (beerActivated)="onBeerClicked($event)"
-              (judgesDropped)="onJudgesDropped($event)"
-              (beersDropped)="onBeersDropped($event)"
-            />
-          </li>
-        } @empty {
-          <li class="board-rail__empty">
-            Aún no hay mesas. Crea la primera arriba y arrastra jueces y cervezas hasta ella.
-          </li>
-        }
-      </ul>
-    </div>
-
+    <!-- T125b: pending work on top, tables underneath. The organizer reads "what is left to
+         place" first and drops downward into the rail, which stays in view because the pool above
+         it is height-capped and scrolls inside itself rather than pushing the rail off screen. -->
     <div class="board-toolbar">
       <label class="board-toolbar__field">
         <span>Buscar</span>
@@ -215,6 +172,19 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
           }
         </select>
       </label>
+      <label class="board-toolbar__field">
+        <span>Ordenar por</span>
+        <select
+          class="board-toolbar__control board-toolbar__control--narrow"
+          [value]="sortBy()"
+          (change)="sortBy.set($any($event.target).value)"
+        >
+          <option value="style">Estilo</option>
+          <option value="category">Categoría</option>
+          <option value="abv">Graduación</option>
+          <option value="code">Código ciego</option>
+        </select>
+      </label>
       @if (isFiltering()) {
         <bp-button
           type="button"
@@ -237,6 +207,57 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
       (judgesDropped)="onJudgesDropped($event)"
       (beersDropped)="onBeersDropped($event)"
     />
+
+    <div class="board-rail">
+      <h3 class="board-rail__title">Mesas ({{ tables().length }})</h3>
+
+      @if (createError(); as message) {
+        <bp-alert type="error" title="No hemos podido crear la mesa">{{ message }}</bp-alert>
+      }
+
+      <ul class="board-rail__list">
+        @for (table of tables(); track table.id) {
+          <li>
+            <app-mesa-card
+              [table]="table"
+              [compact]="true"
+              [connectedJudgeListIds]="judgeDropListIds()"
+              [connectedBeerListIds]="beerDropListIds()"
+              (judgeActivated)="onJudgeClicked($event)"
+              (beerActivated)="onBeerClicked($event)"
+              (judgesDropped)="onJudgesDropped($event)"
+              (beersDropped)="onBeersDropped($event)"
+            />
+          </li>
+        }
+        <!-- T125b: "Add table" is a tile inside the rail's own horizontal scroller rather than a
+             header row of its own, so it costs no vertical space at all — and both its controls
+             stay rendered and labelled, which nine E2E specs address by label. -->
+        <li class="board-rail__add">
+          <section aria-label="Add table" class="add-table">
+            @if (tables().length === 0) {
+              <p class="add-table__hint">
+                Crea la primera mesa y arrastra jueces y cervezas hasta ella.
+              </p>
+            }
+            <bp-input
+              id="new-table-name"
+              label="New table name"
+              [value]="newTableName()"
+              (valueChange)="newTableName.set($event)"
+            ></bp-input>
+            <bp-button
+              type="button"
+              label="Add table"
+              variant="secondary"
+              [loading]="creatingTable()"
+              [disabled]="!newTableName().trim() || creatingTable()"
+              (clicked)="onCreateTable()"
+            ></bp-button>
+          </section>
+        </li>
+      </ul>
+    </div>
 
     @if (conflictDialog(); as conflicts) {
       <div class="modal-backdrop" role="presentation" (click)="dismissConflictDialog()">
@@ -288,74 +309,6 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
       margin: 0 0 var(--spacing-6);
     }
 
-    /* --- Sticky tables rail (T125) ------------------------------------------------------- */
-    .board-rail {
-      position: sticky;
-      top: 0;
-      z-index: 3;
-      padding: var(--spacing-3) var(--spacing-4) var(--spacing-4);
-      margin-bottom: var(--spacing-5);
-      border: 1px solid var(--color-bp-border);
-      border-radius: var(--radius-lg);
-      /* Opaque: the beer pool scrolls underneath it. */
-      background: var(--color-bp-hueso-50);
-      box-shadow: var(--shadow-sm);
-    }
-
-    .board-rail__head {
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: var(--spacing-4);
-      flex-wrap: wrap;
-      margin-bottom: var(--spacing-3);
-    }
-
-    .board-rail__title {
-      font-family: 'Fraunces', serif;
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--color-bp-text);
-      margin: 0;
-    }
-
-    .add-table {
-      display: flex;
-      align-items: flex-end;
-      gap: var(--spacing-3);
-    }
-
-    .add-table bp-input {
-      flex: 0 1 16rem;
-    }
-
-    /* One row, scrolled horizontally rather than wrapped: wrapping would grow the rail's height
-       with every table added and eventually swallow the pool it is supposed to sit above. */
-    .board-rail__list {
-      display: flex;
-      gap: var(--spacing-3);
-      margin: 0;
-      padding: 0 0 var(--spacing-2);
-      list-style: none;
-      overflow-x: auto;
-      overscroll-behavior-x: contain;
-    }
-
-    .board-rail__list > li {
-      flex: 0 0 17rem;
-      max-width: 17rem;
-    }
-
-    .board-rail__empty {
-      flex: 1 1 auto;
-      padding: var(--spacing-4);
-      border: 1px dashed var(--color-bp-border-strong);
-      border-radius: var(--radius-lg);
-      color: var(--color-bp-text-muted);
-      font-size: 0.875rem;
-      text-align: center;
-    }
-
     /* --- Pool toolbar --------------------------------------------------------------------- */
     .board-toolbar {
       display: flex;
@@ -386,15 +339,73 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
       font-weight: 400;
     }
 
+    .board-toolbar__control--narrow {
+      min-width: 9rem;
+    }
+
     .board-toolbar__control:focus-visible {
       outline: 2px solid var(--color-bp-cobre-500);
       outline-offset: 1px;
     }
 
-    @media (max-width: 900px) {
-      .board-rail {
-        position: static;
-      }
+    /* --- Tables rail, below the pool (T125b) ------------------------------------------------ */
+    .board-rail {
+      margin-top: var(--spacing-5);
+      padding: var(--spacing-3) var(--spacing-4) var(--spacing-4);
+      border: 1px solid var(--color-bp-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bp-hueso-50);
+    }
+
+    .board-rail__title {
+      font-family: 'Fraunces', serif;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--color-bp-text);
+      margin: 0 0 var(--spacing-3);
+    }
+
+    /* One row, scrolled horizontally rather than wrapped: wrapping would grow the rail's height
+       with every table added and eventually swallow the pool it sits under. */
+    .board-rail__list {
+      display: flex;
+      align-items: stretch;
+      gap: var(--spacing-3);
+      margin: 0;
+      padding: 0 0 var(--spacing-2);
+      list-style: none;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+    }
+
+    /* T125b: narrower cards than the first pass — at 13rem roughly six tables fit across a
+       desktop board before the rail needs scrolling at all. */
+    .board-rail__list > li {
+      flex: 0 0 13rem;
+      max-width: 13rem;
+    }
+
+    .board-rail__add {
+      flex: 0 0 12rem;
+      max-width: 12rem;
+    }
+
+    .add-table {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-2);
+      height: 100%;
+      padding: var(--spacing-3);
+      border: 1px dashed var(--color-bp-border-strong);
+      border-radius: var(--radius-lg);
+      background: var(--color-bp-surface);
+    }
+
+    .add-table__hint {
+      margin: 0;
+      font-size: 0.75rem;
+      line-height: 1.35;
+      color: var(--color-bp-text-muted);
     }
 
     .modal-backdrop {
@@ -458,7 +469,9 @@ export class TableBoardComponent implements OnInit {
 
   protected readonly unassignedJudges = computed(() => {
     const assignedIds = new Set(this.tables().flatMap((table) => table.judges.map((j) => j.id)));
-    return this.judges().filter((judge) => !assignedIds.has(judge.id));
+    return this.judges()
+      .filter((judge) => !assignedIds.has(judge.id))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
   });
 
   protected readonly unassignedBeers = computed(() =>
@@ -471,6 +484,9 @@ export class TableBoardComponent implements OnInit {
   protected readonly beerQuery = signal('');
   protected readonly styleFilter = signal('');
   protected readonly categoryFilter = signal('');
+  // Default 'style' rather than the API's blind-code order: the organizer places beers by spreading
+  // styles across tables, and that is far easier when like styles arrive next to each other.
+  protected readonly sortBy = signal<BeerSort>('style');
 
   protected readonly styleOptions = computed(() =>
     [...new Set(this.unassignedBeers().map((entry) => entry.styleName))].sort((a, b) =>
@@ -495,7 +511,7 @@ export class TableBoardComponent implements OnInit {
       this.categoryFilter().length > 0,
   );
 
-  protected readonly visibleUnassignedBeers = computed(() => {
+  private readonly filteredUnassignedBeers = computed(() => {
     const query = this.beerQuery().trim().toLocaleLowerCase();
     const style = this.styleFilter();
     const category = this.categoryFilter();
@@ -513,6 +529,31 @@ export class TableBoardComponent implements OnInit {
         entry.blindCode.toLocaleLowerCase().includes(query) ||
         entry.styleName.toLocaleLowerCase().includes(query)
       );
+    });
+  });
+
+  protected readonly visibleUnassignedBeers = computed(() => {
+    const sort = this.sortBy();
+    // Sorted copy: the filter computed above must keep returning the API's own order untouched so
+    // switching sort back to "code" is lossless.
+    return [...this.filteredUnassignedBeers()].sort((a, b) => {
+      switch (sort) {
+        case 'style':
+          return a.styleName.localeCompare(b.styleName) || a.blindCode.localeCompare(b.blindCode);
+        case 'category':
+          // Entries with no competition category sort last rather than clumping under "".
+          return (
+            (a.competitionCategoryName ?? '\uffff').localeCompare(
+              b.competitionCategoryName ?? '\uffff',
+            ) ||
+            a.styleName.localeCompare(b.styleName) ||
+            a.blindCode.localeCompare(b.blindCode)
+          );
+        case 'abv':
+          return b.abvPercent - a.abvPercent || a.blindCode.localeCompare(b.blindCode);
+        default:
+          return a.blindCode.localeCompare(b.blindCode);
+      }
     });
   });
 
@@ -824,6 +865,8 @@ export class TableBoardComponent implements OnInit {
     this.bosWarning.set(`${count} ${count === 1 ? 'entry' : 'entries'} flagged Not Valid for BOS.`);
   }
 
+  // Deliberately leaves sortBy alone: it is an ordering preference, not a filter, and resetting it
+  // would silently reshuffle the pool the organizer is working through.
   protected clearFilters(): void {
     this.beerQuery.set('');
     this.styleFilter.set('');

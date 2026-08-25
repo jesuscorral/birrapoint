@@ -47,6 +47,18 @@ describe('JudgeSeatComponent', () => {
     expect(seat.textContent?.trim()).toBe('AL');
   });
 
+  // T125b: inside a rail card the stacked form is what made the cards tall — dense lays avatar
+  // and name in a row, and the name still shows.
+  it('keeps the name visible in the dense form used inside rail cards', () => {
+    const fixture = createComponent(ada);
+    fixture.componentRef.setInput('dense', true);
+    fixture.detectChanges();
+
+    const seat = fixture.nativeElement.querySelector('.judge-seat') as HTMLDivElement;
+    expect(seat.classList.contains('judge-seat--dense')).toBe(true);
+    expect(seat.querySelector('.judge-seat__name')?.textContent?.trim()).toBe('Ada Lovelace');
+  });
+
   it('handles a single-word display name', () => {
     const fixture = createComponent({ id: 'j2', email: 'ada@example.com', displayName: 'Ada' });
 

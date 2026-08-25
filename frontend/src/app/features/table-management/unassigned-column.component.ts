@@ -105,16 +105,27 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
       display: flex;
       flex-wrap: wrap;
       gap: var(--spacing-2);
+      /* Judges are few and short; cap them so a large roster cannot push the beers — the thing
+         actually being distributed — out of view. */
+      max-height: 12rem;
+      overflow-y: auto;
+      overscroll-behavior: contain;
     }
 
     /* T125: the pool is the full width of the board now, not a sidebar, so beers lay out as a
-       grid — roughly six per row on a desktop screen, which is what lets the organizer see the
-       whole unassigned set without scrolling past the tables rail. */
+       grid. T125b caps its height and scrolls it internally: the pool sits above the tables rail
+       now, and an uncapped pool would push the rail off screen exactly when the organizer has the
+       most beers left to place. */
     .unassigned-list--beers {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr));
       gap: var(--spacing-2);
       align-content: start;
+      max-height: 40vh;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      /* Room for the focus ring on the last row, which the scroll container would otherwise clip. */
+      padding: 2px;
     }
 
     .unassigned-empty {

@@ -64,7 +64,11 @@ import type { TableSummary } from './table-management-api.service';
         >
           @for (judge of table().judges; track judge.id) {
             <li>
-              <app-judge-seat [judge]="judge" (activated)="judgeActivated.emit(judge.id)" />
+              <app-judge-seat
+                [judge]="judge"
+                [dense]="compact()"
+                (activated)="judgeActivated.emit(judge.id)"
+              />
             </li>
           }
           @if (table().judges.length === 0) {
@@ -205,26 +209,52 @@ import type { TableSummary } from './table-management-api.service';
       border-color: var(--color-bp-cobre-300);
     }
 
+    /* T125b: the rail sits below the pool now, so the cards have to earn their height. Smaller
+       type, tighter zones, and only the two numbers a table is balanced on keep any emphasis. */
     .mesa-card--compact {
       gap: var(--spacing-2);
-      padding: var(--spacing-3);
+      padding: var(--spacing-2) var(--spacing-3) var(--spacing-3);
+      height: 100%;
+    }
+
+    .mesa-card--compact .mesa-header h3 {
+      font-size: 0.9375rem;
     }
 
     .mesa-card--compact .mesa-stats {
-      gap: var(--spacing-1) var(--spacing-3);
+      gap: 2px var(--spacing-3);
+      margin-top: var(--spacing-1);
+    }
+
+    .mesa-card--compact .mesa-stats dt {
+      font-size: 0.625rem;
+      letter-spacing: 0.02em;
+    }
+
+    .mesa-card--compact .mesa-stats dd {
+      font-size: 0.8125rem;
     }
 
     .mesa-card--compact .mesa-stats__item--primary dd {
-      font-size: 1.125rem;
+      font-size: 1rem;
     }
 
     .mesa-card--compact .mesa-styles {
       -webkit-line-clamp: 1;
+      margin-top: var(--spacing-1);
+      font-size: 0.6875rem;
+    }
+
+    .mesa-card--compact .mesa-zone__label {
+      font-size: 0.625rem;
     }
 
     .mesa-card--compact .mesa-seats,
     .mesa-card--compact .mesa-tokens {
-      max-height: 7.5rem;
+      gap: var(--spacing-1);
+      padding: var(--spacing-1);
+      max-height: 5.5rem;
+      min-height: 40px;
       overflow-y: auto;
       overscroll-behavior: contain;
     }
