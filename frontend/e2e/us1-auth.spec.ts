@@ -80,10 +80,9 @@ test.describe('US1 — secure access with role-based entry', () => {
     // Structural no-bypass check, run on a second tab (shares the browser's Keycloak session
     // cookies) so it can't corrupt the first tab's in-progress redirect_uri: a direct navigation to
     // the judge landing route mid-flow must not render app/judge data. Observed real behavior: since
-    // the required action is still pending, no full Keycloak SSO session exists yet, so
-    // no full Keycloak SSO session exists yet, so `check-sso` resolves anonymous and the guard
-    // drops the navigation on the public welcome screen — either way the judge workspace itself is
-    // never reached.
+    // the required action is still pending, no full Keycloak SSO session exists yet, so `check-sso`
+    // resolves anonymous and the guard drops the navigation on the public welcome screen — either
+    // way the judge workspace itself is never reached.
     const bypassAttempt = await context.newPage();
     await bypassAttempt.goto('/judge/tables');
     await expect(bypassAttempt).toHaveURL(/localhost:4200\/$/);

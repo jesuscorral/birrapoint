@@ -73,13 +73,16 @@ import { BpButtonComponent } from '../bp-button/bp-button.component';
       z-index: 2;
     }
 
-    /* Belt and braces for any future drop surface under a sticky bar: the bar's own background
-       stops being a hit-test target, only its buttons remain. */
+    /* Belt and braces for any future drop surface under a sticky bar: everything but the controls
+       themselves becomes hit-transparent, so elementFromPoint falls through the bar. The zones are
+       grid tracks that tile the whole bar, so they must NOT re-enable pointer events — only the
+       buttons inside them. */
     .step-actions--sticky {
       pointer-events: none;
     }
 
-    .step-actions--sticky .step-actions__zone {
+    .step-actions--sticky bp-button,
+    .step-actions--sticky button {
       pointer-events: auto;
     }
 

@@ -124,9 +124,12 @@ export async function importEntries(
 
   const rows = page.getByRole('region', { name: 'Filas importadas' });
   await expect(rows).toBeVisible();
-  for (let row = 1; row <= expectedValidRows; row++) {
-    await expect(rows.getByText(`#${row}`, { exact: true })).toBeVisible();
-  }
+  // Count rows carrying the Valid status label, not rows present: `#N` renders for every row
+  // whatever its status, so asserting on it would wave through a batch full of
+  // CategoryMismatch/Invalid rows and fail later somewhere unrelated.
+  await expect(rows.locator('.import-row').filter({ hasText: 'Válida' })).toHaveCount(
+    expectedValidRows,
+  );
 
   const consolidate = page.getByRole('button', { name: 'Consolidar' });
   await expect(consolidate).toBeEnabled();

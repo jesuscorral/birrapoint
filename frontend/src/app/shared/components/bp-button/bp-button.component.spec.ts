@@ -50,7 +50,10 @@ describe('BpButtonComponent', () => {
       fixture.detectChanges();
 
       const button = fixture.nativeElement.querySelector('button');
-      expect(button.classList.toString()).toContain('bg-bp-cobre-500');
+      // cobre-600, not cobre-500: white on cobre-500 is 3.19:1 against the 4.5:1 AA floor, and
+      // this is the primary button on every screen.
+      expect(button.classList.toString()).toContain('bg-bp-cobre-600');
+      expect(button.classList.toString()).not.toContain('bg-bp-cobre-500');
     });
 
     it('should apply secondary variant classes', () => {

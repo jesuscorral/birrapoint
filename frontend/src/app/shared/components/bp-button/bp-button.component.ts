@@ -75,8 +75,11 @@ export class BpButtonComponent {
 
   private variantClasses(): string {
     switch (this.variant()) {
+      // cobre-600, not cobre-500: white on cobre-500 is 3.19:1, well under the 4.5:1 AA floor, and
+      // this is the primary button on every screen. cobre-600 is 4.55:1 — a narrow pass, so treat
+      // it as a floor rather than a starting point when adjusting the brand ramp.
       case 'primary':
-        return 'min-h-11 px-5 bg-bp-cobre-500 text-white border-1.5 border-bp-cobre-500 hover:bg-bp-cobre-600 hover:border-bp-cobre-600 active:bg-bp-cobre-700 active:border-bp-cobre-700 active:translate-y-0.5 focus-visible:ring-bp-hueso-50 focus-visible:ring-offset-bp-cobre-500';
+        return 'min-h-11 px-5 bg-bp-cobre-600 text-white border-1.5 border-bp-cobre-600 hover:bg-bp-cobre-700 hover:border-bp-cobre-700 active:bg-bp-cobre-700 active:border-bp-cobre-700 active:translate-y-0.5 focus-visible:ring-bp-hueso-50 focus-visible:ring-offset-bp-cobre-600';
       case 'secondary':
         return 'min-h-11 px-5 bg-bp-surface text-bp-verde-600 border-1.5 border-bp-border-strong hover:bg-bp-verde-50 hover:border-bp-verde-400 focus-visible:ring-bp-hueso-50 focus-visible:ring-offset-bp-cobre-500';
       case 'ghost':

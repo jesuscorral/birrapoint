@@ -392,9 +392,11 @@ import { TablesStepComponent } from './steps/tables-step.component';
         transition: all 0.15s ease;
       }
 
+      /* cobre-700, not cobre-500: white on cobre-500 is 3.19:1, and the step number is small
+         text, so it needs 4.5:1. cobre-700 gives 6.16:1. */
       .stepper__item.is-active .stepper__marker {
-        background: var(--color-bp-cobre-500);
-        border-color: var(--color-bp-cobre-500);
+        background: var(--color-bp-cobre-700);
+        border-color: var(--color-bp-cobre-700);
         color: #fff;
       }
 

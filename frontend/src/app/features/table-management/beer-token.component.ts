@@ -202,8 +202,12 @@ export type BeerTokenVariant = 'full' | 'mini';
       font-weight: 700;
     }
 
+    /* Overriding only the background here left this chip inheriting cobre-700 text from
+       .beer-token__chip, i.e. #9a4b27 on #1f2320 — 2.58:1. Every modifier that changes the fill
+       must restate the ink. */
     .beer-token__chip--abv {
       background: var(--color-bp-text);
+      color: var(--color-bp-text-on-dark);
     }
 
     .beer-token__abv-mini {

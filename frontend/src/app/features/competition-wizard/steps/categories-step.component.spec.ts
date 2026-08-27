@@ -253,6 +253,27 @@ describe('CategoriesStepComponent', () => {
     expect(bulkSelects.length).toBe(1);
   });
 
+  // Restored from main, where it was dropped in the merge conflict resolution: the only coverage
+  // of the group-header disclosure widget, whose aria-expanded/hidden pairing is a11y-relevant.
+  it('expands and collapses a single group from its header toggle', () => {
+    fakeCatalogApi.getStyles.mockReturnValue(of(groupStyleFixtures()));
+    const fixture = createComponent();
+
+    const toggle = fixture.nativeElement.querySelector('.style-group__toggle') as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect((fixture.nativeElement.querySelector('.style-group__rows') as HTMLElement).hidden).toBe(
+      false,
+    );
+
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('bulk-assigns every style in a BJCP group to the chosen category', () => {
     fakeCatalogApi.getStyles.mockReturnValue(of(groupStyleFixtures()));
     fakeCompetitionsApi.getCategories.mockReturnValue(
