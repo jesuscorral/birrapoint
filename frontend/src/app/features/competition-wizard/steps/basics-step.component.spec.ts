@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
 import { ApiError } from '../../../core/api/api-error';
@@ -50,6 +50,9 @@ describe('BasicsStepComponent', () => {
     return fixture;
   }
 
+  // Step 1 is the only wizard step where "Siguiente" stays gated on validity — every later step
+  // needs the competition id this step creates, so there is nowhere valid to navigate to without
+  // it (see basics-step.component.ts).
   it('disables Next while required fields are empty or invalid', () => {
     const fixture = createComponent();
     const button = fixture.nativeElement.querySelector(
@@ -81,6 +84,14 @@ describe('BasicsStepComponent', () => {
       'button[type="submit"]',
     ) as HTMLButtonElement;
     expect(button.disabled).toBe(false);
+  });
+
+  it('renders exactly one bottom-bar button, labeled "Siguiente" (step 1 has no previous step)', () => {
+    const fixture = createComponent();
+
+    const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')];
+    expect(buttons.length).toBe(1);
+    expect((buttons[0] as HTMLButtonElement).textContent?.trim()).toBe('Siguiente');
   });
 
   it('calls create() with only the basics fields when there is no competition id yet', () => {

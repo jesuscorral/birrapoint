@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 
 import { EntriesApiService } from '../../../core/api/entries-api.service';
@@ -62,6 +62,15 @@ describe('TablesStepComponent', () => {
     expect(fixture.nativeElement.querySelector('h1')).toBeNull();
     const h2 = fixture.nativeElement.querySelector('h2');
     expect(h2?.textContent?.trim()).toBe('Mesas');
+  });
+
+  it('renders exactly one bottom-bar button, labeled "Atrás" (the last step has no next step to advance to)', () => {
+    const fixture = createComponent();
+
+    const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
+      (button: HTMLButtonElement) => button.textContent?.trim(),
+    );
+    expect(buttons).toEqual(['Atrás']);
   });
 
   it('emits dirtyChange(false) on init (forwarded from the embedded table-board)', () => {

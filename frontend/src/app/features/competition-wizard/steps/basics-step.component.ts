@@ -9,7 +9,6 @@ import {
 } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { AbstractControl, ValidationErrors } from '@angular/forms';
-import { Router } from '@angular/router';
 
 import { ApiError } from '../../../core/api/api-error';
 import { CompetitionsApiService } from '../../../core/api/competitions-api.service';
@@ -167,14 +166,17 @@ function toGenericApiError(error: unknown): ApiError {
         margin-inline: auto;
       }
 
-      .field-row {
+      /* Two field columns so the form fills the same card width every other step uses instead of
+         stretching single controls across it. Row spacing comes from each field's own
+         margin-bottom, so only the column gap is set here. */
+      .form-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: var(--spacing-4);
+        column-gap: var(--spacing-6);
       }
 
-      @media (max-width: 480px) {
-        .field-row {
+      @media (max-width: 768px) {
+        .form-grid {
           grid-template-columns: 1fr;
         }
       }
@@ -183,7 +185,6 @@ function toGenericApiError(error: unknown): ApiError {
 })
 export class BasicsStepComponent {
   private readonly api = inject(CompetitionsApiService);
-  private readonly router = inject(Router);
 
   readonly competitionId = input<string | null>(null);
   readonly initialValue = input<CompetitionDetail | null>(null);

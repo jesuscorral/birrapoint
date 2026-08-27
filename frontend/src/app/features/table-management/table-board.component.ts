@@ -451,6 +451,8 @@ export class TableBoardComponent implements OnInit {
   // board ever holds (every other mutation -- drag-drop, click-to-detail "Move to" -- saves
   // immediately via the API) -- so dirtiness tracks exactly that field.
   readonly dirtyChange = output<boolean>();
+  // Drives the wizard stepper marker colour (via the tables-step wrapper). See boardStatus below.
+  readonly statusChange = output<'complete' | 'partial'>();
 
   protected readonly tables = signal<TableSummary[]>([]);
   protected readonly entries = signal<EntryListItem[]>([]);
@@ -571,9 +573,17 @@ export class TableBoardComponent implements OnInit {
     this.tables().map((table) => ({ id: table.id, name: table.name })),
   );
 
+  // There is no required field on this board — creating tables and assigning beers/judges to
+  // them is entirely optional, so per the completion rule (complete = every required field
+  // filled) this step is always complete once visited.
+  protected readonly boardStatus = computed<'complete' | 'partial'>(() => 'complete');
+
   constructor() {
     effect(() => {
       this.dirtyChange.emit(this.newTableName().trim().length > 0);
+    });
+    effect(() => {
+      this.statusChange.emit(this.boardStatus());
     });
   }
 

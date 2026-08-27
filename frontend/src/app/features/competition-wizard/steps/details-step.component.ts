@@ -172,14 +172,20 @@ function toGenericApiError(error: unknown): ApiError {
         margin-inline: auto;
       }
 
-      .field-row {
+      /* Same two-column field layout as step 1 (see basics-step.component.ts) so both form steps
+         fill the shared card width identically. */
+      .form-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: var(--spacing-4);
+        column-gap: var(--spacing-6);
       }
 
-      @media (max-width: 480px) {
-        .field-row {
+      .form-grid__full {
+        grid-column: 1 / -1;
+      }
+
+      @media (max-width: 768px) {
+        .form-grid {
           grid-template-columns: 1fr;
         }
       }

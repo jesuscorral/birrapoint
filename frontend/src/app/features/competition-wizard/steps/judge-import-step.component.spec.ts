@@ -93,14 +93,22 @@ describe('JudgeImportStepComponent', () => {
     return fixture;
   }
 
-  it('binds the native form submit event to onUpload via ngSubmit', () => {
+  it('renders exactly two bottom-bar buttons, labeled "Atrás" and "Siguiente"', () => {
+    const fixture = createComponent();
+
+    const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
+      (button: HTMLButtonElement) => button.textContent?.trim(),
+    );
+    expect(buttons).toEqual(['Atrás', 'Siguiente']);
+  });
+
+  it('uploads the selected file when "Siguiente" is clicked and no batch exists yet', () => {
     fakeJudgeImportApi.upload.mockReturnValue(of(batchFixture([rowFixture({ rowNumber: 1 })])));
     const fixture = createComponent();
     selectFile(fixture, new File(['data'], 'roster.xlsx'));
     fixture.detectChanges();
 
-    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
-    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    buttonWithText(fixture.nativeElement, 'Siguiente').click();
     fixture.detectChanges();
 
     expect(fakeJudgeImportApi.upload).toHaveBeenCalledWith('c1', expect.any(File));
@@ -186,30 +194,24 @@ describe('JudgeImportStepComponent', () => {
     ).toBe(false);
   });
 
-  it('keeps Consolidar disabled while any row is Invalid, and enables it once resolved', () => {
+  it('does not consolidate while any row is Invalid — "Siguiente" just advances instead, leaving the batch pending', () => {
     const fixture = uploadedFixture([
       rowFixture({ rowNumber: 1, status: 'Valid' }),
       rowFixture({ rowNumber: 2, status: 'Invalid', error: 'x' }),
     ]);
+    const emitted: void[] = [];
+    fixture.componentInstance.saved.subscribe(() => emitted.push(undefined));
 
-    const consolidateButton = buttonWithText(fixture.nativeElement, 'Consolidar');
-    expect(consolidateButton.disabled).toBe(true);
+    buttonWithText(fixture.nativeElement, 'Siguiente').click();
 
-    fakeJudgeImportApi.excludeRow.mockReturnValue(
-      of(rowFixture({ rowNumber: 2, status: 'Excluded' })),
-    );
-    const row2 = fixture.nativeElement.querySelectorAll('.judge-import-row')[1] as Element;
-    buttonWithText(row2, 'Excluir').click();
-    fixture.detectChanges();
-
-    const consolidateButtonAfter = buttonWithText(fixture.nativeElement, 'Consolidar');
-    expect(consolidateButtonAfter.disabled).toBe(false);
+    expect(fakeJudgeImportApi.consolidate).not.toHaveBeenCalled();
+    expect(emitted.length).toBe(1);
   });
 
-  it('consolidates successfully, shows the created/updated/excluded summary, and only emits saved once confirmed', () => {
+  it('consolidates once resolved, shows the created/updated/excluded summary, and only advances on a second "Siguiente" click', () => {
     const fixture = uploadedFixture([rowFixture({ rowNumber: 1, status: 'Valid' })]);
-    const savedEmitted: void[] = [];
-    fixture.componentInstance.saved.subscribe(() => savedEmitted.push(undefined));
+    const emitted: void[] = [];
+    fixture.componentInstance.saved.subscribe(() => emitted.push(undefined));
 
     fakeJudgeImportApi.consolidate.mockReturnValue(
       of({
@@ -219,21 +221,20 @@ describe('JudgeImportStepComponent', () => {
         skipped: [],
       }),
     );
-    buttonWithText(fixture.nativeElement, 'Consolidar').click();
+    buttonWithText(fixture.nativeElement, 'Siguiente').click();
     fixture.detectChanges();
 
     expect(fakeJudgeImportApi.consolidate).toHaveBeenCalledWith('c1', 'ji1');
     expect(fixture.nativeElement.textContent).toContain('Creados: 1');
     expect(fixture.nativeElement.textContent).toContain('Actualizados: 0');
     expect(fixture.nativeElement.textContent).toContain('Excluidos: 0');
-    expect(savedEmitted.length).toBe(0);
-    const buttons = [...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[];
-    expect(buttons.some((button) => button.textContent?.trim() === 'Consolidar')).toBe(false);
+    expect(emitted.length).toBe(0);
 
     buttonWithText(fixture.nativeElement, 'Siguiente').click();
     fixture.detectChanges();
 
-    expect(savedEmitted.length).toBe(1);
+    expect(emitted.length).toBe(1);
+    expect(fakeJudgeImportApi.consolidate).toHaveBeenCalledTimes(1);
   });
 
   it('shows the skipped-duplicates count in the consolidate summary when the batch had any (FR-058)', () => {
@@ -247,7 +248,7 @@ describe('JudgeImportStepComponent', () => {
         skipped: [{ email: 'ana@example.com', reason: 'duplicate-in-list' }],
       }),
     );
-    buttonWithText(fixture.nativeElement, 'Consolidar').click();
+    buttonWithText(fixture.nativeElement, 'Siguiente').click();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Omitidos: 1');
@@ -264,7 +265,7 @@ describe('JudgeImportStepComponent', () => {
         skipped: [],
       }),
     );
-    buttonWithText(fixture.nativeElement, 'Consolidar').click();
+    buttonWithText(fixture.nativeElement, 'Siguiente').click();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).not.toContain('Omitidos');
@@ -274,7 +275,7 @@ describe('JudgeImportStepComponent', () => {
     const fixture = uploadedFixture([rowFixture({ rowNumber: 1, status: 'Valid' })]);
 
     fakeJudgeImportApi.consolidate.mockReturnValue(throwError(() => new Error('boom')));
-    buttonWithText(fixture.nativeElement, 'Consolidar').click();
+    buttonWithText(fixture.nativeElement, 'Siguiente').click();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('No hemos podido consolidar');

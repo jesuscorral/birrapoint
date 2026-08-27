@@ -1,5 +1,4 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
 import { of } from 'rxjs';
 
 import { CatalogApiService } from '../../../core/api/catalog-api.service';
@@ -56,7 +55,6 @@ describe('CategoriesStepComponent', () => {
       providers: [
         { provide: CatalogApiService, useValue: fakeCatalogApi },
         { provide: CompetitionsApiService, useValue: fakeCompetitionsApi },
-        provideRouter([]),
       ],
     });
   });
@@ -67,6 +65,24 @@ describe('CategoriesStepComponent', () => {
     fixture.detectChanges();
     return fixture;
   }
+
+  function buttonWithText(root: Element, text: string): HTMLButtonElement {
+    const buttons = [...root.querySelectorAll('button')] as HTMLButtonElement[];
+    const match = buttons.find((button) => button.textContent?.trim() === text);
+    if (!match) {
+      throw new Error(`No button with text "${text}" found`);
+    }
+    return match;
+  }
+
+  it('renders exactly two bottom-bar buttons, labeled "Atrás" and "Siguiente"', () => {
+    const fixture = createComponent();
+
+    const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
+      (button: HTMLButtonElement) => button.textContent?.trim(),
+    );
+    expect(buttons).toEqual(['Atrás', 'Siguiente']);
+  });
 
   it('loads the BJCP catalog and existing categories on init', () => {
     fakeCatalogApi.getStyles.mockReturnValue(of([styleFixture()]));
@@ -316,7 +332,10 @@ describe('CategoriesStepComponent', () => {
     expect(rows[1].styleCodes).toEqual([]);
   });
 
-  it('resets the bulk-assign select back to the placeholder after firing', () => {
+  it('keeps the bulk-assign select on the category it just assigned the whole group to', () => {
+    // The group select is the group's own at-a-glance state, not a fire-and-reset action menu:
+    // assigning the whole group must leave it reading that category, so the organizer can see a
+    // group's assignment from the collapsed header without expanding it.
     fakeCatalogApi.getStyles.mockReturnValue(of(groupStyleFixtures()));
     fakeCompetitionsApi.getCategories.mockReturnValue(
       of(
@@ -334,8 +353,70 @@ describe('CategoriesStepComponent', () => {
     bulkSelect.dispatchEvent(new Event('change'));
     fixture.detectChanges();
 
-    expect(bulkSelect.value).toBe('');
     expect(fixture.componentInstance.categories()[0].styleCodes).toEqual(['18A', '18B', '18C']);
+    expect(bulkSelect.value).toBe('0');
+    expect(bulkSelect.selectedOptions[0].text.trim()).toBe('A');
+  });
+
+  it('shows the bulk-assign select as "Varias categorías" when a group is only partly assigned', () => {
+    fakeCatalogApi.getStyles.mockReturnValue(of(groupStyleFixtures()));
+    fakeCompetitionsApi.getCategories.mockReturnValue(
+      of(
+        categoriesResponseFixture({
+          categories: [{ id: 'cat-1', name: 'A', displayOrder: 0, styleCodes: ['18A'] }],
+        }),
+      ),
+    );
+    const fixture = createComponent();
+
+    const bulkSelect = fixture.nativeElement.querySelector(
+      '.style-group__bulk-select',
+    ) as HTMLSelectElement;
+    expect(bulkSelect.value).toBe('mixed');
+    expect(fixture.componentInstance.categories()[0].styleCodes).toEqual(['18A']);
+  });
+
+  it('clears the whole group when the bulk-assign select is set back to "Sin asignar"', () => {
+    fakeCatalogApi.getStyles.mockReturnValue(of(groupStyleFixtures()));
+    fakeCompetitionsApi.getCategories.mockReturnValue(
+      of(
+        categoriesResponseFixture({
+          categories: [
+            { id: 'cat-1', name: 'A', displayOrder: 0, styleCodes: ['18A', '18B', '18C'] },
+          ],
+        }),
+      ),
+    );
+    const fixture = createComponent();
+
+    const bulkSelect = fixture.nativeElement.querySelector(
+      '.style-group__bulk-select',
+    ) as HTMLSelectElement;
+    bulkSelect.value = '';
+    bulkSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.categories()[0].styleCodes).toEqual([]);
+  });
+
+  it('assigns a whole group from the collapsed header, without expanding it', () => {
+    fakeCatalogApi.getStyles.mockReturnValue(of(groupStyleFixtures()));
+    const fixture = createComponent();
+
+    const rows = fixture.nativeElement.querySelector('.style-group__rows') as HTMLElement;
+    expect(rows.hidden).toBe(true);
+
+    const bulkSelect = fixture.nativeElement.querySelector(
+      '.style-group__bulk-select',
+    ) as HTMLSelectElement;
+    bulkSelect.value = '0';
+    bulkSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.categories()[0].styleCodes).toEqual(['18A', '18B', '18C']);
+    expect((fixture.nativeElement.querySelector('.style-group__rows') as HTMLElement).hidden).toBe(
+      true,
+    );
   });
 
   it('disables "Siguiente" until at least one category has at least one style', () => {
@@ -348,6 +429,8 @@ describe('CategoriesStepComponent', () => {
       ),
     );
     const fixture = createComponent();
+    const emitted: void[] = [];
+    fixture.componentInstance.saved.subscribe(() => emitted.push(undefined));
 
     const finishButton = fixture.nativeElement.querySelector(
       '.step-actions__zone--end button',
@@ -355,13 +438,13 @@ describe('CategoriesStepComponent', () => {
     expect(finishButton.textContent?.trim()).toBe('Siguiente');
     expect(finishButton.disabled).toBe(true);
 
-    fixture.componentInstance.onAssignStyle('18A', '0');
-    fixture.detectChanges();
+    nextButton.click();
 
-    expect(finishButton.disabled).toBe(false);
+    expect(fakeCompetitionsApi.setCategories).not.toHaveBeenCalled();
+    expect(emitted.length).toBe(1);
   });
 
-  it('calls setCategories with the right payload and emits saved on success (step 3 is no longer terminal)', () => {
+  it('calls setCategories with the right payload and emits saved on success once at least one category has at least one style', () => {
     fakeCatalogApi.getStyles.mockReturnValue(of([styleFixture()]));
     fakeCompetitionsApi.getCategories.mockReturnValue(
       of(
@@ -382,8 +465,6 @@ describe('CategoriesStepComponent', () => {
       ),
     );
     const fixture = createComponent();
-    const router = TestBed.inject(Router);
-    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
     const emitted: void[] = [];
     fixture.componentInstance.saved.subscribe(() => emitted.push(undefined));
 

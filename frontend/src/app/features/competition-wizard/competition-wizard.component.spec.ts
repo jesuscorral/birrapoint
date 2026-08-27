@@ -193,6 +193,61 @@ describe('CompetitionWizardComponent', () => {
     return Array.from(fixture.nativeElement.querySelectorAll('.stepper__step'));
   }
 
+  it('shows an uncoloured circle with just the number for a step never visited', () => {
+    configure('c1');
+    fakeApi.getById.mockReturnValue(of(detailFixture()));
+    const fixture = TestBed.createComponent(CompetitionWizardComponent);
+    fixture.detectChanges();
+
+    const items = fixture.nativeElement.querySelectorAll('.stepper__item');
+    const markers = fixture.nativeElement.querySelectorAll('.stepper__marker');
+    // Step 5 has never been visited (the wizard is still on step 1) — no colour class, no check.
+    expect(items[4].classList.contains('is-complete')).toBe(false);
+    expect(items[4].classList.contains('is-partial')).toBe(false);
+    expect(items[4].classList.contains('is-reached')).toBe(false);
+    expect(markers[4].querySelector('svg')).toBeFalsy();
+    expect(markers[4].textContent?.trim()).toBe('5');
+  });
+
+  it('marks a passed step complete (green check) once its required fields are all filled in', () => {
+    configure('c1');
+    fakeApi.getById.mockReturnValue(of(detailFixture()));
+    const fixture = TestBed.createComponent(CompetitionWizardComponent);
+    fixture.detectChanges();
+
+    // Step 1's required fields (name, venue, startDate, endDate) are already satisfied by
+    // detailFixture(), so moving past it should show it as complete rather than merely reached.
+    fixture.componentInstance['onDetailsSaved'](detailFixture());
+    fixture.detectChanges();
+
+    const items = fixture.nativeElement.querySelectorAll('.stepper__item');
+    const markers = fixture.nativeElement.querySelectorAll('.stepper__marker');
+    expect(items[0].classList.contains('is-complete')).toBe(true);
+    expect(items[0].classList.contains('is-partial')).toBe(false);
+    expect(markers[0].querySelector('svg')).toBeTruthy();
+  });
+
+  it('keeps a passed step amber (partial) while a required field is still missing', () => {
+    configure('c1');
+    // getCategories() defaults to an empty list, so categories-step falls back to a single
+    // unassigned "General" category — canFinish() is false until a style gets assigned to it.
+    fakeApi.getById.mockReturnValue(of(detailFixture()));
+    const fixture = TestBed.createComponent(CompetitionWizardComponent);
+    fixture.detectChanges();
+
+    fixture.componentInstance['onDetailsSaved'](detailFixture());
+    fixture.detectChanges();
+    fixture.componentInstance['onCategoriesSaved']();
+    fixture.detectChanges();
+
+    const items = fixture.nativeElement.querySelectorAll('.stepper__item');
+    const markers = fixture.nativeElement.querySelectorAll('.stepper__marker');
+    expect(items[2].classList.contains('is-partial')).toBe(true);
+    expect(items[2].classList.contains('is-complete')).toBe(false);
+    expect(markers[2].querySelector('svg')).toBeFalsy();
+    expect(markers[2].textContent?.trim()).toBe('3');
+  });
+
   it('disables the step 2, 3, 4 and 5 stepper buttons for a brand-new, unsaved competition', () => {
     configure(null);
     const fixture = TestBed.createComponent(CompetitionWizardComponent);
@@ -274,7 +329,7 @@ describe('CompetitionWizardComponent', () => {
     expect(fixture.nativeElement.querySelector('app-categories-step')).toBeTruthy();
   });
 
-  it('advances to step 4 and renders the import step once categories is saved, marking step 3 done', () => {
+  it('advances to step 4 and renders the import step once categories is saved, marking step 3 reached', () => {
     configure('c1');
     fakeApi.getById.mockReturnValue(of(detailFixture()));
     const fixture = TestBed.createComponent(CompetitionWizardComponent);
@@ -292,10 +347,31 @@ describe('CompetitionWizardComponent', () => {
     expect(fixture.nativeElement.querySelector('app-categories-step')).toBeFalsy();
 
     const items = fixture.nativeElement.querySelectorAll('.stepper__item');
-    expect(items[2].classList.contains('is-done')).toBe(true);
+    expect(items[2].classList.contains('is-reached')).toBe(true);
   });
 
-  it('renders the judge-import step when navigating to step 5 via the stepper, marking step 4 done', () => {
+  it('advances to step 5 when the import step emits saved (real wiring, not a direct call)', () => {
+    configure('c1');
+    fakeApi.getById.mockReturnValue(of(detailFixture()));
+    const fixture = TestBed.createComponent(CompetitionWizardComponent);
+    fixture.detectChanges();
+
+    fixture.componentInstance['onDetailsSaved'](detailFixture());
+    fixture.detectChanges();
+    fixture.componentInstance['onCategoriesSaved']();
+    fixture.detectChanges();
+    expect(fixture.componentInstance['currentStep']()).toBe(4);
+
+    const importStepDebugEl = fixture.debugElement.query(By.directive(ImportStepComponent));
+    importStepDebugEl.componentInstance.saved.emit();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance['currentStep']()).toBe(5);
+    expect(fixture.nativeElement.querySelector('app-judge-import-step')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('app-import-step')).toBeFalsy();
+  });
+
+  it('renders the judge-import step when navigating to step 5 via the stepper, marking step 4 reached', () => {
     configure('c1');
     fakeApi.getById.mockReturnValue(of(detailFixture()));
     const fixture = TestBed.createComponent(CompetitionWizardComponent);
@@ -317,7 +393,7 @@ describe('CompetitionWizardComponent', () => {
     expect(fixture.nativeElement.querySelector('app-import-step')).toBeFalsy();
 
     const items = fixture.nativeElement.querySelectorAll('.stepper__item');
-    expect(items[3].classList.contains('is-done')).toBe(true);
+    expect(items[3].classList.contains('is-reached')).toBe(true);
     expect(step4Button).toBeTruthy();
   });
 
@@ -333,7 +409,7 @@ describe('CompetitionWizardComponent', () => {
     expect(labels[5].textContent?.trim()).toBe('Mesas');
   });
 
-  it('advances to step 6 and renders app-tables-step when onJudgeImportSaved() runs, marking step 5 done', () => {
+  it('advances to step 6 and renders app-tables-step when onJudgeImportSaved() runs, marking step 5 reached', () => {
     configure('c1');
     fakeApi.getById.mockReturnValue(of(detailFixture()));
     const fixture = TestBed.createComponent(CompetitionWizardComponent);
@@ -356,7 +432,7 @@ describe('CompetitionWizardComponent', () => {
     expect(fakeTableManagementApi.getTables).toHaveBeenCalledWith('c1');
 
     const items = fixture.nativeElement.querySelectorAll('.stepper__item');
-    expect(items[4].classList.contains('is-done')).toBe(true);
+    expect(items[4].classList.contains('is-reached')).toBe(true);
   });
 
   it('advances to step 6 when the judge-import step emits saved (real wiring, not a direct call)', () => {

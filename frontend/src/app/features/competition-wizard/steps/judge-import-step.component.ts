@@ -9,7 +9,6 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 
 import { ApiError } from '../../../core/api/api-error';
 import { JudgeImportApiService } from '../../../core/api/judge-import-api.service';
@@ -99,14 +98,13 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
       }
 
       @if (!importBatch()) {
-        <form (ngSubmit)="onUpload()">
-          <label class="upload-label" for="judge-import-file">Listado de jueces (.xlsx)</label>
-          <input
-            id="judge-import-file"
-            type="file"
-            accept=".xlsx"
-            (change)="onFileSelected($event)"
-          />
+        <div class="upload-phase">
+          <bp-file-dropzone
+            inputId="judge-import-file"
+            ariaLabel="Listado de jueces (.xlsx)"
+            hint="Listado de jueces del club en formato .xlsx"
+            [(file)]="selectedFile"
+          ></bp-file-dropzone>
 
           @if (uploadError(); as err) {
             <bp-alert type="error" title="No hemos podido subir el archivo">{{
@@ -274,19 +272,10 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
         font-size: 0.9375rem;
       }
 
-      form {
+      .upload-phase {
         display: flex;
         flex-direction: column;
         gap: var(--spacing-4);
-      }
-
-      .upload-label {
-        font-weight: 600;
-        color: var(--color-bp-text);
-      }
-
-      input[type='file'] {
-        min-height: 44px;
       }
 
       .judge-import-rows {
@@ -402,6 +391,9 @@ export class JudgeImportStepComponent implements OnInit {
   readonly saved = output<void>();
   readonly back = output<void>();
   readonly dirtyChange = output<boolean>();
+  // Drives the stepper marker colour in the wizard shell (green once every row of any pending
+  // batch resolves, amber while rows still need a fix).
+  readonly statusChange = output<'complete' | 'partial'>();
 
   protected readonly loading = signal(false);
   protected readonly loadError = signal<ApiError | null>(null);
@@ -430,9 +422,19 @@ export class JudgeImportStepComponent implements OnInit {
       this.editingIndex() !== null || (this.selectedFile() !== null && this.importBatch() === null),
   );
 
+  // Importing judges is optional — nothing here is a required field — so the only thing that can
+  // be "missing" is a row this step itself flagged as invalid. Complete whenever there's no
+  // pending batch row left to fix; partial only while unresolvedCount() > 0.
+  protected readonly judgeImportStatus = computed<'complete' | 'partial'>(() =>
+    this.unresolvedCount() === 0 ? 'complete' : 'partial',
+  );
+
   constructor() {
     effect(() => {
       this.dirtyChange.emit(this.isDirty());
+    });
+    effect(() => {
+      this.statusChange.emit(this.judgeImportStatus());
     });
   }
 
@@ -466,9 +468,24 @@ export class JudgeImportStepComponent implements OnInit {
     return error.detail ?? error.title;
   }
 
-  protected onFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.selectedFile.set(input.files?.[0] ?? null);
+  // "Siguiente": uploads the selected file if one is chosen and not yet processed; otherwise
+  // consolidates a fully-resolved pending batch; otherwise there's nothing left to do at this
+  // step, so it simply advances (emits saved). An unresolved batch (or none at all) never blocks
+  // navigation — see judgeImportStatus() above for how that's surfaced instead, via the stepper
+  // marker.
+  protected onNext(): void {
+    if (this.uploading() || this.rowSaving() || this.consolidating()) {
+      return;
+    }
+    if (this.selectedFile() && !this.importBatch()) {
+      this.onUpload();
+      return;
+    }
+    if (this.importBatch() && !this.consolidateResult() && this.unresolvedCount() === 0) {
+      this.onConsolidate();
+      return;
+    }
+    this.saved.emit();
   }
 
   protected onUpload(): void {

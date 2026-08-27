@@ -126,7 +126,6 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
 @Component({
   selector: 'app-import-step',
   imports: [
-    FormsModule,
     BpButtonComponent,
     BpStepActionsComponent,
     BpInputComponent,
@@ -184,15 +183,14 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
             </ul>
           </section>
         }
-        <form (ngSubmit)="onUpload()">
-          <label class="upload-label" for="import-file">Archivo de inscripciones (.xlsx)</label>
-          <input
-            id="import-file"
-            type="file"
-            accept=".xlsx"
+        <div class="upload-phase">
+          <bp-file-dropzone
+            inputId="import-file"
+            ariaLabel="Archivo de inscripciones (.xlsx)"
+            hint="Archivo de inscripciones en formato ACCE (.xlsx)"
             [disabled]="categories().length === 0"
-            (change)="onFileSelected($event)"
-          />
+            [(file)]="selectedFile"
+          ></bp-file-dropzone>
 
           @if (uploadError(); as err) {
             <bp-alert type="error" title="No hemos podido subir el archivo">{{
@@ -381,32 +379,41 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
               } @else {
                 <div class="import-row__summary">
                   <span class="import-row__number">#{{ row.rowNumber }}</span>
-                  <span class="import-row__name">{{
-                    row.data.participantName || '(sin nombre)'
-                  }}</span>
-                  <span class="import-row__category">{{ categoryDisplay(row) }}</span>
-                  <span class="import-row__style">{{ styleDisplay(row) }}</span>
+                  <div class="import-row__facts">
+                    <span class="import-row__name">{{
+                      row.data.participantName || '(sin nombre)'
+                    }}</span>
+                    <span class="import-row__category" [title]="categoryDisplay(row)">{{
+                      categoryDisplay(row)
+                    }}</span>
+                    <span class="import-row__style" [title]="styleDisplay(row)">{{
+                      styleDisplay(row)
+                    }}</span>
+                  </div>
                   <span class="status-badge" [class]="'status-badge--' + row.status.toLowerCase()">
                     {{ statusLabel(row.status) }}
                   </span>
-                  @if (row.status !== 'Excluded') {
-                    <bp-button
-                      type="button"
-                      label="Editar"
-                      variant="ghost"
-                      (clicked)="startEditing(i)"
-                    ></bp-button>
-                    <bp-button
-                      type="button"
-                      label="Excluir"
-                      variant="secondary"
-                      [ariaLabel]="'Excluir fila #' + row.rowNumber"
-                      [loading]="rowSaving()"
-                      (clicked)="excludeRow(i)"
-                    ></bp-button>
-                  } @else {
-                    <span class="import-row__excluded-label">Fila excluida</span>
-                  }
+                  <div class="import-row__actions">
+                    @if (row.status !== 'Excluded') {
+                      <bp-button
+                        type="button"
+                        label="Editar"
+                        variant="ghost"
+                        [ariaLabel]="'Editar fila #' + row.rowNumber"
+                        (clicked)="startEditing(i)"
+                      ></bp-button>
+                      <bp-button
+                        type="button"
+                        label="Excluir"
+                        variant="secondary"
+                        [ariaLabel]="'Excluir fila #' + row.rowNumber"
+                        [loading]="rowSaving()"
+                        (clicked)="excludeRow(i)"
+                      ></bp-button>
+                    } @else {
+                      <span class="import-row__excluded-label">Fila excluida</span>
+                    }
+                  </div>
                 </div>
                 @if (row.status !== 'Valid' && row.status !== 'Excluded' && row.error) {
                   <p class="import-row__error">{{ row.error }}</p>
@@ -455,19 +462,10 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
         font-size: 0.9375rem;
       }
 
-      form {
+      .upload-phase {
         display: flex;
         flex-direction: column;
         gap: var(--spacing-4);
-      }
-
-      .upload-label {
-        font-weight: 600;
-        color: var(--color-bp-text);
-      }
-
-      input[type='file'] {
-        min-height: 44px;
       }
 
       .import-rows {
@@ -523,11 +521,27 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
         padding: var(--spacing-3) var(--spacing-4);
       }
 
+      /* Fixed columns instead of a wrapping flex row: a long style name now wraps inside its own
+         cell rather than pushing "Editar"/"Excluir" onto a second line. */
       .import-row__summary {
-        display: flex;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto auto;
         align-items: center;
         gap: var(--spacing-3);
-        flex-wrap: wrap;
+      }
+
+      .import-row__facts {
+        display: grid;
+        grid-template-columns: minmax(8rem, 1.2fr) minmax(6rem, 1fr) minmax(8rem, 1.4fr);
+        align-items: center;
+        gap: var(--spacing-2) var(--spacing-3);
+        min-width: 0;
+      }
+
+      @media (max-width: 900px) {
+        .import-row__facts {
+          grid-template-columns: 1fr;
+        }
       }
 
       .import-row__number {
@@ -536,15 +550,22 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
       }
 
       .import-row__name {
-        flex: 1 1 auto;
         font-weight: 600;
         color: var(--color-bp-text);
+        overflow-wrap: anywhere;
       }
 
       .import-row__category,
       .import-row__style {
         color: var(--color-bp-text-muted);
         font-size: 0.875rem;
+        overflow-wrap: anywhere;
+      }
+
+      .import-row__actions {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-2);
       }
 
       .status-badge {
@@ -653,6 +674,9 @@ export class ImportStepComponent implements OnInit {
   // and recreated on every navigation, so it cannot hold that state locally.
   readonly importId = input<string | null>(null);
   readonly importIdChange = output<string>();
+  // Emitted by "Siguiente" once there's nothing left to do at this step — advances the wizard
+  // shell to step 5 (see onNext() below).
+  readonly saved = output<void>();
   readonly back = output<void>();
   // T125: step 4 previously dead-ended at "Ir al panel de organizador". It now advances to
   // step 5 like every other step, whether or not a batch was consolidated on this visit.
@@ -661,6 +685,9 @@ export class ImportStepComponent implements OnInit {
   // prompt on Back/stepper navigation). Unsaved-edit here means either an open row editor whose
   // draft hasn't been saved, or a chosen file not yet uploaded.
   readonly dirtyChange = output<boolean>();
+  // Drives the stepper marker colour in the wizard shell (green once every row of any pending
+  // batch resolves, amber while rows still need a fix).
+  readonly statusChange = output<'complete' | 'partial'>();
 
   protected readonly loading = signal(false);
   protected readonly categories = signal<CompetitionCategory[]>([]);
@@ -699,9 +726,19 @@ export class ImportStepComponent implements OnInit {
       this.editingIndex() !== null || (this.selectedFile() !== null && this.importBatch() === null),
   );
 
+  // Importing beers is optional — nothing here is a required field — so the only thing that can
+  // be "missing" is a row this step itself flagged as invalid. Complete whenever there's no
+  // pending batch row left to fix; partial only while unresolvedCount() > 0.
+  protected readonly importStatus = computed<'complete' | 'partial'>(() =>
+    this.unresolvedCount() === 0 ? 'complete' : 'partial',
+  );
+
   constructor() {
     effect(() => {
       this.dirtyChange.emit(this.isDirty());
+    });
+    effect(() => {
+      this.statusChange.emit(this.importStatus());
     });
   }
 
@@ -782,9 +819,23 @@ export class ImportStepComponent implements OnInit {
     return error.detail ?? error.title;
   }
 
-  protected onFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.selectedFile.set(input.files?.[0] ?? null);
+  // "Siguiente": uploads the selected file if one is chosen and not yet processed; otherwise
+  // consolidates a fully-resolved pending batch; otherwise there's nothing left to do at this
+  // step, so it simply advances. An unresolved batch (or none at all) never blocks navigation —
+  // see importStatus() above for how that's surfaced instead, via the stepper marker.
+  protected onNext(): void {
+    if (this.uploading() || this.rowSaving() || this.consolidating()) {
+      return;
+    }
+    if (this.selectedFile() && !this.importBatch()) {
+      this.onUpload();
+      return;
+    }
+    if (this.importBatch() && !this.consolidateResult() && this.unresolvedCount() === 0) {
+      this.onConsolidate();
+      return;
+    }
+    this.saved.emit();
   }
 
   protected onUpload(): void {
