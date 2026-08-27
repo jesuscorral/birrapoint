@@ -66,24 +66,17 @@ import { BpButtonComponent } from '../bp-button/bp-button.component';
 
     /* Opt-out (see the sticky input): a step that owns a full-page drop surface must not stick,
        because @angular/cdk/drag-drop resolves the drop container with elementFromPoint and an
-       opaque bar over that surface makes releases onto the covered strip silent no-ops. */
+       opaque bar over that surface makes releases onto the covered strip silent no-ops. The only
+       such step (tables-step, step 6) already sets [sticky]="false" for exactly this reason, so
+       there is no case today where a sticky bar sits over a drop surface — a defensive
+       pointer-events:none/auto split here would be guarding a scenario that cannot occur, at the
+       cost of a real one: it did, briefly, turn every OTHER sticky bar's own button dead (see
+       git history on this file) because the centre zone's button is projected content and a
+       plain descendant selector can't reach it under emulated encapsulation. */
     .step-actions--sticky {
       position: sticky;
       bottom: 0;
       z-index: 2;
-    }
-
-    /* Belt and braces for any future drop surface under a sticky bar: everything but the controls
-       themselves becomes hit-transparent, so elementFromPoint falls through the bar. The zones are
-       grid tracks that tile the whole bar, so they must NOT re-enable pointer events — only the
-       buttons inside them. */
-    .step-actions--sticky {
-      pointer-events: none;
-    }
-
-    .step-actions--sticky bp-button,
-    .step-actions--sticky button {
-      pointer-events: auto;
     }
 
     .step-actions__zone {

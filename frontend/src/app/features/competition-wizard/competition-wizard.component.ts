@@ -180,7 +180,11 @@ import { TablesStepComponent } from './steps/tables-step.component';
           role="alertdialog"
           aria-modal="true"
           aria-labelledby="unsaved-changes-title"
-          aria-describedby="unsaved-changes-body unsaved-changes-hint"
+          [attr.aria-describedby]="
+            currentStep() <= 3
+              ? 'unsaved-changes-body unsaved-changes-hint'
+              : 'unsaved-changes-body'
+          "
           class="modal-panel"
           cdkTrapFocus
           cdkTrapFocusAutoCapture
@@ -191,9 +195,14 @@ import { TablesStepComponent } from './steps/tables-step.component';
           <p id="unsaved-changes-body">
             Este paso tiene cambios que no se han guardado. Si continúas, se perderán.
           </p>
-          <p class="modal-hint" id="unsaved-changes-hint">
-            Para conservarlos, usa «Guardar borrador» antes de salir.
-          </p>
+          @if (currentStep() <= 3) {
+            <!-- Only steps 1-3 offer "Guardar borrador" as their own action -- steps 4/5 have
+                 "Subir archivo"/"Consolidar" instead, and step 6 has no save action at all, so this
+                 hint would name a button that isn't on screen. -->
+            <p class="modal-hint" id="unsaved-changes-hint">
+              Para conservarlos, usa «Guardar borrador» antes de salir.
+            </p>
+          }
           <div class="modal-actions">
             <bp-button
               type="button"

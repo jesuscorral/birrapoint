@@ -10,14 +10,16 @@ internal static class TableProjector
     public static async Task<TableDto> ProjectAsync(AppDbContext dbContext, Guid tableId, CancellationToken cancellationToken)
     {
         var projected = await ProjectManyAsync(dbContext, [tableId], cancellationToken);
-        return projected[0];
+        return projected.Single();
     }
 
     /// <summary>
-    /// Projects every requested table in a fixed number of round trips (six), regardless of how many
-    /// tables there are — ListTables used to call the single-table path in a loop, which made a
-    /// 20-table competition 120 sequential queries against a &lt;200 ms p95 read budget (Principle IX).
-    /// Returns the tables in the order their ids were supplied.
+    /// Projects every requested table in a fixed number of round trips (seven, after AsSplitQuery
+    /// below splits the Judges/Samples Include into two — avoids the cartesian-product row blowup a
+    /// single query would otherwise materialize), regardless of how many tables there are —
+    /// ListTables used to call the single-table path in a loop, which made a 20-table competition
+    /// 120 sequential queries against a &lt;200 ms p95 read budget (Principle IX). Returns the
+    /// tables in the order their ids were supplied.
     /// </summary>
     public static async Task<IReadOnlyList<TableDto>> ProjectManyAsync(
         AppDbContext dbContext, IReadOnlyList<Guid> tableIds, CancellationToken cancellationToken)
@@ -31,6 +33,7 @@ internal static class TableProjector
             .Where(t => tableIds.Contains(t.Id))
             .Include(t => t.Judges.Where(j => j.RemovedAt == null))
             .Include(t => t.Samples)
+            .AsSplitQuery()
             .ToListAsync(cancellationToken);
 
         var judgeIds = tables.SelectMany(t => t.Judges).Select(j => j.JudgeId).Distinct().ToList();

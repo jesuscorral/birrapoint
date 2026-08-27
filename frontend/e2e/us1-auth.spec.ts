@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { createJudgeUser, deleteUser, ProvisionedJudge } from './support/keycloak-admin';
 import { KEYCLOAK_ORIGIN, goToLogin, submitKeycloakLogin } from './support/auth';
 

@@ -77,7 +77,14 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
           </li>
         }
         @if (beers().length === 0) {
-          <li class="unassigned-empty">{{ emptyBeersLabel() }}</li>
+          <!-- aria-hidden only while a filter is the reason the list is empty: filterStatusLabel's
+               live region already speaks that exact sentence, so leaving this in the a11y tree too
+               would say it twice. When the pool is genuinely empty (no filter active) this is the
+               only copy that exists -- filterStatusLabel stays silent then -- so it must stay
+               reachable. -->
+          <li class="unassigned-empty" [attr.aria-hidden]="beersTotal() > 0 ? true : null">
+            {{ emptyBeersLabel() }}
+          </li>
         }
       </ul>
     </section>

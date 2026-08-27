@@ -251,7 +251,11 @@ test.describe('WCAG 2.1 AA sweep — every organizer and judge route', () => {
   });
 
   test('every route is free of WCAG 2.1 A/AA violations', async ({ page, browser }) => {
-    test.setTimeout(300_000);
+    // 300s was tight even before this PR; the wizard step 3 traversal, the row-editor a11y
+    // surface, and the judges-notify round trip it added push a full run right up against that
+    // ceiling on a dev-mode (unbundled, per-route JIT) server — 480s leaves real margin without
+    // masking an actual hang.
+    test.setTimeout(480_000);
 
     // --- /organizer/dashboard ---
     await goToLogin(page);
@@ -352,6 +356,23 @@ test.describe('WCAG 2.1 AA sweep — every organizer and judge route', () => {
         '/organizer/competitions/:id/judges (registration report)',
       );
     });
+
+    // FR-059/R-20: sending invitations is a separate, explicit action from registering judges —
+    // "Register judges" only creates the Judge/Invitation rows (Pending). Nothing enqueues the
+    // SendInvitation dispatch job, so no mail reaches Mailpit, until this is clicked. onNotify()
+    // gates on a native window.confirm(); unhandled, Playwright auto-dismisses it, the click
+    // silently no-ops on the early return, and nothing ever calls the API — hence the explicit
+    // accept here rather than relying on the default.
+    page.once('dialog', (dialog) => dialog.accept());
+    const [notifyResponse] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          /\/api\/v1\/competitions\/.+\/judges\/notify$/.test(new URL(response.url()).pathname),
+      ),
+      page.getByRole('button', { name: /^Notificar \d+ jueces$/ }).click(),
+    ]);
+    expect(notifyResponse.status()).toBe(200);
 
     const judgeATempPassword = await readTemporaryPasswordFromInvitation(
       page.request,

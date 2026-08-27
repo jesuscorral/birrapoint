@@ -646,7 +646,9 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
       .import-row__raw-hint {
         margin: var(--spacing-2) 0 0;
         font-size: 0.8125rem;
-        color: var(--color-bp-text-subtle);
+        /* text-subtle (#8a8f8a) on white is 3.29:1 — the a11y sweep flags it as soon as it
+           actually reaches this row editor. text-muted (#5b655f) is 6.05:1. */
+        color: var(--color-bp-text-muted);
       }
 
       .import-row__editor-actions {
