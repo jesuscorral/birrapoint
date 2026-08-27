@@ -1,4 +1,5 @@
 import { test, expect, Page, Locator } from '@playwright/test';
+import { goToLogin, submitKeycloakLogin } from './support/auth';
 
 // quickstart.md scenario 13 / spec.md US13 (FR-050/FR-051): an organizer with two competitions in
 // different lifecycle states logs in, confirms both are listed with the correct
@@ -18,15 +19,8 @@ import { test, expect, Page, Locator } from '@playwright/test';
 // (frontend/src/app/features/dashboard/organizer-dashboard.component.spec.ts, T100:
 // "shows an empty state with a create action when the organizer has no competitions").
 
-const KEYCLOAK_ORIGIN = 'http://localhost:8081';
 const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
-
-async function submitKeycloakLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.locator('#kc-login').click();
-}
 
 function uniqueCompetitionName(label: string): string {
   return `E2E Dashboard Comp ${label} ${Date.now()}-${crypto.randomUUID()}`;
@@ -93,8 +87,7 @@ function tableCard(page: Page, name: string): Locator {
 
 test.describe('US13 — organizer competition selection', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+    await goToLogin(page);
     await submitKeycloakLogin(page, ORGANIZER_USERNAME, ORGANIZER_PASSWORD);
     await page.waitForURL('**/organizer/dashboard');
   });

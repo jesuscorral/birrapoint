@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { test, expect, Page, Locator } from '@playwright/test';
 import { createJudgeUser, deleteUser, ProvisionedJudge } from './support/keycloak-admin';
+import { goToLogin, submitKeycloakLogin } from './support/auth';
 
 // quickstart.md scenario 8 / spec.md US8 (FR-033/FR-034/FR-035/FR-042): complete every evaluation
 // at a table, close it via the real judge UI, then prove immutability from both sides — a judge's
@@ -35,7 +36,6 @@ import { createJudgeUser, deleteUser, ProvisionedJudge } from './support/keycloa
 // exercises exactly the code path a real late/queued sync would hit and is a faithful proof of
 // FR-034/AC2's "create ... is rejected, including delayed offline syncs" — it just doesn't route
 // through Playwright's offline emulation to get there.
-const KEYCLOAK_ORIGIN = 'http://localhost:8081';
 const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
 const API_BASE_URL = 'http://localhost:5121';
@@ -77,12 +77,6 @@ const CORRECTION_COMMENTS = {
   mouthfeel: 'Organizer correction: mouthfeel note updated after panel review.',
   overall: 'Organizer correction: overall impression updated after panel review.',
 };
-
-async function submitKeycloakLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.locator('#kc-login').click();
-}
 
 function uniqueCompetitionName(): string {
   return `E2E Close Comp ${Date.now()}-${crypto.randomUUID()}`;
@@ -249,8 +243,7 @@ async function readTemporaryPasswordFromInvitation(
 
 // Mirrors us1/us6/us7's forced-temporary-password-change flow, ending on /judge/tables.
 async function loginAsJudge(page: Page, email: string, password: string): Promise<void> {
-  await page.goto('/');
-  await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+  await goToLogin(page);
 
   await submitKeycloakLogin(page, email, password);
 
@@ -258,7 +251,7 @@ async function loginAsJudge(page: Page, email: string, password: string): Promis
   const newPassword = `Judge-${crypto.randomUUID()}`;
   await page.locator('#password-new').fill(newPassword);
   await page.locator('#password-confirm').fill(newPassword);
-  await page.locator('#kc-passwd-update-form button[type="submit"]').click();
+  await page.locator('#kc-passwd-update-form input[type="submit"]').click();
 
   await page.waitForURL('**/judge/tables');
 }
@@ -330,8 +323,7 @@ test.describe('US8 — table closing and score immutability', () => {
 
     // --- Organizer: create competition, import entries, consolidate, register the judge, create
     // one table, assign the judge + a single entry onto it ---
-    await page.goto('/');
-    await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+    await goToLogin(page);
     await submitKeycloakLogin(page, ORGANIZER_USERNAME, ORGANIZER_PASSWORD);
     await page.waitForURL('**/organizer/dashboard');
 

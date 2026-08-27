@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { test, expect, Page, Locator } from '@playwright/test';
 import { createJudgeUser, deleteUser, ProvisionedJudge } from './support/keycloak-admin';
+import { goToLogin, submitKeycloakLogin } from './support/auth';
 
 // quickstart.md scenario 11 / spec.md US11 (FR-031/FR-032): two judges score the same sample 15
 // points apart -> the second submission comes back `PendingConsensus` with a `discrepancy` payload
@@ -12,7 +13,6 @@ import { createJudgeUser, deleteUser, ProvisionedJudge } from './support/keycloa
 // is two judges diverging on one sample, not sequencing multiple (already covered by
 // us6-order.spec.ts / us8-close.spec.ts).
 
-const KEYCLOAK_ORIGIN = 'http://localhost:8081';
 const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
 const API_BASE_URL = 'http://localhost:5121';
@@ -123,12 +123,6 @@ interface SubmitEvaluationResponseBody {
 
 interface ProblemDetailsBody {
   type: string;
-}
-
-async function submitKeycloakLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.locator('#kc-login').click();
 }
 
 function uniqueCompetitionName(): string {
@@ -296,8 +290,7 @@ async function readTemporaryPasswordFromInvitation(
 
 // Mirrors us1/us6/us8's forced-temporary-password-change flow, ending on /judge/tables.
 async function loginAsJudge(page: Page, email: string, password: string): Promise<void> {
-  await page.goto('/');
-  await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+  await goToLogin(page);
 
   await submitKeycloakLogin(page, email, password);
 
@@ -305,7 +298,7 @@ async function loginAsJudge(page: Page, email: string, password: string): Promis
   const newPassword = `Judge-${crypto.randomUUID()}`;
   await page.locator('#password-new').fill(newPassword);
   await page.locator('#password-confirm').fill(newPassword);
-  await page.locator('#kc-passwd-update-form button[type="submit"]').click();
+  await page.locator('#kc-passwd-update-form input[type="submit"]').click();
 
   await page.waitForURL('**/judge/tables');
 }
@@ -360,8 +353,7 @@ test.describe('US11 — discrepancy consensus', () => {
 
     // --- Organizer: create competition, import entries, consolidate, register both judges, one
     // table with a single entry assigned to BOTH judges ---
-    await page.goto('/');
-    await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+    await goToLogin(page);
     await submitKeycloakLogin(page, ORGANIZER_USERNAME, ORGANIZER_PASSWORD);
     await page.waitForURL('**/organizer/dashboard');
 

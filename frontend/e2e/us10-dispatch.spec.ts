@@ -6,6 +6,7 @@ import os from 'node:os';
 import AdmZip from 'adm-zip';
 import { test, expect, Page, Locator } from '@playwright/test';
 import { createJudgeUser, deleteUser, ProvisionedJudge } from './support/keycloak-admin';
+import { goToLogin, submitKeycloakLogin } from './support/auth';
 
 // quickstart.md scenario 10 / spec.md US10 (FR-036/FR-040/FR-041): finalizing a competition with
 // every table closed starts the PDF/ZIP/email dispatch pipeline in the background without
@@ -14,7 +15,6 @@ import { createJudgeUser, deleteUser, ProvisionedJudge } from './support/keycloa
 // receives their own PDFs by email; and the organizer's dispatch screen surfaces per-recipient
 // delivery status with a retry affordance.
 
-const KEYCLOAK_ORIGIN = 'http://localhost:8081';
 const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
 
@@ -57,12 +57,6 @@ const SECTIONS = [
     comment: 'A clean, well-executed example of the style.',
   },
 ] as const;
-
-async function submitKeycloakLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.locator('#kc-login').click();
-}
 
 function uniqueCompetitionName(): string {
   return `E2E Dispatch Comp ${Date.now()}-${crypto.randomUUID()}`;
@@ -240,8 +234,7 @@ async function readTemporaryPasswordFromInvitation(
 
 // Mirrors us1/us6/us8/us9's forced-temporary-password-change flow, ending on /judge/tables.
 async function loginAsJudge(page: Page, email: string, password: string): Promise<void> {
-  await page.goto('/');
-  await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+  await goToLogin(page);
 
   await submitKeycloakLogin(page, email, password);
 
@@ -249,7 +242,7 @@ async function loginAsJudge(page: Page, email: string, password: string): Promis
   const newPassword = `Judge-${crypto.randomUUID()}`;
   await page.locator('#password-new').fill(newPassword);
   await page.locator('#password-confirm').fill(newPassword);
-  await page.locator('#kc-passwd-update-form button[type="submit"]').click();
+  await page.locator('#kc-passwd-update-form input[type="submit"]').click();
 
   await page.waitForURL('**/judge/tables');
 }
@@ -331,8 +324,7 @@ test.describe('US10 — finalize and automated results dispatch', () => {
 
     // --- Organizer: create competition, import entries, consolidate, register the judge, create
     // one table, assign the judge + both entries onto it ---
-    await page.goto('/');
-    await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+    await goToLogin(page);
     await submitKeycloakLogin(page, ORGANIZER_USERNAME, ORGANIZER_PASSWORD);
     await page.waitForURL('**/organizer/dashboard');
 

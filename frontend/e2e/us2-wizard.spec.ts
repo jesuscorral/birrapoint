@@ -1,18 +1,12 @@
 import { test, expect, Page } from '@playwright/test';
+import { goToLogin, submitKeycloakLogin } from './support/auth';
 
 // quickstart.md scenario 2 / spec.md US2 (FR-007, FR-008): create a competition, leave step 2
 // via "Save Draft", reopen — Draft state persisted, wizard resumes with data intact, and "Next"
 // stays disabled until name/venue/dates are valid.
 
-const KEYCLOAK_ORIGIN = 'http://localhost:8081';
 const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
-
-async function submitKeycloakLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.locator('#kc-login').click();
-}
 
 function uniqueCompetitionName(): string {
   return `E2E Wizard Comp ${Date.now()}-${crypto.randomUUID()}`;
@@ -20,8 +14,7 @@ function uniqueCompetitionName(): string {
 
 test.describe('US2 — competition creation wizard with drafts', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+    await goToLogin(page);
     await submitKeycloakLogin(page, ORGANIZER_USERNAME, ORGANIZER_PASSWORD);
     await page.waitForURL('**/organizer/dashboard');
   });

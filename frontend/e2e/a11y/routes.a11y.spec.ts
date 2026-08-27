@@ -2,6 +2,7 @@ import path from 'node:path';
 import { test, expect, Page, Locator } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { createJudgeUser, deleteUser, ProvisionedJudge } from '../support/keycloak-admin';
+import { goToLogin, submitKeycloakLogin } from '../support/auth';
 
 // T089/SC-009: WCAG 2.1 AA sweep (Constitution Principle VIII) across every organizer and
 // judge-facing route in src/app/app.routes.ts. One continuous, realistic journey — reusing the
@@ -14,7 +15,6 @@ import { createJudgeUser, deleteUser, ProvisionedJudge } from '../support/keyclo
 //   /organizer/competitions/:id/dispatch, /judge/tables, /judge/tables/:tableId,
 //   /judge/tables/:tableId/samples/:beerEntryId, /judge/tables/:tableId/discrepancies.
 
-const KEYCLOAK_ORIGIN = 'http://localhost:8081';
 const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
 
@@ -43,12 +43,6 @@ async function assertNoA11yViolations(page: Page, label: string): Promise<void> 
   expect(results.violations, `${label}:\n${JSON.stringify(results.violations, null, 2)}`).toEqual(
     [],
   );
-}
-
-async function submitKeycloakLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.locator('#kc-login').click();
 }
 
 function uniqueCompetitionName(): string {
@@ -119,15 +113,14 @@ async function readTemporaryPasswordFromInvitation(
 
 // Mirrors us1/us6/us7's forced-temporary-password-change flow, ending on /judge/tables.
 async function loginAsJudge(page: Page, email: string, password: string): Promise<void> {
-  await page.goto('/');
-  await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+  await goToLogin(page);
   await submitKeycloakLogin(page, email, password);
 
   await expect(page.locator('#password-new')).toBeVisible();
   const newPassword = `Judge-${crypto.randomUUID()}`;
   await page.locator('#password-new').fill(newPassword);
   await page.locator('#password-confirm').fill(newPassword);
-  await page.locator('#kc-passwd-update-form button[type="submit"]').click();
+  await page.locator('#kc-passwd-update-form input[type="submit"]').click();
 
   await page.waitForURL('**/judge/tables');
 }
@@ -254,8 +247,7 @@ test.describe('WCAG 2.1 AA sweep — every organizer and judge route', () => {
     test.setTimeout(300_000);
 
     // --- /organizer/dashboard ---
-    await page.goto('/');
-    await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+    await goToLogin(page);
     await submitKeycloakLogin(page, ORGANIZER_USERNAME, ORGANIZER_PASSWORD);
     await page.waitForURL('**/organizer/dashboard');
     await test.step('/organizer/dashboard', async () => {

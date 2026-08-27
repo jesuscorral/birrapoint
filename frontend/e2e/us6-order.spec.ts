@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { test, expect, Page, Locator } from '@playwright/test';
 import { createJudgeUser, deleteUser, ProvisionedJudge } from './support/keycloak-admin';
+import { goToLogin, submitKeycloakLogin } from './support/auth';
 
 // quickstart.md scenario 6 / spec.md US6 (FR-020/FR-021): two judge browser sessions on the same
 // table; fixing the order in one session must reorder + lock the other session within 1 s, with
@@ -10,7 +11,6 @@ import { createJudgeUser, deleteUser, ProvisionedJudge } from './support/keycloa
 // is deferred to T061 (frontend/e2e/us7-offline.spec.ts) once the sheet lands, not silently
 // dropped.
 
-const KEYCLOAK_ORIGIN = 'http://localhost:8081';
 const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
 
@@ -30,12 +30,6 @@ const NEUTRAL_PARTICIPANT_EMAIL = 'neutral.participant@brew.example';
 const BOS_ENTRY_NAME = 'BOS Beer';
 const BOS_PARTICIPANT_NAME = 'Bos Participant';
 const BOS_PARTICIPANT_EMAIL = 'bos.participant@brew.example';
-
-async function submitKeycloakLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.locator('#kc-login').click();
-}
 
 function uniqueCompetitionName(): string {
   return `E2E Order Comp ${Date.now()}-${crypto.randomUUID()}`;
@@ -219,8 +213,7 @@ async function activateCompetition(page: Page, competitionId: string): Promise<v
 // readTemporaryPasswordFromInvitation for why the one captured at provisioning time can't be
 // trusted once the organizer's real "Register judges" flow has run for this email.
 async function loginAsJudge(page: Page, email: string, password: string): Promise<void> {
-  await page.goto('/');
-  await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+  await goToLogin(page);
 
   await submitKeycloakLogin(page, email, password);
 
@@ -228,7 +221,7 @@ async function loginAsJudge(page: Page, email: string, password: string): Promis
   const newPassword = `Judge-${crypto.randomUUID()}`;
   await page.locator('#password-new').fill(newPassword);
   await page.locator('#password-confirm').fill(newPassword);
-  await page.locator('#kc-passwd-update-form button[type="submit"]').click();
+  await page.locator('#kc-passwd-update-form input[type="submit"]').click();
 
   await page.waitForURL('**/judge/tables');
 }
@@ -274,8 +267,7 @@ test.describe('US6 — blind table dynamics: shared fixed order', () => {
     test.setTimeout(120_000);
 
     // --- Organizer: create competition, import 2 entries, consolidate, register both judges ---
-    await page.goto('/');
-    await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+    await goToLogin(page);
     await submitKeycloakLogin(page, ORGANIZER_USERNAME, ORGANIZER_PASSWORD);
     await page.waitForURL('**/organizer/dashboard');
 
