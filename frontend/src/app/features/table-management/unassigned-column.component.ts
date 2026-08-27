@@ -44,6 +44,13 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
       </ul>
 
       <h3>Cervezas sin asignar ({{ beersCountLabel() }})</h3>
+      <!-- Filtering the pool is a status message, not a navigation: the heading text changes and
+           the list re-renders with no focus move, so a screen-reader user gets nothing without a
+           live region (WCAG 4.1.3). The heading itself cannot be one -- announcing on every
+           assignment would be noise -- so this mirrors just the filtered count.
+           aria-live rather than role="status": the board deliberately exposes exactly one
+           status-role region (the BOS banner), which an E2E spec addresses by role. -->
+      <p class="sr-only" aria-live="polite">{{ filterStatusLabel() }}</p>
       <ul
         class="unassigned-list unassigned-list--beers"
         cdkDropList
@@ -70,7 +77,7 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
           </li>
         }
         @if (beers().length === 0) {
-          <li class="unassigned-empty" aria-hidden="true">{{ emptyBeersLabel() }}</li>
+          <li class="unassigned-empty">{{ emptyBeersLabel() }}</li>
         }
       </ul>
     </section>
@@ -121,7 +128,9 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
       grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr));
       gap: var(--spacing-2);
       align-content: start;
-      max-height: 40vh;
+      /* Capped in rem as well as vh: a pure vh cap does not grow with text size, so at 200% zoom
+         the pool collapsed to about one row (WCAG 1.4.4). Every sibling cap here is rem-based. */
+      max-height: max(40vh, 18rem);
       overflow-y: auto;
       overscroll-behavior: contain;
       /* Room for the focus ring on the last row, which the scroll container would otherwise clip. */
@@ -140,8 +149,9 @@ export class UnassignedColumnComponent {
   readonly judges = input.required<JudgeListItem[]>();
   readonly beers = input.required<EntryListItem[]>();
   // The unfiltered size of the pool, so the heading can distinguish "3 left to place" from
-  // "3 match the current filter" (T125's toolbar). Null when the board applies no filter.
-  readonly beersTotal = input<number | null>(null);
+  // "3 match the current filter" (T125's toolbar). Equal to beers().length when no filter is
+  // applied — the board always knows the total, so there is no "unknown" case to model.
+  readonly beersTotal = input.required<number>();
   readonly connectedJudgeListIds = input.required<string[]>();
   readonly connectedBeerListIds = input.required<string[]>();
 
@@ -156,11 +166,24 @@ export class UnassignedColumnComponent {
   protected readonly beersCountLabel = computed(() => {
     const shown = this.beers().length;
     const total = this.beersTotal();
-    return total === null || total === shown ? `${shown}` : `${shown} de ${total}`;
+    return total === shown ? `${shown}` : `${shown} de ${total}`;
+  });
+
+  // Empty while unfiltered, so the live region stays silent during ordinary drag-and-drop and
+  // speaks only when a filter is actually narrowing the pool.
+  protected readonly filterStatusLabel = computed(() => {
+    const total = this.beersTotal();
+    const shown = this.beers().length;
+    if (total === shown) {
+      return '';
+    }
+    return shown === 0
+      ? 'Ninguna cerveza coincide con el filtro'
+      : `${shown} de ${total} cervezas coinciden con el filtro`;
   });
 
   protected readonly emptyBeersLabel = computed(() =>
-    (this.beersTotal() ?? 0) > 0
+    this.beersTotal() > 0
       ? 'Ninguna cerveza coincide con el filtro'
       : 'Todas las cervezas están asignadas',
   );

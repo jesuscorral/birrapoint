@@ -27,12 +27,6 @@ public sealed class ListTablesQueryHandler(AppDbContext dbContext, ICurrentUser 
             .Select(t => t.Id)
             .ToListAsync(cancellationToken);
 
-        var result = new List<TableDto>(tableIds.Count);
-        foreach (var tableId in tableIds)
-        {
-            result.Add(await TableProjector.ProjectAsync(dbContext, tableId, cancellationToken));
-        }
-
-        return result;
+        return await TableProjector.ProjectManyAsync(dbContext, tableIds, cancellationToken);
     }
 }

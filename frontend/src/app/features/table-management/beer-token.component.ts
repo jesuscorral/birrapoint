@@ -178,14 +178,18 @@ export type BeerTokenVariant = 'full' | 'mini';
       margin-top: 2px;
     }
 
+    /* Opaque, not white-with-alpha: composited over --color-bp-cobre-700 the alpha versions came
+       out at 4.23:1 and 3.15:1, under the 4.5:1 AA threshold that applies at this 10px size.
+       aria-hidden does not exempt them — axe's color-contrast rule evaluates any text visible on
+       screen. Opaque fills also keep the ratio fixed if the token background ever changes. */
     .beer-token__chip {
       font-size: 0.625rem;
       font-weight: 600;
       line-height: 1.4;
       padding: 0 5px;
       border-radius: var(--radius-full);
-      background: rgba(255, 255, 255, 0.18);
-      color: #fff;
+      background: var(--color-bp-cobre-100);
+      color: var(--color-bp-cobre-700);
       white-space: nowrap;
       max-width: 9rem;
       overflow: hidden;
@@ -193,7 +197,9 @@ export type BeerTokenVariant = 'full' | 'mini';
     }
 
     .beer-token__chip--category {
-      background: rgba(255, 255, 255, 0.32);
+      background: #fff;
+      color: var(--color-bp-cobre-700);
+      font-weight: 700;
     }
 
     .beer-token__chip--abv {
@@ -222,18 +228,6 @@ export type BeerTokenVariant = 'full' | 'mini';
       margin-left: 2px;
       color: var(--color-bp-cobre-100);
       font-size: 0.7rem;
-    }
-
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
     }
   `,
 })

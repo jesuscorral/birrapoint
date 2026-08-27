@@ -141,7 +141,7 @@ function toGenericApiError(error: unknown): ApiError {
           variant="secondary"
           [loading]="submitting()"
           [disabled]="form.invalid"
-          (clicked)="onSaveDraft()"
+          (clicked)="onSaveAndLeave()"
         ></bp-button>
       </bp-step-actions>
     </form>
@@ -167,17 +167,16 @@ function toGenericApiError(error: unknown): ApiError {
         margin-inline: auto;
       }
 
-      /* Two field columns so the form fills the same card width every other step uses instead of
-         stretching single controls across it. Row spacing comes from each field's own
-         margin-bottom, so only the column gap is set here. */
-      .form-grid {
+      /* The paired date fields sit side by side. This replaces the earlier .form-grid, which the
+         templates stopped using — leaving .field-row with no rule at all, so the dates stacked. */
+      .field-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        column-gap: var(--spacing-6);
+        column-gap: var(--spacing-4);
       }
 
       @media (max-width: 768px) {
-        .form-grid {
+        .field-row {
           grid-template-columns: 1fr;
         }
       }
@@ -268,7 +267,7 @@ export class BasicsStepComponent {
   // T125: "Guardar borrador" now lives in the shared action bar's centre zone instead of inside a
   // leave-confirmation dialog — the organizer can save and step away at any point, and the wizard
   // header's own "Volver al listado" handles the unsaved-changes prompt.
-  protected onSaveDraft(): void {
+  protected onSaveAndLeave(): void {
     if (this.form.invalid || this.submitting()) {
       return;
     }

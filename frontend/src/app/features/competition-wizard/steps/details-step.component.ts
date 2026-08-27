@@ -170,20 +170,16 @@ function toGenericApiError(error: unknown): ApiError {
         margin-inline: auto;
       }
 
-      /* Same two-column field layout as step 1 (see basics-step.component.ts) so both form steps
-         fill the shared card width identically. */
-      .form-grid {
+      /* The paired date fields sit side by side. This replaces the earlier .form-grid, which the
+         templates stopped using — leaving .field-row with no rule at all, so the dates stacked. */
+      .field-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        column-gap: var(--spacing-6);
-      }
-
-      .form-grid__full {
-        grid-column: 1 / -1;
+        column-gap: var(--spacing-4);
       }
 
       @media (max-width: 768px) {
-        .form-grid {
+        .field-row {
           grid-template-columns: 1fr;
         }
       }

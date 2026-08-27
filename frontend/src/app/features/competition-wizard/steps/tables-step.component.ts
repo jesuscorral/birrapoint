@@ -29,7 +29,12 @@ import { BpStepActionsComponent } from '../../../shared/components/bp-step-actio
 
     <!-- Last step, so the forward action closes the wizard instead of advancing. Same bar, same
          places — only the label changes. -->
-    <bp-step-actions nextLabel="Finalizar" (back)="back.emit()" (next)="finished.emit()" />
+    <bp-step-actions
+      nextLabel="Finalizar"
+      [sticky]="false"
+      (back)="back.emit()"
+      (next)="finished.emit()"
+    />
   `,
   styles: [
     `

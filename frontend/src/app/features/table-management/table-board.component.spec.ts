@@ -435,9 +435,9 @@ describe('TableBoardComponent', () => {
     });
   });
 
-  // T125: the tables live in a sticky rail above the pool rather than a side-by-side grid, so
-  // every one of them stays on screen as a drop target while the organizer scrolls the beers.
-  it('renders every table inside the sticky rail, above the unassigned pool', () => {
+  // Every table renders in the rail, so all of them stay reachable as drop targets. (Their
+  // position relative to the pool is asserted separately, below.)
+  it('renders every table inside the rail', () => {
     fakeApi.getTables.mockReturnValue(
       of([tableFixture(), tableFixture({ id: 't2', name: 'Mesa 2' })]),
     );
@@ -477,12 +477,20 @@ describe('TableBoardComponent', () => {
     expect(pool.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('keeps the add-table controls inside the rail so they cost no vertical space', () => {
+  // In the rail's row so it costs no vertical space, but pinned BESIDE the scrolling list rather
+  // than inside it: as the last <li> it made a form the Nth item of a list of tables, and scrolled
+  // out of reach (with keyboard focus on it) once the rail overflowed.
+  it('pins the add-table controls beside the rail list, not inside it', () => {
     const fixture = createComponent();
 
     const rail = fixture.nativeElement.querySelector('.board-rail') as HTMLElement;
     expect(rail.querySelector('#new-table-name')).not.toBeNull();
-    expect(rail.querySelector('.board-rail__list .add-table')).not.toBeNull();
+    expect(rail.querySelector('.board-rail__row > .add-table')).not.toBeNull();
+    expect(rail.querySelector('.board-rail__list .add-table')).toBeNull();
+    // Every item of the tables list is a table, so its reported length matches the table count.
+    expect(rail.querySelectorAll('.board-rail__list > li').length).toBe(
+      fixture.componentInstance['tables']().length,
+    );
   });
 
   describe('pool filters (T125)', () => {
@@ -507,6 +515,9 @@ describe('TableBoardComponent', () => {
           id: 'e3',
           blindCode: 'EF56',
           styleName: 'Munich Helles',
+          // Distinct ABVs on purpose: with both at the same value the "sort by ABV" assertion
+          // below is satisfied by the blind-code tiebreak alone and cannot fail.
+          abvPercent: 9.1,
           competitionCategoryName: 'Clásicos',
           tastingTableId: null,
         },
@@ -556,9 +567,76 @@ describe('TableBoardComponent', () => {
       sortSelect.dispatchEvent(new Event('change'));
       fixture.detectChanges();
 
-      // Both fixtures share an ABV, so the blind-code tiebreak decides: CD34 before EF56.
+      // Strongest first: e3 is 9.1%, e2 inherits the fixture's lower value.
+      expect(poolTokens(fixture)).toEqual(['e3', 'e2']);
+
+      // …and switching back to the API's own order is lossless.
+      sortSelect.value = 'code';
+      sortSelect.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
       expect(poolTokens(fixture)).toEqual(['e2', 'e3']);
-      expect(poolTokens(fixture).length).toBe(2);
+    });
+
+    // T125b: "Limpiar filtros" clears the filters and deliberately leaves the sort alone —
+    // silently reshuffling a pool someone is working through is worse than a stale sort.
+    it('leaves the sort untouched when the filters are cleared', () => {
+      fakeEntriesApi.getEntries.mockReturnValue(of(multiEntryFixture()));
+      const fixture = createComponent();
+
+      const selects = [...fixture.nativeElement.querySelectorAll('select')] as HTMLSelectElement[];
+      const sortSelect = selects[selects.length - 1];
+      sortSelect.value = 'abv';
+      sortSelect.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      const search = fixture.nativeElement.querySelector(
+        'input[type="search"], .board-toolbar__control',
+      ) as HTMLInputElement;
+      search.value = 'EF56';
+      search.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      buttonWithText(fixture.nativeElement, 'Limpiar filtros').click();
+      fixture.detectChanges();
+
+      expect(sortSelect.value).toBe('abv');
+      expect(poolTokens(fixture)).toEqual(['e3', 'e2']);
+    });
+
+    // H4: the classic wrong-item bug. A filtered or re-sorted pool means the CDK drop index no
+    // longer matches the entity's position in the source data, so the handler must resolve the
+    // entity from item.data — never from currentIndex/previousIndex. currentIndex here disagrees
+    // with the dragged entry's position on purpose.
+    it('resolves a drop from a filtered, re-sorted pool by entity id, not by drop index', () => {
+      fakeEntriesApi.getEntries.mockReturnValue(of(multiEntryFixture()));
+      fakeApi.getTables.mockReturnValue(of([tableFixture()]));
+      const fixture = createComponent();
+
+      const selects = [...fixture.nativeElement.querySelectorAll('select')] as HTMLSelectElement[];
+      selects[selects.length - 1].value = 'abv';
+      selects[selects.length - 1].dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      const search = fixture.nativeElement.querySelector(
+        '.board-toolbar__control',
+      ) as HTMLInputElement;
+      search.value = 'EF56';
+      search.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      expect(poolTokens(fixture)).toEqual(['e3']);
+
+      fakeApi.updateTable.mockReturnValue(of(tableFixture()));
+      fixture.componentInstance['onBeersDropped']({
+        previousContainer: { id: 'beers-unassigned' },
+        container: { id: 'beers-t1' },
+        item: { data: 'e3' },
+        previousIndex: 0,
+        currentIndex: 7,
+      } as never);
+
+      expect(fakeApi.updateTable).toHaveBeenCalledTimes(1);
+      const [, , payload] = fakeApi.updateTable.mock.calls[0];
+      expect(payload.beerEntryIds).toContain('e3');
     });
 
     it('sorts entries without a competition category last rather than clumping them first', () => {

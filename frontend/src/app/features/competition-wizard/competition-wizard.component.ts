@@ -54,7 +54,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
                  and competed with "Atrás" for the same corner. One exit affordance, same place on
                  all six steps, guarded by the wizard's own unsaved-changes dialog. -->
             <button type="button" class="back-to-list-link" (click)="onRequestExit()">
-              ← Volver al listado
+              <span aria-hidden="true">←</span> Volver al listado
             </button>
           </div>
 
@@ -172,18 +172,28 @@ import { TablesStepComponent } from './steps/tables-step.component';
 
     @if (pendingStep() !== null || pendingExit()) {
       <div class="modal-backdrop" role="presentation" (click)="onKeepEditing()">
+        <!-- aria-describedby, not just aria-label: with cdkTrapFocusAutoCapture the focus lands on
+             a button, so without it neither the body text nor the hint is announced on open. The
+             hint also has to precede the actions it explains -- it used to sit after them, i.e.
+             after the very buttons the reader had already been offered. -->
         <div
           role="alertdialog"
           aria-modal="true"
-          aria-label="Cambios sin guardar"
+          aria-labelledby="unsaved-changes-title"
+          aria-describedby="unsaved-changes-body unsaved-changes-hint"
           class="modal-panel"
           cdkTrapFocus
           cdkTrapFocusAutoCapture
           (click)="$event.stopPropagation()"
           (keydown.escape)="onKeepEditing()"
         >
-          <h2>Cambios sin guardar</h2>
-          <p>Este paso tiene cambios que no se han guardado. Si continúas, se perderán.</p>
+          <h2 id="unsaved-changes-title">Cambios sin guardar</h2>
+          <p id="unsaved-changes-body">
+            Este paso tiene cambios que no se han guardado. Si continúas, se perderán.
+          </p>
+          <p class="modal-hint" id="unsaved-changes-hint">
+            Para conservarlos, usa «Guardar borrador» antes de salir.
+          </p>
           <div class="modal-actions">
             <bp-button
               type="button"
@@ -198,7 +208,6 @@ import { TablesStepComponent } from './steps/tables-step.component';
               (clicked)="onDiscardAndNavigate()"
             ></bp-button>
           </div>
-          <p class="modal-hint">Para conservarlos, usa «Guardar borrador» antes de salir.</p>
         </div>
       </div>
     }
@@ -604,24 +613,33 @@ export class CompetitionWizardComponent {
       // back on the same wizard" since a fresh page load reads the real browser URL.
       this.location.replaceState(`/organizer/competitions/${detail.id}`);
     }
-    this.currentStep.set(2);
+    this.advanceTo(2);
   }
 
   protected onDetailsSaved(detail: CompetitionDetail): void {
     this.competition.set(detail);
-    this.currentStep.set(3);
+    this.advanceTo(3);
   }
 
   protected onCategoriesSaved(): void {
-    this.currentStep.set(4);
+    this.advanceTo(4);
   }
 
   protected onImportSaved(): void {
-    this.currentStep.set(5);
+    this.advanceTo(5);
   }
 
   protected onJudgeImportSaved(): void {
-    this.currentStep.set(6);
+    this.advanceTo(6);
+  }
+
+  // Every forward advance clears stepDirty. The step component is destroyed on the way out, so it
+  // never gets to emit dirtyChange(false) itself — without this the flag stays set and the next
+  // stepper click or "Volver al listado" prompts about unsaved changes in a step that is no longer
+  // mounted (and whose edits were either saved or deliberately skipped).
+  private advanceTo(step: 1 | 2 | 3 | 4 | 5 | 6): void {
+    this.stepDirty.set(false);
+    this.currentStep.set(step);
   }
 
   protected onBack(): void {

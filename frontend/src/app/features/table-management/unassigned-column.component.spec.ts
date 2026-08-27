@@ -34,6 +34,7 @@ describe('UnassignedColumnComponent', () => {
     const fixture = TestBed.createComponent(UnassignedColumnComponent);
     fixture.componentRef.setInput('judges', judgesFixture());
     fixture.componentRef.setInput('beers', beersFixture());
+    fixture.componentRef.setInput('beersTotal', beersFixture().length);
     fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned']);
     fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned']);
     fixture.detectChanges();
@@ -59,6 +60,7 @@ describe('UnassignedColumnComponent', () => {
     const fixture = TestBed.createComponent(UnassignedColumnComponent);
     fixture.componentRef.setInput('judges', []);
     fixture.componentRef.setInput('beers', []);
+    fixture.componentRef.setInput('beersTotal', 0);
     fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned']);
     fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned']);
     fixture.detectChanges();

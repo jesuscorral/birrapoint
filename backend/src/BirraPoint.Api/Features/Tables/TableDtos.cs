@@ -18,7 +18,10 @@ public sealed record TableSampleDto(
     // under — null for entries seeded outside the Import slice, which never get one assigned.
     string? CompetitionCategoryName,
     // T124: the BJCP taxonomy's own category (e.g. "21"/"IPA"), a completely independent axis
-    // from CompetitionCategoryName — null only when StyleCode has no matching catalog row.
+    // from CompetitionCategoryName. Nullable defensively only: BeerEntry.StyleCode is a required,
+    // non-nullable FK to BjcpStyles.Code with OnDelete(Restrict), and BjcpStyle.CategoryNumber /
+    // .CategoryName are both `required string`, so an entry whose style has no catalog row cannot
+    // exist. Treat null as unreachable rather than a state clients must handle.
     string? BjcpCategoryNumber,
     string? BjcpCategoryName);
 

@@ -178,13 +178,15 @@ import type { TableSummary } from './table-management-api.service';
       overflow: hidden;
     }
 
+    /* text-muted, not text-subtle: this label sits on the white card surface, where subtle is
+       3.29:1 — under AA for text this size. Same reasoning already applied to .mesa-empty below. */
     .mesa-zone__label {
       margin: 0 0 var(--spacing-1);
       font-size: 0.6875rem;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: var(--color-bp-text-subtle);
+      color: var(--color-bp-text-muted);
     }
 
     .mesa-seats,

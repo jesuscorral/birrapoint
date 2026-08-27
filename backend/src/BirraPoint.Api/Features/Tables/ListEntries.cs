@@ -23,7 +23,10 @@ public sealed record EntryDto(
     // under — null for entries seeded outside the Import slice, which never get one assigned.
     string? CompetitionCategoryName,
     // T124: the BJCP taxonomy's own category (e.g. "21"/"IPA"), a completely independent axis
-    // from CompetitionCategoryName — null only when StyleCode has no matching catalog row.
+    // from CompetitionCategoryName. Nullable defensively only: BeerEntry.StyleCode is a required,
+    // non-nullable FK to BjcpStyles.Code with OnDelete(Restrict), and BjcpStyle.CategoryNumber /
+    // .CategoryName are both `required string`, so an entry whose style has no catalog row cannot
+    // exist. Treat null as unreachable rather than a state clients must handle.
     string? BjcpCategoryNumber,
     string? BjcpCategoryName);
 
@@ -70,9 +73,13 @@ public sealed class ListEntriesQueryHandler(AppDbContext dbContext, ICurrentUser
             .Select(e => e.CompetitionCategoryId!.Value).Distinct().ToList();
         var categoryNameById = categoryIds.Count == 0
             ? new Dictionary<Guid, string>()
-            : await dbContext.CompetitionCategories
-                .Where(c => categoryIds.Contains(c.Id))
-                .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
+            // Projected before materialising, so this read does not load (and track) whole
+            // CompetitionCategory entities the way the plain ToDictionaryAsync overload does.
+            : (await dbContext.CompetitionCategories
+                    .Where(c => categoryIds.Contains(c.Id))
+                    .Select(c => new { c.Id, c.Name })
+                    .ToListAsync(cancellationToken))
+                .ToDictionary(c => c.Id, c => c.Name);
 
         var entryIds = entries.Select(e => e.Id).ToList();
         var tableByEntryId = await dbContext.TableSamples

@@ -17,7 +17,7 @@ import { BpButtonComponent } from '../bp-button/bp-button.component';
   imports: [BpButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="step-actions">
+    <div class="step-actions" [class.step-actions--sticky]="sticky()">
       <div class="step-actions__zone step-actions__zone--start">
         @if (showBack()) {
           <bp-button
@@ -61,10 +61,26 @@ import { BpButtonComponent } from '../bp-button/bp-button.component';
         calc(-1 * var(--bp-step-actions-inset, var(--spacing-8)));
       padding: var(--spacing-4) var(--bp-step-actions-inset, var(--spacing-8)) var(--spacing-6);
       border-top: 1px solid var(--color-bp-border);
+      background: var(--color-bp-surface);
+    }
+
+    /* Opt-out (see the sticky input): a step that owns a full-page drop surface must not stick,
+       because @angular/cdk/drag-drop resolves the drop container with elementFromPoint and an
+       opaque bar over that surface makes releases onto the covered strip silent no-ops. */
+    .step-actions--sticky {
       position: sticky;
       bottom: 0;
-      background: var(--color-bp-surface);
       z-index: 2;
+    }
+
+    /* Belt and braces for any future drop surface under a sticky bar: the bar's own background
+       stops being a hit-test target, only its buttons remain. */
+    .step-actions--sticky {
+      pointer-events: none;
+    }
+
+    .step-actions--sticky .step-actions__zone {
+      pointer-events: auto;
     }
 
     .step-actions__zone {
@@ -93,10 +109,11 @@ import { BpButtonComponent } from '../bp-button/bp-button.component';
         padding: var(--spacing-4) var(--bp-step-actions-inset, var(--spacing-6)) var(--spacing-6);
       }
 
-      /* Forward action first in source-visual order on narrow screens, where the row becomes a
-         stack and the primary action should be the one under the thumb. */
+      /* No CSS order reversal here: putting the forward action first visually while leaving it last
+         in the DOM made a keyboard user tab Atrás -> centre -> Siguiente while reading the
+         opposite (WCAG 1.3.2 / 2.4.3). The stack keeps DOM order; the forward action stays the
+         full-width primary, which is enough emphasis without contradicting the tab sequence. */
       .step-actions__zone--end {
-        order: -1;
         justify-content: stretch;
       }
 
@@ -119,6 +136,8 @@ export class BpStepActionsComponent {
   // `submit` lets a step keep its existing (ngSubmit) form wiring instead of duplicating the
   // submit path behind a click handler.
   readonly nextType = input<'button' | 'submit'>('button');
+  // Steps that own a drop surface (step 6's table board) turn this off — see the CSS note above.
+  readonly sticky = input(true);
 
   readonly back = output<void>();
   readonly next = output<void>();

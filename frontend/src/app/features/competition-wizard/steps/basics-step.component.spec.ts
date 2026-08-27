@@ -223,7 +223,7 @@ describe('BasicsStepComponent', () => {
     const router = TestBed.inject(Router);
     const navigateSpy = jest.spyOn(router, 'navigateByUrl');
 
-    fixture.componentInstance['onSaveDraft']();
+    fixture.componentInstance['onSaveAndLeave']();
 
     expect(fakeApi.create).not.toHaveBeenCalled();
     expect(navigateSpy).not.toHaveBeenCalled();

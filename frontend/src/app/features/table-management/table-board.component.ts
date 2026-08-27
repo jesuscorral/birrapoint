@@ -215,48 +215,51 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
         <bp-alert type="error" title="No hemos podido crear la mesa">{{ message }}</bp-alert>
       }
 
-      <ul class="board-rail__list">
-        @for (table of tables(); track table.id) {
-          <li>
-            <app-mesa-card
-              [table]="table"
-              [compact]="true"
-              [connectedJudgeListIds]="judgeDropListIds()"
-              [connectedBeerListIds]="beerDropListIds()"
-              (judgeActivated)="onJudgeClicked($event)"
-              (beerActivated)="onBeerClicked($event)"
-              (judgesDropped)="onJudgesDropped($event)"
-              (beersDropped)="onBeersDropped($event)"
-            />
-          </li>
-        }
-        <!-- T125b: "Add table" is a tile inside the rail's own horizontal scroller rather than a
-             header row of its own, so it costs no vertical space at all — and both its controls
-             stay rendered and labelled, which nine E2E specs address by label. -->
-        <li class="board-rail__add">
-          <section aria-label="Add table" class="add-table">
-            @if (tables().length === 0) {
-              <p class="add-table__hint">
-                Crea la primera mesa y arrastra jueces y cervezas hasta ella.
-              </p>
-            }
-            <bp-input
-              id="new-table-name"
-              label="New table name"
-              [value]="newTableName()"
-              (valueChange)="newTableName.set($event)"
-            ></bp-input>
-            <bp-button
-              type="button"
-              label="Add table"
-              variant="secondary"
-              [loading]="creatingTable()"
-              [disabled]="!newTableName().trim() || creatingTable()"
-              (clicked)="onCreateTable()"
-            ></bp-button>
-          </section>
-        </li>
-      </ul>
+      <div class="board-rail__row">
+        <ul class="board-rail__list">
+          @for (table of tables(); track table.id) {
+            <li>
+              <app-mesa-card
+                [table]="table"
+                [compact]="true"
+                [connectedJudgeListIds]="judgeDropListIds()"
+                [connectedBeerListIds]="beerDropListIds()"
+                (judgeActivated)="onJudgeClicked($event)"
+                (beerActivated)="onBeerClicked($event)"
+                (judgesDropped)="onJudgesDropped($event)"
+                (beersDropped)="onBeersDropped($event)"
+              />
+            </li>
+          }
+        </ul>
+
+        <!-- T125b: "Add table" is a tile alongside the rail rather than a header row of its own,
+             so it costs no vertical space. It sits OUTSIDE the <ul> deliberately: as the last <li>
+             it both made a form the Nth item of a list of tables for assistive tech, and scrolled
+             off the right edge (taking keyboard focus with it) once the rail overflowed. Both
+             controls stay rendered and labelled, which nine E2E specs address by label. -->
+        <section aria-label="Add table" class="add-table">
+          @if (tables().length === 0) {
+            <p class="add-table__hint">
+              Crea la primera mesa y arrastra jueces y cervezas hasta ella.
+            </p>
+          }
+          <bp-input
+            id="new-table-name"
+            label="New table name"
+            [value]="newTableName()"
+            (valueChange)="newTableName.set($event)"
+          ></bp-input>
+          <bp-button
+            type="button"
+            label="Add table"
+            variant="secondary"
+            [loading]="creatingTable()"
+            [disabled]="!newTableName().trim() || creatingTable()"
+            (clicked)="onCreateTable()"
+          ></bp-button>
+        </section>
+      </div>
     </div>
 
     @if (conflictDialog(); as conflicts) {
@@ -331,7 +334,9 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
       min-height: 40px;
       min-width: 12rem;
       padding: 0 var(--spacing-3);
-      border: 1.5px solid var(--color-bp-border-strong);
+      /* text-muted, not border-strong: a control boundary needs 3:1 (WCAG 1.4.11) and
+         border-strong on the surface is 1.83:1. Same call already made in unassigned-column. */
+      border: 1.5px solid var(--color-bp-text-muted);
       border-radius: var(--radius-md);
       background: var(--color-bp-surface);
       color: var(--color-bp-text);
@@ -385,9 +390,32 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
       max-width: 13rem;
     }
 
-    .board-rail__add {
+    /* The tile is pinned beside the scroller, not inside it, so it stays reachable at any table
+       count and keyboard focus on it is never off-screen. */
+    .board-rail__row {
+      display: flex;
+      align-items: stretch;
+      gap: var(--spacing-3);
+      min-width: 0;
+    }
+
+    .board-rail__row > .board-rail__list {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .board-rail__row > .add-table {
       flex: 0 0 12rem;
-      max-width: 12rem;
+    }
+
+    @media (max-width: 640px) {
+      .board-rail__row {
+        flex-direction: column;
+      }
+
+      .board-rail__row > .add-table {
+        flex: 0 0 auto;
+      }
     }
 
     .add-table {
@@ -396,7 +424,8 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
       gap: var(--spacing-2);
       height: 100%;
       padding: var(--spacing-3);
-      border: 1px dashed var(--color-bp-border-strong);
+      /* Encloses the "Add table" form, so it reads as a control boundary too — 3:1, not 1.83:1. */
+      border: 1px dashed var(--color-bp-text-muted);
       border-radius: var(--radius-lg);
       background: var(--color-bp-surface);
     }
@@ -579,6 +608,22 @@ export class TableBoardComponent implements OnInit {
   protected readonly boardStatus = computed<'complete' | 'partial'>(() => 'complete');
 
   constructor() {
+    // Filter options are derived from the pool, so assigning the last beer of a style removes that
+    // style's option. Without this the <select> would have no matching option and render blank
+    // while the filter was still applied — the pool showing "no matches" next to a control that
+    // claims nothing is filtered. Clearing the now-meaningless filter is the honest resolution.
+    effect(() => {
+      const style = this.styleFilter();
+      if (style && !this.styleOptions().includes(style)) {
+        this.styleFilter.set('');
+      }
+    });
+    effect(() => {
+      const category = this.categoryFilter();
+      if (category && !this.categoryOptions().includes(category)) {
+        this.categoryFilter.set('');
+      }
+    });
     effect(() => {
       this.dirtyChange.emit(this.newTableName().trim().length > 0);
     });
