@@ -93,13 +93,15 @@ describe('JudgeImportStepComponent', () => {
     return fixture;
   }
 
-  it('renders exactly two bottom-bar buttons, labeled "Atrás" and "Siguiente"', () => {
+  // T125: the shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
+  // forward. Previously each step rendered its own two-slot bar and they had drifted apart.
+  it('renders the shared bar: Atrás, its own centre action, and Siguiente', () => {
     const fixture = createComponent();
 
     const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
       (button: HTMLButtonElement) => button.textContent?.trim(),
     );
-    expect(buttons).toEqual(['Atrás', 'Siguiente']);
+    expect(buttons).toEqual(['Atrás', 'Subir archivo', 'Siguiente']);
   });
 
   it('uploads the selected file when "Siguiente" is clicked and no batch exists yet', () => {

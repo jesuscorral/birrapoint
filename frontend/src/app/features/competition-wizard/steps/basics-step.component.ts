@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { AbstractControl, ValidationErrors } from '@angular/forms';
+import { Router } from '@angular/router';
 
 import { ApiError } from '../../../core/api/api-error';
 import { CompetitionsApiService } from '../../../core/api/competitions-api.service';
@@ -185,6 +186,7 @@ function toGenericApiError(error: unknown): ApiError {
 })
 export class BasicsStepComponent {
   private readonly api = inject(CompetitionsApiService);
+  private readonly router = inject(Router);
 
   readonly competitionId = input<string | null>(null);
   readonly initialValue = input<CompetitionDetail | null>(null);

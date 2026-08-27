@@ -1,6 +1,13 @@
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Location } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
@@ -153,6 +160,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
                     (back)="onBack()"
                     (dirtyChange)="stepDirty.set($event)"
                     (statusChange)="tablesStatus.set($event)"
+                    (finished)="onRequestExit()"
                   />
                 }
               }

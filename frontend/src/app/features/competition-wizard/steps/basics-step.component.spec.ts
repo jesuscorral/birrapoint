@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
 import { ApiError } from '../../../core/api/api-error';
@@ -86,12 +86,16 @@ describe('BasicsStepComponent', () => {
     expect(button.disabled).toBe(false);
   });
 
-  it('renders exactly one bottom-bar button, labeled "Siguiente" (step 1 has no previous step)', () => {
+  // T125: the shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
+  // forward. Previously each step rendered its own two-slot bar and they had drifted apart.
+  // Step 1 has no previous step, so the back zone is empty.
+  it('renders the shared bar with "Guardar borrador" and "Siguiente" (step 1 has no previous step)', () => {
     const fixture = createComponent();
 
-    const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')];
-    expect(buttons.length).toBe(1);
-    expect((buttons[0] as HTMLButtonElement).textContent?.trim()).toBe('Siguiente');
+    const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
+      (button: HTMLButtonElement) => button.textContent?.trim(),
+    );
+    expect(buttons).toEqual(['Guardar borrador', 'Siguiente']);
   });
 
   it('calls create() with only the basics fields when there is no competition id yet', () => {

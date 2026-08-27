@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { of } from 'rxjs';
 
 import { CatalogApiService } from '../../../core/api/catalog-api.service';
@@ -29,16 +30,6 @@ function groupStyleFixtures(): StyleSummary[] {
     styleFixture({ code: '18B', name: 'American Pale Ale' }),
     styleFixture({ code: '18C', name: 'Imperial Pale Ale' }),
   ];
-}
-
-function buttonWithText(root: Element, text: string): HTMLButtonElement {
-  const match = [...root.querySelectorAll('button')].find(
-    (button) => button.textContent?.trim() === text,
-  );
-  if (!match) {
-    throw new Error(`No button with text "${text}" found`);
-  }
-  return match as HTMLButtonElement;
 }
 
 describe('CategoriesStepComponent', () => {
@@ -75,13 +66,15 @@ describe('CategoriesStepComponent', () => {
     return match;
   }
 
-  it('renders exactly two bottom-bar buttons, labeled "Atrás" and "Siguiente"', () => {
+  // T125: the shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
+  // forward. Previously each step rendered its own two-slot bar and they had drifted apart.
+  it('renders the shared bar: Atrás, its own centre action, and Siguiente', () => {
     const fixture = createComponent();
 
     const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
       (button: HTMLButtonElement) => button.textContent?.trim(),
     );
-    expect(buttons).toEqual(['Atrás', 'Siguiente']);
+    expect(buttons).toEqual(['Atrás', 'Guardar borrador', 'Siguiente']);
   });
 
   it('loads the BJCP catalog and existing categories on init', () => {
@@ -419,7 +412,10 @@ describe('CategoriesStepComponent', () => {
     );
   });
 
-  it('disables "Siguiente" until at least one category has at least one style', () => {
+  // "Siguiente" is never disabled here: with nothing assigned there is no payload worth sending,
+  // so it advances without saving and the stepper marker stays amber. Only "Guardar borrador",
+  // which leaves the wizard, requires something to persist.
+  it('advances without saving while no category has a style yet', () => {
     fakeCatalogApi.getStyles.mockReturnValue(of([styleFixture()]));
     fakeCompetitionsApi.getCategories.mockReturnValue(
       of(
@@ -436,9 +432,9 @@ describe('CategoriesStepComponent', () => {
       '.step-actions__zone--end button',
     ) as HTMLButtonElement;
     expect(finishButton.textContent?.trim()).toBe('Siguiente');
-    expect(finishButton.disabled).toBe(true);
+    expect(finishButton.disabled).toBe(false);
 
-    nextButton.click();
+    finishButton.click();
 
     expect(fakeCompetitionsApi.setCategories).not.toHaveBeenCalled();
     expect(emitted.length).toBe(1);
@@ -467,6 +463,8 @@ describe('CategoriesStepComponent', () => {
     const fixture = createComponent();
     const emitted: void[] = [];
     fixture.componentInstance.saved.subscribe(() => emitted.push(undefined));
+
+    const navigateSpy = jest.spyOn(TestBed.inject(Router), 'navigateByUrl');
 
     fixture.componentInstance.onFinish();
 

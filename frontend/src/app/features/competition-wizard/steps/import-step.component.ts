@@ -9,7 +9,6 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
@@ -31,8 +30,9 @@ import type {
 } from '../../../core/api/import-api.service';
 import { BpAlertComponent } from '../../../shared/components/bp-alert/bp-alert.component';
 import { BpButtonComponent } from '../../../shared/components/bp-button/bp-button.component';
-import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
+import { BpFileDropzoneComponent } from '../../../shared/components/bp-file-dropzone/bp-file-dropzone.component';
 import { BpInputComponent } from '../../../shared/components/bp-input/bp-input.component';
+import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
 import { BpTextareaComponent } from '../../../shared/components/bp-textarea/bp-textarea.component';
 import { StylePickerComponent } from '../../entry-import/style-picker.component';
 
@@ -127,6 +127,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
   selector: 'app-import-step',
   imports: [
     BpButtonComponent,
+    BpFileDropzoneComponent,
     BpStepActionsComponent,
     BpInputComponent,
     BpTextareaComponent,
@@ -197,17 +198,18 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
               bannerMessage(err)
             }}</bp-alert>
           }
+        </div>
 
-          <bp-step-actions (back)="back.emit()" (next)="saved.emit()">
-            <bp-button
-              type="submit"
-              label="Subir archivo"
-              variant="secondary"
-              [loading]="uploading()"
-              [disabled]="!selectedFile() || uploading() || categories().length === 0"
-            ></bp-button>
-          </bp-step-actions>
-        </form>
+        <bp-step-actions (back)="back.emit()" (next)="onNext()">
+          <bp-button
+            type="button"
+            label="Subir archivo"
+            variant="secondary"
+            [loading]="uploading()"
+            [disabled]="!selectedFile() || uploading() || categories().length === 0"
+            (clicked)="onUpload()"
+          ></bp-button>
+        </bp-step-actions>
       } @else {
         <section class="import-rows" aria-label="Filas importadas">
           @for (row of importBatch()!.rows; track row.rowNumber; let i = $index) {
@@ -439,7 +441,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
           </bp-alert>
         }
 
-        <bp-step-actions (back)="back.emit()" (next)="saved.emit()">
+        <bp-step-actions (back)="back.emit()" (next)="onNext()">
           @if (!consolidateResult()) {
             <bp-button
               type="button"
@@ -675,12 +677,11 @@ export class ImportStepComponent implements OnInit {
   readonly importId = input<string | null>(null);
   readonly importIdChange = output<string>();
   // Emitted by "Siguiente" once there's nothing left to do at this step — advances the wizard
-  // shell to step 5 (see onNext() below).
+  // shell to step 5 (see onNext() below). T125: step 4 previously dead-ended at "Ir al panel de
+  // organizador"; it now advances like every other step, whether or not a batch was consolidated
+  // on this visit.
   readonly saved = output<void>();
   readonly back = output<void>();
-  // T125: step 4 previously dead-ended at "Ir al panel de organizador". It now advances to
-  // step 5 like every other step, whether or not a batch was consolidated on this visit.
-  readonly saved = output<void>();
   // See basics-step.component.ts for why the wizard shell needs this (FR-007 stay-or-discard
   // prompt on Back/stepper navigation). Unsaved-edit here means either an open row editor whose
   // draft hasn't been saved, or a chosen file not yet uploaded.

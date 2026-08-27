@@ -4,4 +4,5 @@ export { BpTextareaComponent } from './bp-textarea/bp-textarea.component';
 export { BpAlertComponent } from './bp-alert/bp-alert.component';
 export { BpCheckboxComponent } from './bp-checkbox/bp-checkbox.component';
 export { BpTopbarComponent } from './bp-topbar/bp-topbar.component';
+export { BpFileDropzoneComponent } from './bp-file-dropzone/bp-file-dropzone.component';
 export { BpStepActionsComponent } from './bp-step-actions/bp-step-actions.component';

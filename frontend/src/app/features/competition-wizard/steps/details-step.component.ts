@@ -134,12 +134,10 @@ function toGenericApiError(error: unknown): ApiError {
         }
       </div>
 
-      <bp-step-actions
-        nextType="submit"
-        [nextLoading]="submitting()"
-        [nextDisabled]="form.invalid"
-        (back)="back.emit()"
-      >
+      <!-- Every field on this step is optional, so "Siguiente" is never blocked: an invalid value
+           is simply left unsaved and the step advances anyway. Disabling it would trap the
+           organizer with no way forward short of blanking the offending field. -->
+      <bp-step-actions nextType="submit" [nextLoading]="submitting()" (back)="back.emit()">
         <bp-button
           type="button"
           label="Guardar borrador"
@@ -249,8 +247,21 @@ export class DetailsStepComponent {
     return error.detail ?? error.title;
   }
 
-  // The action bar's forward button: save, then let the wizard advance to step 3.
+  // The action bar's forward button: save, then let the wizard advance to step 3. Every field here
+  // is optional, so an invalid value never blocks the way forward — it is left unsaved and the
+  // step advances with whatever was already persisted. Without this, removing [nextDisabled] would
+  // just turn "Siguiente" into a dead button on an invalid form.
   protected onSaveDraft(): void {
+    if (this.submitting()) {
+      return;
+    }
+    if (this.form.invalid) {
+      const current = this.initialValue();
+      if (current) {
+        this.saved.emit(current);
+      }
+      return;
+    }
     this.save((detail) => this.saved.emit(detail));
   }
 

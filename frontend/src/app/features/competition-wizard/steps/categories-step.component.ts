@@ -1,4 +1,5 @@
 import type { OnInit } from '@angular/core';
+import { Router } from '@angular/router';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -213,12 +214,10 @@ function toGenericApiError(error: unknown): ApiError {
         <bp-alert type="error" title="No hemos podido guardar">{{ message }}</bp-alert>
       }
 
-      <bp-step-actions
-        [nextLoading]="submitting()"
-        [nextDisabled]="!canFinish()"
-        (back)="back.emit()"
-        (next)="onFinish()"
-      >
+      <!-- "Siguiente" is never blocked here either: with nothing assigned yet there is nothing to
+           save, so it just advances and the stepper marker stays amber (see statusChange). Only
+           "Guardar borrador", which leaves the wizard, requires something worth persisting. -->
+      <bp-step-actions [nextLoading]="submitting()" (back)="back.emit()" (next)="onFinish()">
         <bp-button
           type="button"
           label="Guardar borrador"
@@ -476,6 +475,7 @@ function toGenericApiError(error: unknown): ApiError {
 export class CategoriesStepComponent implements OnInit {
   private readonly catalogApi = inject(CatalogApiService);
   private readonly competitionsApi = inject(CompetitionsApiService);
+  private readonly router = inject(Router);
 
   readonly competitionId = input.required<string>();
   readonly saved = output<void>();
@@ -712,6 +712,11 @@ export class CategoriesStepComponent implements OnInit {
     if (this.submitting()) {
       return;
     }
+    // Nothing assigned yet: there is no payload worth sending, so advance without saving.
+    if (!this.canFinish()) {
+      this.saved.emit();
+      return;
+    }
 
     this.submitting.set(true);
     this.apiError.set(null);
@@ -741,7 +746,7 @@ export class CategoriesStepComponent implements OnInit {
     this.competitionsApi.setCategories(this.competitionId(), this.buildPayload()).subscribe({
       next: () => {
         this.submitting.set(false);
-        this.saved.emit();
+        this.router.navigateByUrl('/organizer/dashboard');
       },
       error: (error: unknown) => {
         this.submitting.set(false);

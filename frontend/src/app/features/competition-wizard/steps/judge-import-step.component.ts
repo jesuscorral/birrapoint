@@ -21,8 +21,9 @@ import type {
 } from '../../../core/api/judge-import-api.service';
 import { BpAlertComponent } from '../../../shared/components/bp-alert/bp-alert.component';
 import { BpButtonComponent } from '../../../shared/components/bp-button/bp-button.component';
-import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
+import { BpFileDropzoneComponent } from '../../../shared/components/bp-file-dropzone/bp-file-dropzone.component';
 import { BpInputComponent } from '../../../shared/components/bp-input/bp-input.component';
+import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
 import { BpTextareaComponent } from '../../../shared/components/bp-textarea/bp-textarea.component';
 
 interface RowDraft {
@@ -73,8 +74,8 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
 @Component({
   selector: 'app-judge-import-step',
   imports: [
-    FormsModule,
     BpButtonComponent,
+    BpFileDropzoneComponent,
     BpStepActionsComponent,
     BpInputComponent,
     BpTextareaComponent,
@@ -111,17 +112,18 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
               bannerMessage(err)
             }}</bp-alert>
           }
+        </div>
 
-          <bp-step-actions (back)="back.emit()" (next)="saved.emit()">
-            <bp-button
-              type="submit"
-              label="Subir archivo"
-              variant="secondary"
-              [loading]="uploading()"
-              [disabled]="!selectedFile() || uploading()"
-            ></bp-button>
-          </bp-step-actions>
-        </form>
+        <bp-step-actions (back)="back.emit()" (next)="onNext()">
+          <bp-button
+            type="button"
+            label="Subir archivo"
+            variant="secondary"
+            [loading]="uploading()"
+            [disabled]="!selectedFile() || uploading()"
+            (clicked)="onUpload()"
+          ></bp-button>
+        </bp-step-actions>
       } @else {
         <section class="judge-import-rows" aria-label="Jueces importados">
           @for (row of importBatch()!.rows; track row.rowNumber; let i = $index) {
@@ -249,7 +251,7 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
           </bp-alert>
         }
 
-        <bp-step-actions (back)="back.emit()" (next)="saved.emit()">
+        <bp-step-actions (back)="back.emit()" (next)="onNext()">
           @if (!consolidateResult()) {
             <bp-button
               type="button"

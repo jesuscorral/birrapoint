@@ -1,5 +1,4 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
 import { CatalogApiService } from '../../../core/api/catalog-api.service';
@@ -157,13 +156,15 @@ describe('ImportStepComponent', () => {
     return fixture;
   }
 
-  it('renders exactly two bottom-bar buttons, labeled "Atrás" and "Siguiente"', () => {
+  // T125: the shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
+  // forward. Previously each step rendered its own two-slot bar and they had drifted apart.
+  it('renders the shared bar: Atrás, its own centre action, and Siguiente', () => {
     const fixture = createComponent();
 
     const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
       (button: HTMLButtonElement) => button.textContent?.trim(),
     );
-    expect(buttons).toEqual(['Atrás', 'Siguiente']);
+    expect(buttons).toEqual(['Atrás', 'Subir archivo', 'Siguiente']);
   });
 
   it('shows an empty-state alert and disables the upload control when the competition has zero categories', () => {
