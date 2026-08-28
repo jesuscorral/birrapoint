@@ -6,21 +6,6 @@ import { BeerTokenComponent } from './beer-token.component';
 import { JudgeSeatComponent } from './judge-seat.component';
 import type { TableSummary } from './table-management-api.service';
 
-interface SeatPosition {
-  left: number;
-  top: number;
-}
-
-// Evenly distributes `count` seats around an ellipse centered in the board, starting at the top
-// and going clockwise — the physical-table metaphor from the "Crear mesas" prototype.
-function seatPosition(index: number, count: number): SeatPosition {
-  if (count === 0) {
-    return { left: 50, top: 50 };
-  }
-  const angle = (2 * Math.PI * index) / count - Math.PI / 2;
-  return { left: 50 + 42 * Math.cos(angle), top: 50 + 42 * Math.sin(angle) };
-}
-
 @Component({
   selector: 'app-mesa-card',
   standalone: true,
@@ -54,47 +39,61 @@ function seatPosition(index: number, count: number): SeatPosition {
         </dl>
       </header>
 
-      <div class="mesa-board">
-        <ul
-          class="mesa-seats"
-          aria-label="Assigned judges"
-          cdkDropList
-          [id]="judgeListId()"
-          [cdkDropListConnectedTo]="connectedJudgeListIds()"
-          (cdkDropListDropped)="judgesDropped.emit($event)"
-        >
-          @for (judge of table().judges; track judge.id; let i = $index) {
-            <li
-              class="mesa-seat"
-              [style.left.%]="seatPositionOf(i).left"
-              [style.top.%]="seatPositionOf(i).top"
-            >
-              <app-judge-seat [judge]="judge" (activated)="judgeActivated.emit(judge.id)" />
-            </li>
-          }
-        </ul>
+      <div class="mesa-body">
+        <div class="mesa-column">
+          <h4 class="mesa-column__title">Jueces</h4>
+          <ul
+            class="mesa-seats"
+            aria-label="Assigned judges"
+            cdkDropList
+            [id]="judgeListId()"
+            [cdkDropListConnectedTo]="connectedJudgeListIds()"
+            (cdkDropListDropped)="judgesDropped.emit($event)"
+          >
+            @for (judge of table().judges; track judge.id) {
+              <li class="roster-row">
+                <app-judge-seat [judge]="judge" (activated)="judgeActivated.emit(judge.id)" />
+                <span class="roster-row__label">
+                  <span class="roster-row__name">{{ judge.displayName }}</span>
+                  <span class="roster-row__meta">{{ judge.email }}</span>
+                </span>
+              </li>
+            } @empty {
+              <li class="roster-row roster-row--empty">Sin jueces asignados</li>
+            }
+          </ul>
+        </div>
 
-        <ul
-          class="mesa-tokens"
-          aria-label="Assigned beers"
-          cdkDropList
-          [id]="beerListId()"
-          [cdkDropListConnectedTo]="connectedBeerListIds()"
-          (cdkDropListDropped)="beersDropped.emit($event)"
-        >
-          @for (sample of table().samples; track sample.beerEntryId) {
-            <li>
-              <app-beer-token
-                [beer]="{
-                  id: sample.beerEntryId,
-                  blindCode: sample.blindCode,
-                  notValidForBos: sample.notValidForBos,
-                }"
-                (activated)="beerActivated.emit(sample.beerEntryId)"
-              />
-            </li>
-          }
-        </ul>
+        <div class="mesa-column mesa-column--beers">
+          <h4 class="mesa-column__title">Cervezas</h4>
+          <ul
+            class="mesa-tokens"
+            aria-label="Assigned beers"
+            cdkDropList
+            [id]="beerListId()"
+            [cdkDropListConnectedTo]="connectedBeerListIds()"
+            (cdkDropListDropped)="beersDropped.emit($event)"
+          >
+            @for (sample of table().samples; track sample.beerEntryId) {
+              <li class="roster-row">
+                <app-beer-token
+                  [beer]="{
+                    id: sample.beerEntryId,
+                    blindCode: sample.blindCode,
+                    notValidForBos: sample.notValidForBos,
+                  }"
+                  (activated)="beerActivated.emit(sample.beerEntryId)"
+                />
+                <span class="roster-row__label">
+                  <span class="roster-row__name">{{ sample.styleName }}</span>
+                  <span class="roster-row__meta">{{ sample.abvPercent }}% ABV</span>
+                </span>
+              </li>
+            } @empty {
+              <li class="roster-row roster-row--empty">Sin cervezas asignadas</li>
+            }
+          </ul>
+        </div>
       </div>
     </article>
   `,
@@ -138,39 +137,93 @@ function seatPosition(index: number, count: number): SeatPosition {
       font-weight: 600;
     }
 
-    .mesa-board {
-      position: relative;
-      margin-top: var(--spacing-6);
-      aspect-ratio: 1.4 / 1;
-      border-radius: 999px;
-      background: var(--color-bp-verde-50);
-      border: 2px solid var(--color-bp-verde-400);
+    .mesa-body {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--spacing-5);
+      margin-top: var(--spacing-4);
+      padding-top: var(--spacing-4);
+      border-top: 1px solid var(--color-bp-border);
+    }
+
+    .mesa-column {
+      flex: 1 1 220px;
+      min-width: 0;
+    }
+
+    .mesa-column--beers {
+      flex: 2 1 300px;
+    }
+
+    .mesa-column__title {
+      margin: 0 0 var(--spacing-2);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--color-bp-text-muted);
     }
 
     .mesa-seats {
-      position: absolute;
-      inset: 0;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .mesa-seat {
-      position: absolute;
-      transform: translate(-50%, -50%);
-    }
-
-    .mesa-tokens {
-      position: absolute;
-      inset: 15%;
       margin: 0;
       padding: 0;
       list-style: none;
       display: flex;
-      flex-wrap: wrap;
-      align-content: center;
-      justify-content: center;
+      flex-direction: column;
       gap: var(--spacing-2);
+      min-height: 44px;
+    }
+
+    .mesa-tokens {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: var(--spacing-2);
+      align-content: start;
+      min-height: 44px;
+    }
+
+    .roster-row {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-2);
+      padding: var(--spacing-2);
+      border-radius: var(--radius-md);
+      background: var(--color-bp-hueso-50);
+      min-width: 0;
+    }
+
+    .roster-row--empty {
+      color: var(--color-bp-text-subtle);
+      font-size: 0.8125rem;
+      font-style: italic;
+      background: transparent;
+      padding: var(--spacing-2) 0;
+    }
+
+    .roster-row__label {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .roster-row__name {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--color-bp-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .roster-row__meta {
+      font-size: 0.75rem;
+      color: var(--color-bp-text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   `,
 })
@@ -196,8 +249,4 @@ export class MesaCardComponent {
     const stats = this.table().stats;
     return stats.styleCount === 0 ? '—' : `${stats.styleCount} (${stats.styles.join(', ')})`;
   });
-
-  protected seatPositionOf(index: number): SeatPosition {
-    return seatPosition(index, this.table().judges.length);
-  }
 }
