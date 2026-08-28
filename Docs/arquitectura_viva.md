@@ -1388,29 +1388,93 @@ judge already provisioned with a Keycloak account.
   reach Keycloak at all, a pre-existing condition traced (via `git log`) to `welcome.component.ts`
   as last touched by an earlier commit on this same branch, before this change and unrelated to
   anything touched here.
-  **Usability redesign (2026-08-05, organizer feedback)**: the trigonometric-ellipse "physical
-  table" board (judges as seats orbiting a circle, beer tokens centered inside) required opening
-  each seat/token's detail modal to see who or what was actually assigned — fine for a fully-staffed
-  table, but slow for the organizer's *first-pass* assignment across many tables, and the tall
-  circle ate vertical space long before the row got interesting. `MesaCardComponent` and
-  `UnassignedColumnComponent` replaced it with a two-column roster: judges as a vertical list
-  (avatar + full name + email) and beers as a wrapped grid of chips (blind-code token + style name
-  + ABV%), all readable without a click — `JudgeSeatComponent`/`BeerTokenComponent` themselves are
-  untouched (still the actual `cdkDrag` handles, same aria-labels/`data-*` hooks the E2E suite locks
-  onto), just laid out differently by their parents. `seatPosition()`/`SeatPosition` (the ellipse-
-  placement math) and the circular `.mesa-board` are gone as dead code. `TableBoardComponent`
-  wraps the per-table cards in a `.mesa-grid` (`grid-template-columns: repeat(auto-fit,
-  minmax(360px, 1fr))`) beside a `position: sticky` Unassigned column, so multiple tables lay out
-  side by side on a wide screen instead of stacking into one long column — reachable width was the
-  actual blocker: `competition-wizard.component.ts`'s `.wizard-container` caps every step at `40rem`
-  (a deliberate reading-width constraint for the name/venue/date-style steps), which left this grid
-  no room to ever produce more than one column. A `wizard-container--wide` modifier (`75rem`),
-  applied only `[class.wizard-container--wide]="currentStep() === 6"`, opens up step 6 alone; the
-  five form-style steps keep their original width. All existing `mesa-seats`/`mesa-tokens`
-  id/class hooks, `data-judge-id`/`data-entry-id`/`data-table-id`, and the `beer-token--bos-flagged`
-  class survive unchanged — verified against the full Jest suite (still 594/594 passing) and by
-  manually driving the redesigned board in a real browser (Playwright's `us5-tables.spec.ts` itself
-  still can't run, blocked by the pre-existing login `beforeEach` issue noted just above).
+
+  **Wizard step 6 — the table assignment board (T124/T125/T125b).** Three passes landed on this
+  screen; what follows describes where it ended up, not the route it took there.
+
+  *Why the data changed.* The organizer picks which table a beer belongs on by its style, category
+  and strength, and none of that used to be on screen — the beer token was a 64x64 square showing
+  only the blind code, so every decision needed a round trip through the detail modal. Separately,
+  `BeerEntry.CompetitionCategoryId` (the organizer-defined wizard-step-3 grouping, populated by
+  import consolidation since T118) was never projected into any DTO, so the frontend physically
+  could not show it. `TableSampleDto` and `EntryDto` now carry `CompetitionCategoryName` plus
+  `BjcpCategoryNumber`/`BjcpCategoryName`. The two are **independent axes**
+  (`Domain/CompetitionCategory.cs` says so explicitly) and are surfaced as such rather than
+  collapsed into one "category" field. No migration was needed — the column already existed;
+  `TableProjector.cs`/`ListEntries.cs` gained the joins and `contracts/rest-api.md` the additive
+  amendment. The BJCP pair is typed nullable but is not reachable as null: `BeerEntry.StyleCode` is
+  a required, non-nullable FK to the catalog with `OnDelete(Restrict)`.
+
+  `TableProjector` exposes `ProjectManyAsync(tableIds)` alongside the single-table `ProjectAsync`.
+  `ListTables` used to call the single-table path once per table, so a 20-table competition issued
+  120 sequential queries against a <200 ms p95 read budget; the batch path is a fixed six round
+  trips regardless of table count, and `ProjectAsync` is now a one-element wrapper over it.
+
+  *Current layout.* The unassigned pool and its toolbar read first; the tables rail sits underneath.
+  That matches the task — scan what is left to place, then drop downward — and it needs no sticky
+  positioning, because the pool's beer grid caps its own height (`max(40vh, 18rem)`, rem-bounded so
+  it still grows with text size) and scrolls internally, so it cannot push the rail out of view
+  exactly when the organizer has the most left to do. The rail is one horizontally-scrolled row of
+  13rem compact `mesa-card`s whose seated zones cap at `5.5rem` and scroll internally, so the rail's
+  height does not grow with the table count. "Add table" is pinned *beside* the scroller rather than
+  inside it: as the last `<li>` it both made a form the Nth item of a list of tables for assistive
+  tech and scrolled out of reach — taking keyboard focus with it — once the rail overflowed.
+
+  `beer-token.component.ts` has a `full`/`mini` variant split: `full` (the pool) is a card with a
+  beer-glass icon, style name, both category chips and real ABV%; `mini` (seated on a card) stays a
+  compact code + ABV pill, since a table's aggregate stats already carry the balance picture and a
+  dozen full cards per table would not fit. `judge-seat.component.ts` shows the display name beside
+  the initials avatar, in a one-line `dense` row on compact cards — initials alone cannot tell two
+  judges apart while seating them, and the stacked form was what made the cards tall.
+
+  A toolbar over the pool filters by blind code or style text, by style, and by competition
+  category, and sorts (estilo by default, since balancing a table is spreading styles across it).
+  Filtering is strictly presentational: drop handlers resolve the dragged entity from
+  `event.item.data`, never from `currentIndex`, so a filtered or re-sorted pool can never map a drop
+  onto the wrong beer. "Limpiar filtros" deliberately leaves the sort alone — silently reshuffling a
+  pool someone is working through is worse than leaving a sort applied. Filter options derive from
+  the pool, so assigning the last beer of a style clears that now-meaningless filter rather than
+  leaving a blank `<select>` next to a pool showing no matches, and the filtered count is mirrored
+  into an `aria-live` region (not `role="status"` — the board exposes exactly one status-role
+  region, the BOS banner, which an E2E spec addresses by role).
+
+  **The wizard shell (T125).** `.wizard-container` was capped at `40rem` — right for a form, wrong
+  for everything else the organizer console does, so on a 1900px display step 6 rendered its board
+  inside 640px. The shell now spans the full width and the *steps* decide their own measure:
+  `basics`/`details` wrap their fields in `.step-form` (`max-width: 40rem`), while the category,
+  import and table steps use the width they need. Separately, `.wizard-main`'s `padding` shorthand
+  referenced an undefined `--spacing-16`, and one unresolved `var()` invalidates the whole
+  declaration at computed-value time — so the wizard had been rendering with **no padding at all**,
+  on every step, since that rule was written. The token is defined and the gutters widen at 1280px
+  and 1800px. (`--color-bp-hueso-200`, referenced by the import status badges and the organizer
+  dashboard, was undefined for the same reason and is now defined too.)
+
+  Six steps had each grown their own `.step-actions` div and drifted apart.
+  `shared/components/bp-step-actions/` is the single bar: **Atrás** left, the step's own actions
+  projected into the **centre**, the forward action **right** — "Siguiente" everywhere, "Finalizar"
+  on the terminal step. It is sticky by default, with a `sticky` opt-out that step 6 uses: an opaque
+  bar over a drop surface makes releases onto the covered strip silent no-ops, because
+  `@angular/cdk/drag-drop` resolves the drop container via `elementFromPoint`.
+
+  "Siguiente" is never disabled on steps 2 and 3, whose fields are all optional — an invalid value
+  is left unsaved and the step advances anyway, rather than trapping the organizer with no way
+  forward. "Volver al listado" lives in the wizard header, where it exists once for all six steps,
+  and reuses the shell's FR-007 unsaved-changes dialog (`pendingExit`); step 6's "Finalizar" emits
+  to the shell rather than navigating locally so it takes that same guarded path. Every forward
+  advance clears `stepDirty` — the step component is destroyed on the way out and so never emits
+  `dirtyChange(false)` itself.
+
+  **E2E debt, found here and not caused here.** Eleven specs — `us3-import`, `us3-import-scale`,
+  `us5-tables`, `us6-order`, `us7-offline`, `us8-close`, `us9-dashboard`, `us10-dispatch`,
+  `us11-discrepancy`, `us12-removal` and `e2e/a11y/routes.a11y` — drove the wizard through a
+  standalone `/organizer/competitions/:id/import` route that no longer exists in `app.routes.ts`,
+  plus pre-translation English labels (`Next`, `Save Draft`, `Upload`, `Consolidate`). They had been
+  stale since the wizard was translated and folded into six steps. `e2e/support/organizer-wizard.ts`
+  now centralises that flow so it lives in one place rather than eleven copies. The English
+  `New table name` / `Add table` strings on the board remain untranslated because those specs
+  address them by label; note that `dd[data-stat]`, previously described here as an E2E-locked
+  contract, is referenced only by the Jest specs.
+
 - **`features/judge-tables/`** (T053, US6): the JUDGE role's first real screen —
   `JudgeTablesListComponent` (route `/judge/tables`, the post-login landing) lists assigned tables
   with an order-fixed badge; `JudgeTableOrderComponent` (route `/judge/tables/:tableId`) is the

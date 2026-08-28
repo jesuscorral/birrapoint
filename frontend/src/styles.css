@@ -23,6 +23,10 @@
 
   --color-bp-hueso-50: #faf8f3;
   --color-bp-hueso-100: #f2ede4;
+  /* Referenced by the import status badges and the organizer dashboard but never defined, so
+     those `background` declarations were invalid at computed-value time and fell back to
+     transparent — the same defect class as the undefined --spacing-16 below. */
+  --color-bp-hueso-200: #e6ded0;
 
   --color-bp-danger-50: #fdf1ef;
   --color-bp-danger-600: #a3271f;
@@ -48,6 +52,9 @@
 :root {
   --radius-full: 9999px;
 
+  /* T124: the compact end of the scale — seated beer tokens and judge chips on the tables board
+     need a step below --spacing-2 to stay legible at MesaCard density. */
+  --spacing-1: 0.25rem;
   --spacing-2: 0.5rem;
   --spacing-3: 0.75rem;
   --spacing-4: 1rem;
@@ -56,4 +63,23 @@
   --spacing-8: 2rem;
   --spacing-10: 2.5rem;
   --spacing-12: 3rem;
+  /* T125b: --spacing-16 was already referenced by the wizard shell's padding but never defined,
+     which made the whole `padding` shorthand invalid at computed-value time — the wizard rendered
+     with no padding at all, which is why its content sat flush against the viewport edges. */
+  --spacing-16: 4rem;
+}
+
+/* Visually hidden but announced — used for live regions and for descriptions that must not enter
+   an element's accessible name. Global because component styles are scoped and more than one
+   component needs it. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

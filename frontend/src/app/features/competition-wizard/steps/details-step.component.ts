@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { AbstractControl, ValidationErrors } from '@angular/forms';
+import { Router } from '@angular/router';
 
 import { ApiError } from '../../../core/api/api-error';
 import { CompetitionsApiService } from '../../../core/api/competitions-api.service';
@@ -17,6 +18,7 @@ import type {
   CompetitionPayload,
 } from '../../../core/api/competitions-api.service';
 import { BpButtonComponent } from '../../../shared/components/bp-button/bp-button.component';
+import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
 import { BpInputComponent } from '../../../shared/components/bp-input/bp-input.component';
 import { BpTextareaComponent } from '../../../shared/components/bp-textarea/bp-textarea.component';
 import { BpAlertComponent } from '../../../shared/components/bp-alert/bp-alert.component';
@@ -52,6 +54,7 @@ function toGenericApiError(error: unknown): ApiError {
   imports: [
     ReactiveFormsModule,
     BpButtonComponent,
+    BpStepActionsComponent,
     BpInputComponent,
     BpTextareaComponent,
     BpAlertComponent,
@@ -64,9 +67,8 @@ function toGenericApiError(error: unknown): ApiError {
     </p>
 
     <form [formGroup]="form" (ngSubmit)="onSaveDraft()">
-      <div class="form-grid">
+      <div class="step-form">
         <bp-textarea
-          class="form-grid__full"
           id="details-description"
           label="Descripción"
           formControlName="description"
@@ -100,56 +102,51 @@ function toGenericApiError(error: unknown): ApiError {
           "
         ></bp-input>
 
-        <bp-input
-          id="details-reg-start"
-          label="Inicio de inscripciones"
-          type="date"
-          formControlName="registrationStart"
-          [hasError]="!!fieldError('registrationStart')"
-          [errorMessage]="fieldError('registrationStart') || ''"
-        ></bp-input>
+        <div class="field-row">
+          <bp-input
+            id="details-reg-start"
+            label="Inicio de inscripciones"
+            type="date"
+            formControlName="registrationStart"
+            [hasError]="!!fieldError('registrationStart')"
+            [errorMessage]="fieldError('registrationStart') || ''"
+          ></bp-input>
 
-        <bp-input
-          id="details-reg-end"
-          label="Fin de inscripciones"
-          type="date"
-          formControlName="registrationEnd"
-          [hasError]="
-            !!fieldError('registrationEnd') || form.errors?.['registrationEndBeforeStart']
-          "
-          [errorMessage]="
-            fieldError('registrationEnd') ||
-            (form.errors?.['registrationEndBeforeStart']
-              ? 'Debe ser igual o posterior al inicio de inscripciones.'
-              : '')
-          "
-        ></bp-input>
+          <bp-input
+            id="details-reg-end"
+            label="Fin de inscripciones"
+            type="date"
+            formControlName="registrationEnd"
+            [hasError]="
+              !!fieldError('registrationEnd') || form.errors?.['registrationEndBeforeStart']
+            "
+            [errorMessage]="
+              fieldError('registrationEnd') ||
+              (form.errors?.['registrationEndBeforeStart']
+                ? 'Debe ser igual o posterior al inicio de inscripciones.'
+                : '')
+            "
+          ></bp-input>
+        </div>
+
+        @if (bannerError(); as message) {
+          <bp-alert type="error" title="No hemos podido guardar">{{ message }}</bp-alert>
+        }
       </div>
 
-      @if (bannerError(); as message) {
-        <bp-alert type="error" title="No hemos podido guardar">{{ message }}</bp-alert>
-      }
-
-      <!-- Every wizard step below this one shares this exact two-slot bottom bar: "Atrás" navigates
-           to the previous step, "Siguiente" advances — never more than these two, and neither is
-           blocked by unfilled required fields (the organizer can always move between steps; a step
-           left incomplete just shows amber in the stepper above instead of green). -->
-      <div class="step-actions">
+      <!-- Every field on this step is optional, so "Siguiente" is never blocked: an invalid value
+           is simply left unsaved and the step advances anyway. Disabling it would trap the
+           organizer with no way forward short of blanking the offending field. -->
+      <bp-step-actions nextType="submit" [nextLoading]="submitting()" (back)="back.emit()">
         <bp-button
           type="button"
-          label="Atrás"
-          variant="ghost"
-          [disabled]="submitting()"
-          (clicked)="back.emit()"
-        ></bp-button>
-        <bp-button
-          type="submit"
-          label="Siguiente"
-          variant="primary"
+          label="Guardar borrador"
+          variant="secondary"
           [loading]="submitting()"
-          [disabled]="submitting()"
+          [disabled]="form.invalid"
+          (clicked)="onSaveAndLeave()"
         ></bp-button>
-      </div>
+      </bp-step-actions>
     </form>
   `,
   styles: [
@@ -158,43 +155,32 @@ function toGenericApiError(error: unknown): ApiError {
         margin: 0 0 var(--spacing-6);
         color: var(--color-bp-text-muted);
         font-size: 0.9375rem;
+        max-width: 40rem;
+        margin-inline: auto;
       }
 
-      /* Same two-column field layout as step 1 (see basics-step.component.ts) so both form steps
-         fill the shared card width identically. */
-      .form-grid {
+      /* T125: the wizard shell is full width now, so form steps keep their own readable measure
+         here instead of relying on a narrow shell. The action bar stays outside this wrapper: it
+         is the card's footer and spans the card's full width on every step. */
+      .step-form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-4);
+        max-width: 40rem;
+        margin-inline: auto;
+      }
+
+      /* The paired date fields sit side by side. This replaces the earlier .form-grid, which the
+         templates stopped using — leaving .field-row with no rule at all, so the dates stacked. */
+      .field-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        column-gap: var(--spacing-6);
-      }
-
-      .form-grid__full {
-        grid-column: 1 / -1;
+        column-gap: var(--spacing-4);
       }
 
       @media (max-width: 768px) {
-        .form-grid {
+        .field-row {
           grid-template-columns: 1fr;
-        }
-      }
-
-      .step-actions {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: 0 calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
-        padding: var(--spacing-4) var(--spacing-8) var(--spacing-6);
-        border-top: 1px solid var(--color-bp-border);
-        position: sticky;
-        bottom: 0;
-        background: var(--color-bp-surface);
-        z-index: 1;
-      }
-
-      @media (max-width: 640px) {
-        .step-actions {
-          margin: 0 calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
-          padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
         }
       }
     `,
@@ -202,6 +188,7 @@ function toGenericApiError(error: unknown): ApiError {
 })
 export class DetailsStepComponent {
   private readonly api = inject(CompetitionsApiService);
+  private readonly router = inject(Router);
 
   readonly competitionId = input.required<string>();
   readonly initialValue = input<CompetitionDetail | null>(null);
@@ -256,21 +243,32 @@ export class DetailsStepComponent {
     return error.detail ?? error.title;
   }
 
-  // "Siguiente" always advances, whether or not the optional fields on this step validate: a
-  // valid form is saved to the API first and the step advances on success; an invalid form (e.g.
-  // a non-positive entry limit) is left unsaved and the step advances immediately with whatever
-  // was already persisted, rather than blocking navigation on it — the organizer can come back
-  // and fix it later (the stepper marker for this step stays amber until then).
+  // The action bar's forward button: save, then let the wizard advance to step 3. Every field here
+  // is optional, so an invalid value never blocks the way forward — it is left unsaved and the
+  // step advances with whatever was already persisted. Without this, removing [nextDisabled] would
+  // just turn "Siguiente" into a dead button on an invalid form.
   protected onSaveDraft(): void {
     if (this.submitting()) {
       return;
     }
-
     if (this.form.invalid) {
       const current = this.initialValue();
       if (current) {
         this.saved.emit(current);
       }
+      return;
+    }
+    this.save((detail) => this.saved.emit(detail));
+  }
+
+  // T125: the centre "Guardar borrador" — same PUT, but the organizer leaves the wizard instead of
+  // advancing. Mirrors basics-step/categories-step so the button means one thing in every step.
+  protected onSaveAndLeave(): void {
+    this.save(() => this.router.navigateByUrl('/organizer/dashboard'));
+  }
+
+  private save(onSuccess: (detail: CompetitionDetail) => void): void {
+    if (this.form.invalid || this.submitting()) {
       return;
     }
 
@@ -290,7 +288,7 @@ export class DetailsStepComponent {
     this.api.update(this.competitionId(), payload).subscribe({
       next: (detail) => {
         this.submitting.set(false);
-        this.saved.emit(detail);
+        onSuccess(detail);
       },
       error: (error: unknown) => {
         this.submitting.set(false);

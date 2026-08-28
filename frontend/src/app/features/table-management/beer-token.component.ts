@@ -8,11 +8,24 @@ export interface BeerTokenData {
   id: string;
   blindCode: string;
   notValidForBos: boolean;
+  styleName: string;
+  abvPercent: number;
+  // T124: organizer-defined competition category (wizard step 3); null outside the import flow.
+  competitionCategoryName: string | null;
+  // T124: BJCP taxonomy category — an independent axis from competitionCategoryName.
+  bjcpCategoryNumber: string | null;
+  bjcpCategoryName: string | null;
 }
 
+// `full` is the "Unassigned" column's card: a beer-glass icon plus everything the organizer needs
+// to decide which table a sample belongs on (style, competition category, real ABV). `mini` is the
+// seated form inside a MesaCard, where the table's own aggregate stats already carry the balance
+// picture and each token only has to stay identifiable and draggable (T124).
+export type BeerTokenVariant = 'full' | 'mini';
+
 // T048A/T048B/T048C: a beer draggable used both seated on a MesaCard and in the "Unassigned"
-// column — one shared implementation so the click-vs-drag disambiguation and ~64px target sizing
-// live in exactly one place.
+// column — one shared implementation so the click-vs-drag disambiguation and target sizing live in
+// exactly one place.
 @Component({
   selector: 'app-beer-token',
   standalone: true,
@@ -23,20 +36,55 @@ export interface BeerTokenData {
       cdkDrag
       [cdkDragData]="beer().id"
       class="beer-token"
+      [class.beer-token--full]="variant() === 'full'"
+      [class.beer-token--mini]="variant() === 'mini'"
       [class.beer-token--bos-flagged]="beer().notValidForBos"
       [attr.data-entry-id]="beer().id"
       role="button"
       tabindex="0"
       [attr.aria-label]="'Beer ' + beer().blindCode + ' — view details'"
-      [attr.aria-describedby]="beer().notValidForBos ? bosNoteId() : null"
+      [attr.aria-describedby]="describedBy()"
       appClickVsDrag
       (appClickVsDrag)="activated.emit()"
     >
-      {{ beer().blindCode }}
-      @if (beer().notValidForBos) {
-        <span class="bos-marker" aria-hidden="true">&#9888;</span>
-      }
+      <!-- Decorative: everything it depicts is already in the accessible name/description. -->
+      <svg class="beer-token__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path
+          d="M6 3h9v3h1.5A3.5 3.5 0 0 1 20 9.5v3a3.5 3.5 0 0 1-3.5 3.5H15v3a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V3Zm9 5v6h1.5a1.5 1.5 0 0 0 1.5-1.5v-3A1.5 1.5 0 0 0 16.5 8H15Z"
+          fill="currentColor"
+        />
+        <path d="M8.5 8.5v9M11 8.5v9" stroke="currentColor" stroke-width="1.2" opacity="0.5" />
+      </svg>
+
+      <span class="beer-token__body">
+        <span class="beer-token__code">
+          {{ beer().blindCode }}
+          @if (beer().notValidForBos) {
+            <span class="bos-marker" aria-hidden="true">&#9888;</span>
+          }
+        </span>
+
+        @if (variant() === 'full') {
+          <span class="beer-token__style" aria-hidden="true">{{ beer().styleName }}</span>
+          <span class="beer-token__meta" aria-hidden="true">
+            @if (beer().competitionCategoryName; as category) {
+              <span class="beer-token__chip beer-token__chip--category">{{ category }}</span>
+            }
+            @if (bjcpCategoryLabel(); as bjcp) {
+              <span class="beer-token__chip">{{ bjcp }}</span>
+            }
+            <span class="beer-token__chip beer-token__chip--abv">{{ abvLabel() }}</span>
+          </span>
+        } @else {
+          <span class="beer-token__abv-mini" aria-hidden="true">{{ abvLabel() }}</span>
+        }
+      </span>
     </div>
+
+    <!-- WCAG 1.4.1 + 1.3.1: the style/category/ABV shown visually (and the BOS ring) must reach a
+         screen reader too. aria-label is E2E-locked to "Beer {code} — view details" across eight
+         specs, so this information is attached as a *description* instead of folded into the name. -->
+    <span [id]="detailsNoteId()" class="sr-only">{{ srDescription() }}</span>
     @if (beer().notValidForBos) {
       <span [id]="bosNoteId()" class="sr-only">Not valid for Best of Show</span>
     }
@@ -50,28 +98,127 @@ export interface BeerTokenData {
       position: relative;
       display: flex;
       align-items: center;
-      justify-content: center;
-      width: 64px;
-      height: 64px;
-      min-width: 64px;
-      min-height: 64px;
+      gap: var(--spacing-2);
       border-radius: var(--radius-md);
       /* White text on --color-bp-cobre-700 (#9a4b27) is ~6.16:1, passing WCAG AA's 4.5:1 for this
-         small (0.8rem) bold label -- one shade darker than the "primary button" cobre-500 token,
-         which only computes to ~3.2:1 against white and would fail here. */
+         small bold label -- one shade darker than the "primary button" cobre-500 token, which only
+         computes to ~3.2:1 against white and would fail here. */
       background: var(--color-bp-cobre-700);
       color: #fff;
       font-size: 0.8rem;
       font-weight: 700;
       cursor: grab;
       user-select: none;
-      text-align: center;
       padding: var(--spacing-2);
     }
 
+    /* "Unassigned" column card: full width of the panel, ~64px tall so the drag target keeps the
+       same generous hit area the 64px square token had. */
+    .beer-token--full {
+      width: 100%;
+      min-height: 64px;
+      padding: var(--spacing-2) var(--spacing-3);
+      text-align: left;
+    }
+
+    /* Seated on a MesaCard: a compact pill, so a table with a dozen samples still fits in the
+       board grid without the card growing taller than the viewport. */
+    .beer-token--mini {
+      min-height: 32px;
+      padding: var(--spacing-1) var(--spacing-2);
+      font-size: 0.75rem;
+      gap: var(--spacing-1);
+    }
+
+    .beer-token__icon {
+      flex: 0 0 auto;
+      width: 22px;
+      height: 22px;
+    }
+
+    .beer-token--mini .beer-token__icon {
+      width: 14px;
+      height: 14px;
+    }
+
+    .beer-token__body {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .beer-token--mini .beer-token__body {
+      flex-direction: row;
+      align-items: baseline;
+      gap: var(--spacing-1);
+    }
+
+    .beer-token__code {
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
+    .beer-token__style {
+      font-weight: 500;
+      font-size: 0.75rem;
+      line-height: 1.2;
+      /* --color-bp-cobre-100 (#f5e0cd) on cobre-700 is ~4.8:1 -- passes AA for this size. */
+      color: var(--color-bp-cobre-100);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .beer-token__meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      margin-top: 2px;
+    }
+
+    /* Opaque, not white-with-alpha: composited over --color-bp-cobre-700 the alpha versions came
+       out at 4.23:1 and 3.15:1, under the 4.5:1 AA threshold that applies at this 10px size.
+       aria-hidden does not exempt them — axe's color-contrast rule evaluates any text visible on
+       screen. Opaque fills also keep the ratio fixed if the token background ever changes. */
+    .beer-token__chip {
+      font-size: 0.625rem;
+      font-weight: 600;
+      line-height: 1.4;
+      padding: 0 5px;
+      border-radius: var(--radius-full);
+      background: var(--color-bp-cobre-100);
+      color: var(--color-bp-cobre-700);
+      white-space: nowrap;
+      max-width: 9rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .beer-token__chip--category {
+      background: #fff;
+      color: var(--color-bp-cobre-700);
+      font-weight: 700;
+    }
+
+    /* Overriding only the background here left this chip inheriting cobre-700 text from
+       .beer-token__chip, i.e. #9a4b27 on #1f2320 — 2.58:1. Every modifier that changes the fill
+       must restate the ink. */
+    .beer-token__chip--abv {
+      background: var(--color-bp-text);
+      color: var(--color-bp-text-on-dark);
+    }
+
+    .beer-token__abv-mini {
+      font-weight: 600;
+      opacity: 0.9;
+      white-space: nowrap;
+    }
+
     .beer-token--bos-flagged {
-      /* --color-bp-cobre-100 (#f5e0cd) against this token's --color-bp-cobre-700 background is
-         ~4.8:1 -- comfortably above WCAG 1.4.11's 3:1 non-text contrast minimum. */
+      /* --color-bp-cobre-100 (#f5e0cd) against this token's cobre-700 background is ~4.8:1 --
+         comfortably above WCAG 1.4.11's 3:1 non-text contrast minimum. */
       box-shadow: 0 0 0 2px var(--color-bp-cobre-100) inset;
     }
 
@@ -81,40 +228,55 @@ export interface BeerTokenData {
     }
 
     .bos-marker {
-      position: absolute;
-      top: -0.35rem;
-      right: -0.35rem;
+      display: inline-block;
+      margin-left: 2px;
       color: var(--color-bp-cobre-100);
-      background: var(--color-bp-text);
-      border-radius: var(--radius-full);
-      width: 1rem;
-      height: 1rem;
-      line-height: 1rem;
       font-size: 0.7rem;
-      text-align: center;
-    }
-
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
     }
   `,
 })
 export class BeerTokenComponent {
   readonly beer = input.required<BeerTokenData>();
+  readonly variant = input<BeerTokenVariant>('mini');
   readonly activated = output<void>();
 
+  protected readonly bosNoteId = computed(() => `bos-note-${this.beer().id}`);
+  protected readonly detailsNoteId = computed(() => `beer-note-${this.beer().id}`);
+
   // WCAG 1.4.1 (Use of Color): the BOS-flagged state must not be conveyed by the ring color alone
-  // (aria-describedby here, plus the visible aria-hidden marker glyph in the template) — the base
+  // (this describedby, plus the visible aria-hidden marker glyph in the template) — the base
   // aria-label deliberately stays exactly "Beer {code} — view details" regardless of flag state,
   // since several E2E specs (us5/us6/us9-tables/-order/-dashboard) locate a flagged beer by that
   // exact accessible name; describedby adds information without changing the name they match on.
-  protected readonly bosNoteId = computed(() => `bos-note-${this.beer().id}`);
+  protected readonly describedBy = computed(() =>
+    this.beer().notValidForBos
+      ? `${this.detailsNoteId()} ${this.bosNoteId()}`
+      : this.detailsNoteId(),
+  );
+
+  protected readonly abvLabel = computed(() => `${this.beer().abvPercent}% ABV`);
+
+  // "21 · IPA" when the catalog row resolved, "IPA"/"21" when only one half is known, null when
+  // the style code has no catalog row at all (the DTO's documented null case).
+  protected readonly bjcpCategoryLabel = computed(() => {
+    const { bjcpCategoryNumber, bjcpCategoryName } = this.beer();
+    if (bjcpCategoryNumber && bjcpCategoryName) {
+      return `${bjcpCategoryNumber} · ${bjcpCategoryName}`;
+    }
+    return bjcpCategoryName ?? bjcpCategoryNumber ?? null;
+  });
+
+  protected readonly srDescription = computed(() => {
+    const beer = this.beer();
+    const parts = [beer.styleName];
+    if (beer.competitionCategoryName) {
+      parts.push(`categoría ${beer.competitionCategoryName}`);
+    }
+    const bjcp = this.bjcpCategoryLabel();
+    if (bjcp) {
+      parts.push(`BJCP ${bjcp}`);
+    }
+    parts.push(this.abvLabel());
+    return parts.join(', ');
+  });
 }

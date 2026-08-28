@@ -1,7 +1,7 @@
 import { Location } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
 import { CatalogApiService } from '../../core/api/catalog-api.service';
@@ -188,6 +188,16 @@ describe('CompetitionWizardComponent', () => {
     expect(fixture.nativeElement.querySelector('app-categories-step')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('app-details-step')).toBeFalsy();
   });
+
+  function buttonWithText(root: HTMLElement, text: string): HTMLButtonElement {
+    const match = [...root.querySelectorAll('button')].find(
+      (button) => button.textContent?.trim() === text,
+    );
+    if (!match) {
+      throw new Error(`No button with text "${text}" found`);
+    }
+    return match as HTMLButtonElement;
+  }
 
   function stepButtons(fixture: { nativeElement: HTMLElement }): HTMLButtonElement[] {
     return Array.from(fixture.nativeElement.querySelectorAll('.stepper__step'));
@@ -671,6 +681,128 @@ describe('CompetitionWizardComponent', () => {
 
       expect(fixture.componentInstance['currentStep']()).toBe(1);
       expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeFalsy();
+    });
+  });
+  // T125: "Volver al listado" was hoisted out of steps 1 and 3 into the wizard header, where it
+  // exists once for all six steps and reuses the shell's own FR-007 prompt. None of that had any
+  // coverage — these pin the exit path and its interaction with the step-jump path.
+  describe('header exit (FR-007)', () => {
+    function exitLink(fixture: { nativeElement: HTMLElement }): HTMLButtonElement {
+      return fixture.nativeElement.querySelector('.back-to-list-link') as HTMLButtonElement;
+    }
+
+    it('leaves for the dashboard straight away when the step is clean', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+      const navigateSpy = jest.spyOn(TestBed.inject(Router), 'navigateByUrl');
+
+      exitLink(fixture).click();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeFalsy();
+      expect(navigateSpy).toHaveBeenCalledWith('/organizer/dashboard');
+    });
+
+    it('prompts instead of leaving when the step has unsaved changes', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+      const navigateSpy = jest.spyOn(TestBed.inject(Router), 'navigateByUrl');
+
+      fixture.componentInstance['stepDirty'].set(true);
+      fixture.detectChanges();
+      exitLink(fixture).click();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeTruthy();
+      expect(navigateSpy).not.toHaveBeenCalled();
+    });
+
+    it('leaves on "Descartar y continuar" after prompting', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+      const navigateSpy = jest.spyOn(TestBed.inject(Router), 'navigateByUrl');
+
+      fixture.componentInstance['stepDirty'].set(true);
+      fixture.detectChanges();
+      exitLink(fixture).click();
+      fixture.detectChanges();
+
+      buttonWithText(fixture.nativeElement, 'Descartar y continuar').click();
+      fixture.detectChanges();
+
+      expect(navigateSpy).toHaveBeenCalledWith('/organizer/dashboard');
+      expect(fixture.componentInstance['stepDirty']()).toBe(false);
+    });
+
+    it('stays put and keeps the step dirty on "Seguir editando"', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+      const navigateSpy = jest.spyOn(TestBed.inject(Router), 'navigateByUrl');
+
+      fixture.componentInstance['stepDirty'].set(true);
+      fixture.detectChanges();
+      exitLink(fixture).click();
+      fixture.detectChanges();
+
+      buttonWithText(fixture.nativeElement, 'Seguir editando').click();
+      fixture.detectChanges();
+
+      expect(navigateSpy).not.toHaveBeenCalled();
+      expect(fixture.componentInstance['stepDirty']()).toBe(true);
+      expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeFalsy();
+    });
+
+    // Both paths share one dialog, so a pending exit must win over a pending step jump rather
+    // than silently doing both (or neither).
+    it('leaves rather than jumping when an exit is requested after a step jump', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+      const navigateSpy = jest.spyOn(TestBed.inject(Router), 'navigateByUrl');
+
+      fixture.componentInstance['stepDirty'].set(true);
+      fixture.detectChanges();
+      const [, step2Button] = stepButtons(fixture);
+      step2Button.click();
+      fixture.detectChanges();
+      exitLink(fixture).click();
+      fixture.detectChanges();
+
+      buttonWithText(fixture.nativeElement, 'Descartar y continuar').click();
+      fixture.detectChanges();
+
+      expect(navigateSpy).toHaveBeenCalledWith('/organizer/dashboard');
+      expect(fixture.componentInstance['currentStep']()).toBe(1);
+    });
+
+    it('describes the dialog with both its body and its save hint, in reading order', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+
+      fixture.componentInstance['stepDirty'].set(true);
+      fixture.detectChanges();
+      exitLink(fixture).click();
+      fixture.detectChanges();
+
+      const dialog = fixture.nativeElement.querySelector('[role="alertdialog"]') as HTMLElement;
+      expect(dialog.getAttribute('aria-describedby')).toBe(
+        'unsaved-changes-body unsaved-changes-hint',
+      );
+      const hint = fixture.nativeElement.querySelector('#unsaved-changes-hint') as HTMLElement;
+      const actions = fixture.nativeElement.querySelector('.modal-actions') as HTMLElement;
+      // The hint explains the actions, so it has to precede them.
+      expect(hint.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
   });
 });

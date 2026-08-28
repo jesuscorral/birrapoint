@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import AdmZip from 'adm-zip';
+import { goToLogin, submitKeycloakLogin } from './support/auth';
 
 // SC-006 scale check (tasks.md T090): a 500-row import with ~20% (100) BJCP-style-catalog errors
 // must all be resolvable and the whole batch consolidated within one continuous session — no
@@ -8,7 +9,6 @@ import AdmZip from 'adm-zip';
 // for every error row since the point here is scale/throughput through the real Mapping &
 // Correction flow, not re-proving assign-style (already covered by us3-import.spec.ts).
 
-const KEYCLOAK_ORIGIN = 'http://localhost:8081';
 const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
 
@@ -17,12 +17,6 @@ const MISMATCH_EVERY = 5; // every 5th row -> exactly 100 of 500 rows
 const VALID_STYLE_CODES = ['21A', '20C', '1A']; // confirmed-valid BJCP codes, reused from
 // us3/us5/us6-order.spec.ts's fixtures
 const MISMATCH_STYLE_CODE = '99Z'; // same deliberately-invalid code us3-import.spec.ts's fixture uses
-
-async function submitKeycloakLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.locator('#kc-login').click();
-}
 
 function uniqueCompetitionName(): string {
   return `E2E Import Scale Comp ${Date.now()}-${crypto.randomUUID()}`;
@@ -168,8 +162,7 @@ test.describe('US3 scale check — 500-row import with 20% style errors (SC-006)
     const { buffer, mismatchRowNumbers } = buildFixture();
     expect(mismatchRowNumbers).toHaveLength(100);
 
-    await page.goto('/');
-    await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+    await goToLogin(page);
     await submitKeycloakLogin(page, ORGANIZER_USERNAME, ORGANIZER_PASSWORD);
     await page.waitForURL('**/organizer/dashboard');
 

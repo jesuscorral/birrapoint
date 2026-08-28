@@ -102,9 +102,30 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         return participant.Id;
     }
 
+    private async Task<Guid> SeedCompetitionCategoryAsync(Guid competitionId, string name)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var category = new CompetitionCategory { CompetitionId = competitionId, Name = name, DisplayOrder = 0 };
+        db.CompetitionCategories.Add(category);
+        await db.SaveChangesAsync();
+        return category.Id;
+    }
+
+    /// <summary>Reads the seeded BJCP catalog row for <paramref name="styleCode"/> so the
+    /// assertions below compare against the real catalog instead of hardcoding taxonomy values
+    /// that the BJCP 2021 seed migration owns.</summary>
+    private async Task<(string CategoryNumber, string CategoryName)> CatalogCategoryOfAsync(string styleCode)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var style = await db.BjcpStyles.SingleAsync(s => s.Code == styleCode);
+        return (style.CategoryNumber, style.CategoryName);
+    }
+
     private async Task<Guid> SeedBeerEntryAsync(
         Guid competitionId, Guid participantId, string beerName, string styleCode = StyleCodeApa,
-        IEnumerable<string>? collaboratorEmails = null, decimal abvPercent = 0m)
+        IEnumerable<string>? collaboratorEmails = null, decimal abvPercent = 0m, Guid? competitionCategoryId = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -116,6 +137,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
             StyleCode = styleCode,
             BlindCode = NewBlindCode(),
             AbvPercent = abvPercent,
+            CompetitionCategoryId = competitionCategoryId,
         };
         db.BeerEntries.Add(entry);
         foreach (var email in collaboratorEmails ?? [])
@@ -711,5 +733,54 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
         return entry.Id;
+    }
+
+    // ---- GET /tables: competition category + BJCP taxonomy category per sample (T124) ----------
+
+    [Fact]
+    public async Task Get_returns_the_competition_category_and_bjcp_category_on_each_sample()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+
+        var categoryId = await SeedCompetitionCategoryAsync(competitionId, "Estilos clasicos");
+        var participantId = await SeedParticipantAsync(competitionId, "Ana Gomez", $"ana-{Guid.NewGuid():N}@brew.example");
+        var entryId = await SeedBeerEntryAsync(
+            competitionId, participantId, "Hop Cannon", competitionCategoryId: categoryId);
+        await CreateTableAsync(organizer, competitionId, $"Table {Guid.NewGuid():N}", [], [entryId]);
+
+        var response = await GetTablesAsync(organizer, competitionId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var table = document.RootElement.EnumerateArray().Single();
+        var sample = table.GetProperty("samples").EnumerateArray()
+            .Single(s => s.GetProperty("beerEntryId").GetGuid() == entryId);
+
+        Assert.Equal("Estilos clasicos", sample.GetProperty("competitionCategoryName").GetString());
+
+        var (categoryNumber, categoryName) = await CatalogCategoryOfAsync(StyleCodeApa);
+        Assert.Equal(categoryNumber, sample.GetProperty("bjcpCategoryNumber").GetString());
+        Assert.Equal(categoryName, sample.GetProperty("bjcpCategoryName").GetString());
+    }
+
+    [Fact]
+    public async Task Get_returns_a_null_competition_category_name_on_a_sample_without_one()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+
+        var participantId = await SeedParticipantAsync(competitionId, "Ana Gomez", $"ana-{Guid.NewGuid():N}@brew.example");
+        var entryId = await SeedBeerEntryAsync(competitionId, participantId, "Hop Cannon");
+        await CreateTableAsync(organizer, competitionId, $"Table {Guid.NewGuid():N}", [], [entryId]);
+
+        var response = await GetTablesAsync(organizer, competitionId);
+
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var sample = document.RootElement.EnumerateArray().Single()
+            .GetProperty("samples").EnumerateArray().Single();
+
+        Assert.Equal(JsonValueKind.Null, sample.GetProperty("competitionCategoryName").ValueKind);
+        Assert.False(string.IsNullOrEmpty(sample.GetProperty("bjcpCategoryName").GetString()));
     }
 }

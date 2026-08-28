@@ -18,7 +18,17 @@ public sealed record EntryDto(
     string? BeerName,
     bool NotValidForBos,
     Guid? TastingTableId,
-    string? TastingTableName);
+    string? TastingTableName,
+    // T124: the organizer-defined competition category (wizard step 3) this entry was imported
+    // under — null for entries seeded outside the Import slice, which never get one assigned.
+    string? CompetitionCategoryName,
+    // T124: the BJCP taxonomy's own category (e.g. "21"/"IPA"), a completely independent axis
+    // from CompetitionCategoryName. Nullable defensively only: BeerEntry.StyleCode is a required,
+    // non-nullable FK to BjcpStyles.Code with OnDelete(Restrict), and BjcpStyle.CategoryNumber /
+    // .CategoryName are both `required string`, so an entry whose style has no catalog row cannot
+    // exist. Treat null as unreachable rather than a state clients must handle.
+    string? BjcpCategoryNumber,
+    string? BjcpCategoryName);
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
 public sealed record ListEntriesQuery(Guid CompetitionId) : IRequest<IReadOnlyList<EntryDto>?>;
@@ -38,14 +48,38 @@ public sealed class ListEntriesQueryHandler(AppDbContext dbContext, ICurrentUser
 
         var entries = await dbContext.BeerEntries
             .Where(e => e.CompetitionId == request.CompetitionId)
-            .Select(e => new { e.Id, e.BlindCode, e.StyleCode, e.AbvPercent, e.BeerName, e.NotValidForBos })
+            .Select(e => new
+            {
+                e.Id,
+                e.BlindCode,
+                e.StyleCode,
+                e.AbvPercent,
+                e.BeerName,
+                e.NotValidForBos,
+                e.CompetitionCategoryId,
+            })
             .ToListAsync(cancellationToken);
 
         var styleCodes = entries.Select(e => e.StyleCode).Distinct().ToList();
         var styleByCode = await dbContext.BjcpStyles
             .Where(s => styleCodes.Contains(s.Code))
-            .Select(s => new { s.Code, s.Name, s.ABVLow, s.ABVHigh })
+            .Select(s => new { s.Code, s.Name, s.ABVLow, s.ABVHigh, s.CategoryNumber, s.CategoryName })
             .ToDictionaryAsync(s => s.Code, cancellationToken);
+
+        // T124: the organizer-defined competition category (wizard step 3) is a separate axis from
+        // the BJCP taxonomy category carried on the style row — the organizer's own grouping is
+        // what they assign beers to tables by, so both travel on the entry.
+        var categoryIds = entries.Where(e => e.CompetitionCategoryId.HasValue)
+            .Select(e => e.CompetitionCategoryId!.Value).Distinct().ToList();
+        var categoryNameById = categoryIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            // Projected before materialising, so this read does not load (and track) whole
+            // CompetitionCategory entities the way the plain ToDictionaryAsync overload does.
+            : (await dbContext.CompetitionCategories
+                    .Where(c => categoryIds.Contains(c.Id))
+                    .Select(c => new { c.Id, c.Name })
+                    .ToListAsync(cancellationToken))
+                .ToDictionary(c => c.Id, c => c.Name);
 
         var entryIds = entries.Select(e => e.Id).ToList();
         var tableByEntryId = await dbContext.TableSamples
@@ -58,6 +92,10 @@ public sealed class ListEntriesQueryHandler(AppDbContext dbContext, ICurrentUser
             {
                 styleByCode.TryGetValue(e.StyleCode, out var style);
                 tableByEntryId.TryGetValue(e.Id, out var table);
+                var competitionCategoryName = e.CompetitionCategoryId.HasValue
+                    && categoryNameById.TryGetValue(e.CompetitionCategoryId.Value, out var name)
+                        ? name
+                        : null;
                 return new EntryDto(
                     e.Id,
                     e.BlindCode,
@@ -69,7 +107,10 @@ public sealed class ListEntriesQueryHandler(AppDbContext dbContext, ICurrentUser
                     e.BeerName,
                     e.NotValidForBos,
                     table?.TableId,
-                    table?.TableName);
+                    table?.TableName,
+                    competitionCategoryName,
+                    style?.CategoryNumber,
+                    style?.CategoryName);
             })
             .OrderBy(e => e.BlindCode)
             .ToList();

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { test, expect, Page, Locator } from '@playwright/test';
 import { createJudgeUser, deleteUser, ProvisionedJudge } from './support/keycloak-admin';
+import { goToLogin, submitKeycloakLogin } from './support/auth';
 
 // quickstart.md scenario 7 / spec.md US7 (FR-022/FR-023/FR-025/FR-026/FR-027, SC-003): a judge
 // fills the five-section evaluation sheet, loses connectivity mid-sheet, restarts, and regains
@@ -41,7 +42,6 @@ import { createJudgeUser, deleteUser, ProvisionedJudge } from './support/keycloa
 // underneath. See the fix's own comment in evaluation-sheet.component.ts for the exact change
 // (cache the last successfully-fetched sample per beerEntryId, fall back to it only on a genuine
 // connectivity failure).
-const KEYCLOAK_ORIGIN = 'http://localhost:8081';
 const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
 
@@ -69,12 +69,6 @@ const EVALUATION_SECTIONS = [
     comment: 'A clean, well-executed example of the style.',
   },
 ] as const;
-
-async function submitKeycloakLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.locator('#kc-login').click();
-}
 
 function uniqueCompetitionName(): string {
   return `E2E Offline Comp ${Date.now()}-${crypto.randomUUID()}`;
@@ -241,8 +235,7 @@ async function readTemporaryPasswordFromInvitation(
 
 // Mirrors us1/us6's forced-temporary-password-change flow, ending on /judge/tables.
 async function loginAsJudge(page: Page, email: string, password: string): Promise<void> {
-  await page.goto('/');
-  await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+  await goToLogin(page);
 
   await submitKeycloakLogin(page, email, password);
 
@@ -250,7 +243,7 @@ async function loginAsJudge(page: Page, email: string, password: string): Promis
   const newPassword = `Judge-${crypto.randomUUID()}`;
   await page.locator('#password-new').fill(newPassword);
   await page.locator('#password-confirm').fill(newPassword);
-  await page.locator('#kc-passwd-update-form button[type="submit"]').click();
+  await page.locator('#kc-passwd-update-form input[type="submit"]').click();
 
   await page.waitForURL('**/judge/tables');
 }
@@ -306,8 +299,7 @@ test.describe('US7 — offline-first validated evaluation sheet', () => {
 
     // --- Organizer: create competition, import 2 distinct-style entries, consolidate, register
     // the judge, create one table, assign the judge + both entries onto it ---
-    await page.goto('/');
-    await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+    await goToLogin(page);
     await submitKeycloakLogin(page, ORGANIZER_USERNAME, ORGANIZER_PASSWORD);
     await page.waitForURL('**/organizer/dashboard');
 

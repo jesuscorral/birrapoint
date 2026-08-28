@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { test, expect, Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { KEYCLOAK_ORIGIN, submitKeycloakLogin } from './support/auth';
 
 // quickstart.md scenario 14 / spec.md US14 (FR-055–FR-058): in wizard step 5, upload
 // judges-with-errors.xlsx (a roster mixing valid rows, one row missing an email, and one
@@ -10,7 +11,6 @@ import AxeBuilder from '@axe-core/playwright';
 // contracts/judge-import-file.md §Semantics) without sending any invitation email yet — that is
 // the separate "Notify judges" action covered by us4-judges.spec.ts.
 
-const KEYCLOAK_ORIGIN = 'http://localhost:8081';
 const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
 
@@ -27,12 +27,6 @@ const LUIS_EMAIL = 'e2e-judge-import-luis@brew.example';
 // The birrapoint custom Keycloak theme (infra/keycloak/themes/birrapoint/login/login.ftl) renders
 // the submit control as a bare `<input type="submit">` with no id — `#kc-login` (the default
 // Keycloak theme's id, which every other spec in this suite still targets) does not exist here.
-async function submitKeycloakLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.getByRole('button', { name: 'Log In' }).click();
-}
-
 // FR-001 (Session 2026-08-02): '/' now renders a public welcome page instead of redirecting
 // straight to Keycloak — reach the hosted login via the "Iniciar sesión" action and skip the
 // handoff screen's 1.5s auto-redirect by clicking through it directly.
@@ -63,7 +57,8 @@ async function createCompetition(page: Page): Promise<string> {
   await page.getByLabel('Fecha de inicio').fill('2026-09-01');
   await page.getByLabel('Fecha de fin').fill('2026-09-03');
 
-  await page.getByRole('button', { name: 'Continuar' }).click();
+  // T125: the wizard's forward action is "Siguiente" on every step now.
+  await page.getByRole('button', { name: 'Siguiente' }).click();
   await page.waitForURL(/\/organizer\/competitions\/[0-9a-fA-F-]{36}$/);
 
   return page.url().split('/').pop()!;

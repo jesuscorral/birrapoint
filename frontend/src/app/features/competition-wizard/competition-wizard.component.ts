@@ -8,7 +8,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
 import type { CompetitionDetail } from '../../core/api/competitions-api.service';
@@ -40,13 +40,23 @@ import { TablesStepComponent } from './steps/tables-step.component';
       <bp-topbar homeLink="/organizer/dashboard"></bp-topbar>
 
       <main class="wizard-main">
-        <div class="wizard-container" [class.wizard-container--wide]="currentStep() === 6">
-          <span class="eyebrow">{{
-            competitionId() ? 'Editar competición' : 'Crear competición'
-          }}</span>
-          <h1 class="wizard-title">
-            {{ competition()?.name || 'Registra tu competición' }}
-          </h1>
+        <div class="wizard-container">
+          <div class="wizard-header">
+            <div>
+              <span class="eyebrow">{{
+                competitionId() ? 'Editar competición' : 'Crear competición'
+              }}</span>
+              <h1 class="wizard-title">
+                {{ competition()?.name || 'Registra tu competición' }}
+              </h1>
+            </div>
+            <!-- T125: hoisted out of the step action bars, where it existed on steps 1 and 3 only
+                 and competed with "Atrás" for the same corner. One exit affordance, same place on
+                 all six steps, guarded by the wizard's own unsaved-changes dialog. -->
+            <button type="button" class="back-to-list-link" (click)="onRequestExit()">
+              <span aria-hidden="true">←</span> Volver al listado
+            </button>
+          </div>
 
           <!-- Stepper -->
           <ol class="stepper" aria-label="Progreso del asistente">
@@ -150,6 +160,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
                     (back)="onBack()"
                     (dirtyChange)="stepDirty.set($event)"
                     (statusChange)="tablesStatus.set($event)"
+                    (finished)="onRequestExit()"
                   />
                 }
               }
@@ -159,20 +170,39 @@ import { TablesStepComponent } from './steps/tables-step.component';
       </main>
     </div>
 
-    @if (pendingStep() !== null) {
+    @if (pendingStep() !== null || pendingExit()) {
       <div class="modal-backdrop" role="presentation" (click)="onKeepEditing()">
+        <!-- aria-describedby, not just aria-label: with cdkTrapFocusAutoCapture the focus lands on
+             a button, so without it neither the body text nor the hint is announced on open. The
+             hint also has to precede the actions it explains -- it used to sit after them, i.e.
+             after the very buttons the reader had already been offered. -->
         <div
           role="alertdialog"
           aria-modal="true"
-          aria-label="Cambios sin guardar"
+          aria-labelledby="unsaved-changes-title"
+          [attr.aria-describedby]="
+            currentStep() <= 3
+              ? 'unsaved-changes-body unsaved-changes-hint'
+              : 'unsaved-changes-body'
+          "
           class="modal-panel"
           cdkTrapFocus
           cdkTrapFocusAutoCapture
           (click)="$event.stopPropagation()"
           (keydown.escape)="onKeepEditing()"
         >
-          <h2>Cambios sin guardar</h2>
-          <p>Este paso tiene cambios que no se han guardado. Si continúas, se perderán.</p>
+          <h2 id="unsaved-changes-title">Cambios sin guardar</h2>
+          <p id="unsaved-changes-body">
+            Este paso tiene cambios que no se han guardado. Si continúas, se perderán.
+          </p>
+          @if (currentStep() <= 3) {
+            <!-- Only steps 1-3 offer "Guardar borrador" as their own action -- steps 4/5 have
+                 "Subir archivo"/"Consolidar" instead, and step 6 has no save action at all, so this
+                 hint would name a button that isn't on screen. -->
+            <p class="modal-hint" id="unsaved-changes-hint">
+              Para conservarlos, usa «Guardar borrador» antes de salir.
+            </p>
+          }
           <div class="modal-actions">
             <bp-button
               type="button"
@@ -203,26 +233,71 @@ import { TablesStepComponent } from './steps/tables-step.component';
         min-height: 100vh;
       }
 
+      /* T125b: real breathing room at the sides. The shell spans the viewport but the content
+         never runs up against it — the gutter widens with the screen instead of the card growing
+         to fill every last pixel. */
       .wizard-main {
         display: flex;
         justify-content: center;
-        padding: var(--spacing-10) var(--spacing-6) var(--spacing-16);
+        padding: var(--spacing-10) var(--spacing-8) var(--spacing-16);
       }
 
-      /* One width for every step. The browse-and-act steps (style catalog, imported entries,
-         tables) need real width — organizers work from a desktop — and the form steps fill it by
-         laying their fields out in two columns rather than stretching one field across the card,
-         so the shell never resizes between steps. */
+      @media (min-width: 1280px) {
+        .wizard-main {
+          padding-inline: var(--spacing-12);
+        }
+      }
+
+      @media (min-width: 1800px) {
+        .wizard-main {
+          padding-inline: var(--spacing-16);
+        }
+      }
+
+      @media (max-width: 640px) {
+        .wizard-main {
+          padding: var(--spacing-8) var(--spacing-4) var(--spacing-12);
+        }
+      }
+
+      /* T125: the organizer console is desktop-first. The shell now spans the viewport (capped so
+         it does not sprawl on ultrawide displays) and each step decides its own inner measure —
+         the form steps wrap their fields in .step-form to keep a readable column, while the
+         import and table-assignment steps use the full width they actually need. */
       .wizard-container {
         width: 100%;
-        max-width: 64rem;
+        max-width: 88rem;
       }
 
-      /* Step 6 (Mesas) needs real screen width to lay out several mesa-cards side by side
-         instead of stacking into one long, scroll-heavy column -- unlike the other steps, which
-         are narrow forms best kept at reading width. */
-      .wizard-container--wide {
-        max-width: 75rem;
+      .wizard-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: var(--spacing-4);
+        flex-wrap: wrap;
+      }
+
+      .back-to-list-link {
+        border: none;
+        background: none;
+        padding: var(--spacing-2) 0;
+        font: inherit;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--color-bp-text-muted);
+        cursor: pointer;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      .back-to-list-link:hover {
+        color: var(--color-bp-text);
+      }
+
+      .back-to-list-link:focus-visible {
+        outline: 2px solid var(--color-bp-cobre-500);
+        outline-offset: 2px;
+        border-radius: var(--radius-sm);
       }
 
       .eyebrow {
@@ -245,9 +320,13 @@ import { TablesStepComponent } from './steps/tables-step.component';
         margin: 0 0 var(--spacing-8);
       }
 
-      /* --- Stepper ---
-         Equal-width columns with the label under the marker: 6 steps always fit the container
-         width, so the row never overflows into a horizontal scroll. */
+      .modal-hint {
+        margin: var(--spacing-4) 0 0;
+        font-size: 0.8125rem;
+        color: var(--color-bp-text-muted);
+      }
+
+      /* --- Stepper --- */
       .stepper {
         display: grid;
         grid-template-columns: repeat(6, 1fr);
@@ -322,9 +401,11 @@ import { TablesStepComponent } from './steps/tables-step.component';
         transition: all 0.15s ease;
       }
 
+      /* cobre-700, not cobre-500: white on cobre-500 is 3.19:1, and the step number is small
+         text, so it needs 4.5:1. cobre-700 gives 6.16:1. */
       .stepper__item.is-active .stepper__marker {
-        background: var(--color-bp-cobre-500);
-        border-color: var(--color-bp-cobre-500);
+        background: var(--color-bp-cobre-700);
+        border-color: var(--color-bp-cobre-700);
         color: #fff;
       }
 
@@ -370,11 +451,14 @@ import { TablesStepComponent } from './steps/tables-step.component';
         border-radius: var(--radius-lg);
         box-shadow: var(--shadow-md);
         padding: var(--spacing-8);
+        /* Read by bp-step-actions so its sticky footer bleeds to the card's own edges. */
+        --bp-step-actions-inset: var(--spacing-8);
       }
 
       @media (max-width: 640px) {
         .wizard-card {
           padding: var(--spacing-6);
+          --bp-step-actions-inset: var(--spacing-6);
         }
       }
 
@@ -429,6 +513,7 @@ export class CompetitionWizardComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly location = inject(Location);
   private readonly api = inject(CompetitionsApiService);
+  private readonly router = inject(Router);
 
   protected readonly steps: { number: 1 | 2 | 3 | 4 | 5 | 6; label: string }[] = [
     { number: 1, label: 'Datos básicos' },
@@ -463,6 +548,9 @@ export class CompetitionWizardComponent {
   // Non-null while the "discard unsaved edits?" dialog is open; holds the step we'd move to if
   // the organizer confirms.
   protected readonly pendingStep = signal<1 | 2 | 3 | 4 | 5 | 6 | null>(null);
+  // T125's header "Volver al listado" shares pendingStep's dialog: same FR-007 question, different
+  // destination, so the two intents are tracked separately but rendered by one alertdialog.
+  protected readonly pendingExit = signal(false);
 
   // Every step number that currentStep has ever landed on this session — the stepper marker for a
   // step colours in (green/orange) only once it's been passed; a step never reached yet stays
@@ -536,24 +624,33 @@ export class CompetitionWizardComponent {
       // back on the same wizard" since a fresh page load reads the real browser URL.
       this.location.replaceState(`/organizer/competitions/${detail.id}`);
     }
-    this.currentStep.set(2);
+    this.advanceTo(2);
   }
 
   protected onDetailsSaved(detail: CompetitionDetail): void {
     this.competition.set(detail);
-    this.currentStep.set(3);
+    this.advanceTo(3);
   }
 
   protected onCategoriesSaved(): void {
-    this.currentStep.set(4);
+    this.advanceTo(4);
   }
 
   protected onImportSaved(): void {
-    this.currentStep.set(5);
+    this.advanceTo(5);
   }
 
   protected onJudgeImportSaved(): void {
-    this.currentStep.set(6);
+    this.advanceTo(6);
+  }
+
+  // Every forward advance clears stepDirty. The step component is destroyed on the way out, so it
+  // never gets to emit dirtyChange(false) itself — without this the flag stays set and the next
+  // stepper click or "Volver al listado" prompts about unsaved changes in a step that is no longer
+  // mounted (and whose edits were either saved or deliberately skipped).
+  private advanceTo(step: 1 | 2 | 3 | 4 | 5 | 6): void {
+    this.stepDirty.set(false);
+    this.currentStep.set(step);
   }
 
   protected onBack(): void {
@@ -605,14 +702,30 @@ export class CompetitionWizardComponent {
     this.currentStep.set(step);
   }
 
+  // FR-007 again, for leaving the wizard entirely rather than moving between its steps.
+  protected onRequestExit(): void {
+    if (this.stepDirty()) {
+      this.pendingExit.set(true);
+      return;
+    }
+    this.router.navigateByUrl('/organizer/dashboard');
+  }
+
   protected onKeepEditing(): void {
     this.pendingStep.set(null);
+    this.pendingExit.set(false);
   }
 
   protected onDiscardAndNavigate(): void {
     const step = this.pendingStep();
+    const leaving = this.pendingExit();
     this.pendingStep.set(null);
+    this.pendingExit.set(false);
     this.stepDirty.set(false);
+    if (leaving) {
+      this.router.navigateByUrl('/organizer/dashboard');
+      return;
+    }
     if (step !== null) {
       this.currentStep.set(step);
     }

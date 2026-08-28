@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { AbstractControl, ValidationErrors } from '@angular/forms';
+import { Router } from '@angular/router';
 
 import { ApiError } from '../../../core/api/api-error';
 import { CompetitionsApiService } from '../../../core/api/competitions-api.service';
@@ -17,6 +18,7 @@ import type {
   CompetitionPayload,
 } from '../../../core/api/competitions-api.service';
 import { BpButtonComponent } from '../../../shared/components/bp-button/bp-button.component';
+import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
 import { BpInputComponent } from '../../../shared/components/bp-input/bp-input.component';
 import { BpAlertComponent } from '../../../shared/components/bp-alert/bp-alert.component';
 
@@ -58,7 +60,13 @@ function toGenericApiError(error: unknown): ApiError {
 
 @Component({
   selector: 'app-basics-step',
-  imports: [ReactiveFormsModule, BpButtonComponent, BpInputComponent, BpAlertComponent],
+  imports: [
+    ReactiveFormsModule,
+    BpButtonComponent,
+    BpStepActionsComponent,
+    BpInputComponent,
+    BpAlertComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <p class="step-lead">
@@ -68,7 +76,7 @@ function toGenericApiError(error: unknown): ApiError {
     </p>
 
     <form [formGroup]="form" (ngSubmit)="onNext()">
-      <div class="form-grid">
+      <div class="step-form">
         <bp-input
           id="basics-name"
           label="Nombre de la competición"
@@ -89,49 +97,53 @@ function toGenericApiError(error: unknown): ApiError {
           [errorMessage]="fieldError('venue') || ''"
         ></bp-input>
 
-        <bp-input
-          id="basics-start"
-          label="Fecha de inicio"
-          type="date"
-          formControlName="startDate"
-          [required]="true"
-          [hasError]="!!fieldError('startDate')"
-          [errorMessage]="fieldError('startDate') || ''"
-        ></bp-input>
+        <div class="field-row">
+          <bp-input
+            id="basics-start"
+            label="Fecha de inicio"
+            type="date"
+            formControlName="startDate"
+            [required]="true"
+            [hasError]="!!fieldError('startDate')"
+            [errorMessage]="fieldError('startDate') || ''"
+          ></bp-input>
 
-        <bp-input
-          id="basics-end"
-          label="Fecha de fin"
-          type="date"
-          formControlName="endDate"
-          [required]="true"
-          [hasError]="!!fieldError('endDate') || form.errors?.['endBeforeStart']"
-          [errorMessage]="
-            fieldError('endDate') ||
-            (form.errors?.['endBeforeStart']
-              ? 'Debe ser igual o posterior a la fecha de inicio.'
-              : '')
-          "
-        ></bp-input>
+          <bp-input
+            id="basics-end"
+            label="Fecha de fin"
+            type="date"
+            formControlName="endDate"
+            [required]="true"
+            [hasError]="!!fieldError('endDate') || form.errors?.['endBeforeStart']"
+            [errorMessage]="
+              fieldError('endDate') ||
+              (form.errors?.['endBeforeStart']
+                ? 'Debe ser igual o posterior a la fecha de inicio.'
+                : '')
+            "
+          ></bp-input>
+        </div>
+
+        @if (bannerError(); as message) {
+          <bp-alert type="error" title="No hemos podido guardar">{{ message }}</bp-alert>
+        }
       </div>
 
-      @if (bannerError(); as message) {
-        <bp-alert type="error" title="No hemos podido guardar">{{ message }}</bp-alert>
-      }
-
-      <!-- Step 1 is the only step with no previous step to go back to (and structurally it can't
-           have one — every other step needs the competition id this step creates), so the bottom
-           bar here holds only "Siguiente". Every other wizard step follows the same "Atrás" /
-           "Siguiente" bottom-bar shape — see details-step.component.ts and onward. -->
-      <div class="step-actions">
+      <bp-step-actions
+        [showBack]="false"
+        nextType="submit"
+        [nextLoading]="submitting()"
+        [nextDisabled]="form.invalid"
+      >
         <bp-button
-          type="submit"
-          label="Siguiente"
-          variant="primary"
+          type="button"
+          label="Guardar borrador"
+          variant="secondary"
           [loading]="submitting()"
           [disabled]="form.invalid"
+          (clicked)="onSaveAndLeave()"
         ></bp-button>
-      </div>
+      </bp-step-actions>
     </form>
   `,
   styles: [
@@ -140,40 +152,32 @@ function toGenericApiError(error: unknown): ApiError {
         margin: 0 0 var(--spacing-6);
         color: var(--color-bp-text-muted);
         font-size: 0.9375rem;
+        max-width: 40rem;
+        margin-inline: auto;
       }
 
-      /* Two field columns so the form fills the same card width every other step uses instead of
-         stretching single controls across it. Row spacing comes from each field's own
-         margin-bottom, so only the column gap is set here. */
-      .form-grid {
+      /* T125: the wizard shell is full width now, so form steps keep their own readable measure
+         here instead of relying on a narrow shell. The action bar stays outside this wrapper: it
+         is the card's footer and spans the card's full width on every step. */
+      .step-form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-4);
+        max-width: 40rem;
+        margin-inline: auto;
+      }
+
+      /* The paired date fields sit side by side. This replaces the earlier .form-grid, which the
+         templates stopped using — leaving .field-row with no rule at all, so the dates stacked. */
+      .field-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        column-gap: var(--spacing-6);
+        column-gap: var(--spacing-4);
       }
 
       @media (max-width: 768px) {
-        .form-grid {
+        .field-row {
           grid-template-columns: 1fr;
-        }
-      }
-
-      .step-actions {
-        display: flex;
-        justify-content: flex-end;
-        align-items: center;
-        margin: 0 calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
-        padding: var(--spacing-4) var(--spacing-8) var(--spacing-6);
-        border-top: 1px solid var(--color-bp-border);
-        position: sticky;
-        bottom: 0;
-        background: var(--color-bp-surface);
-        z-index: 1;
-      }
-
-      @media (max-width: 640px) {
-        .step-actions {
-          margin: 0 calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
-          padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
         }
       }
     `,
@@ -181,6 +185,7 @@ function toGenericApiError(error: unknown): ApiError {
 })
 export class BasicsStepComponent {
   private readonly api = inject(CompetitionsApiService);
+  private readonly router = inject(Router);
 
   readonly competitionId = input<string | null>(null);
   readonly initialValue = input<CompetitionDetail | null>(null);
@@ -251,6 +256,34 @@ export class BasicsStepComponent {
       next: (detail) => {
         this.submitting.set(false);
         this.saved.emit(detail);
+      },
+      error: (error: unknown) => {
+        this.submitting.set(false);
+        this.apiError.set(toGenericApiError(error));
+      },
+    });
+  }
+
+  // T125: "Guardar borrador" now lives in the shared action bar's centre zone instead of inside a
+  // leave-confirmation dialog — the organizer can save and step away at any point, and the wizard
+  // header's own "Volver al listado" handles the unsaved-changes prompt.
+  protected onSaveAndLeave(): void {
+    if (this.form.invalid || this.submitting()) {
+      return;
+    }
+
+    this.submitting.set(true);
+    this.apiError.set(null);
+
+    const basics = this.form.getRawValue();
+    const payload: CompetitionPayload = { ...basics, ...extractDetailFields(this.initialValue()) };
+    const id = this.competitionId();
+    const request = id ? this.api.update(id, payload) : this.api.create(payload);
+
+    request.subscribe({
+      next: () => {
+        this.submitting.set(false);
+        this.router.navigateByUrl('/organizer/dashboard');
       },
       error: (error: unknown) => {
         this.submitting.set(false);

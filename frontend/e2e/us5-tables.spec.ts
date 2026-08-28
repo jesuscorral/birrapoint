@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { test, expect, Page, Locator } from '@playwright/test';
+import { goToLogin, submitKeycloakLogin } from './support/auth';
 
 // quickstart.md scenario 5 / spec.md US5 (FR-016/FR-017/FR-018), extended per tasks.md T049:
 // assigning a judge onto a table alongside a beer they own -> 409 conflict-of-interest, nothing
@@ -8,7 +9,6 @@ import { test, expect, Page, Locator } from '@playwright/test';
 // items and immediately after a completed drag) and real pointer-simulated drag-and-drop between
 // "Unassigned" and MesaCards and between two MesaCards.
 
-const KEYCLOAK_ORIGIN = 'http://localhost:8081';
 const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
 
@@ -22,12 +22,6 @@ const COI_PARTICIPANT_EMAIL = 'coi.participant@brew.example';
 const BOS_PARTICIPANT_EMAIL = 'bos.participant@brew.example';
 const COI_JUDGE_DISPLAY_NAME = 'coi.participant'; // Judge.DisplayName = email local-part
 const BOS_JUDGE_DISPLAY_NAME = 'bos.participant';
-
-async function submitKeycloakLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.locator('#kc-login').click();
-}
 
 function uniqueCompetitionName(): string {
   return `E2E Tables Comp ${Date.now()}-${crypto.randomUUID()}`;
@@ -113,8 +107,7 @@ async function pointerDrag(page: Page, source: Locator, target: Locator): Promis
 
 test.describe('US5 — table management: COI protection, BOS flagging, detail modals, drag-and-drop', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+    await goToLogin(page);
     await submitKeycloakLogin(page, ORGANIZER_USERNAME, ORGANIZER_PASSWORD);
     await page.waitForURL('**/organizer/dashboard');
   });

@@ -32,6 +32,7 @@ import { BpAlertComponent } from '../../../shared/components/bp-alert/bp-alert.c
 import { BpButtonComponent } from '../../../shared/components/bp-button/bp-button.component';
 import { BpFileDropzoneComponent } from '../../../shared/components/bp-file-dropzone/bp-file-dropzone.component';
 import { BpInputComponent } from '../../../shared/components/bp-input/bp-input.component';
+import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
 import { BpTextareaComponent } from '../../../shared/components/bp-textarea/bp-textarea.component';
 import { StylePickerComponent } from '../../entry-import/style-picker.component';
 
@@ -127,6 +128,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
   imports: [
     BpButtonComponent,
     BpFileDropzoneComponent,
+    BpStepActionsComponent,
     BpInputComponent,
     BpTextareaComponent,
     BpAlertComponent,
@@ -197,6 +199,17 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
             }}</bp-alert>
           }
         </div>
+
+        <bp-step-actions (back)="back.emit()" (next)="onNext()">
+          <bp-button
+            type="button"
+            label="Subir archivo"
+            variant="secondary"
+            [loading]="uploading()"
+            [disabled]="!selectedFile() || uploading() || categories().length === 0"
+            (clicked)="onUpload()"
+          ></bp-button>
+        </bp-step-actions>
       } @else {
         <section class="import-rows" aria-label="Filas importadas">
           @for (row of importBatch()!.rows; track row.rowNumber; let i = $index) {
@@ -427,28 +440,20 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
             Importadas: {{ result.imported }}. Excluidas: {{ result.excluded }}.
           </bp-alert>
         }
-      }
 
-      <!-- Same two-slot "Atrás" / "Siguiente" bottom bar as every other wizard step. Importing
-           beers is optional, so "Siguiente" is never blocked here: it uploads the selected file,
-           then consolidates once every row resolves, advancing to the next step in between clicks
-           so the organizer always sees the result of what just happened — see onNext(). -->
-      <div class="step-actions">
-        <bp-button
-          type="button"
-          label="Atrás"
-          variant="ghost"
-          [disabled]="uploading() || consolidating()"
-          (clicked)="back.emit()"
-        ></bp-button>
-        <bp-button
-          type="button"
-          label="Siguiente"
-          variant="primary"
-          [loading]="uploading() || consolidating()"
-          (clicked)="onNext()"
-        ></bp-button>
-      </div>
+        <bp-step-actions (back)="back.emit()" (next)="onNext()">
+          @if (!consolidateResult()) {
+            <bp-button
+              type="button"
+              label="Consolidar"
+              variant="secondary"
+              [loading]="consolidating()"
+              [disabled]="unresolvedCount() > 0 || consolidating()"
+              (clicked)="onConsolidate()"
+            ></bp-button>
+          }
+        </bp-step-actions>
+      }
     }
   `,
   styles: [
@@ -641,7 +646,9 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
       .import-row__raw-hint {
         margin: var(--spacing-2) 0 0;
         font-size: 0.8125rem;
-        color: var(--color-bp-text-subtle);
+        /* text-subtle (#8a8f8a) on white is 3.29:1 — the a11y sweep flags it as soon as it
+           actually reaches this row editor. text-muted (#5b655f) is 6.05:1. */
+        color: var(--color-bp-text-muted);
       }
 
       .import-row__editor-actions {
@@ -655,26 +662,6 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
         color: var(--color-bp-text-muted);
         font-size: 0.875rem;
         margin: 0 0 var(--spacing-4);
-      }
-
-      .step-actions {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: var(--spacing-8) calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
-        padding: var(--spacing-4) var(--spacing-8) var(--spacing-6);
-        border-top: 1px solid var(--color-bp-border);
-        position: sticky;
-        bottom: 0;
-        background: var(--color-bp-surface);
-        z-index: 1;
-      }
-
-      @media (max-width: 640px) {
-        .step-actions {
-          margin: var(--spacing-8) calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
-          padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
-        }
       }
     `,
   ],
@@ -692,7 +679,9 @@ export class ImportStepComponent implements OnInit {
   readonly importId = input<string | null>(null);
   readonly importIdChange = output<string>();
   // Emitted by "Siguiente" once there's nothing left to do at this step — advances the wizard
-  // shell to step 5 (see onNext() below).
+  // shell to step 5 (see onNext() below). T125: step 4 previously dead-ended at "Ir al panel de
+  // organizador"; it now advances like every other step, whether or not a batch was consolidated
+  // on this visit.
   readonly saved = output<void>();
   readonly back = output<void>();
   // See basics-step.component.ts for why the wizard shell needs this (FR-007 stay-or-discard

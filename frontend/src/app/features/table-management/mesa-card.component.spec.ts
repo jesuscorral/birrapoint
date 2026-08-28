@@ -22,6 +22,9 @@ function tableFixture(): TableSummary {
         abvLow: 4.5,
         abvHigh: 5.5,
         notValidForBos: false,
+        competitionCategoryName: 'Estilos clásicos',
+        bjcpCategoryNumber: '4',
+        bjcpCategoryName: 'Pale Malty European Lager',
       },
     ],
     progress: { submitted: 1, total: 3 },
@@ -113,6 +116,57 @@ describe('MesaCardComponent', () => {
     token.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
 
     expect(activated).toHaveBeenCalledWith('e1');
+  });
+
+  // T124: the two numbers the organizer balances a table on get visual primacy over the
+  // supporting counts, and the style names get their own line instead of being crammed into the
+  // "Estilos" value as "1 (Munich Helles)".
+  it('gives beer count and mean ABV primary emphasis and lists style names separately', () => {
+    const fixture = createComponent(tableFixture());
+
+    const primary = [
+      ...fixture.nativeElement.querySelectorAll('.mesa-stats__item--primary dt'),
+    ] as HTMLElement[];
+    expect(primary.map((dt) => dt.textContent?.trim())).toEqual(['Cervezas', 'Media ABV']);
+
+    const styleCountDd = [...fixture.nativeElement.querySelectorAll('.mesa-stats__item')]
+      .find((item) => (item as HTMLElement).querySelector('dt')?.textContent?.trim() === 'Estilos')
+      ?.querySelector('dd') as HTMLElement;
+    expect(styleCountDd.textContent?.trim()).toBe('1');
+
+    const styles = fixture.nativeElement.querySelector('.mesa-styles') as HTMLElement;
+    expect(styles.textContent?.trim()).toBe('Munich Helles');
+  });
+
+  it('joins several style names on the styles line', () => {
+    const table = {
+      ...tableFixture(),
+      stats: { meanAbv: 5.2, styleCount: 2, styles: ['Munich Helles', 'American IPA'] },
+    };
+    const fixture = createComponent(table);
+
+    expect(
+      (fixture.nativeElement.querySelector('.mesa-styles') as HTMLElement).textContent?.trim(),
+    ).toBe('Munich Helles · American IPA');
+  });
+
+  // The drop zones are the point of the card, so they have to read as targets while still empty.
+  it('shows drop hints in the empty judge and beer zones', () => {
+    const fixture = createComponent({ ...tableFixture(), judges: [], samples: [] });
+
+    const hints = [...fixture.nativeElement.querySelectorAll('.mesa-empty')] as HTMLElement[];
+    expect(hints.map((hint) => hint.textContent?.trim())).toEqual([
+      'Arrastra jueces aquí',
+      'Arrastra cervezas aquí',
+    ]);
+    expect(hints.every((hint) => hint.getAttribute('aria-hidden') === 'true')).toBe(true);
+  });
+
+  it('seats beers in the compact mini token variant', () => {
+    const fixture = createComponent(tableFixture());
+
+    const token = fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLElement;
+    expect(token.classList.contains('beer-token--mini')).toBe(true);
   });
 
   it('assigns the judge and beer drop lists deterministic ids for cross-component connection', () => {

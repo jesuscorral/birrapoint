@@ -64,13 +64,17 @@ describe('TablesStepComponent', () => {
     expect(h2?.textContent?.trim()).toBe('Mesas');
   });
 
-  it('renders exactly one bottom-bar button, labeled "Atrás" (the last step has no next step to advance to)', () => {
+  // T125: the shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
+  // forward. Previously each step rendered its own two-slot bar and they had drifted apart.
+  // T125 gave step 6 a forward action it previously lacked. It is the last step, so the label is
+  // "Finalizar" and it leaves the wizard instead of advancing (see the finished output below).
+  it('renders the shared bar with "Atrás" and the terminal "Finalizar"', () => {
     const fixture = createComponent();
 
     const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
       (button: HTMLButtonElement) => button.textContent?.trim(),
     );
-    expect(buttons).toEqual(['Atrás']);
+    expect(buttons).toEqual(['Atrás', 'Finalizar']);
   });
 
   it('emits dirtyChange(false) on init (forwarded from the embedded table-board)', () => {
@@ -102,6 +106,18 @@ describe('TablesStepComponent', () => {
     fixture.componentInstance.back.subscribe(() => emitted.push(undefined));
 
     buttonWithText(fixture.nativeElement, 'Atrás').click();
+
+    expect(emitted.length).toBe(1);
+  });
+
+  // "Finalizar" emits rather than navigating: the wizard shell owns the FR-007 stay-or-discard
+  // prompt, so leaving from here takes the same guarded path as the header's "Volver al listado".
+  it('emits finished when the terminal "Finalizar" is clicked', () => {
+    const fixture = createComponent();
+    const emitted: void[] = [];
+    fixture.componentInstance.finished.subscribe(() => emitted.push(undefined));
+
+    buttonWithText(fixture.nativeElement, 'Finalizar').click();
 
     expect(emitted.length).toBe(1);
   });

@@ -23,6 +23,7 @@ import { BpAlertComponent } from '../../../shared/components/bp-alert/bp-alert.c
 import { BpButtonComponent } from '../../../shared/components/bp-button/bp-button.component';
 import { BpFileDropzoneComponent } from '../../../shared/components/bp-file-dropzone/bp-file-dropzone.component';
 import { BpInputComponent } from '../../../shared/components/bp-input/bp-input.component';
+import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
 import { BpTextareaComponent } from '../../../shared/components/bp-textarea/bp-textarea.component';
 
 interface RowDraft {
@@ -72,7 +73,14 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
 
 @Component({
   selector: 'app-judge-import-step',
-  imports: [BpButtonComponent, BpFileDropzoneComponent, BpInputComponent, BpTextareaComponent, BpAlertComponent],
+  imports: [
+    BpButtonComponent,
+    BpFileDropzoneComponent,
+    BpStepActionsComponent,
+    BpInputComponent,
+    BpTextareaComponent,
+    BpAlertComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (loading()) {
@@ -105,6 +113,17 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
             }}</bp-alert>
           }
         </div>
+
+        <bp-step-actions (back)="back.emit()" (next)="onNext()">
+          <bp-button
+            type="button"
+            label="Subir archivo"
+            variant="secondary"
+            [loading]="uploading()"
+            [disabled]="!selectedFile() || uploading()"
+            (clicked)="onUpload()"
+          ></bp-button>
+        </bp-step-actions>
       } @else {
         <section class="judge-import-rows" aria-label="Jueces importados">
           @for (row of importBatch()!.rows; track row.rowNumber; let i = $index) {
@@ -231,28 +250,20 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
             }
           </bp-alert>
         }
-      }
 
-      <!-- Same two-slot "Atrás" / "Siguiente" bottom bar as every other wizard step. Importing
-           judges is optional, so "Siguiente" is never blocked here: it uploads the selected file,
-           then consolidates once every row resolves, advancing to the next step in between clicks
-           so the organizer always sees the result of what just happened — see onNext(). -->
-      <div class="step-actions">
-        <bp-button
-          type="button"
-          label="Atrás"
-          variant="ghost"
-          [disabled]="uploading() || consolidating()"
-          (clicked)="back.emit()"
-        ></bp-button>
-        <bp-button
-          type="button"
-          label="Siguiente"
-          variant="primary"
-          [loading]="uploading() || consolidating()"
-          (clicked)="onNext()"
-        ></bp-button>
-      </div>
+        <bp-step-actions (back)="back.emit()" (next)="onNext()">
+          @if (!consolidateResult()) {
+            <bp-button
+              type="button"
+              label="Consolidar"
+              variant="secondary"
+              [loading]="consolidating()"
+              [disabled]="unresolvedCount() > 0 || consolidating()"
+              (clicked)="onConsolidate()"
+            ></bp-button>
+          }
+        </bp-step-actions>
+      }
     }
   `,
   styles: [
@@ -363,26 +374,6 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
         color: var(--color-bp-text-muted);
         font-size: 0.875rem;
         margin: 0 0 var(--spacing-4);
-      }
-
-      .step-actions {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: var(--spacing-8) calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
-        padding: var(--spacing-4) var(--spacing-8) var(--spacing-6);
-        border-top: 1px solid var(--color-bp-border);
-        position: sticky;
-        bottom: 0;
-        background: var(--color-bp-surface);
-        z-index: 1;
-      }
-
-      @media (max-width: 640px) {
-        .step-actions {
-          margin: var(--spacing-8) calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
-          padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
-        }
       }
     `,
   ],

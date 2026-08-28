@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
 import { ApiError } from '../../../core/api/api-error';
@@ -22,6 +22,16 @@ function detailFixture(overrides: Partial<CompetitionDetail> = {}): CompetitionD
     state: 'Draft',
     ...overrides,
   };
+}
+
+function buttonWithText(root: Element, text: string): HTMLButtonElement {
+  const match = [...root.querySelectorAll('button')].find(
+    (button) => button.textContent?.trim() === text,
+  );
+  if (!match) {
+    throw new Error(`No button with text "${text}" found`);
+  }
+  return match as HTMLButtonElement;
 }
 
 describe('BasicsStepComponent', () => {
@@ -76,12 +86,16 @@ describe('BasicsStepComponent', () => {
     expect(button.disabled).toBe(false);
   });
 
-  it('renders exactly one bottom-bar button, labeled "Siguiente" (step 1 has no previous step)', () => {
+  // T125: the shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
+  // forward. Previously each step rendered its own two-slot bar and they had drifted apart.
+  // Step 1 has no previous step, so the back zone is empty.
+  it('renders the shared bar with "Guardar borrador" and "Siguiente" (step 1 has no previous step)', () => {
     const fixture = createComponent();
 
-    const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')];
-    expect(buttons.length).toBe(1);
-    expect((buttons[0] as HTMLButtonElement).textContent?.trim()).toBe('Siguiente');
+    const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
+      (button: HTMLButtonElement) => button.textContent?.trim(),
+    );
+    expect(buttons).toEqual(['Guardar borrador', 'Siguiente']);
   });
 
   it('calls create() with only the basics fields when there is no competition id yet', () => {
@@ -175,6 +189,54 @@ describe('BasicsStepComponent', () => {
 
     expect(emitted).toEqual([]);
     expect(fixture.nativeElement.textContent).toContain('Name is already in use');
+  });
+
+  // T125: leaving the wizard moved to the shell's own header link, guarded by the wizard's
+  // unsaved-changes dialog. What remains here is the action bar's "Guardar borrador", which now
+  // saves directly instead of only existing inside a leave-confirmation dialog.
+  it('saves as a draft and navigates to the organizer dashboard on "Guardar borrador"', () => {
+    fakeApi.create.mockReturnValue(of(detailFixture()));
+    const fixture = createComponent();
+    fixture.componentInstance.form.setValue({
+      name: 'Golden Ale Cup',
+      venue: 'Town Hall',
+      startDate: '2026-08-01',
+      endDate: '2026-08-02',
+    });
+    fixture.detectChanges();
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
+
+    buttonWithText(fixture.nativeElement, 'Guardar borrador').click();
+
+    expect(fakeApi.create).toHaveBeenCalledWith({
+      name: 'Golden Ale Cup',
+      venue: 'Town Hall',
+      startDate: '2026-08-01',
+      endDate: '2026-08-02',
+    });
+    expect(navigateSpy).toHaveBeenCalledWith('/organizer/dashboard');
+  });
+
+  it('does not save or navigate on "Guardar borrador" while required fields are missing', () => {
+    const fixture = createComponent();
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
+
+    fixture.componentInstance['onSaveAndLeave']();
+
+    expect(fakeApi.create).not.toHaveBeenCalled();
+    expect(navigateSpy).not.toHaveBeenCalled();
+  });
+
+  it('renders the shared action bar: no Atrás on the first step, Siguiente on the right', () => {
+    const fixture = createComponent();
+
+    expect(fixture.nativeElement.querySelector('bp-step-actions')).not.toBeNull();
+    const end = fixture.nativeElement.querySelector('.step-actions__zone--end') as HTMLElement;
+    expect(end.textContent?.trim()).toBe('Siguiente');
+    const start = fixture.nativeElement.querySelector('.step-actions__zone--start') as HTMLElement;
+    expect(start.textContent?.trim()).toBe('');
   });
 
   it('prefills the form from initialValue (resume-with-data)', () => {

@@ -2,6 +2,14 @@ import path from 'node:path';
 import { test, expect, Page, Locator } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { createJudgeUser, deleteUser, ProvisionedJudge } from '../support/keycloak-admin';
+import { goToLogin, submitKeycloakLogin } from '../support/auth';
+import {
+  blindCodesByStyle,
+  createCompetition,
+  defineCategory,
+  goToWizardStep,
+  WIZARD_STEPS,
+} from '../support/organizer-wizard';
 
 // T089/SC-009: WCAG 2.1 AA sweep (Constitution Principle VIII) across every organizer and
 // judge-facing route in src/app/app.routes.ts. One continuous, realistic journey — reusing the
@@ -14,7 +22,6 @@ import { createJudgeUser, deleteUser, ProvisionedJudge } from '../support/keyclo
 //   /organizer/competitions/:id/dispatch, /judge/tables, /judge/tables/:tableId,
 //   /judge/tables/:tableId/samples/:beerEntryId, /judge/tables/:tableId/discrepancies.
 
-const KEYCLOAK_ORIGIN = 'http://localhost:8081';
 const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
 
@@ -43,12 +50,6 @@ async function assertNoA11yViolations(page: Page, label: string): Promise<void> 
   expect(results.violations, `${label}:\n${JSON.stringify(results.violations, null, 2)}`).toEqual(
     [],
   );
-}
-
-async function submitKeycloakLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.locator('#kc-login').click();
 }
 
 function uniqueCompetitionName(): string {
@@ -119,15 +120,14 @@ async function readTemporaryPasswordFromInvitation(
 
 // Mirrors us1/us6/us7's forced-temporary-password-change flow, ending on /judge/tables.
 async function loginAsJudge(page: Page, email: string, password: string): Promise<void> {
-  await page.goto('/');
-  await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+  await goToLogin(page);
   await submitKeycloakLogin(page, email, password);
 
   await expect(page.locator('#password-new')).toBeVisible();
   const newPassword = `Judge-${crypto.randomUUID()}`;
   await page.locator('#password-new').fill(newPassword);
   await page.locator('#password-confirm').fill(newPassword);
-  await page.locator('#kc-passwd-update-form button[type="submit"]').click();
+  await page.locator('#kc-passwd-update-form input[type="submit"]').click();
 
   await page.waitForURL('**/judge/tables');
 }
@@ -251,11 +251,14 @@ test.describe('WCAG 2.1 AA sweep — every organizer and judge route', () => {
   });
 
   test('every route is free of WCAG 2.1 A/AA violations', async ({ page, browser }) => {
-    test.setTimeout(300_000);
+    // 300s was tight even before this PR; the wizard step 3 traversal, the row-editor a11y
+    // surface, and the judges-notify round trip it added push a full run right up against that
+    // ceiling on a dev-mode (unbundled, per-route JIT) server — 480s leaves real margin without
+    // masking an actual hang.
+    test.setTimeout(480_000);
 
     // --- /organizer/dashboard ---
-    await page.goto('/');
-    await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+    await goToLogin(page);
     await submitKeycloakLogin(page, ORGANIZER_USERNAME, ORGANIZER_PASSWORD);
     await page.waitForURL('**/organizer/dashboard');
     await test.step('/organizer/dashboard', async () => {
@@ -264,73 +267,73 @@ test.describe('WCAG 2.1 AA sweep — every organizer and judge route', () => {
 
     // --- /organizer/competitions/new (empty Basics step) ---
     await page.goto('/organizer/competitions/new');
-    await expect(page.getByLabel('Name')).toBeVisible();
+    await expect(page.getByLabel('Nombre de la competición')).toBeVisible();
     await test.step('/organizer/competitions/new', async () => {
       await assertNoA11yViolations(page, '/organizer/competitions/new');
     });
 
     const competitionName = uniqueCompetitionName();
-    await page.getByLabel('Name').fill(competitionName);
-    await page.getByLabel('Venue').fill('Salón de Actos, Madrid');
-    await page.getByLabel('Start date').fill('2026-09-01');
-    await page.getByLabel('End date').fill('2026-09-03');
-    await page.getByRole('button', { name: 'Next' }).click();
-    await page.waitForURL(/\/organizer\/competitions\/[0-9a-fA-F-]{36}$/);
-    const competitionId = page.url().split('/').pop()!;
+    const competitionId = await createCompetition(page, competitionName);
 
     // --- /organizer/competitions/:id (Details step, reopened wizard) ---
-    await expect(page.getByRole('button', { name: 'Save Draft' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Guardar borrador' })).toBeVisible();
     await test.step('/organizer/competitions/:id', async () => {
       await assertNoA11yViolations(page, '/organizer/competitions/:id');
     });
 
-    // --- /organizer/competitions/:id/import ---
-    await page.goto(`/organizer/competitions/${competitionId}/import`);
-    await expect(page.getByRole('heading', { name: 'Import beer entries' })).toBeVisible();
-    await test.step('/organizer/competitions/:id/import (empty)', async () => {
-      await assertNoA11yViolations(page, '/organizer/competitions/:id/import (empty)');
+    // --- wizard step 3 (Estilos) ---
+    await goToWizardStep(page, competitionId, WIZARD_STEPS.styles);
+    await expect(page.getByRole('region', { name: 'Catálogo de estilos BJCP' })).toBeVisible();
+    await test.step('wizard step 3 (Estilos)', async () => {
+      await assertNoA11yViolations(page, 'wizard step 3 (Estilos)');
     });
 
-    await page.getByLabel('Entries file (.xlsx)').setInputFiles(FIXTURE_PATH);
-    await page.getByRole('button', { name: 'Upload' }).click();
+    // The import step needs a category owning the fixture's styles before any row can be Valid.
+    await defineCategory(page, competitionId, 'Estilos clásicos', ['21A', '20C']);
 
-    const resultsSection = page.getByRole('region', { name: 'Import results' });
-    await expect(resultsSection).toBeVisible();
-    const row3 = page.locator('tr[data-row-number="3"]');
-    const row4 = page.locator('tr[data-row-number="4"]');
-    await expect(row3).toContainText('StyleMismatch');
-    await expect(row4).toContainText('Invalid');
-    await test.step('/organizer/competitions/:id/import (results, correction UI)', async () => {
-      await assertNoA11yViolations(
-        page,
-        '/organizer/competitions/:id/import (results, correction UI)',
-      );
+    // --- wizard step 4 (Importar cervezas), empty ---
+    await expect(page.getByLabel('Archivo de inscripciones (.xlsx)')).toBeVisible();
+    await test.step('wizard step 4 (empty)', async () => {
+      await assertNoA11yViolations(page, 'wizard step 4 (empty)');
     });
 
-    await row3.getByLabel('Filter styles').fill('American IPA');
-    await row3.locator('select').selectOption('21A');
-    await row3.getByRole('button', { name: 'Assign style' }).click();
-    await expect(row3).toContainText('Valid');
+    await page.getByLabel('Archivo de inscripciones (.xlsx)').setInputFiles(FIXTURE_PATH);
+    await page.getByRole('button', { name: 'Subir archivo' }).click();
 
-    await row4.getByRole('button', { name: 'Exclude' }).click();
-    await expect(row4).toContainText('Excluded');
+    const rows = page.getByRole('region', { name: 'Filas importadas' });
+    await expect(rows).toBeVisible();
+    const row = (n: number) => rows.locator('.import-row').nth(n - 1);
+    await expect(row(3)).toContainText('Estilo no reconocido');
+    await expect(row(4)).toContainText('Incompleta');
+    await test.step('wizard step 4 (results, correction UI)', async () => {
+      await assertNoA11yViolations(page, 'wizard step 4 (results, correction UI)');
+    });
 
-    const consolidateButton = page.getByRole('button', { name: 'Consolidate' });
+    // The row editor is its own a11y surface (the catalog picker lives inside it now).
+    await page.getByRole('button', { name: 'Editar fila #3' }).click();
+    const editor = page.locator('.import-row__editor');
+    await test.step('wizard step 4 (row editor)', async () => {
+      await assertNoA11yViolations(page, 'wizard step 4 (row editor)');
+    });
+    await editor.getByLabel('Filter styles').fill('American IPA');
+    await editor.locator('app-style-picker select').selectOption('21A');
+    await editor.getByRole('button', { name: 'Assign style' }).click();
+    await page.getByRole('button', { name: 'Guardar fila' }).click();
+    await expect(row(3)).toContainText('Válida');
+
+    await page.getByRole('button', { name: 'Excluir fila #4' }).click();
+    await expect(row(4)).toContainText('Excluida');
+
+    const consolidateButton = page.getByRole('button', { name: 'Consolidar' });
     await expect(consolidateButton).toBeEnabled();
     await consolidateButton.click();
-
-    const importSummary = page.getByRole('region', { name: 'Consolidation summary' });
-    await expect(importSummary.getByText('Imported: 3', { exact: true })).toBeVisible();
-    await test.step('/organizer/competitions/:id/import (consolidation summary)', async () => {
-      await assertNoA11yViolations(
-        page,
-        '/organizer/competitions/:id/import (consolidation summary)',
-      );
+    await expect(page.getByText('Importación consolidada')).toBeVisible();
+    await test.step('wizard step 4 (consolidated)', async () => {
+      await assertNoA11yViolations(page, 'wizard step 4 (consolidated)');
     });
 
-    const entryRows = importSummary.locator('tbody tr');
-    const beerBlindCodeA = (await entryRows.nth(0).locator('td').first().innerText()).trim();
-    const beerBlindCodeB = (await entryRows.nth(1).locator('td').first().innerText()).trim();
+    const byStyle = await blindCodesByStyle(page, competitionId);
+    const [beerBlindCodeA, beerBlindCodeB] = [...byStyle.values()].flat();
 
     // --- /organizer/competitions/:id/judges ---
     await page.goto(`/organizer/competitions/${competitionId}/judges`);
@@ -353,6 +356,23 @@ test.describe('WCAG 2.1 AA sweep — every organizer and judge route', () => {
         '/organizer/competitions/:id/judges (registration report)',
       );
     });
+
+    // FR-059/R-20: sending invitations is a separate, explicit action from registering judges —
+    // "Register judges" only creates the Judge/Invitation rows (Pending). Nothing enqueues the
+    // SendInvitation dispatch job, so no mail reaches Mailpit, until this is clicked. onNotify()
+    // gates on a native window.confirm(); unhandled, Playwright auto-dismisses it, the click
+    // silently no-ops on the early return, and nothing ever calls the API — hence the explicit
+    // accept here rather than relying on the default.
+    page.once('dialog', (dialog) => dialog.accept());
+    const [notifyResponse] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          /\/api\/v1\/competitions\/.+\/judges\/notify$/.test(new URL(response.url()).pathname),
+      ),
+      page.getByRole('button', { name: /^Notificar \d+ jueces$/ }).click(),
+    ]);
+    expect(notifyResponse.status()).toBe(200);
 
     const judgeATempPassword = await readTemporaryPasswordFromInvitation(
       page.request,

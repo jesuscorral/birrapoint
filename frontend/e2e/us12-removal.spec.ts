@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { test, expect, Page, Locator } from '@playwright/test';
 import { createJudgeUser, deleteUser, ProvisionedJudge } from './support/keycloak-admin';
+import { goToLogin, submitKeycloakLogin } from './support/auth';
 
 // quickstart.md scenario 12 / spec.md US12 (FR-039): the organizer removes a judge from a live
 // table via the dashboard -> that judge's own session ejects immediately (live `JudgeRemoved` hub
@@ -17,7 +18,6 @@ import { createJudgeUser, deleteUser, ProvisionedJudge } from './support/keycloa
 // below is missing the table name, that's a real regression in the evaluation-sheet ejection path,
 // not a flake to work around.
 
-const KEYCLOAK_ORIGIN = 'http://localhost:8081';
 const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
 
@@ -105,12 +105,6 @@ interface SubmitEvaluationResponseBody {
   status: 'Confirmed' | 'PendingConsensus';
   total: number;
   discrepancy: unknown;
-}
-
-async function submitKeycloakLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.locator('#kc-login').click();
 }
 
 function uniqueCompetitionName(): string {
@@ -278,8 +272,7 @@ async function readTemporaryPasswordFromInvitation(
 
 // Mirrors us1/us6/us8/us11's forced-temporary-password-change flow, ending on /judge/tables.
 async function loginAsJudge(page: Page, email: string, password: string): Promise<void> {
-  await page.goto('/');
-  await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+  await goToLogin(page);
 
   await submitKeycloakLogin(page, email, password);
 
@@ -287,7 +280,7 @@ async function loginAsJudge(page: Page, email: string, password: string): Promis
   const newPassword = `Judge-${crypto.randomUUID()}`;
   await page.locator('#password-new').fill(newPassword);
   await page.locator('#password-confirm').fill(newPassword);
-  await page.locator('#kc-passwd-update-form button[type="submit"]').click();
+  await page.locator('#kc-passwd-update-form input[type="submit"]').click();
 
   await page.waitForURL('**/judge/tables');
 }
@@ -403,8 +396,7 @@ test.describe('US12 — live judge removal', () => {
 
     // --- Organizer: create competition, import entries, consolidate, register both judges, one
     // table with two samples assigned to both judges ---
-    await page.goto('/');
-    await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+    await goToLogin(page);
     await submitKeycloakLogin(page, ORGANIZER_USERNAME, ORGANIZER_PASSWORD);
     await page.waitForURL('**/organizer/dashboard');
 

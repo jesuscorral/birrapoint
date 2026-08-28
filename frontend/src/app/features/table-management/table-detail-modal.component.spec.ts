@@ -31,6 +31,9 @@ describe('TableDetailModalComponent', () => {
       id: 'e1',
       blindCode: 'AB12',
       styleName: 'Munich Helles',
+      competitionCategoryName: 'Estilos clásicos',
+      bjcpCategoryNumber: '4',
+      bjcpCategoryName: 'Pale Malty European Lager',
       abvPercent: 5.5,
       abvLow: 4.5,
       abvHigh: 7.5,
@@ -42,6 +45,29 @@ describe('TableDetailModalComponent', () => {
     expect(text).toContain('Munich Helles');
     expect(text).toContain('5.5% (style range 4.5–7.5%)');
     expect(text).toContain('Mesa 1');
+    // T124: both category axes, the organizer-defined one and the BJCP taxonomy's own.
+    expect(text).toContain('Estilos clásicos');
+    expect(text).toContain('4 · Pale Malty European Lager');
+  });
+
+  it('omits both category rows when neither the competition nor the BJCP category is known', () => {
+    const beer: BeerDetailContent = {
+      kind: 'beer',
+      id: 'e1',
+      blindCode: 'AB12',
+      styleName: 'Local style',
+      competitionCategoryName: null,
+      bjcpCategoryNumber: null,
+      bjcpCategoryName: null,
+      abvPercent: 6.2,
+      abvLow: null,
+      abvHigh: null,
+    };
+    const fixture = createComponent(beer, []);
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).not.toContain('Category');
+    expect(text).not.toContain('BJCP category');
   });
 
   it('shows only the real ABV%, omitting the style range, when abvLow and abvHigh are both null', () => {
@@ -50,6 +76,9 @@ describe('TableDetailModalComponent', () => {
       id: 'e1',
       blindCode: 'AB12',
       styleName: 'Local style',
+      competitionCategoryName: null,
+      bjcpCategoryNumber: null,
+      bjcpCategoryName: null,
       abvPercent: 6.2,
       abvLow: null,
       abvHigh: null,

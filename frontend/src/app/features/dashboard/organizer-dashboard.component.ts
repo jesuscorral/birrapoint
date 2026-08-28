@@ -147,7 +147,9 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
       margin: var(--spacing-2) 0 var(--spacing-6);
       padding: 0 var(--spacing-5);
       border-radius: var(--radius-md);
-      background: var(--color-bp-cobre-500);
+      /* cobre-500 (#d07a4c) under white is 3.19:1 — the axe sweep flags it as soon as the gate
+         runs again. cobre-600 is 4.55:1, cobre-700 6.16:1. */
+      background: var(--color-bp-cobre-600);
       color: #fff;
       text-decoration: none;
       font-weight: 600;
@@ -156,7 +158,7 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
     }
 
     .new-competition-action:hover {
-      background: var(--color-bp-cobre-600);
+      background: var(--color-bp-cobre-700);
     }
 
     .new-competition-action:focus-visible {
@@ -329,9 +331,9 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
     }
 
     .modal-panel button[type='button']:first-of-type {
-      background: var(--color-bp-cobre-500);
+      background: var(--color-bp-cobre-600);
       color: #fff;
-      border: 1.5px solid var(--color-bp-cobre-500);
+      border: 1.5px solid var(--color-bp-cobre-600);
     }
 
     .modal-panel button:last-of-type {

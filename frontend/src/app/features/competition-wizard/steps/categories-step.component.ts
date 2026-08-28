@@ -1,4 +1,5 @@
 import type { OnInit } from '@angular/core';
+import { Router } from '@angular/router';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -17,6 +18,7 @@ import type { StyleSummary } from '../../../core/api/catalog-api.service';
 import { CompetitionsApiService } from '../../../core/api/competitions-api.service';
 import type { CompetitionCategoryPayload } from '../../../core/api/competitions-api.service';
 import { BpButtonComponent } from '../../../shared/components/bp-button/bp-button.component';
+import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
 import { BpInputComponent } from '../../../shared/components/bp-input/bp-input.component';
 import { BpAlertComponent } from '../../../shared/components/bp-alert/bp-alert.component';
 
@@ -40,7 +42,7 @@ function toGenericApiError(error: unknown): ApiError {
 
 @Component({
   selector: 'app-categories-step',
-  imports: [BpButtonComponent, BpInputComponent, BpAlertComponent],
+  imports: [BpButtonComponent, BpStepActionsComponent, BpInputComponent, BpAlertComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (loading()) {
@@ -212,20 +214,19 @@ function toGenericApiError(error: unknown): ApiError {
         <bp-alert type="error" title="No hemos podido guardar">{{ message }}</bp-alert>
       }
 
-      <!-- Same two-slot "Atrás" / "Siguiente" bottom bar as every other wizard step (see
-           details-step.component.ts) — "Siguiente" is never blocked on canFinish(): when it's
-           false there's nothing valid to persist yet, so the step simply advances without saving
-           and the stepper marker for it stays amber. -->
-      <div class="step-actions">
-        <bp-button type="button" label="Atrás" variant="ghost" (clicked)="back.emit()"></bp-button>
+      <!-- "Siguiente" is never blocked here either: with nothing assigned yet there is nothing to
+           save, so it just advances and the stepper marker stays amber (see statusChange). Only
+           "Guardar borrador", which leaves the wizard, requires something worth persisting. -->
+      <bp-step-actions [nextLoading]="submitting()" (back)="back.emit()" (next)="onFinish()">
         <bp-button
-          type="submit"
-          label="Siguiente"
-          variant="primary"
+          type="button"
+          label="Guardar borrador"
+          variant="secondary"
           [loading]="submitting()"
-          (clicked)="onFinish()"
+          [disabled]="!canFinish()"
+          (clicked)="onSaveAndLeave()"
         ></bp-button>
-      </div>
+      </bp-step-actions>
     }
   `,
   styles: [
@@ -467,29 +468,6 @@ function toGenericApiError(error: unknown): ApiError {
         border-radius: var(--radius-md);
         background: var(--color-bp-surface);
         color: var(--color-bp-text);
-        font-size: 0.875rem;
-      }
-
-      .step-actions {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: var(--spacing-3);
-        margin: 0 calc(-1 * var(--spacing-8)) calc(-1 * var(--spacing-8));
-        padding: var(--spacing-4) var(--spacing-8) var(--spacing-6);
-        border-top: 1px solid var(--color-bp-border);
-        position: sticky;
-        bottom: 0;
-        background: var(--color-bp-surface);
-        z-index: 1;
-      }
-
-      @media (max-width: 640px) {
-        .step-actions {
-          margin: 0 calc(-1 * var(--spacing-6)) calc(-1 * var(--spacing-6));
-          padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
-        }
       }
     `,
   ],
@@ -497,6 +475,7 @@ function toGenericApiError(error: unknown): ApiError {
 export class CategoriesStepComponent implements OnInit {
   private readonly catalogApi = inject(CatalogApiService);
   private readonly competitionsApi = inject(CompetitionsApiService);
+  private readonly router = inject(Router);
 
   readonly competitionId = input.required<string>();
   readonly saved = output<void>();
@@ -733,7 +712,7 @@ export class CategoriesStepComponent implements OnInit {
     if (this.submitting()) {
       return;
     }
-
+    // Nothing assigned yet: there is no payload worth sending, so advance without saving.
     if (!this.canFinish()) {
       this.saved.emit();
       return;
@@ -746,6 +725,28 @@ export class CategoriesStepComponent implements OnInit {
       next: () => {
         this.submitting.set(false);
         this.saved.emit();
+      },
+      error: (error: unknown) => {
+        this.submitting.set(false);
+        this.apiError.set(toGenericApiError(error));
+      },
+    });
+  }
+
+  // T125: "Guardar borrador" moved from a leave-confirmation dialog into the shared action bar's
+  // centre zone; leaving the wizard is now the header's "Volver al listado".
+  protected onSaveAndLeave(): void {
+    if (!this.canFinish() || this.submitting()) {
+      return;
+    }
+
+    this.submitting.set(true);
+    this.apiError.set(null);
+
+    this.competitionsApi.setCategories(this.competitionId(), this.buildPayload()).subscribe({
+      next: () => {
+        this.submitting.set(false);
+        this.router.navigateByUrl('/organizer/dashboard');
       },
       error: (error: unknown) => {
         this.submitting.set(false);

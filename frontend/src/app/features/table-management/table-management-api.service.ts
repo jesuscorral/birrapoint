@@ -22,6 +22,13 @@ export interface TableSample {
   abvLow: number | null;
   abvHigh: number | null;
   notValidForBos: boolean;
+  // T124: the organizer-defined competition category (wizard step 3) this entry was imported
+  // under — null for entries created outside the import flow.
+  competitionCategoryName: string | null;
+  // T124: the BJCP taxonomy's own category (e.g. "21"/"IPA") — an independent axis from
+  // competitionCategoryName; null only when styleCode has no catalog row.
+  bjcpCategoryNumber: string | null;
+  bjcpCategoryName: string | null;
 }
 
 export interface TableProgress {

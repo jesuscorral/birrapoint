@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { of } from 'rxjs';
 
 import { CatalogApiService } from '../../../core/api/catalog-api.service';
@@ -65,13 +66,15 @@ describe('CategoriesStepComponent', () => {
     return match;
   }
 
-  it('renders exactly two bottom-bar buttons, labeled "Atrás" and "Siguiente"', () => {
+  // T125: the shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
+  // forward. Previously each step rendered its own two-slot bar and they had drifted apart.
+  it('renders the shared bar: Atrás, its own centre action, and Siguiente', () => {
     const fixture = createComponent();
 
     const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
       (button: HTMLButtonElement) => button.textContent?.trim(),
     );
-    expect(buttons).toEqual(['Atrás', 'Siguiente']);
+    expect(buttons).toEqual(['Atrás', 'Guardar borrador', 'Siguiente']);
   });
 
   it('loads the BJCP catalog and existing categories on init', () => {
@@ -250,6 +253,27 @@ describe('CategoriesStepComponent', () => {
     expect(bulkSelects.length).toBe(1);
   });
 
+  // Restored from main, where it was dropped in the merge conflict resolution: the only coverage
+  // of the group-header disclosure widget, whose aria-expanded/hidden pairing is a11y-relevant.
+  it('expands and collapses a single group from its header toggle', () => {
+    fakeCatalogApi.getStyles.mockReturnValue(of(groupStyleFixtures()));
+    const fixture = createComponent();
+
+    const toggle = fixture.nativeElement.querySelector('.style-group__toggle') as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect((fixture.nativeElement.querySelector('.style-group__rows') as HTMLElement).hidden).toBe(
+      false,
+    );
+
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('bulk-assigns every style in a BJCP group to the chosen category', () => {
     fakeCatalogApi.getStyles.mockReturnValue(of(groupStyleFixtures()));
     fakeCompetitionsApi.getCategories.mockReturnValue(
@@ -409,26 +433,10 @@ describe('CategoriesStepComponent', () => {
     );
   });
 
-  it('expands and collapses a single group from its header toggle', () => {
-    fakeCatalogApi.getStyles.mockReturnValue(of(groupStyleFixtures()));
-    const fixture = createComponent();
-
-    const toggle = fixture.nativeElement.querySelector('.style-group__toggle') as HTMLButtonElement;
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-
-    toggle.click();
-    fixture.detectChanges();
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    expect((fixture.nativeElement.querySelector('.style-group__rows') as HTMLElement).hidden).toBe(
-      false,
-    );
-
-    toggle.click();
-    fixture.detectChanges();
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-  });
-
-  it('never disables "Siguiente" — with nothing valid assigned yet it just advances without saving', () => {
+  // "Siguiente" is never disabled here: with nothing assigned there is no payload worth sending,
+  // so it advances without saving and the stepper marker stays amber. Only "Guardar borrador",
+  // which leaves the wizard, requires something to persist.
+  it('advances without saving while no category has a style yet', () => {
     fakeCatalogApi.getStyles.mockReturnValue(of([styleFixture()]));
     fakeCompetitionsApi.getCategories.mockReturnValue(
       of(
@@ -441,12 +449,13 @@ describe('CategoriesStepComponent', () => {
     const emitted: void[] = [];
     fixture.componentInstance.saved.subscribe(() => emitted.push(undefined));
 
-    const nextButton = fixture.nativeElement.querySelector(
-      'button[type="submit"]',
+    const finishButton = fixture.nativeElement.querySelector(
+      '.step-actions__zone--end button',
     ) as HTMLButtonElement;
-    expect(nextButton.disabled).toBe(false);
+    expect(finishButton.textContent?.trim()).toBe('Siguiente');
+    expect(finishButton.disabled).toBe(false);
 
-    nextButton.click();
+    finishButton.click();
 
     expect(fakeCompetitionsApi.setCategories).not.toHaveBeenCalled();
     expect(emitted.length).toBe(1);
@@ -476,12 +485,52 @@ describe('CategoriesStepComponent', () => {
     const emitted: void[] = [];
     fixture.componentInstance.saved.subscribe(() => emitted.push(undefined));
 
+    const navigateSpy = jest.spyOn(TestBed.inject(Router), 'navigateByUrl');
+
     fixture.componentInstance.onFinish();
 
     expect(fakeCompetitionsApi.setCategories).toHaveBeenCalledWith('c1', [
       { name: 'Estilos clásicos', displayOrder: 0, styleCodes: ['18A'] },
     ]);
     expect(emitted.length).toBe(1);
+    expect(navigateSpy).not.toHaveBeenCalled();
+  });
+
+  // T125: the save-or-discard dialog moved to the wizard shell, which owns "Volver al listado"
+  // for all six steps. "Guardar borrador" is now a first-class action in the shared bar.
+  it('saves and navigates to the organizer dashboard on "Guardar borrador"', () => {
+    fakeCatalogApi.getStyles.mockReturnValue(of([styleFixture()]));
+    const assigned = categoriesResponseFixture({
+      categories: [{ id: 'cat-1', name: 'Estilos clásicos', displayOrder: 0, styleCodes: ['18A'] }],
+    });
+    fakeCompetitionsApi.getCategories.mockReturnValue(of(assigned));
+    fakeCompetitionsApi.setCategories.mockReturnValue(of(assigned));
+    const fixture = createComponent();
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigateByUrl');
+
+    buttonWithText(fixture.nativeElement, 'Guardar borrador').click();
+
+    expect(fakeCompetitionsApi.setCategories).toHaveBeenCalled();
+    expect(navigateSpy).toHaveBeenCalledWith('/organizer/dashboard');
+  });
+
+  it('disables "Guardar borrador" while canFinish() is false', () => {
+    fakeCatalogApi.getStyles.mockReturnValue(of([styleFixture()]));
+    fakeCompetitionsApi.getCategories.mockReturnValue(
+      of(
+        categoriesResponseFixture({
+          categories: [{ id: 'cat-1', name: 'A', displayOrder: 0, styleCodes: [] }],
+        }),
+      ),
+    );
+    const fixture = createComponent();
+
+    const saveButton = fixture.nativeElement.querySelector(
+      '.step-actions__zone--center button',
+    ) as HTMLButtonElement;
+    expect(saveButton.textContent?.trim()).toBe('Guardar borrador');
+    expect(saveButton.disabled).toBe(true);
   });
 
   it('emits dirtyChange(false) right after the initial load completes', () => {
@@ -521,7 +570,11 @@ describe('CategoriesStepComponent', () => {
     const emitted: void[] = [];
     fixture.componentInstance.back.subscribe(() => emitted.push(undefined));
 
-    buttonWithText(fixture.nativeElement, 'Atrás').click();
+    const buttons = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ) as HTMLButtonElement[];
+    const backButton = buttons.find((button) => button.textContent?.trim() === 'Atrás');
+    backButton?.click();
 
     expect(emitted.length).toBe(1);
   });

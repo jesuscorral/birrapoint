@@ -1,19 +1,13 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { createJudgeUser, deleteUser, ProvisionedJudge } from './support/keycloak-admin';
+import { KEYCLOAK_ORIGIN, goToLogin, submitKeycloakLogin } from './support/auth';
 
 // quickstart.md scenario 1 / spec.md US1 (FR-001–FR-003). Asserts the TARGET nested landing URLs
 // (/organizer/dashboard, /judge/tables) that T024 introduces — today's app only has flat
 // /organizer and /judge placeholder routes, so this spec is expected to fail until T024 lands.
 
-const KEYCLOAK_ORIGIN = 'http://localhost:8081';
 const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
-
-async function submitKeycloakLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.locator('#kc-login').click();
-}
 
 test.describe('US1 — secure access with role-based entry', () => {
   let judge: ProvisionedJudge;
@@ -30,8 +24,11 @@ test.describe('US1 — secure access with role-based entry', () => {
     }
   });
 
-  test('unauthenticated visit redirects to Keycloak hosted login with PKCE', async ({ page }) => {
-    await page.goto('/');
+  // `/` is the public welcome screen now (FR-001), so it no longer redirects on its own — the
+  // hand-off happens on "Iniciar sesión". The PKCE parameters are what this test is really about,
+  // and they are unchanged.
+  test('login hands off to the Keycloak hosted form with PKCE', async ({ page }) => {
+    await goToLogin(page);
 
     await page.waitForURL(
       new RegExp(`^${KEYCLOAK_ORIGIN}/realms/birrapoint/protocol/openid-connect/auth`),
@@ -43,9 +40,20 @@ test.describe('US1 — secure access with role-based entry', () => {
     expect(redirectUrl.searchParams.get('code_challenge')).toBeTruthy();
   });
 
+  // The welcome screen being public must not mean the app is. keycloak.providers.ts uses
+  // `onLoad: 'check-sso'`, which deliberately does not force authentication, so an anonymous deep
+  // link falls through to the public welcome screen (see role.guard.ts) rather than bouncing to
+  // Keycloak. What matters is that the guarded screen itself never renders.
+  test('an unauthenticated deep link into a guarded route never renders it', async ({ page }) => {
+    await page.goto('/organizer/dashboard');
+
+    await expect(page).toHaveURL(/localhost:4200\/$/);
+    await expect(page.getByRole('heading', { name: 'Entra en tu concurso' })).toBeVisible();
+    await expect(page.locator('app-organizer-dashboard')).not.toBeAttached();
+  });
+
   test('organizer login lands on /organizer/dashboard', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+    await goToLogin(page);
 
     await submitKeycloakLogin(page, ORGANIZER_USERNAME, ORGANIZER_PASSWORD);
 
@@ -60,8 +68,7 @@ test.describe('US1 — secure access with role-based entry', () => {
     // Login originates from '/' so the OAuth redirect_uri Keycloak completes the flow against stays
     // '/', and the eventual landing on /judge/tables can only be produced by the app's own
     // post-login role redirect (T024) — not by a URL we ourselves navigated to mid-flow.
-    await page.goto('/');
-    await page.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
+    await goToLogin(page);
 
     await submitKeycloakLogin(page, judge.email, judge.tempPassword);
 
@@ -73,20 +80,22 @@ test.describe('US1 — secure access with role-based entry', () => {
     // Structural no-bypass check, run on a second tab (shares the browser's Keycloak session
     // cookies) so it can't corrupt the first tab's in-progress redirect_uri: a direct navigation to
     // the judge landing route mid-flow must not render app/judge data. Observed real behavior: since
-    // the required action is still pending, no full Keycloak SSO session exists yet, so
-    // keycloak-js's `login-required` check on the fresh navigation restarts authentication from
-    // scratch (a new login form) rather than resuming the required-action screen directly — either
-    // way the app itself is never reached.
+    // the required action is still pending, no full Keycloak SSO session exists yet, so `check-sso`
+    // resolves anonymous and the guard drops the navigation on the public welcome screen — either
+    // way the judge workspace itself is never reached.
     const bypassAttempt = await context.newPage();
     await bypassAttempt.goto('/judge/tables');
-    await bypassAttempt.waitForURL(new RegExp(`^${KEYCLOAK_ORIGIN}/`));
-    await expect(bypassAttempt.locator('app-root')).not.toBeAttached();
+    await expect(bypassAttempt).toHaveURL(/localhost:4200\/$/);
+    await expect(
+      bypassAttempt.getByRole('heading', { name: 'Entra en tu concurso' }),
+    ).toBeVisible();
+    await expect(bypassAttempt.locator('app-judge-tables-list')).not.toBeAttached();
     await bypassAttempt.close();
 
     const newPassword = `Judge-${crypto.randomUUID()}`;
     await page.locator('#password-new').fill(newPassword);
     await page.locator('#password-confirm').fill(newPassword);
-    await page.locator('#kc-passwd-update-form button[type="submit"]').click();
+    await page.locator('#kc-passwd-update-form input[type="submit"]').click();
 
     await page.waitForURL('**/judge/tables');
     await expect(page).toHaveURL(/\/judge\/tables$/);

@@ -74,6 +74,9 @@ function entryFixture(overrides: Partial<EntryListItem> = {}): EntryListItem {
     abvHigh: 9,
     beerName: 'Bruma',
     notValidForBos: false,
+    competitionCategoryName: null,
+    bjcpCategoryNumber: null,
+    bjcpCategoryName: null,
     tastingTableId: null,
     tastingTableName: null,
     ...overrides,
@@ -153,13 +156,15 @@ describe('ImportStepComponent', () => {
     return fixture;
   }
 
-  it('renders exactly two bottom-bar buttons, labeled "Atrás" and "Siguiente"', () => {
+  // T125: the shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
+  // forward. Previously each step rendered its own two-slot bar and they had drifted apart.
+  it('renders the shared bar: Atrás, its own centre action, and Siguiente', () => {
     const fixture = createComponent();
 
     const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
       (button: HTMLButtonElement) => button.textContent?.trim(),
     );
-    expect(buttons).toEqual(['Atrás', 'Siguiente']);
+    expect(buttons).toEqual(['Atrás', 'Subir archivo', 'Siguiente']);
   });
 
   it('shows an empty-state alert and disables the upload control when the competition has zero categories', () => {
@@ -357,10 +362,10 @@ describe('ImportStepComponent', () => {
     expect(emitted.length).toBe(1);
   });
 
-  it('consolidates once every row is resolved, shows the summary, and only advances on a second "Siguiente" click', () => {
+  it('consolidates successfully, shows the summary, and only advances once the organizer confirms', () => {
     const fixture = uploadedFixture([rowFixture({ rowNumber: 1, status: 'Valid' })]);
-    const emitted: void[] = [];
-    fixture.componentInstance.saved.subscribe(() => emitted.push(undefined));
+    const savedEmitted: void[] = [];
+    fixture.componentInstance.saved.subscribe(() => savedEmitted.push(undefined));
 
     fakeImportApi.consolidate.mockReturnValue(
       of({
@@ -374,13 +379,16 @@ describe('ImportStepComponent', () => {
 
     expect(fakeImportApi.consolidate).toHaveBeenCalledWith('c1', 'i1');
     expect(fixture.nativeElement.textContent).toContain('Importadas: 1');
-    expect(emitted.length).toBe(0);
+    expect(savedEmitted.length).toBe(0);
+    // T125: once consolidated there is nothing left to consolidate, so the centre zone empties and
+    // only the shared bar's own Atrás/Siguiente remain.
+    const buttons = [...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[];
+    expect(buttons.some((button) => button.textContent?.trim() === 'Consolidar')).toBe(false);
 
     buttonWithText(fixture.nativeElement, 'Siguiente').click();
     fixture.detectChanges();
 
-    expect(emitted.length).toBe(1);
-    expect(fakeImportApi.consolidate).toHaveBeenCalledTimes(1);
+    expect(savedEmitted.length).toBe(1);
   });
 
   it('emits back when "Atrás" is clicked', () => {
