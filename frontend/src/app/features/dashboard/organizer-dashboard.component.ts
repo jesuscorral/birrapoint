@@ -1,10 +1,12 @@
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import Keycloak from 'keycloak-js';
 
 import { ApiError } from '../../core/api/api-error';
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
 import type { CompetitionState, CompetitionSummary } from '../../core/api/competitions-api.service';
+import { BpTopbarComponent } from '../../shared/components/bp-topbar/bp-topbar.component';
 
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError
@@ -35,10 +37,11 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
 
 // T100/US13: post-login ORGANIZER landing — every competition the caller has created
 // (contracts/rest-api.md GET /competitions), so they can resume or start work without knowing or
-// typing an internal address. Selecting a Draft competition reopens the setup wizard; Active goes
-// to the tables screen (still the setup/assignment view for that state); InEvaluation and
-// Finalized go to the live monitoring dashboard (T070/US9) — there's nothing left to set up once
-// evaluation has started.
+// typing an internal address. Selecting a Draft *or* Active competition reopens the six-step setup
+// wizard (T127 — Active previously opened the standalone table board directly, which read as "the
+// wizard lost its steps"; the wizard's step 6 embeds that same board); InEvaluation and Finalized
+// go to the live monitoring dashboard (T070/US9) — there's nothing left to set up once evaluation
+// has started.
 //
 // T102/FR-051: the advance-state action lives as a sibling of the navigation `<a>`, never nested
 // inside it — a `<button>` inside an `<a>` is invalid HTML and an accessibility hazard (nested
@@ -48,87 +51,141 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
 // available actions reconcile against the server, same convention as the rest of the codebase.
 @Component({
   selector: 'app-organizer-dashboard',
-  imports: [RouterLink, CdkTrapFocus],
+  imports: [RouterLink, CdkTrapFocus, BpTopbarComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h1>Competitions</h1>
+    <div class="dashboard-shell">
+      <bp-topbar homeLink="/organizer/dashboard">
+        <a routerLink="/organizer/settings" class="topbar-action topbar-action--link">Settings</a>
+        <button type="button" class="topbar-action topbar-action--button" (click)="onLogout()">
+          Log out
+        </button>
+      </bp-topbar>
 
-    @if (loadError(); as message) {
-      <p role="alert">{{ message }}</p>
-    }
-    @if (advanceError(); as message) {
-      <p role="alert">{{ message }}</p>
-    }
-    @if (advanceSuccessMessage(); as message) {
-      <p role="status">{{ message }}</p>
-    }
+      <main class="dashboard-main">
+        <h1>Competitions</h1>
 
-    <a routerLink="/organizer/competitions/new" class="new-competition-action">New competition</a>
+        @if (loadError(); as message) {
+          <p role="alert">{{ message }}</p>
+        }
+        @if (advanceError(); as message) {
+          <p role="alert">{{ message }}</p>
+        }
+        @if (advanceSuccessMessage(); as message) {
+          <p role="status">{{ message }}</p>
+        }
 
-    @if (!loadError()) {
-      @if (competitions().length === 0) {
-        <div class="empty-state">
-          <h2>No competitions yet</h2>
-          <p>Create your first competition to get started.</p>
-        </div>
-      } @else {
-        <ul class="competition-list">
-          @for (competition of competitions(); track competition.id) {
-            <li class="competition-list-row">
-              <a [routerLink]="destination(competition)" class="competition-list-item">
-                <span class="competition-name">{{ competition.name }}</span>
-                <span class="competition-venue">{{ competition.venue }}</span>
-                <span class="competition-dates"
-                  >{{ competition.startDate }} – {{ competition.endDate }}</span
-                >
-                <span [class]="badgeClass(competition.state)">{{ competition.state }}</span>
-              </a>
-              @if (advanceLabel(competition.state); as label) {
-                <button
-                  type="button"
-                  class="advance-state-action"
-                  (click)="onRequestAdvance(competition)"
-                >
-                  {{ label }}
-                </button>
-              }
-            </li>
-          }
-        </ul>
-      }
-    }
-
-    @if (confirmingAdvance(); as target) {
-      <div class="modal-backdrop" role="presentation" (click)="onCancelAdvanceConfirm()">
-        <div
-          role="alertdialog"
-          aria-modal="true"
-          aria-label="Confirm advance competition state"
-          class="modal-panel"
-          cdkTrapFocus
-          cdkTrapFocusAutoCapture
-          (click)="$event.stopPropagation()"
-          (keydown.escape)="onCancelAdvanceConfirm()"
+        <a routerLink="/organizer/competitions/new" class="new-competition-action"
+          >New competition</a
         >
-          <h2>{{ advanceLabel(target.state) }}</h2>
-          <p>
-            This moves "{{ target.name }}" to {{ nextState(target.state) }} and cannot be undone.
-            Continue?
-          </p>
-          <button type="button" [disabled]="advancing()" (click)="onConfirmAdvance()">
-            Confirm
-          </button>
-          <button type="button" (click)="onCancelAdvanceConfirm()">Cancel</button>
-        </div>
-      </div>
-    }
+
+        @if (!loadError()) {
+          @if (competitions().length === 0) {
+            <div class="empty-state">
+              <h2>No competitions yet</h2>
+              <p>Create your first competition to get started.</p>
+            </div>
+          } @else {
+            <ul class="competition-list">
+              @for (competition of competitions(); track competition.id) {
+                <li class="competition-list-row">
+                  <a [routerLink]="destination(competition)" class="competition-list-item">
+                    <span class="competition-name">{{ competition.name }}</span>
+                    <span class="competition-venue">{{ competition.venue }}</span>
+                    <span class="competition-dates"
+                      >{{ competition.startDate }} – {{ competition.endDate }}</span
+                    >
+                    <span [class]="badgeClass(competition.state)">{{ competition.state }}</span>
+                  </a>
+                  @if (advanceLabel(competition.state); as label) {
+                    <button
+                      type="button"
+                      class="advance-state-action"
+                      (click)="onRequestAdvance(competition)"
+                    >
+                      {{ label }}
+                    </button>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        }
+
+        @if (confirmingAdvance(); as target) {
+          <div class="modal-backdrop" role="presentation" (click)="onCancelAdvanceConfirm()">
+            <div
+              role="alertdialog"
+              aria-modal="true"
+              aria-label="Confirm advance competition state"
+              class="modal-panel"
+              cdkTrapFocus
+              cdkTrapFocusAutoCapture
+              (click)="$event.stopPropagation()"
+              (keydown.escape)="onCancelAdvanceConfirm()"
+            >
+              <h2>{{ advanceLabel(target.state) }}</h2>
+              <p>
+                This moves "{{ target.name }}" to {{ nextState(target.state) }} and cannot be
+                undone. Continue?
+              </p>
+              <button type="button" [disabled]="advancing()" (click)="onConfirmAdvance()">
+                Confirm
+              </button>
+              <button type="button" (click)="onCancelAdvanceConfirm()">Cancel</button>
+            </div>
+          </div>
+        }
+      </main>
+    </div>
   `,
   styles: `
     :host {
       display: block;
       min-height: 100vh;
       background: var(--color-bp-hueso-50);
+    }
+
+    .dashboard-main {
       padding: var(--spacing-8) var(--spacing-6);
+    }
+
+    .topbar-action {
+      display: inline-flex;
+      align-items: center;
+      min-height: 40px;
+      padding: 0 var(--spacing-4);
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 0.875rem;
+      text-decoration: none;
+      cursor: pointer;
+      background: transparent;
+      font-family: inherit;
+    }
+
+    .topbar-action--link {
+      color: var(--color-bp-cobre-700);
+    }
+
+    .topbar-action--link:hover {
+      background: var(--color-bp-cobre-50);
+    }
+
+    .topbar-action--button {
+      color: var(--color-bp-text-muted);
+      border: 1.5px solid var(--color-bp-border-strong);
+    }
+
+    .topbar-action--button:hover {
+      background: var(--color-bp-hueso-100);
+    }
+
+    .topbar-action:focus-visible {
+      outline: none;
+      box-shadow:
+        0 0 0 3px var(--color-bp-surface),
+        0 0 0 5px var(--color-bp-cobre-500);
     }
 
     h1 {
@@ -363,6 +420,7 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
 })
 export class OrganizerDashboardComponent {
   private readonly api = inject(CompetitionsApiService);
+  private readonly keycloak = inject(Keycloak);
 
   protected readonly competitions = signal<CompetitionSummary[]>([]);
   protected readonly loadError = signal<string | null>(null);
@@ -376,6 +434,10 @@ export class OrganizerDashboardComponent {
     this.loadCompetitions();
   }
 
+  protected onLogout(): void {
+    this.keycloak.logout({ redirectUri: window.location.origin + '/' });
+  }
+
   private loadCompetitions(): void {
     this.loadError.set(null);
     this.api.list().subscribe({
@@ -385,11 +447,13 @@ export class OrganizerDashboardComponent {
   }
 
   protected destination(competition: CompetitionSummary): unknown[] {
-    if (competition.state === 'Draft') {
+    // T127: Draft and Active are both "still being set up", so both open the six-step wizard —
+    // the single editing surface for a competition. Active used to jump straight to the standalone
+    // table board, which stranded the organizer on what looked like step 6 with no way back to
+    // steps 1-5; the wizard's own sixth step embeds that very board, so nothing is lost by routing
+    // through it. InEvaluation/Finalized have no setup left to edit and still go to live monitoring.
+    if (competition.state === 'Draft' || competition.state === 'Active') {
       return ['/organizer', 'competitions', competition.id];
-    }
-    if (competition.state === 'Active') {
-      return ['/organizer', 'competitions', competition.id, 'tables'];
     }
     return ['/organizer', 'competitions', competition.id, 'monitor'];
   }
