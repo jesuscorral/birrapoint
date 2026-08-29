@@ -676,4 +676,69 @@ describe('TableBoardComponent', () => {
       expect(fixture.nativeElement.textContent).toContain('Cervezas sin asignar (2)');
     });
   });
+
+  // T125c: category colors must stay stable regardless of assignment, so the map is built from
+  // ALL entries — not just the unassigned pool.
+  describe('categoryColorMap (T125c)', () => {
+    it('includes categories that only appear on already-assigned (seated) entries, not just unassigned ones', () => {
+      // e1 (seated at Mesa 1, per tableFixture()/entriesFixture()) has no category by default —
+      // give it one here so it is the ONLY entry carrying "Clásicos", and e2 (unassigned) carries
+      // a different category, so the map can only contain both if it looked at every entry.
+      fakeEntriesApi.getEntries.mockReturnValue(
+        of([
+          { ...entriesFixture()[0], competitionCategoryName: 'Clásicos' },
+          { ...entriesFixture()[1], competitionCategoryName: 'Lupuladas' },
+        ]),
+      );
+      const fixture = createComponent();
+
+      const map = fixture.componentInstance['categoryColorMap']();
+      expect(map.has('Clásicos')).toBe(true);
+      expect(map.has('Lupuladas')).toBe(true);
+      // Distinct categories get distinct colors.
+      expect(map.get('Clásicos')).not.toBe(map.get('Lupuladas'));
+    });
+
+    it('applies the same color to a category whether its beers are seated or still unassigned', () => {
+      // e1 is seated at Mesa 1 (tableFixture()'s own sample list, which drives what MesaCard
+      // renders — entries() alone is not enough), e3 is a new unassigned entry; both carry the
+      // same category so the map can only look the same on both if it is keyed by category name
+      // and shared between the two components, not recomputed per-column.
+      fakeApi.getTables.mockReturnValue(
+        of([
+          tableFixture({
+            samples: [{ ...tableFixture().samples[0], competitionCategoryName: 'Clásicos' }],
+          }),
+        ]),
+      );
+      fakeEntriesApi.getEntries.mockReturnValue(
+        of([
+          { ...entriesFixture()[0], competitionCategoryName: 'Clásicos' },
+          { ...entriesFixture()[1], id: 'e3', competitionCategoryName: 'Clásicos' },
+        ]),
+      );
+      const fixture = createComponent();
+
+      const seatedToken = fixture.nativeElement.querySelector(
+        '[data-table-id="t1"] [data-entry-id="e1"]',
+      ) as HTMLElement;
+      const unassignedToken = fixture.nativeElement.querySelector(
+        '#beers-unassigned [data-entry-id="e3"]',
+      ) as HTMLElement;
+
+      expect(seatedToken.style.background).toBe(unassignedToken.style.background);
+      // ...and it actually resolved to a real category color, not silently fallen back to
+      // UNCATEGORIZED_COLOR (var(--color-bp-hueso-100)) on one or both sides.
+      expect(seatedToken.style.background).not.toContain('var(--color-bp-hueso-100)');
+    });
+
+    it('excludes null competitionCategoryName from the map', () => {
+      fakeEntriesApi.getEntries.mockReturnValue(of(entriesFixture()));
+      const fixture = createComponent();
+
+      const map = fixture.componentInstance['categoryColorMap']();
+      expect(map.has(null as never)).toBe(false);
+      expect(map.size).toBe(0);
+    });
+  });
 });
