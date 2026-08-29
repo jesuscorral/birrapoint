@@ -5,6 +5,16 @@ import type { KeycloakProfile } from 'keycloak-js';
 
 import { BpTopbarComponent } from '../../shared/components/bp-topbar/bp-topbar.component';
 
+// The two realm roles BirraPoint assigns meaning to — the same pair core/auth's route guards
+// branch on (role.guard.ts, role-landing.ts). Keycloak also grants every user its own plumbing
+// roles (`default-roles-<realm>`, `offline_access`, `uma_authorization`), which are an
+// implementation detail of the identity provider rather than facts about the person, so the
+// account screen filters to this list. An allowlist rather than a denylist deliberately:
+// `default-roles-<realm>` is named after the realm, and a denylist would leak any built-in
+// Keycloak adds in a future version. Doubles as a stable display order, since the token's own
+// role order is arbitrary.
+const APP_REALM_ROLES = ['ORGANIZER', 'JUDGE'] as const;
+
 // T126: a settings page for the identity data the app actually has access to. Identity is
 // Keycloak-only (constitution Principle VII — no custom login/user-data backend), so every field
 // here comes straight from keycloak-js: loadUserProfile() for the profile attributes, and
@@ -209,8 +219,9 @@ export class UserSettingsComponent {
   }
 
   protected rolesLabel(): string {
-    const roles = this.keycloak.tokenParsed?.realm_access?.roles ?? [];
-    return roles.length > 0 ? roles.join(', ') : '—';
+    const granted = this.keycloak.tokenParsed?.realm_access?.roles ?? [];
+    const appRoles = APP_REALM_ROLES.filter((role) => granted.includes(role));
+    return appRoles.length > 0 ? appRoles.join(', ') : '—';
   }
 
   protected memberSinceLabel(): string | null {

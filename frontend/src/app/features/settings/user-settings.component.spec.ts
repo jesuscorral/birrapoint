@@ -89,6 +89,34 @@ describe('UserSettingsComponent', () => {
     expect(alert.textContent).toContain('could not load');
   });
 
+  // Keycloak grants its own plumbing roles to every user alongside the app's. Verified against a
+  // real token in the browser, which carried exactly these four.
+  it("lists only BirraPoint's own realm roles, hiding Keycloak's internal ones", async () => {
+    keycloak.tokenParsed = {
+      realm_access: {
+        roles: ['default-roles-birrapoint', 'offline_access', 'uma_authorization', 'ORGANIZER'],
+      },
+    };
+    fixture = createComponent();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('ORGANIZER');
+    expect(text).not.toContain('default-roles-birrapoint');
+    expect(text).not.toContain('offline_access');
+    expect(text).not.toContain('uma_authorization');
+  });
+
+  it('falls back to a dash when the user holds no BirraPoint realm role', async () => {
+    keycloak.tokenParsed = { realm_access: { roles: ['offline_access'] } };
+    fixture = createComponent();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('offline_access');
+  });
+
   // An anchor rather than a button, deliberately: it navigates, so it must behave like a link
   // (open-in-new-tab, link role) instead of firing a click handler.
   it('offers a link back to the competitions list', async () => {
