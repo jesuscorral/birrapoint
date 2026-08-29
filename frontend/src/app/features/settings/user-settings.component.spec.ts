@@ -89,6 +89,20 @@ describe('UserSettingsComponent', () => {
     expect(alert.textContent).toContain('could not load');
   });
 
+  // An anchor rather than a button, deliberately: it navigates, so it must behave like a link
+  // (open-in-new-tab, link role) instead of firing a click handler.
+  it('offers a link back to the competitions list', async () => {
+    fixture = createComponent();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const backLink = fixture.nativeElement.querySelector(
+      'a[href="/organizer/dashboard"].back-to-list-link',
+    ) as HTMLAnchorElement | null;
+    expect(backLink).not.toBeNull();
+    expect(backLink?.textContent).toContain('Back to competitions');
+  });
+
   it('calls keycloak.logout with the app-root redirect when "Log out" is clicked', async () => {
     fixture = createComponent();
     await fixture.whenStable();

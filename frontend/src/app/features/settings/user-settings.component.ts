@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import Keycloak from 'keycloak-js';
 import type { KeycloakProfile } from 'keycloak-js';
 
@@ -12,7 +13,7 @@ import { BpTopbarComponent } from '../../shared/components/bp-topbar/bp-topbar.c
 // complete, honest set of "everything we have" about the user — not a generic attributes dump.
 @Component({
   selector: 'app-user-settings',
-  imports: [BpTopbarComponent],
+  imports: [BpTopbarComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="settings-shell">
@@ -23,6 +24,13 @@ import { BpTopbarComponent } from '../../shared/components/bp-topbar/bp-topbar.c
       </bp-topbar>
 
       <main class="settings-main">
+        <!-- An anchor, not a button: this is navigation, so it gets open-in-new-tab, the link role
+             and Enter-to-follow for free. The wizard's own "back to list" is a button only because
+             it has to run the FR-007 unsaved-changes guard first; this screen is read-only. -->
+        <a routerLink="/organizer/dashboard" class="back-to-list-link">
+          <span aria-hidden="true">←</span> Back to competitions
+        </a>
+
         <h1>Your account</h1>
 
         @if (loadError(); as message) {
@@ -78,6 +86,28 @@ import { BpTopbarComponent } from '../../shared/components/bp-topbar/bp-topbar.c
       padding: var(--spacing-8) var(--spacing-6);
       max-width: 40rem;
       margin: 0 auto;
+    }
+
+    /* Same treatment as the wizard's "Volver al listado", so the one way back out of a screen
+       looks the same wherever the organizer meets it. */
+    .back-to-list-link {
+      display: inline-block;
+      padding: var(--spacing-2) 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--color-bp-text-muted);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .back-to-list-link:hover {
+      color: var(--color-bp-text);
+    }
+
+    .back-to-list-link:focus-visible {
+      outline: 2px solid var(--color-bp-cobre-500);
+      outline-offset: 2px;
+      border-radius: var(--radius-sm);
     }
 
     h1 {
