@@ -55,7 +55,7 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <bp-page-shell>
-      <ng-container topbarActions>
+      <ng-container bpTopbarActions>
         <a routerLink="/organizer/settings" class="topbar-action topbar-action--link">Settings</a>
         <button type="button" class="topbar-action topbar-action--button" (click)="onLogout()">
           Log out

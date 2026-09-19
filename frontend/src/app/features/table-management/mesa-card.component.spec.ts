@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 
+import { UNCATEGORIZED_COLOR } from './category-color';
 import { MesaCardComponent } from './mesa-card.component';
 import type { TableSummary } from './table-management-api.service';
 
@@ -182,6 +183,13 @@ describe('MesaCardComponent', () => {
 
   // FR-061 / Session 2026-09-19 clarification: read-only wizard/table-board.
   describe('readOnly', () => {
+    function createReadOnlyComponent() {
+      const fixture = createComponent(tableFixture());
+      fixture.componentRef.setInput('readOnly', true);
+      fixture.detectChanges();
+      return fixture;
+    }
+
     it('keeps both drop lists enabled by default (readOnly=false)', () => {
       const fixture = createComponent(tableFixture());
 
@@ -194,13 +202,7 @@ describe('MesaCardComponent', () => {
     });
 
     it('disables both drop lists and dragging on seated judges/beers when readOnly is true', () => {
-      const fixture = TestBed.createComponent(MesaCardComponent);
-      fixture.componentRef.setInput('table', tableFixture());
-      fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned', 'judges-t1']);
-      fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned', 'beers-t1']);
-      fixture.componentRef.setInput('categoryColorMap', new Map());
-      fixture.componentRef.setInput('readOnly', true);
-      fixture.detectChanges();
+      const fixture = createReadOnlyComponent();
 
       expect(
         fixture.nativeElement
@@ -225,13 +227,7 @@ describe('MesaCardComponent', () => {
     });
 
     it('still emits judgeActivated/beerActivated (click-to-detail stays available) when readOnly', () => {
-      const fixture = TestBed.createComponent(MesaCardComponent);
-      fixture.componentRef.setInput('table', tableFixture());
-      fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned', 'judges-t1']);
-      fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned', 'beers-t1']);
-      fixture.componentRef.setInput('categoryColorMap', new Map());
-      fixture.componentRef.setInput('readOnly', true);
-      fixture.detectChanges();
+      const fixture = createReadOnlyComponent();
 
       const judgeActivated = jest.fn();
       const beerActivated = jest.fn();
@@ -247,6 +243,37 @@ describe('MesaCardComponent', () => {
 
       expect(judgeActivated).toHaveBeenCalledWith('j1');
       expect(beerActivated).toHaveBeenCalledWith('e1');
+    });
+  });
+
+  // T125c: the seated (mini) token's background is resolved from the board-supplied
+  // categoryColorMap, falling back to UNCATEGORIZED_COLOR for a category not in the map or a
+  // null competitionCategoryName (entries created outside the import flow).
+  describe('category color (T125c)', () => {
+    it("resolves a seated beer's token background from a known category in the map", () => {
+      const fixture = createComponent(tableFixture(), new Map([['Estilos clásicos', '#d7e6f4']]));
+
+      const token = fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLElement;
+      // jsdom's CSSOM normalizes hex colors to rgb() on read; #d7e6f4 = rgb(215, 230, 244).
+      expect(token.style.background).toContain('rgb(215, 230, 244)');
+    });
+
+    it('falls back to UNCATEGORIZED_COLOR for a category absent from the map', () => {
+      const fixture = createComponent(tableFixture(), new Map());
+
+      const token = fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLElement;
+      expect(token.style.background).toContain(UNCATEGORIZED_COLOR);
+    });
+
+    it('falls back to UNCATEGORIZED_COLOR for a null competitionCategoryName', () => {
+      const table = tableFixture();
+      const fixture = createComponent(
+        { ...table, samples: [{ ...table.samples[0], competitionCategoryName: null }] },
+        new Map([['Estilos clásicos', '#d7e6f4']]),
+      );
+
+      const token = fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLElement;
+      expect(token.style.background).toContain(UNCATEGORIZED_COLOR);
     });
   });
 });

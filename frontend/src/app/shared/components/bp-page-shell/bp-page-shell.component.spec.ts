@@ -36,7 +36,7 @@ class DefaultsHostComponent {}
   imports: [BpPageShellComponent],
   template: `
     <bp-page-shell>
-      <ng-container topbarActions>
+      <ng-container bpTopbarActions>
         <button type="button">Log out</button>
       </ng-container>
       <p>Main content</p>
@@ -88,9 +88,9 @@ describe('BpPageShellComponent', () => {
   });
 
   // A page like the organizer dashboard needs its own Settings/Log out controls in the topbar,
-  // not just the main content area — content marked [topbarActions] is forwarded into bp-topbar's
-  // own projection slot rather than landing in <main>.
-  it('projects [topbarActions] content into the topbar header, not the main landmark', () => {
+  // not just the main content area — content marked [bpTopbarActions] is forwarded into
+  // bp-topbar's own projection slot rather than landing in <main>.
+  it('projects [bpTopbarActions] content into the topbar header, not the main landmark', () => {
     const fixture = TestBed.createComponent(TopbarActionsHostComponent);
     fixture.detectChanges();
 

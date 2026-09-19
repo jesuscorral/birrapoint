@@ -12,7 +12,11 @@ import { BpTopbarComponent } from '../bp-topbar/bp-topbar.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <bp-topbar [homeLink]="homeLink()" [title]="title()">
-      <ng-content select="[topbarActions]"></ng-content>
+      <!-- Static select-based projection: it matches the source template node, so wrap any
+           conditional content in its own [bpTopbarActions] host (e.g. an @if inside the
+           ng-container) rather than putting the @if around the ng-container itself — an @if
+           wrapping it falls through to the default (page-body) slot instead of this one. -->
+      <ng-content select="[bpTopbarActions]"></ng-content>
     </bp-topbar>
     <main class="page-main">
       <div class="page-container">

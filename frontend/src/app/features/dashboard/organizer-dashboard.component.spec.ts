@@ -143,18 +143,20 @@ describe('OrganizerDashboardComponent', () => {
   });
 
   describe('topbar (user settings and log out)', () => {
-    it('renders a Settings link to the user-settings page', () => {
+    it('renders a Settings link to the user-settings page in the topbar', () => {
       const fixture = createComponent();
 
-      const link = fixture.nativeElement.querySelector('a[href="/organizer/settings"]');
+      const header = fixture.nativeElement.querySelector('header') as Element;
+      const link = header.querySelector('a[href="/organizer/settings"]');
       expect(link).not.toBeNull();
       expect(link.textContent).toContain('Settings');
     });
 
-    it('calls keycloak.logout with the app-root redirect when "Log out" is clicked', () => {
+    it('calls keycloak.logout with the app-root redirect when the topbar "Log out" is clicked', () => {
       const fixture = createComponent();
+      const header = fixture.nativeElement.querySelector('header') as Element;
 
-      findButtonByText(fixture.nativeElement as Element, 'Log out').click();
+      findButtonByText(header, 'Log out').click();
 
       expect(fakeKeycloak.logout).toHaveBeenCalledWith({
         redirectUri: window.location.origin + '/',
