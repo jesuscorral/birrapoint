@@ -1,6 +1,5 @@
 import { TestBed } from '@angular/core/testing';
 
-import { UNCATEGORIZED_COLOR } from './category-color';
 import { MesaCardComponent } from './mesa-card.component';
 import type { TableSummary } from './table-management-api.service';
 
@@ -199,6 +198,7 @@ describe('MesaCardComponent', () => {
       fixture.componentRef.setInput('table', tableFixture());
       fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned', 'judges-t1']);
       fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned', 'beers-t1']);
+      fixture.componentRef.setInput('categoryColorMap', new Map());
       fixture.componentRef.setInput('readOnly', true);
       fixture.detectChanges();
 
@@ -229,6 +229,7 @@ describe('MesaCardComponent', () => {
       fixture.componentRef.setInput('table', tableFixture());
       fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned', 'judges-t1']);
       fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned', 'beers-t1']);
+      fixture.componentRef.setInput('categoryColorMap', new Map());
       fixture.componentRef.setInput('readOnly', true);
       fixture.detectChanges();
 

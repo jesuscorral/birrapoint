@@ -1,7 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 
 import type { EntryListItem } from '../../core/api/entries-api.service';
-import { UNCATEGORIZED_COLOR } from './category-color';
 import { UnassignedColumnComponent } from './unassigned-column.component';
 import type { JudgeListItem } from './table-management-api.service';
 
@@ -132,6 +131,7 @@ describe('UnassignedColumnComponent', () => {
       fixture.componentRef.setInput('beersTotal', beersFixture().length);
       fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned']);
       fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned']);
+      fixture.componentRef.setInput('categoryColorMap', new Map());
       fixture.componentRef.setInput('readOnly', true);
       fixture.detectChanges();
       return fixture;

@@ -11,7 +11,9 @@ import { BpTopbarComponent } from '../bp-topbar/bp-topbar.component';
   imports: [BpTopbarComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <bp-topbar [homeLink]="homeLink()" [title]="title()"></bp-topbar>
+    <bp-topbar [homeLink]="homeLink()" [title]="title()">
+      <ng-content select="[topbarActions]"></ng-content>
+    </bp-topbar>
     <main class="page-main">
       <div class="page-container">
         <ng-content></ng-content>
