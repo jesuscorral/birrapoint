@@ -1298,7 +1298,8 @@ judge already provisioned with a Keycloak account.
 - **`features/judge-management/`** (T043, US4): another single signal-driven container (no
   stepper) — a paste-list registration form (textarea split on newline or comma, trimmed, empties
   dropped) always shown together with a delivery-status table, since the two are meant to stay
-  visible side by side rather than gated behind navigation. `JudgeManagementApiService` mirrors the
+  visible side by side rather than gated behind navigation. `JudgeManagementApiService` (relocated to
+  `core/api/` by T127, once wizard step 5 became its second consumer) mirrors the
   same thin-`ApiClient`-wrapper shape as `EntryImportApiService`/`CompetitionsApiService`. The
   delivery-status table loads on component init (not just after a registration) and refreshes
   after every register/resend/edit action, so reopening the screen always reflects current state;
@@ -1464,6 +1465,39 @@ judge already provisioned with a Keycloak account.
   advance clears `stepDirty` — the step component is destroyed on the way out and so never emits
   `dirtyChange(false)` itself.
 
+  **Organizer page shell and read-only wizard (T127, FR-061).** Until T127 the wizard was the only
+  organizer screen with a shell: the dashboard, judge management, the standalone `/tables` route,
+  the monitor and results dispatch all rendered straight against the viewport edges with no
+  topbar. `shared/components/bp-page-shell/` is now the single organizer shell — `bp-topbar`, one
+  `<main>` landmark and an `88rem` container with the wizard's gutters (`--spacing-8`, widening to
+  `12` at 1280px and `16` at 1800px, `4` on phones) — and all six organizer screens, the wizard
+  included, project their content into it. Each screen keeps its own `<h1>` (E2E-locked strings).
+
+  The wizard now opens in **every** lifecycle state with all six steps reachable. The current step
+  is mirrored into the address as `?step=N` via `Location.replaceState` (not `router.navigate` —
+  `/new` and `/:id` are different route configs and a navigation would recreate the component), so
+  a step can be linked and a reload lands back on it; the query is read once on construction, only
+  when an `:id` is present, and anything outside 1–6 falls back to step 1. `readOnly` is a
+  `computed()` on the loaded competition's state — true for `InEvaluation` and `Finalized` only,
+  matching FR-006's gate (setup stays editable while `Active`; making `Active` read-only was
+  considered and dropped because it would forbid in the UI what the API accepts). In read-only mode
+  the shell shows a "Modo consulta" `bp-alert`, seeds every step as visited so the stepper shows
+  real status, and passes `[readOnly]` to each step, which keeps rendering all of its data but
+  hides or disables every mutating action: steps 1–3 disable their forms/selects and hide "Guardar
+  borrador" and the category edit actions; step 4 keeps "Cervezas ya importadas" and hides the
+  dropzone, "Subir archivo", row edit/exclude and "Consolidar"; step 5 replaces its upload phase
+  with the registered-judges list (`GET /competitions/{id}/judges`, the endpoint judge management
+  already used); step 6 threads `readOnly` through `table-board` → `mesa-card`/`unassigned-column`
+  (`cdkDropListDisabled`) → `beer-token`/`judge-seat` (`dragDisabled` → `cdkDragDisabled`) and
+  `table-detail-modal` (no "Move"), and hides the "Add table" tile. Filters, sorting and
+  click-to-detail stay live — they never mutate. "Siguiente" re-emits each step's existing forward
+  output without calling the API. The standalone `/tables` route computes the same `readOnly`
+  from its own `getById` fetch, rendering the board immediately (editable until the state is
+  known). The monitor links to the wizard ("Ver configuración"), which is the way into the six steps
+  once a competition has left `Active`. Every E2E-locked board contract (accessible names,
+  `beer-token--bos-flagged`, drop-list ids, `dd[data-stat]`, `New table name`/`Add table`,
+  `<h1>Table management</h1>`) is unchanged in editable mode.
+
   **E2E debt, found here and not caused here.** Eleven specs — `us3-import`, `us3-import-scale`,
   `us5-tables`, `us6-order`, `us7-offline`, `us8-close`, `us9-dashboard`, `us10-dispatch`,
   `us11-discrepancy`, `us12-removal` and `e2e/a11y/routes.a11y` — drove the wizard through a
@@ -1501,10 +1535,13 @@ judge already provisioned with a Keycloak account.
   placeholder in `features/auth/` (deleted, same stub-removal convention as `judge-tables`'s T053).
   Loads `CompetitionsApiService.list()` (new method, `GET /competitions`) and renders each owned
   competition's name/venue/dates plus a `badge--{state-lowercased}` pill; each row is a
-  `routerLink` to the six-step wizard (`/organizer/competitions/{id}`) for **both** `Draft` and
-  `Active` — the two still-editable states — or to the live monitoring dashboard
-  (`/organizer/competitions/{id}/monitor`, T070/US9, see below) for `InEvaluation`/`Finalized`,
-  where there is nothing left to configure. An always-visible "New competition" action routes to
+  `routerLink` to the wizard (`/organizer/competitions/{id}`) for `Draft`, the wizard's table step
+  (`/organizer/competitions/{id}?step=6`, **T127/FR-061** — previously the bare standalone
+  `/tables` screen, which had no page shell and no sense of where it sat in the setup process) for
+  `Active`, or the live monitoring dashboard
+  (`/organizer/competitions/{id}/monitor`, T070/US9, see below) for `InEvaluation`/`Finalized` — the
+  original placeholder "everything past Draft goes to tables" stand-in from T100 is now resolved.
+  An always-visible "New competition" action routes to
   `/organizer/competitions/new`; zero competitions renders an empty state with the same CTA
   (FR-050, Acceptance Scenario 4). Single component, no list/item split.
   **T127 routing correction**: `Active` previously linked straight to the standalone table board

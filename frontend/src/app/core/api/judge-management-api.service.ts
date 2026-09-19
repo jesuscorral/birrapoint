@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import type { Observable } from 'rxjs';
 
-import { ApiClient } from '../../core/api/api-client.service';
+import { ApiClient } from './api-client.service';
 
 export type InvitationStatus = 'Pending' | 'Sent' | 'Failed';
 

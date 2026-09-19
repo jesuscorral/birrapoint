@@ -181,4 +181,23 @@ describe('BeerTokenComponent', () => {
 
     expect(activated).toHaveBeenCalledTimes(1);
   });
+
+  // FR-061 / Session 2026-09-19 clarification: read-only wizard/table-board — dragging is
+  // disabled, but the accessible name and click-to-detail stay identical to the editable mode.
+  it('is draggable by default (dragDisabled=false)', () => {
+    const fixture = createComponent(beerFixture());
+
+    expect(tokenOf(fixture).classList.contains('cdk-drag-disabled')).toBe(false);
+  });
+
+  it('disables dragging when dragDisabled is true, without changing the accessible name', () => {
+    const fixture = TestBed.createComponent(BeerTokenComponent);
+    fixture.componentRef.setInput('beer', beerFixture());
+    fixture.componentRef.setInput('dragDisabled', true);
+    fixture.detectChanges();
+
+    const token = tokenOf(fixture);
+    expect(token.classList.contains('cdk-drag-disabled')).toBe(true);
+    expect(token.getAttribute('aria-label')).toBe('Beer AB12 — view details');
+  });
 });

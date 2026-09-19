@@ -103,7 +103,20 @@ if (builder.Environment.IsDevelopment())
             .AllowAnyMethod()));
 }
 
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365);
+    options.IncludeSubDomains = true;
+    options.Preload = true;
+});
+
 var app = builder.Build();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+app.UseHttpsRedirection();
 
 // Must run first so it wraps every downstream middleware/endpoint.
 app.UseExceptionHandler();

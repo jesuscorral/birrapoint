@@ -1,10 +1,13 @@
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
-import { JudgeManagementApiService } from './judge-management-api.service';
-import type { JudgeProfile, RegisterJudgesResult } from './judge-management-api.service';
+import { JudgeManagementApiService } from '../../core/api/judge-management-api.service';
+import type {
+  JudgeProfile,
+  RegisterJudgesResult,
+} from '../../core/api/judge-management-api.service';
 import { JudgeManagementComponent } from './judge-management.component';
 
 function judgesFixture(): JudgeProfile[] {
@@ -67,6 +70,9 @@ describe('JudgeManagementComponent', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: JudgeManagementApiService, useValue: fakeApi },
+        provideRouter([]),
+        // Must come after provideRouter([]) — it registers its own root ActivatedRoute, which
+        // would otherwise win over this mock and silently drop the :id route param.
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: convertToParamMap({ id: 'c1' }) } },
@@ -80,6 +86,13 @@ describe('JudgeManagementComponent', () => {
     fixture.detectChanges();
     return fixture;
   }
+
+  it('renders the shared page shell topbar', () => {
+    const fixture = createComponent();
+
+    expect(fixture.nativeElement.querySelector('header')).not.toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('main').length).toBe(1);
+  });
 
   it('loads the delivery status list on init', () => {
     fakeApi.getJudges.mockReturnValue(of(judgesFixture()));

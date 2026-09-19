@@ -8,6 +8,7 @@ import { DispatchApiService } from '../../core/api/dispatch-api.service';
 import type { DispatchStatusRow } from '../../core/api/dispatch-api.service';
 import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
 import type { DispatchProgressEvent } from '../../core/realtime/competition-hub.events';
+import { BpPageShellComponent } from '../../shared/components/bp-page-shell/bp-page-shell.component';
 
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError
@@ -38,78 +39,82 @@ const JOB_TYPE_LABEL: Record<string, string> = {
 // unsafe direction. The archive endpoint itself is only ever called on an explicit user click.
 @Component({
   selector: 'app-results-dispatch',
-  imports: [RouterLink],
+  imports: [RouterLink, BpPageShellComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <p>
-      <a [routerLink]="['/organizer', 'competitions', competitionId, 'monitor']">&larr; Monitor</a>
-    </p>
+    <bp-page-shell>
+      <p>
+        <a [routerLink]="['/organizer', 'competitions', competitionId, 'monitor']"
+          >&larr; Monitor</a
+        >
+      </p>
 
-    <h1>Results &amp; Dispatch</h1>
+      <h1>Results &amp; Dispatch</h1>
 
-    @if (loadError(); as message) {
-      <p role="alert">{{ message }}</p>
-    }
-    @if (retryError(); as message) {
-      <p role="alert">{{ message }}</p>
-    }
-
-    @if (pipelineStageLabel(); as label) {
-      <p role="status" class="pipeline-stage">{{ label }}</p>
-    }
-
-    <div class="archive-actions">
-      <button type="button" [disabled]="!archiveReady() || downloading()" (click)="onDownload()">
-        Download results ZIP
-      </button>
-      <button type="button" (click)="onRefresh()">Refresh status</button>
-      @if (archiveNotReadyMessage(); as message) {
-        <p role="status">{{ message }}</p>
+      @if (loadError(); as message) {
+        <p role="alert">{{ message }}</p>
       }
-    </div>
+      @if (retryError(); as message) {
+        <p role="alert">{{ message }}</p>
+      }
 
-    @if (!loadError()) {
-      @if (failedParticipantIds().length > 1) {
-        <button type="button" [disabled]="retryingAll()" (click)="onRetryAllFailed()">
-          Retry all failed
+      @if (pipelineStageLabel(); as label) {
+        <p role="status" class="pipeline-stage">{{ label }}</p>
+      }
+
+      <div class="archive-actions">
+        <button type="button" [disabled]="!archiveReady() || downloading()" (click)="onDownload()">
+          Download results ZIP
         </button>
-      }
+        <button type="button" (click)="onRefresh()">Refresh status</button>
+        @if (archiveNotReadyMessage(); as message) {
+          <p role="status">{{ message }}</p>
+        }
+      </div>
 
-      <table class="dispatch-table">
-        <thead>
-          <tr>
-            <th scope="col">Email</th>
-            <th scope="col">Status</th>
-            <th scope="col">Attempts</th>
-            <th scope="col">Last error</th>
-            <th scope="col">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (row of rows(); track row.participantId) {
-            <tr [attr.data-participant-id]="row.participantId">
-              <td>{{ row.email }}</td>
-              <td>
-                <span [class]="statusBadgeClass(row.status)">{{ row.status }}</span>
-              </td>
-              <td>{{ row.attempts }}</td>
-              <td>{{ row.lastError ?? '—' }}</td>
-              <td>
-                @if (row.status === 'Failed') {
-                  <button
-                    type="button"
-                    [disabled]="isRetrying(row.participantId)"
-                    (click)="onRetry(row)"
-                  >
-                    Retry
-                  </button>
-                }
-              </td>
+      @if (!loadError()) {
+        @if (failedParticipantIds().length > 1) {
+          <button type="button" [disabled]="retryingAll()" (click)="onRetryAllFailed()">
+            Retry all failed
+          </button>
+        }
+
+        <table class="dispatch-table">
+          <thead>
+            <tr>
+              <th scope="col">Email</th>
+              <th scope="col">Status</th>
+              <th scope="col">Attempts</th>
+              <th scope="col">Last error</th>
+              <th scope="col">Action</th>
             </tr>
-          }
-        </tbody>
-      </table>
-    }
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.participantId) {
+              <tr [attr.data-participant-id]="row.participantId">
+                <td>{{ row.email }}</td>
+                <td>
+                  <span [class]="statusBadgeClass(row.status)">{{ row.status }}</span>
+                </td>
+                <td>{{ row.attempts }}</td>
+                <td>{{ row.lastError ?? '—' }}</td>
+                <td>
+                  @if (row.status === 'Failed') {
+                    <button
+                      type="button"
+                      [disabled]="isRetrying(row.participantId)"
+                      (click)="onRetry(row)"
+                    >
+                      Retry
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </bp-page-shell>
   `,
   styles: `
     .pipeline-stage {

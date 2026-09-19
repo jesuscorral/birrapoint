@@ -229,6 +229,24 @@ describe('CompetitionMonitorComponent', () => {
     await Promise.resolve();
   }
 
+  it('renders the shared page shell topbar', async () => {
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('header')).not.toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('main').length).toBe(1);
+  });
+
+  it('links to the wizard (read-only) as "Ver configuración"', async () => {
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector('a[href="/organizer/competitions/c1"]');
+    expect(link?.textContent).toContain('Ver configuración');
+  });
+
   it('loads the competition header and per-table progress rows', async () => {
     const fixture = createComponent();
     await flush();

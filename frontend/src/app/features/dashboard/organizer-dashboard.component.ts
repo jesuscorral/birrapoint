@@ -6,7 +6,7 @@ import Keycloak from 'keycloak-js';
 import { ApiError } from '../../core/api/api-error';
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
 import type { CompetitionState, CompetitionSummary } from '../../core/api/competitions-api.service';
-import { BpTopbarComponent } from '../../shared/components/bp-topbar/bp-topbar.component';
+import { BpPageShellComponent } from '../../shared/components/bp-page-shell/bp-page-shell.component';
 
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError
@@ -51,143 +51,88 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
 // available actions reconcile against the server, same convention as the rest of the codebase.
 @Component({
   selector: 'app-organizer-dashboard',
-  imports: [RouterLink, CdkTrapFocus, BpTopbarComponent],
+  imports: [RouterLink, CdkTrapFocus, BpPageShellComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="dashboard-shell">
-      <bp-topbar homeLink="/organizer/dashboard">
-        <a routerLink="/organizer/settings" class="topbar-action topbar-action--link">Settings</a>
-        <button type="button" class="topbar-action topbar-action--button" (click)="onLogout()">
-          Log out
-        </button>
-      </bp-topbar>
+    <bp-page-shell>
+      <h1>Competitions</h1>
 
-      <main class="dashboard-main">
-        <h1>Competitions</h1>
+      @if (loadError(); as message) {
+        <p role="alert">{{ message }}</p>
+      }
+      @if (advanceError(); as message) {
+        <p role="alert">{{ message }}</p>
+      }
+      @if (advanceSuccessMessage(); as message) {
+        <p role="status">{{ message }}</p>
+      }
 
-        @if (loadError(); as message) {
-          <p role="alert">{{ message }}</p>
-        }
-        @if (advanceError(); as message) {
-          <p role="alert">{{ message }}</p>
-        }
-        @if (advanceSuccessMessage(); as message) {
-          <p role="status">{{ message }}</p>
-        }
+      <a routerLink="/organizer/competitions/new" class="new-competition-action">New competition</a>
 
-        <a routerLink="/organizer/competitions/new" class="new-competition-action"
-          >New competition</a
-        >
-
-        @if (!loadError()) {
-          @if (competitions().length === 0) {
-            <div class="empty-state">
-              <h2>No competitions yet</h2>
-              <p>Create your first competition to get started.</p>
-            </div>
-          } @else {
-            <ul class="competition-list">
-              @for (competition of competitions(); track competition.id) {
-                <li class="competition-list-row">
-                  <a [routerLink]="destination(competition)" class="competition-list-item">
-                    <span class="competition-name">{{ competition.name }}</span>
-                    <span class="competition-venue">{{ competition.venue }}</span>
-                    <span class="competition-dates"
-                      >{{ competition.startDate }} – {{ competition.endDate }}</span
-                    >
-                    <span [class]="badgeClass(competition.state)">{{ competition.state }}</span>
-                  </a>
-                  @if (advanceLabel(competition.state); as label) {
-                    <button
-                      type="button"
-                      class="advance-state-action"
-                      (click)="onRequestAdvance(competition)"
-                    >
-                      {{ label }}
-                    </button>
-                  }
-                </li>
-              }
-            </ul>
-          }
-        }
-
-        @if (confirmingAdvance(); as target) {
-          <div class="modal-backdrop" role="presentation" (click)="onCancelAdvanceConfirm()">
-            <div
-              role="alertdialog"
-              aria-modal="true"
-              aria-label="Confirm advance competition state"
-              class="modal-panel"
-              cdkTrapFocus
-              cdkTrapFocusAutoCapture
-              (click)="$event.stopPropagation()"
-              (keydown.escape)="onCancelAdvanceConfirm()"
-            >
-              <h2>{{ advanceLabel(target.state) }}</h2>
-              <p>
-                This moves "{{ target.name }}" to {{ nextState(target.state) }} and cannot be
-                undone. Continue?
-              </p>
-              <button type="button" [disabled]="advancing()" (click)="onConfirmAdvance()">
-                Confirm
-              </button>
-              <button type="button" (click)="onCancelAdvanceConfirm()">Cancel</button>
-            </div>
+      @if (!loadError()) {
+        @if (competitions().length === 0) {
+          <div class="empty-state">
+            <h2>No competitions yet</h2>
+            <p>Create your first competition to get started.</p>
           </div>
+        } @else {
+          <ul class="competition-list">
+            @for (competition of competitions(); track competition.id) {
+              <li class="competition-list-row">
+                <a
+                  [routerLink]="destination(competition).commands"
+                  [queryParams]="destination(competition).queryParams"
+                  class="competition-list-item"
+                >
+                  <span class="competition-name">{{ competition.name }}</span>
+                  <span class="competition-venue">{{ competition.venue }}</span>
+                  <span class="competition-dates"
+                    >{{ competition.startDate }} – {{ competition.endDate }}</span
+                  >
+                  <span [class]="badgeClass(competition.state)">{{ competition.state }}</span>
+                </a>
+                @if (advanceLabel(competition.state); as label) {
+                  <button
+                    type="button"
+                    class="advance-state-action"
+                    (click)="onRequestAdvance(competition)"
+                  >
+                    {{ label }}
+                  </button>
+                }
+              </li>
+            }
+          </ul>
         }
-      </main>
-    </div>
+      }
+
+      @if (confirmingAdvance(); as target) {
+        <div class="modal-backdrop" role="presentation" (click)="onCancelAdvanceConfirm()">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="Confirm advance competition state"
+            class="modal-panel"
+            cdkTrapFocus
+            cdkTrapFocusAutoCapture
+            (click)="$event.stopPropagation()"
+            (keydown.escape)="onCancelAdvanceConfirm()"
+          >
+            <h2>{{ advanceLabel(target.state) }}</h2>
+            <p>
+              This moves "{{ target.name }}" to {{ nextState(target.state) }} and cannot be undone.
+              Continue?
+            </p>
+            <button type="button" [disabled]="advancing()" (click)="onConfirmAdvance()">
+              Confirm
+            </button>
+            <button type="button" (click)="onCancelAdvanceConfirm()">Cancel</button>
+          </div>
+        </div>
+      }
+    </bp-page-shell>
   `,
   styles: `
-    :host {
-      display: block;
-      min-height: 100vh;
-      background: var(--color-bp-hueso-50);
-    }
-
-    .dashboard-main {
-      padding: var(--spacing-8) var(--spacing-6);
-    }
-
-    .topbar-action {
-      display: inline-flex;
-      align-items: center;
-      min-height: 40px;
-      padding: 0 var(--spacing-4);
-      border-radius: var(--radius-md);
-      font-weight: 600;
-      font-size: 0.875rem;
-      text-decoration: none;
-      cursor: pointer;
-      background: transparent;
-      font-family: inherit;
-    }
-
-    .topbar-action--link {
-      color: var(--color-bp-cobre-700);
-    }
-
-    .topbar-action--link:hover {
-      background: var(--color-bp-cobre-50);
-    }
-
-    .topbar-action--button {
-      color: var(--color-bp-text-muted);
-      border: 1.5px solid var(--color-bp-border-strong);
-    }
-
-    .topbar-action--button:hover {
-      background: var(--color-bp-hueso-100);
-    }
-
-    .topbar-action:focus-visible {
-      outline: none;
-      box-shadow:
-        0 0 0 3px var(--color-bp-surface),
-        0 0 0 5px var(--color-bp-cobre-500);
-    }
-
     h1 {
       font-family: 'Fraunces', serif;
       font-size: 1.75rem;
@@ -446,16 +391,25 @@ export class OrganizerDashboardComponent {
     });
   }
 
-  protected destination(competition: CompetitionSummary): unknown[] {
-    // T127: Draft and Active are both "still being set up", so both open the six-step wizard —
-    // the single editing surface for a competition. Active used to jump straight to the standalone
-    // table board, which stranded the organizer on what looked like step 6 with no way back to
-    // steps 1-5; the wizard's own sixth step embeds that very board, so nothing is lost by routing
-    // through it. InEvaluation/Finalized have no setup left to edit and still go to live monitoring.
-    if (competition.state === 'Draft' || competition.state === 'Active') {
-      return ['/organizer', 'competitions', competition.id];
+  // T127/FR-061: the wizard is now reachable in every competition state (all 6 steps always
+  // visible, read-only once evaluation starts), so Draft and Active both resolve to the wizard
+  // route — Active jumps straight to step 6 (tables), its natural next step, via the query param
+  // the wizard itself reads on deep link. InEvaluation/Finalized still go to the live monitor,
+  // which is not part of the wizard.
+  protected destination(competition: CompetitionSummary): {
+    commands: unknown[];
+    queryParams: Record<string, unknown>;
+  } {
+    if (competition.state === 'InEvaluation' || competition.state === 'Finalized') {
+      return {
+        commands: ['/organizer', 'competitions', competition.id, 'monitor'],
+        queryParams: {},
+      };
     }
-    return ['/organizer', 'competitions', competition.id, 'monitor'];
+    return {
+      commands: ['/organizer', 'competitions', competition.id],
+      queryParams: competition.state === 'Active' ? { step: 6 } : {},
+    };
   }
 
   protected badgeClass(state: CompetitionSummary['state']): string {

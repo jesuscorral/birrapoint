@@ -135,14 +135,16 @@ function toGenericApiError(error: unknown): ApiError {
         [nextLoading]="submitting()"
         [nextDisabled]="form.invalid"
       >
-        <bp-button
-          type="button"
-          label="Guardar borrador"
-          variant="secondary"
-          [loading]="submitting()"
-          [disabled]="form.invalid"
-          (clicked)="onSaveAndLeave()"
-        ></bp-button>
+        @if (!readOnly()) {
+          <bp-button
+            type="button"
+            label="Guardar borrador"
+            variant="secondary"
+            [loading]="submitting()"
+            [disabled]="form.invalid"
+            (clicked)="onSaveAndLeave()"
+          ></bp-button>
+        }
       </bp-step-actions>
     </form>
   `,
@@ -189,6 +191,10 @@ export class BasicsStepComponent {
 
   readonly competitionId = input<string | null>(null);
   readonly initialValue = input<CompetitionDetail | null>(null);
+  // FR-061 / Session 2026-09-19 clarification: the wizard is read-only once the competition is
+  // InEvaluation or Finalized. Every field stays visible but disabled, mutating actions are
+  // hidden, and "Siguiente" advances without persisting (see onNext()).
+  readonly readOnly = input(false);
   readonly saved = output<CompetitionDetail>();
   // Lets the wizard shell prompt before discarding this step's in-progress edits when the
   // organizer jumps to another step via the stepper (FR-007). Driven off FormGroup.dirty, which
@@ -225,6 +231,14 @@ export class BasicsStepComponent {
     this.form.valueChanges.subscribe(() => {
       this.dirtyChange.emit(this.form.dirty);
     });
+
+    effect(() => {
+      if (this.readOnly()) {
+        this.form.disable({ emitEvent: false });
+      } else {
+        this.form.enable({ emitEvent: false });
+      }
+    });
   }
 
   protected fieldError(field: string): string | null {
@@ -240,6 +254,13 @@ export class BasicsStepComponent {
   }
 
   protected onNext(): void {
+    if (this.readOnly()) {
+      const current = this.initialValue();
+      if (current) {
+        this.saved.emit(current);
+      }
+      return;
+    }
     if (this.form.invalid || this.submitting()) {
       return;
     }

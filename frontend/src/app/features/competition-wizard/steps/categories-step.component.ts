@@ -74,33 +74,37 @@ function toGenericApiError(error: unknown): ApiError {
               } @else {
                 <span class="category-row__name">{{ categoryLabel(row, i) }}</span>
                 <span class="category-row__count">{{ row.styleCodes.length }}</span>
-                <div class="category-row__actions">
-                  <bp-button
-                    type="button"
-                    label="Editar"
-                    variant="ghost"
-                    [ariaLabel]="'Editar ' + categoryLabel(row, i)"
-                    (clicked)="startEditing(i)"
-                  ></bp-button>
-                  <bp-button
-                    type="button"
-                    label="Eliminar"
-                    variant="ghost"
-                    [disabled]="categories().length <= 1"
-                    [ariaLabel]="'Eliminar ' + categoryLabel(row, i)"
-                    (clicked)="removeCategory(i)"
-                  ></bp-button>
-                </div>
+                @if (!readOnly()) {
+                  <div class="category-row__actions">
+                    <bp-button
+                      type="button"
+                      label="Editar"
+                      variant="ghost"
+                      [ariaLabel]="'Editar ' + categoryLabel(row, i)"
+                      (clicked)="startEditing(i)"
+                    ></bp-button>
+                    <bp-button
+                      type="button"
+                      label="Eliminar"
+                      variant="ghost"
+                      [disabled]="categories().length <= 1"
+                      [ariaLabel]="'Eliminar ' + categoryLabel(row, i)"
+                      (clicked)="removeCategory(i)"
+                    ></bp-button>
+                  </div>
+                }
               }
             </div>
           }
 
-          <bp-button
-            type="button"
-            label="+ Añadir categoría"
-            variant="secondary"
-            (clicked)="addCategory()"
-          ></bp-button>
+          @if (!readOnly()) {
+            <bp-button
+              type="button"
+              label="+ Añadir categoría"
+              variant="secondary"
+              (clicked)="addCategory()"
+            ></bp-button>
+          }
         </section>
 
         <section class="style-catalog" aria-label="Catálogo de estilos BJCP">
@@ -162,6 +166,7 @@ function toGenericApiError(error: unknown): ApiError {
                   <select
                     class="style-group__bulk-select"
                     [attr.aria-label]="'Asignar todos los estilos de ' + group.categoryName + ' a'"
+                    [disabled]="readOnly()"
                     (change)="onBulkAssignGroup(group, $any($event.target).value)"
                   >
                     @if (groupCategoryIndex(group) === 'mixed') {
@@ -188,6 +193,7 @@ function toGenericApiError(error: unknown): ApiError {
                       <select
                         class="style-row__select"
                         [attr.aria-label]="'Categoría para ' + style.code + ' ' + style.name"
+                        [disabled]="readOnly()"
                         (change)="onAssignStyle(style.code, $any($event.target).value)"
                       >
                         <option value="" [selected]="styleCategoryIndex(style.code) === -1">
@@ -218,14 +224,16 @@ function toGenericApiError(error: unknown): ApiError {
            save, so it just advances and the stepper marker stays amber (see statusChange). Only
            "Guardar borrador", which leaves the wizard, requires something worth persisting. -->
       <bp-step-actions [nextLoading]="submitting()" (back)="back.emit()" (next)="onFinish()">
-        <bp-button
-          type="button"
-          label="Guardar borrador"
-          variant="secondary"
-          [loading]="submitting()"
-          [disabled]="!canFinish()"
-          (clicked)="onSaveAndLeave()"
-        ></bp-button>
+        @if (!readOnly()) {
+          <bp-button
+            type="button"
+            label="Guardar borrador"
+            variant="secondary"
+            [loading]="submitting()"
+            [disabled]="!canFinish()"
+            (clicked)="onSaveAndLeave()"
+          ></bp-button>
+        }
       </bp-step-actions>
     }
   `,
@@ -478,6 +486,10 @@ export class CategoriesStepComponent implements OnInit {
   private readonly router = inject(Router);
 
   readonly competitionId = input.required<string>();
+  // FR-061 / Session 2026-09-19 clarification: the wizard is read-only once the competition is
+  // InEvaluation or Finalized. Categories and their assigned styles stay visible, but every
+  // mutating action is hidden and "Siguiente" advances without persisting (see onFinish()).
+  readonly readOnly = input(false);
   readonly saved = output<void>();
   readonly back = output<void>();
   // See basics-step.component.ts for why the wizard shell needs this (FR-007 stay-or-discard
@@ -709,6 +721,10 @@ export class CategoriesStepComponent implements OnInit {
   // (canFinish()), then advances either way — an incomplete assignment isn't a reason to block
   // navigation, it just leaves this step's stepper marker amber until the organizer comes back.
   protected onFinish(): void {
+    if (this.readOnly()) {
+      this.saved.emit();
+      return;
+    }
     if (this.submitting()) {
       return;
     }

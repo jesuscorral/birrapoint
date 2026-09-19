@@ -240,4 +240,62 @@ describe('DetailsStepComponent', () => {
     expect(emitted).toEqual([true]);
     expect(fixture.componentInstance.form.dirty).toBe(true);
   });
+
+  // FR-061 / Session 2026-09-19 clarification: read-only wizard once InEvaluation/Finalized.
+  describe('readOnly', () => {
+    function createReadOnlyComponent(initialValue: CompetitionDetail | null = detailFixture()) {
+      const fixture = TestBed.createComponent(DetailsStepComponent);
+      fixture.componentRef.setInput('competitionId', 'c1');
+      fixture.componentRef.setInput('initialValue', initialValue);
+      fixture.componentRef.setInput('readOnly', true);
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('disables the form while still displaying the prefilled values', () => {
+      const fixture = createReadOnlyComponent(
+        detailFixture({ description: 'A friendly local competition', entryLimit: 40 }),
+      );
+
+      expect(fixture.componentInstance.form.disabled).toBe(true);
+      expect(fixture.componentInstance.form.getRawValue().description).toBe(
+        'A friendly local competition',
+      );
+      const descriptionField = fixture.nativeElement.querySelector(
+        'textarea#details-description',
+      ) as HTMLTextAreaElement;
+      expect(descriptionField.disabled).toBe(true);
+    });
+
+    it('hides "Guardar borrador"', () => {
+      const fixture = createReadOnlyComponent();
+
+      const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
+        (button: HTMLButtonElement) => button.textContent?.trim(),
+      );
+      expect(buttons).toEqual(['Atrás', 'Siguiente']);
+    });
+
+    it('advances by emitting saved with the current initialValue, without calling the API', () => {
+      const detail = detailFixture({ description: 'Kept as-is' });
+      const fixture = createReadOnlyComponent(detail);
+      const emitted: CompetitionDetail[] = [];
+      fixture.componentInstance.saved.subscribe((value) => emitted.push(value));
+
+      fixture.componentInstance.onSaveDraft();
+
+      expect(fakeApi.update).not.toHaveBeenCalled();
+      expect(emitted).toEqual([detail]);
+    });
+  });
+
+  it('keeps the form editable and "Guardar borrador" visible when readOnly is false (default)', () => {
+    const fixture = createComponent();
+
+    expect(fixture.componentInstance.form.disabled).toBe(false);
+    const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
+      (button: HTMLButtonElement) => button.textContent?.trim(),
+    );
+    expect(buttons).toEqual(['Atrás', 'Guardar borrador', 'Siguiente']);
+  });
 });

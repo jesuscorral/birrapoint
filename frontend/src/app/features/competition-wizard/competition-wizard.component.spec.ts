@@ -10,6 +10,7 @@ import type { CompetitionDetail } from '../../core/api/competitions-api.service'
 import { EntriesApiService } from '../../core/api/entries-api.service';
 import { ImportApiService } from '../../core/api/import-api.service';
 import { JudgeImportApiService } from '../../core/api/judge-import-api.service';
+import { JudgeManagementApiService } from '../../core/api/judge-management-api.service';
 import { TableManagementApiService } from '../table-management/table-management-api.service';
 import { CompetitionWizardComponent } from './competition-wizard.component';
 import { ImportStepComponent } from './steps/import-step.component';
@@ -62,8 +63,9 @@ describe('CompetitionWizardComponent', () => {
     createTable: jest.Mock;
     updateTable: jest.Mock;
   };
+  let fakeJudgeManagementApi: { getJudges: jest.Mock };
 
-  function configure(id: string | null) {
+  function configure(id: string | null, queryParams: Record<string, string> = {}) {
     fakeApi = {
       create: jest.fn(),
       update: jest.fn(),
@@ -93,6 +95,9 @@ describe('CompetitionWizardComponent', () => {
       createTable: jest.fn(),
       updateTable: jest.fn(),
     };
+    // Slice-B dependency of JudgeImportStepComponent's readOnly mode (T127/FR-061): it lists
+    // already-registered judges instead of the upload flow, via JudgeManagementApiService.
+    fakeJudgeManagementApi = { getJudges: jest.fn().mockReturnValue(of([])) };
     TestBed.configureTestingModule({
       providers: [
         { provide: CompetitionsApiService, useValue: fakeApi },
@@ -101,12 +106,18 @@ describe('CompetitionWizardComponent', () => {
         { provide: EntriesApiService, useValue: fakeEntriesApi },
         { provide: JudgeImportApiService, useValue: fakeJudgeImportApi },
         { provide: TableManagementApiService, useValue: fakeTableManagementApi },
+        { provide: JudgeManagementApiService, useValue: fakeJudgeManagementApi },
         provideRouter([]),
         // Must come after provideRouter([]) — it registers its own root ActivatedRoute, which
         // would otherwise win over this mock and silently drop the :id route param.
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { paramMap: convertToParamMap(id ? { id } : {}) } },
+          useValue: {
+            snapshot: {
+              paramMap: convertToParamMap(id ? { id } : {}),
+              queryParamMap: convertToParamMap(queryParams),
+            },
+          },
         },
       ],
     });
@@ -144,7 +155,7 @@ describe('CompetitionWizardComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('No hemos podido cargar esta competición');
   });
 
-  it('advances to step 2 and updates the URL after basics is saved for a brand-new competition', () => {
+  it('advances to step 2 and writes the URL exactly once after basics is saved for a brand-new competition', () => {
     configure(null);
     const fixture = TestBed.createComponent(CompetitionWizardComponent);
     fixture.detectChanges();
@@ -155,12 +166,18 @@ describe('CompetitionWizardComponent', () => {
     fixture.componentInstance['onBasicsSaved'](detail);
     fixture.detectChanges();
 
-    expect(replaceStateSpy).toHaveBeenCalledWith('/organizer/competitions/new-id');
+    // T127 code review (m1): onBasicsSaved used to call replaceState itself for this exact
+    // case, racing the ?step= effect below and briefly exposing a query-less URL. It must now
+    // leave the address bar to that one effect, which sees id and step together in a single
+    // flush and writes the final `?step=2` URL directly.
+    expect(replaceStateSpy).toHaveBeenCalledTimes(1);
+    expect(replaceStateSpy.mock.calls[0]?.[0]).toBe('/organizer/competitions/new-id');
+    expect(replaceStateSpy.mock.calls[0]?.[1]).toBe('step=2');
     expect(fixture.nativeElement.querySelector('app-details-step')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('app-basics-step')).toBeFalsy();
   });
 
-  it('does not touch the URL when basics is saved for an already-existing competition', () => {
+  it('does not replace the URL with a fabricated id when basics is saved for an already-existing competition (only the step query is kept in sync)', () => {
     configure('c1');
     fakeApi.getById.mockReturnValue(of(detailFixture()));
     const fixture = TestBed.createComponent(CompetitionWizardComponent);
@@ -171,7 +188,12 @@ describe('CompetitionWizardComponent', () => {
     fixture.componentInstance['onBasicsSaved'](detailFixture({ name: 'Updated name' }));
     fixture.detectChanges();
 
-    expect(replaceStateSpy).not.toHaveBeenCalled();
+    // T127: the URL is still kept in sync with the current step (see the "?step=N" describe
+    // block below) — what this test pins is that onBasicsSaved itself never re-derives a URL
+    // from the (already known) id the way it must for a brand-new competition above.
+    expect(replaceStateSpy.mock.calls[0]?.[0]).toBe('/organizer/competitions/c1');
+    expect(replaceStateSpy.mock.calls[0]?.[1]).toBe('step=2');
+    expect(replaceStateSpy).not.toHaveBeenCalledWith('/organizer/competitions/c1');
     expect(fixture.nativeElement.querySelector('app-details-step')).toBeTruthy();
   });
 
@@ -803,6 +825,157 @@ describe('CompetitionWizardComponent', () => {
       const actions = fixture.nativeElement.querySelector('.modal-actions') as HTMLElement;
       // The hint explains the actions, so it has to precede them.
       expect(hint.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+  });
+
+  // T127/FR-061: the wizard opens in every competition state, all 6 steps reachable, and the
+  // current step is reflected in the URL as `?step=N` so a reload or a shared link lands back on
+  // the same step.
+  describe('deep link via ?step= (T127/FR-061)', () => {
+    it('starts on step 4 when the route has :id and ?step=4', () => {
+      configure('c1', { step: '4' });
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['currentStep']()).toBe(4);
+      expect(fixture.nativeElement.querySelector('app-import-step')).toBeTruthy();
+    });
+
+    it('falls back to step 1 when ?step is out of range', () => {
+      configure('c1', { step: '9' });
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['currentStep']()).toBe(1);
+    });
+
+    it('falls back to step 1 when ?step is not a number', () => {
+      configure('c1', { step: 'abc' });
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['currentStep']()).toBe(1);
+    });
+
+    it('ignores ?step for a brand-new competition (/new always starts at step 1)', () => {
+      configure(null, { step: '4' });
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['currentStep']()).toBe(1);
+      expect(fixture.nativeElement.querySelector('app-basics-step')).toBeTruthy();
+    });
+
+    it('keeps the URL step query in sync with the current step when navigating via the stepper', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture()));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+      const location = TestBed.inject(Location);
+      const replaceStateSpy = jest.spyOn(location, 'replaceState');
+
+      const [, , step3Button] = stepButtons(fixture);
+      step3Button.click();
+      fixture.detectChanges();
+
+      expect(replaceStateSpy.mock.calls[0]?.[0]).toBe('/organizer/competitions/c1');
+      expect(replaceStateSpy.mock.calls[0]?.[1]).toBe('step=3');
+    });
+
+    it('does not touch the URL for a brand-new competition still on step 1 (no id yet)', () => {
+      configure(null);
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+      const location = TestBed.inject(Location);
+      const replaceStateSpy = jest.spyOn(location, 'replaceState');
+      replaceStateSpy.mockClear();
+
+      fixture.detectChanges();
+
+      expect(replaceStateSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  // T127/FR-061 + clarification "Session 2026-09-19": the wizard is read-only once the
+  // competition has moved past Active (InEvaluation/Finalized) — every step stays reachable for
+  // review, but nothing can be modified.
+  describe('read-only mode (T127/FR-061)', () => {
+    it.each(['Draft', 'Active'] as const)(
+      'is not read-only while the competition is %s',
+      (state) => {
+        configure('c1');
+        fakeApi.getById.mockReturnValue(of(detailFixture({ state })));
+        const fixture = TestBed.createComponent(CompetitionWizardComponent);
+        fixture.detectChanges();
+
+        expect(fixture.componentInstance['readOnly']()).toBe(false);
+        expect(fixture.nativeElement.textContent).not.toContain('Modo consulta');
+      },
+    );
+
+    it.each(['InEvaluation', 'Finalized'] as const)(
+      'is read-only while the competition is %s, showing an info banner',
+      (state) => {
+        configure('c1');
+        fakeApi.getById.mockReturnValue(of(detailFixture({ state })));
+        const fixture = TestBed.createComponent(CompetitionWizardComponent);
+        fixture.detectChanges();
+
+        expect(fixture.componentInstance['readOnly']()).toBe(true);
+        expect(fixture.nativeElement.textContent).toContain('Modo consulta');
+        expect(fixture.nativeElement.textContent).toContain('Consultar competición');
+      },
+    );
+
+    it('seeds every step as visited once a read-only competition loads, so the stepper shows real status', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture({ state: 'Finalized' })));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['visitedSteps']()).toEqual(new Set([1, 2, 3, 4, 5, 6]));
+    });
+
+    it('code review M2: does not colour a pre-seeded-visited step amber until it has actually mounted and reported its status', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture({ state: 'Finalized' })));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+
+      // visitedSteps is pre-seeded with all six (see above), but @switch only ever mounts
+      // currentStep (1, since there's no ?step= here) — steps 3-6 never ran their own
+      // completeness check, so they must render unmarked rather than a false 'partial'.
+      const items = fixture.nativeElement.querySelectorAll('.stepper__item');
+      expect(items[2].classList.contains('is-complete')).toBe(false);
+      expect(items[2].classList.contains('is-partial')).toBe(false);
+      expect(items[5].classList.contains('is-complete')).toBe(false);
+      expect(items[5].classList.contains('is-partial')).toBe(false);
+
+      // Once the organizer actually opens step 6, it mounts, reports its real status, and the
+      // marker reflects it from then on — including after leaving the step again.
+      fixture.componentInstance['goToStep'](6);
+      fixture.detectChanges();
+      fixture.componentInstance['goToStep'](1);
+      fixture.detectChanges();
+
+      const itemsAfter = fixture.nativeElement.querySelectorAll('.stepper__item');
+      expect(
+        itemsAfter[5].classList.contains('is-complete') ||
+          itemsAfter[5].classList.contains('is-partial'),
+      ).toBe(true);
+    });
+
+    it('passes readOnly() to the currently mounted step', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture({ state: 'InEvaluation' })));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+
+      const basicsStepDebugEl = fixture.debugElement.query(By.css('app-basics-step'));
+      expect(basicsStepDebugEl.componentInstance.readOnly()).toBe(true);
     });
   });
 });

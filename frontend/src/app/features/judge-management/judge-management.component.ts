@@ -3,13 +3,14 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 
 import { ApiError } from '../../core/api/api-error';
-import { JudgeManagementApiService } from './judge-management-api.service';
+import { BpPageShellComponent } from '../../shared/components/bp-page-shell/bp-page-shell.component';
+import { JudgeManagementApiService } from '../../core/api/judge-management-api.service';
 import type {
   JudgeProfile,
   JudgeSkip,
   NotifyJudgesResult,
   RegisterJudgesResult,
-} from './judge-management-api.service';
+} from '../../core/api/judge-management-api.service';
 
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError
@@ -42,139 +43,141 @@ function splitEmails(raw: string): string[] {
 // always visible together, mirroring the entry-import feature's shape.
 @Component({
   selector: 'app-judge-management',
-  imports: [FormsModule],
+  imports: [FormsModule, BpPageShellComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h1>Judge management</h1>
+    <bp-page-shell>
+      <h1>Judge management</h1>
 
-    <section aria-label="Register judges">
-      <h2>Register judges</h2>
-      <label>
-        Judge emails (one per line, or comma-separated)
-        <textarea [(ngModel)]="emailsInput" rows="5" name="emails"></textarea>
-      </label>
-      @if (registerError(); as message) {
-        <p role="alert">{{ message }}</p>
-      }
-      <button
-        type="button"
-        [disabled]="!emailsInput().trim() || registering()"
-        (click)="onRegister()"
-      >
-        Register judges
-      </button>
-
-      @if (registerResult(); as result) {
-        <div aria-label="Registration report">
-          @if (result.created.length > 0) {
-            <p>Created:</p>
-            <ul>
-              @for (judge of result.created; track judge.id) {
-                <li>{{ judge.email }}</li>
-              }
-            </ul>
-          }
-          @if (result.skipped.length > 0) {
-            <p>Skipped:</p>
-            <ul>
-              @for (skip of result.skipped; track skip.email) {
-                <li>{{ skip.email }} — {{ skipReasonLabel(skip.reason) }}</li>
-              }
-            </ul>
-          }
-        </div>
-      }
-    </section>
-
-    <section aria-label="Delivery status">
-      <h2>Delivery status</h2>
-
-      <button type="button" [disabled]="notifying()" (click)="onNotify()">
-        Notificar {{ pendingCount() }} jueces
-      </button>
-      @if (notifyError(); as message) {
-        <p role="alert">{{ message }}</p>
-      }
-      @if (notifyResult(); as result) {
-        @if (result.queued.length > 0) {
-          <p role="status">Se enviarán {{ result.queued.length }} invitaciones en breve.</p>
-        } @else {
-          <p role="status">No había jueces pendientes de notificar.</p>
+      <section aria-label="Register judges">
+        <h2>Register judges</h2>
+        <label>
+          Judge emails (one per line, or comma-separated)
+          <textarea [(ngModel)]="emailsInput" rows="5" name="emails"></textarea>
+        </label>
+        @if (registerError(); as message) {
+          <p role="alert">{{ message }}</p>
         }
-      }
+        <button
+          type="button"
+          [disabled]="!emailsInput().trim() || registering()"
+          (click)="onRegister()"
+        >
+          Register judges
+        </button>
 
-      @if (listError(); as message) {
-        <p role="alert">{{ message }}</p>
-      }
-      <table>
-        <thead>
-          <tr>
-            <th scope="col">Email</th>
-            <th scope="col">Name</th>
-            <th scope="col">Invitation status</th>
-            <th scope="col">Attempts</th>
-            <th scope="col">Last error</th>
-            <th scope="col">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (judge of judges(); track judge.id) {
-            <tr [attr.data-judge-email]="judge.email">
-              <td>{{ judge.email }}</td>
-              <td>{{ judge.displayName }}</td>
-              <td>{{ judge.invitationStatus }}</td>
-              <td>{{ judge.attempts }}</td>
-              <td>{{ judge.lastError }}</td>
-              <td>
-                <button type="button" [disabled]="isBusy(judge.id)" (click)="onResend(judge.id)">
-                  Resend invitation
-                </button>
-                @if (editingJudgeId() === judge.id) {
-                  <input type="email" [(ngModel)]="editEmailInput" name="editEmail" />
-                  <button
-                    type="button"
-                    [disabled]="isBusy(judge.id)"
-                    (click)="onSaveEmail(judge.id)"
-                  >
-                    Save
-                  </button>
-                  <button type="button" (click)="onCancelEdit()">Cancel</button>
-                  @if (editError(); as message) {
-                    <p role="alert">{{ message }}</p>
-                  }
-                } @else {
-                  <button type="button" (click)="onStartEdit(judge)">Edit email</button>
+        @if (registerResult(); as result) {
+          <div aria-label="Registration report">
+            @if (result.created.length > 0) {
+              <p>Created:</p>
+              <ul>
+                @for (judge of result.created; track judge.id) {
+                  <li>{{ judge.email }}</li>
                 }
-              </td>
+              </ul>
+            }
+            @if (result.skipped.length > 0) {
+              <p>Skipped:</p>
+              <ul>
+                @for (skip of result.skipped; track skip.email) {
+                  <li>{{ skip.email }} — {{ skipReasonLabel(skip.reason) }}</li>
+                }
+              </ul>
+            }
+          </div>
+        }
+      </section>
+
+      <section aria-label="Delivery status">
+        <h2>Delivery status</h2>
+
+        <button type="button" [disabled]="notifying()" (click)="onNotify()">
+          Notificar {{ pendingCount() }} jueces
+        </button>
+        @if (notifyError(); as message) {
+          <p role="alert">{{ message }}</p>
+        }
+        @if (notifyResult(); as result) {
+          @if (result.queued.length > 0) {
+            <p role="status">Se enviarán {{ result.queued.length }} invitaciones en breve.</p>
+          } @else {
+            <p role="status">No había jueces pendientes de notificar.</p>
+          }
+        }
+
+        @if (listError(); as message) {
+          <p role="alert">{{ message }}</p>
+        }
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Email</th>
+              <th scope="col">Name</th>
+              <th scope="col">Invitation status</th>
+              <th scope="col">Attempts</th>
+              <th scope="col">Last error</th>
+              <th scope="col">Actions</th>
             </tr>
-            @if (hasRosterInfo(judge)) {
-              <tr [attr.data-judge-roster]="judge.email">
-                <td colspan="6">
-                  <dl>
-                    @if (judge.bjcpRank) {
-                      <dt>Rango BJCP</dt>
-                      <dd>{{ judge.bjcpRank }}</dd>
+          </thead>
+          <tbody>
+            @for (judge of judges(); track judge.id) {
+              <tr [attr.data-judge-email]="judge.email">
+                <td>{{ judge.email }}</td>
+                <td>{{ judge.displayName }}</td>
+                <td>{{ judge.invitationStatus }}</td>
+                <td>{{ judge.attempts }}</td>
+                <td>{{ judge.lastError }}</td>
+                <td>
+                  <button type="button" [disabled]="isBusy(judge.id)" (click)="onResend(judge.id)">
+                    Resend invitation
+                  </button>
+                  @if (editingJudgeId() === judge.id) {
+                    <input type="email" [(ngModel)]="editEmailInput" name="editEmail" />
+                    <button
+                      type="button"
+                      [disabled]="isBusy(judge.id)"
+                      (click)="onSaveEmail(judge.id)"
+                    >
+                      Save
+                    </button>
+                    <button type="button" (click)="onCancelEdit()">Cancel</button>
+                    @if (editError(); as message) {
+                      <p role="alert">{{ message }}</p>
                     }
-                    @if (judge.bjcpId) {
-                      <dt>BJCP ID</dt>
-                      <dd>{{ judge.bjcpId }}</dd>
-                    }
-                    @if (judge.preferredCategory) {
-                      <dt>Categoría preferida</dt>
-                      <dd>{{ judge.preferredCategory }}</dd>
-                    }
-                    @if (judge.preferences) {
-                      <dt>Preferencias</dt>
-                      <dd>{{ judge.preferences }}</dd>
-                    }
-                  </dl>
+                  } @else {
+                    <button type="button" (click)="onStartEdit(judge)">Edit email</button>
+                  }
                 </td>
               </tr>
+              @if (hasRosterInfo(judge)) {
+                <tr [attr.data-judge-roster]="judge.email">
+                  <td colspan="6">
+                    <dl>
+                      @if (judge.bjcpRank) {
+                        <dt>Rango BJCP</dt>
+                        <dd>{{ judge.bjcpRank }}</dd>
+                      }
+                      @if (judge.bjcpId) {
+                        <dt>BJCP ID</dt>
+                        <dd>{{ judge.bjcpId }}</dd>
+                      }
+                      @if (judge.preferredCategory) {
+                        <dt>Categoría preferida</dt>
+                        <dd>{{ judge.preferredCategory }}</dd>
+                      }
+                      @if (judge.preferences) {
+                        <dt>Preferencias</dt>
+                        <dd>{{ judge.preferences }}</dd>
+                      }
+                    </dl>
+                  </td>
+                </tr>
+              }
             }
-          }
-        </tbody>
-      </table>
-    </section>
+          </tbody>
+        </table>
+      </section>
+    </bp-page-shell>
   `,
 })
 export class JudgeManagementComponent {

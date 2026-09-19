@@ -65,6 +65,13 @@ describe('OrganizerDashboardComponent', () => {
     return fixture;
   }
 
+  it('renders the shared page shell topbar', () => {
+    const fixture = createComponent();
+
+    expect(fixture.nativeElement.querySelector('header')).not.toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('main').length).toBe(1);
+  });
+
   it('loads and renders each competition with its name, venue, dates, and state', () => {
     const fixture = createComponent();
 
@@ -77,23 +84,20 @@ describe('OrganizerDashboardComponent', () => {
     expect(text).toContain('Draft');
   });
 
-  // T127: both still-editable states open the same six-step wizard. Active used to link straight
-  // to the standalone table board (/tables), which landed the organizer on what looked like a
-  // lone step 6 with steps 1-5 nowhere in sight; the wizard's own sixth step embeds that board.
-  it.each(['Draft', 'Active'] as const)(
-    'links a %s competition to the six-step setup wizard',
-    (state) => {
-      fakeApi.list.mockReturnValue(of([competitionFixture({ state })]));
-      const fixture = createComponent();
+  it('links a Draft competition to the setup wizard', () => {
+    const fixture = createComponent();
 
-      expect(
-        fixture.nativeElement.querySelector('a[href="/organizer/competitions/c1"]'),
-      ).not.toBeNull();
-      expect(
-        fixture.nativeElement.querySelector('a[href="/organizer/competitions/c1/tables"]'),
-      ).toBeNull();
-    },
-  );
+    const link = fixture.nativeElement.querySelector('a[href="/organizer/competitions/c1"]');
+    expect(link).not.toBeNull();
+  });
+
+  it('links an Active competition to the wizard, step 6 (tables)', () => {
+    fakeApi.list.mockReturnValue(of([competitionFixture({ state: 'Active' })]));
+    const fixture = createComponent();
+
+    const link = fixture.nativeElement.querySelector('a[href="/organizer/competitions/c1?step=6"]');
+    expect(link).not.toBeNull();
+  });
 
   it.each(['InEvaluation', 'Finalized'] as const)(
     'links a %s competition to the live monitoring dashboard',

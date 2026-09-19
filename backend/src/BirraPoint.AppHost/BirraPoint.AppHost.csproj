@@ -1,5 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Aspire.AppHost.Sdk/13.4.6">
-
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>$(BirraPointTargetFramework)</TargetFramework>
@@ -7,16 +7,13 @@
     <Nullable>enable</Nullable>
     <UserSecretsId>a2ebe169-3993-4c3f-a649-cd18842901bf</UserSecretsId>
   </PropertyGroup>
-
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.NodeJs" />
-    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
-    <PackageReference Include="CommunityToolkit.Aspire.Hosting.MailPit" />
-    <PackageReference Include="EnvDTE" />
+    <PackageReference Include="Aspire.Hosting.NodeJs"/>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL"/>
+    <PackageReference Include="CommunityToolkit.Aspire.Hosting.MailPit"/>
+    <PackageReference Include="EnvDTE"/>
   </ItemGroup>
-
   <ItemGroup>
-    <ProjectReference Include="..\BirraPoint.Api\BirraPoint.Api.csproj" />
+    <ProjectReference Include="..\BirraPoint.Api\BirraPoint.Api.csproj"/>
   </ItemGroup>
-
 </Project>

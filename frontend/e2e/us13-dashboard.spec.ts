@@ -39,9 +39,9 @@ async function createCompetition(page: Page, name: string): Promise<string> {
   await page.getByLabel('End date').fill('2026-09-03');
 
   await page.getByRole('button', { name: 'Next' }).click();
-  await page.waitForURL(/\/organizer\/competitions\/[0-9a-fA-F-]{36}$/);
+  await page.waitForURL(/\/organizer\/competitions\/[0-9a-fA-F-]{36}(\?step=\d)?$/);
 
-  return page.url().split('/').pop()!;
+  return new URL(page.url()).pathname.split('/').pop()!;
 }
 
 function dashboardItem(page: Page, name: string): Locator {
@@ -129,18 +129,14 @@ test.describe('US13 — organizer competition selection', () => {
 
     // --- Acceptance scenario 2 (Draft -> setup wizard) ---
     await dashboardItem(page, draftName).click();
-    await page.waitForURL(new RegExp(`/organizer/competitions/${competitionIdA}$`));
+    await page.waitForURL(new RegExp(`/organizer/competitions/${competitionIdA}(\\?step=\\d)?$`));
     await expect(page.getByLabel('Name')).toHaveValue(draftName);
 
-    // --- Acceptance scenario 2 (Active -> the same six-step wizard, T127) ---
-    // Active is still a setup state, so it opens the wizard rather than the standalone table
-    // board: routing straight to /tables stranded the organizer on what looked like a lone step 6.
-    // The wizard's sixth step embeds that same board, so nothing is lost.
+    // --- Acceptance scenario 2 (Active -> wizard's tables step, the relevant management view) ---
     await page.goto('/organizer/dashboard');
     await dashboardItem(page, activeName).click();
-    await page.waitForURL(new RegExp(`/organizer/competitions/${competitionIdB}$`));
-    await expect(page.getByLabel('Name')).toHaveValue(activeName);
-    await expect(page.getByRole('button', { name: 'Mesas' })).toBeVisible();
+    await page.waitForURL(new RegExp(`/organizer/competitions/${competitionIdB}\\?step=6$`));
+    await expect(page.getByRole('heading', { level: 2, name: 'Mesas' })).toBeVisible();
 
     // --- Acceptance scenario 3: "new competition" opens the wizard empty ---
     await page.goto('/organizer/dashboard');

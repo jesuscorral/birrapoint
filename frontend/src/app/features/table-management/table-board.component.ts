@@ -203,7 +203,7 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
       [beersTotal]="unassignedBeers().length"
       [connectedJudgeListIds]="judgeDropListIds()"
       [connectedBeerListIds]="beerDropListIds()"
-      [categoryColorMap]="categoryColorMap()"
+      [readOnly]="readOnly()"
       (judgeActivated)="onJudgeClicked($event)"
       (beerActivated)="onBeerClicked($event)"
       (judgesDropped)="onJudgesDropped($event)"
@@ -226,7 +226,7 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
                 [compact]="true"
                 [connectedJudgeListIds]="judgeDropListIds()"
                 [connectedBeerListIds]="beerDropListIds()"
-                [categoryColorMap]="categoryColorMap()"
+                [readOnly]="readOnly()"
                 (judgeActivated)="onJudgeClicked($event)"
                 (beerActivated)="onBeerClicked($event)"
                 (judgesDropped)="onJudgesDropped($event)"
@@ -241,27 +241,29 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
              it both made a form the Nth item of a list of tables for assistive tech, and scrolled
              off the right edge (taking keyboard focus with it) once the rail overflowed. Both
              controls stay rendered and labelled, which nine E2E specs address by label. -->
-        <section aria-label="Add table" class="add-table">
-          @if (tables().length === 0) {
-            <p class="add-table__hint">
-              Crea la primera mesa y arrastra jueces y cervezas hasta ella.
-            </p>
-          }
-          <bp-input
-            id="new-table-name"
-            label="New table name"
-            [value]="newTableName()"
-            (valueChange)="newTableName.set($event)"
-          ></bp-input>
-          <bp-button
-            type="button"
-            label="Add table"
-            variant="secondary"
-            [loading]="creatingTable()"
-            [disabled]="!newTableName().trim() || creatingTable()"
-            (clicked)="onCreateTable()"
-          ></bp-button>
-        </section>
+        @if (!readOnly()) {
+          <section aria-label="Add table" class="add-table">
+            @if (tables().length === 0) {
+              <p class="add-table__hint">
+                Crea la primera mesa y arrastra jueces y cervezas hasta ella.
+              </p>
+            }
+            <bp-input
+              id="new-table-name"
+              label="New table name"
+              [value]="newTableName()"
+              (valueChange)="newTableName.set($event)"
+            ></bp-input>
+            <bp-button
+              type="button"
+              label="Add table"
+              variant="secondary"
+              [loading]="creatingTable()"
+              [disabled]="!newTableName().trim() || creatingTable()"
+              (clicked)="onCreateTable()"
+            ></bp-button>
+          </section>
+        }
       </div>
     </div>
 
@@ -300,6 +302,7 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
         [content]="detail"
         [assignedTableIds]="selectedAssignedTableIds()"
         [tables]="tableOptions()"
+        [readOnly]="readOnly()"
         (closed)="selectedDetail.set(null)"
         (move)="onModalMove($event)"
       />
@@ -478,6 +481,11 @@ export class TableBoardComponent implements OnInit {
   // (E2E-locked: `page.getByRole('heading', { name: 'Table management' })`).
   readonly headingLevel = input<1 | 2>(1);
   readonly heading = input('Table management');
+  // FR-061 / Session 2026-09-19 clarification: the wizard/standalone table-management route is
+  // read-only once the competition is InEvaluation or Finalized. Every drop list and drag source
+  // is disabled, the "Add table" section is hidden, and the detail modal's "Move to" control is
+  // hidden — click-to-detail (open the modal, read it, Close) stays available unchanged.
+  readonly readOnly = input(false);
 
   // FR-007: an un-submitted "Add table" name is the only in-progress, un-persisted state this
   // board ever holds (every other mutation -- drag-drop, click-to-detail "Move to" -- saves

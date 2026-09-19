@@ -85,9 +85,9 @@ async function createCompetition(page: Page, name: string): Promise<string> {
   await page.getByLabel('End date').fill('2026-09-03');
 
   await page.getByRole('button', { name: 'Next' }).click();
-  await page.waitForURL(/\/organizer\/competitions\/[0-9a-fA-F-]{36}$/);
+  await page.waitForURL(/\/organizer\/competitions\/[0-9a-fA-F-]{36}(\?step=\d)?$/);
 
-  return page.url().split('/').pop()!;
+  return new URL(page.url()).pathname.split('/').pop()!;
 }
 
 // Mirrors us5/us6's blindCodeForStyle: reads the Consolidation summary's "Created entries" table.

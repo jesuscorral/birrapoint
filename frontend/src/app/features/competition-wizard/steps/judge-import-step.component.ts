@@ -25,6 +25,12 @@ import { BpFileDropzoneComponent } from '../../../shared/components/bp-file-drop
 import { BpInputComponent } from '../../../shared/components/bp-input/bp-input.component';
 import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
 import { BpTextareaComponent } from '../../../shared/components/bp-textarea/bp-textarea.component';
+// FR-061 / Session 2026-09-19 clarification: the read-only wizard replaces the whole upload flow
+// with the competition's already-registered judges — GET /competitions/{id}/judges already has a
+// client here (judge-management is the feature that owns judge provisioning/notification; this
+// step only reads the same list judge-management itself displays, nothing sensitive beyond it).
+import { JudgeManagementApiService } from '../../../core/api/judge-management-api.service';
+import type { JudgeProfile } from '../../../core/api/judge-management-api.service';
 
 interface RowDraft {
   name: string;
@@ -85,6 +91,31 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
   template: `
     @if (loading()) {
       <p class="step-lead" role="status">Cargando…</p>
+    } @else if (readOnly()) {
+      <p class="step-lead">Jueces registrados en esta competición.</p>
+
+      @if (loadError(); as err) {
+        <bp-alert type="error" title="No hemos podido cargar los datos">{{
+          bannerMessage(err)
+        }}</bp-alert>
+      }
+
+      <section class="registered-judges" aria-label="Jueces registrados">
+        @if (registeredJudges().length === 0) {
+          <p class="registered-judges__empty">No hay jueces registrados.</p>
+        } @else {
+          <ul class="registered-judges__list">
+            @for (judge of registeredJudges(); track judge.id) {
+              <li>
+                <span class="registered-judges__name">{{ judge.displayName }}</span>
+                <span class="registered-judges__email">{{ judge.email }}</span>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <bp-step-actions (back)="back.emit()" (next)="onNext()" />
     } @else {
       <p class="step-lead">
         Sube el listado de jueces del club (formato .xlsx) para dar de alta sus perfiles en esta
@@ -375,11 +406,43 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
         font-size: 0.875rem;
         margin: 0 0 var(--spacing-4);
       }
+
+      .registered-judges__empty {
+        color: var(--color-bp-text-muted);
+        font-size: 0.875rem;
+      }
+
+      .registered-judges__list {
+        list-style: none;
+        margin: 0 0 var(--spacing-4);
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-2);
+      }
+
+      .registered-judges__list li {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-3);
+        flex-wrap: wrap;
+        font-size: 0.875rem;
+      }
+
+      .registered-judges__name {
+        font-weight: 600;
+        color: var(--color-bp-text);
+      }
+
+      .registered-judges__email {
+        color: var(--color-bp-text-muted);
+      }
     `,
   ],
 })
 export class JudgeImportStepComponent implements OnInit {
   private readonly judgeImportApi = inject(JudgeImportApiService);
+  private readonly judgeManagementApi = inject(JudgeManagementApiService);
 
   readonly competitionId = input.required<string>();
   // Hoisted onto the wizard (see competition-wizard.component.ts) so a pending judge-roster
@@ -390,6 +453,10 @@ export class JudgeImportStepComponent implements OnInit {
   // returning to this step simply re-fetches the batch's current state.
   readonly judgeImportId = input<string | null>(null);
   readonly judgeImportIdChange = output<string>();
+  // FR-061 / Session 2026-09-19 clarification: the wizard is read-only once the competition is
+  // InEvaluation or Finalized. The whole upload flow is skipped in favour of listing the judges
+  // already registered for this competition, and "Siguiente" advances without persisting.
+  readonly readOnly = input(false);
   readonly saved = output<void>();
   readonly back = output<void>();
   readonly dirtyChange = output<boolean>();
@@ -405,6 +472,7 @@ export class JudgeImportStepComponent implements OnInit {
   protected readonly uploadError = signal<ApiError | null>(null);
 
   protected readonly importBatch = signal<JudgeImportBatch | null>(null);
+  protected readonly registeredJudges = signal<JudgeProfile[]>([]);
 
   protected readonly editingIndex = signal<number | null>(null);
   protected readonly editDraft = signal<RowDraft | null>(null);
@@ -441,6 +509,21 @@ export class JudgeImportStepComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    if (this.readOnly()) {
+      this.loading.set(true);
+      this.judgeManagementApi.getJudges(this.competitionId()).subscribe({
+        next: (judges) => {
+          this.loading.set(false);
+          this.registeredJudges.set(judges);
+        },
+        error: (error: unknown) => {
+          this.loading.set(false);
+          this.loadError.set(toGenericApiError(error));
+        },
+      });
+      return;
+    }
+
     const judgeImportId = this.judgeImportId();
     if (!judgeImportId) {
       return;
@@ -476,6 +559,10 @@ export class JudgeImportStepComponent implements OnInit {
   // navigation — see judgeImportStatus() above for how that's surfaced instead, via the stepper
   // marker.
   protected onNext(): void {
+    if (this.readOnly()) {
+      this.saved.emit();
+      return;
+    }
     if (this.uploading() || this.rowSaving() || this.consolidating()) {
       return;
     }

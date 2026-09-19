@@ -123,39 +123,64 @@ describe('UnassignedColumnComponent', () => {
     expect(beerActivated).toHaveBeenCalledWith('e1');
   });
 
-  // T125c: the pool (full-variant) token's background is resolved from the board-supplied
-  // categoryColorMap, falling back to UNCATEGORIZED_COLOR for a category not in the map or a
-  // null competitionCategoryName.
-  describe('category color (T125c)', () => {
-    it("resolves a beer token's background from a known category in the map", () => {
-      const fixture = createComponent(new Map([['Estilos clásicos', '#d7e6f4']]));
-
-      const token = fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLElement;
-      // jsdom's CSSOM normalizes hex colors to rgb() on read; #d7e6f4 = rgb(215, 230, 244).
-      expect(token.style.background).toContain('rgb(215, 230, 244)');
-    });
-
-    it('falls back to UNCATEGORIZED_COLOR for a category absent from the map', () => {
-      const fixture = createComponent(new Map());
-
-      const token = fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLElement;
-      expect(token.style.background).toContain(UNCATEGORIZED_COLOR);
-    });
-
-    it('falls back to UNCATEGORIZED_COLOR for a null competitionCategoryName', () => {
+  // FR-061 / Session 2026-09-19 clarification: read-only wizard/table-board.
+  describe('readOnly', () => {
+    function createReadOnlyComponent() {
       const fixture = TestBed.createComponent(UnassignedColumnComponent);
       fixture.componentRef.setInput('judges', judgesFixture());
-      fixture.componentRef.setInput('beers', [
-        { ...beersFixture()[0], competitionCategoryName: null },
-      ]);
-      fixture.componentRef.setInput('beersTotal', 1);
+      fixture.componentRef.setInput('beers', beersFixture());
+      fixture.componentRef.setInput('beersTotal', beersFixture().length);
       fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned']);
       fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned']);
-      fixture.componentRef.setInput('categoryColorMap', new Map([['Estilos clásicos', '#d7e6f4']]));
+      fixture.componentRef.setInput('readOnly', true);
       fixture.detectChanges();
+      return fixture;
+    }
 
-      const token = fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLElement;
-      expect(token.style.background).toContain(UNCATEGORIZED_COLOR);
+    it('keeps both drop lists enabled by default (readOnly=false)', () => {
+      const fixture = createComponent();
+
+      const lists = [
+        ...fixture.nativeElement.querySelectorAll('.unassigned-list'),
+      ] as HTMLElement[];
+      expect(lists.some((list) => list.classList.contains('cdk-drop-list-disabled'))).toBe(false);
+    });
+
+    it('disables both drop lists and dragging on every judge/beer when readOnly is true', () => {
+      const fixture = createReadOnlyComponent();
+
+      const lists = [
+        ...fixture.nativeElement.querySelectorAll('.unassigned-list'),
+      ] as HTMLElement[];
+      expect(lists.every((list) => list.classList.contains('cdk-drop-list-disabled'))).toBe(true);
+      expect(
+        fixture.nativeElement
+          .querySelector('[data-judge-id="j1"]')
+          ?.classList.contains('cdk-drag-disabled'),
+      ).toBe(true);
+      expect(
+        fixture.nativeElement
+          .querySelector('[data-entry-id="e1"]')
+          ?.classList.contains('cdk-drag-disabled'),
+      ).toBe(true);
+    });
+
+    it('still emits judgeActivated/beerActivated (click-to-detail stays available) when readOnly', () => {
+      const fixture = createReadOnlyComponent();
+      const judgeActivated = jest.fn();
+      const beerActivated = jest.fn();
+      fixture.componentInstance.judgeActivated.subscribe(judgeActivated);
+      fixture.componentInstance.beerActivated.subscribe(beerActivated);
+
+      (fixture.nativeElement.querySelector('[data-judge-id="j1"]') as HTMLDivElement).dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter' }),
+      );
+      (fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLDivElement).dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter' }),
+      );
+
+      expect(judgeActivated).toHaveBeenCalledWith('j1');
+      expect(beerActivated).toHaveBeenCalledWith('e1');
     });
   });
 });

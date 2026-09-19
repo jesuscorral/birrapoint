@@ -32,11 +32,16 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
         cdkDropList
         [id]="judgesListId"
         [cdkDropListConnectedTo]="connectedJudgeListIds()"
+        [cdkDropListDisabled]="readOnly()"
         (cdkDropListDropped)="judgesDropped.emit($event)"
       >
         @for (judge of judges(); track judge.id) {
           <li>
-            <app-judge-seat [judge]="judge" (activated)="judgeActivated.emit(judge.id)" />
+            <app-judge-seat
+              [judge]="judge"
+              [dragDisabled]="readOnly()"
+              (activated)="judgeActivated.emit(judge.id)"
+            />
           </li>
         }
         @if (judges().length === 0) {
@@ -57,6 +62,7 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
         cdkDropList
         [id]="beersListId"
         [cdkDropListConnectedTo]="connectedBeerListIds()"
+        [cdkDropListDisabled]="readOnly()"
         (cdkDropListDropped)="beersDropped.emit($event)"
       >
         @for (beer of beers(); track beer.id) {
@@ -75,6 +81,7 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
                 bjcpCategoryName: beer.bjcpCategoryName,
                 categoryColor: categoryColorFor(beer.competitionCategoryName),
               }"
+              [dragDisabled]="readOnly()"
               (activated)="beerActivated.emit(beer.id)"
             />
           </li>
@@ -164,9 +171,9 @@ export class UnassignedColumnComponent {
   readonly beersTotal = input.required<number>();
   readonly connectedJudgeListIds = input.required<string[]>();
   readonly connectedBeerListIds = input.required<string[]>();
-  // T125c: computed once by the board over every entry in the competition (assigned or not), so a
-  // category's color stays identical whether its beers are seated on a table or still in this pool.
-  readonly categoryColorMap = input.required<ReadonlyMap<string, string>>();
+  // FR-061 / Session 2026-09-19 clarification: read-only wizard/table-board — both drop lists and
+  // every judge/beer's dragging are disabled, but click-to-detail stays available.
+  readonly readOnly = input(false);
 
   readonly judgeActivated = output<string>();
   readonly beerActivated = output<string>();
