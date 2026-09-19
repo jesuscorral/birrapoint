@@ -9,12 +9,6 @@
             "request": "launch",
             "name": "Aspire: Launch default AppHost",
             "program": "${workspaceFolder}"
-        },
-        {
-            "type": "aspire",
-            "request": "launch",
-            "name": "Aspire: Launch default AppHost",
-            "program": "c:\\MyWS\\birrapoint"
         }
     ]
 }

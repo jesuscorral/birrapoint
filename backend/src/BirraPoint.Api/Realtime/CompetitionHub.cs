@@ -19,22 +19,25 @@ namespace BirraPoint.Api.Realtime;
 [Authorize]
 public sealed class CompetitionHub(AppDbContext db) : Hub
 {
+    private const string NotAuthorizedToJoinOrganizerGroup = "Not authorized to join this competition's organizer group.";
+    private const string NotAuthorizedToJoinTable = "Not authorized to join this table.";
+
     public async Task JoinCompetitionAsOrganizer(Guid competitionId)
     {
-        var user = Context.User ?? throw new HubException("Not authorized to join this competition's organizer group.");
+        var user = Context.User ?? throw new HubException(NotAuthorizedToJoinOrganizerGroup);
         if (!user.IsInRole("ORGANIZER"))
         {
-            throw new HubException("Not authorized to join this competition's organizer group.");
+            throw new HubException(NotAuthorizedToJoinOrganizerGroup);
         }
 
         var sub = user.FindFirst("sub")?.Value
-            ?? throw new HubException("Not authorized to join this competition's organizer group.");
+            ?? throw new HubException(NotAuthorizedToJoinOrganizerGroup);
 
         var owns = await db.Competitions.AnyAsync(competition =>
             competition.Id == competitionId && competition.CreatedByUserId == sub);
         if (!owns)
         {
-            throw new HubException("Not authorized to join this competition's organizer group.");
+            throw new HubException(NotAuthorizedToJoinOrganizerGroup);
         }
 
         await Groups.AddToGroupAsync(Context.ConnectionId, CompetitionGroups.Organizers(competitionId));
@@ -42,9 +45,9 @@ public sealed class CompetitionHub(AppDbContext db) : Hub
 
     public async Task JoinTable(Guid tableId)
     {
-        var user = Context.User ?? throw new HubException("Not authorized to join this table.");
+        var user = Context.User ?? throw new HubException(NotAuthorizedToJoinTable);
         var sub = user.FindFirst("sub")?.Value
-            ?? throw new HubException("Not authorized to join this table.");
+            ?? throw new HubException(NotAuthorizedToJoinTable);
         var email = user.FindFirst("email")?.Value;
 
         // KeycloakUserId is only backfilled once JudgeResolver (T023, US1) runs on a REST call; a
@@ -62,7 +65,7 @@ public sealed class CompetitionHub(AppDbContext db) : Hub
                 judge.KeycloakUserId == sub || (judge.KeycloakUserId == null && email != null && judge.Email == email));
         if (!isActiveMember)
         {
-            throw new HubException("Not authorized to join this table.");
+            throw new HubException(NotAuthorizedToJoinTable);
         }
 
         await Groups.AddToGroupAsync(Context.ConnectionId, CompetitionGroups.Table(tableId));
