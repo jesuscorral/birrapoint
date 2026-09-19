@@ -62,7 +62,11 @@ describe('JudgeImportStepComponent', () => {
     excludeRow: jest.Mock;
     consolidate: jest.Mock;
   };
-  let fakeJudgeManagementApi: { getJudges: jest.Mock };
+  let fakeJudgeManagementApi: {
+    getJudges: jest.Mock;
+    notifyJudges: jest.Mock;
+    resendInvitation: jest.Mock;
+  };
 
   beforeEach(() => {
     fakeJudgeImportApi = {
@@ -72,7 +76,11 @@ describe('JudgeImportStepComponent', () => {
       excludeRow: jest.fn(),
       consolidate: jest.fn(),
     };
-    fakeJudgeManagementApi = { getJudges: jest.fn().mockReturnValue(of([])) };
+    fakeJudgeManagementApi = {
+      getJudges: jest.fn().mockReturnValue(of([])),
+      notifyJudges: jest.fn(),
+      resendInvitation: jest.fn(),
+    };
 
     TestBed.configureTestingModule({
       providers: [
@@ -472,5 +480,89 @@ describe('JudgeImportStepComponent', () => {
 
     expect(fixture.nativeElement.querySelector('input[type="file"]')).not.toBeNull();
     expect(fakeJudgeManagementApi.getJudges).not.toHaveBeenCalled();
+  });
+
+  // T126-ish: the notify table/bulk action added right after a successful consolidation.
+  describe('notify judges after consolidation', () => {
+    function consolidatedFixture(judges: JudgeProfile[]) {
+      const fixture = uploadedFixture([rowFixture({ rowNumber: 1, status: 'Valid' })]);
+      fakeJudgeImportApi.consolidate.mockReturnValue(
+        of({ created: [], updated: [], excluded: 0, skipped: [] }),
+      );
+      fakeJudgeManagementApi.getJudges.mockReturnValue(of(judges));
+      buttonWithText(fixture.nativeElement, 'Siguiente').click();
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('fetches and renders the whole competition roster after consolidation, not just this batch', () => {
+      const fixture = consolidatedFixture([
+        judgeProfileFixture({ id: 'j1', email: 'ana@example.com', invitationStatus: 'Pending' }),
+        judgeProfileFixture({ id: 'j2', email: 'raul@example.com', invitationStatus: 'Sent' }),
+      ]);
+
+      expect(fakeJudgeManagementApi.getJudges).toHaveBeenCalledWith('c1');
+      const rows = fixture.nativeElement.querySelectorAll('tr[data-judge-email]');
+      expect(rows.length).toBe(2);
+      expect(fixture.nativeElement.textContent).toContain('ana@example.com');
+      expect(fixture.nativeElement.textContent).toContain('Pendiente');
+      expect(fixture.nativeElement.textContent).toContain('Enviada');
+    });
+
+    it('does not render the notify table when the competition has no registered judges', () => {
+      const fixture = consolidatedFixture([]);
+
+      expect(fixture.nativeElement.querySelector('table')).toBeNull();
+    });
+
+    it('bulk-notifies only after confirming, naming the pending count', () => {
+      const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true);
+      fakeJudgeManagementApi.notifyJudges.mockReturnValue(
+        of({ queued: [{ id: 'j1', email: 'ana@example.com' }] }),
+      );
+      const fixture = consolidatedFixture([
+        judgeProfileFixture({ id: 'j1', email: 'ana@example.com', invitationStatus: 'Pending' }),
+      ]);
+
+      buttonWithText(fixture.nativeElement, 'Notificar a todos los pendientes (1)').click();
+      fixture.detectChanges();
+
+      expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('1 juez(es)'));
+      expect(fakeJudgeManagementApi.notifyJudges).toHaveBeenCalledWith('c1');
+      expect(fixture.nativeElement.textContent).toContain('Se enviarán 1 invitaciones en breve.');
+
+      confirmSpy.mockRestore();
+    });
+
+    it('does not call notifyJudges when the confirm dialog is dismissed', () => {
+      const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false);
+      const fixture = consolidatedFixture([
+        judgeProfileFixture({ id: 'j1', email: 'ana@example.com', invitationStatus: 'Pending' }),
+      ]);
+
+      buttonWithText(fixture.nativeElement, 'Notificar a todos los pendientes (1)').click();
+      fixture.detectChanges();
+
+      expect(fakeJudgeManagementApi.notifyJudges).not.toHaveBeenCalled();
+
+      confirmSpy.mockRestore();
+    });
+
+    it('resends a single judge invitation and refetches the roster afterwards', () => {
+      fakeJudgeManagementApi.resendInvitation.mockReturnValue(of({ status: 'Sent' }));
+      const fixture = consolidatedFixture([
+        judgeProfileFixture({ id: 'j1', email: 'ana@example.com', invitationStatus: 'Failed' }),
+      ]);
+      fakeJudgeManagementApi.getJudges.mockReturnValue(
+        of([judgeProfileFixture({ id: 'j1', email: 'ana@example.com', invitationStatus: 'Sent' })]),
+      );
+
+      buttonWithText(fixture.nativeElement, 'Notificar').click();
+      fixture.detectChanges();
+
+      expect(fakeJudgeManagementApi.resendInvitation).toHaveBeenCalledWith('c1', 'j1');
+      expect(fakeJudgeManagementApi.getJudges).toHaveBeenCalledTimes(2);
+      expect(fixture.nativeElement.textContent).toContain('Enviada');
+    });
   });
 });

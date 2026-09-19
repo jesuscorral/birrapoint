@@ -32,6 +32,8 @@ public sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration co
             await EnsureUpdatePasswordRequiredActionAsync(existingUser, token, cancellationToken);
         }
 
+        await EnsureJudgeRoleAsync(userId, token, cancellationToken);
+
         var temporaryPassword = GenerateTemporaryPassword();
         await ResetPasswordAsync(userId, temporaryPassword, token, cancellationToken);
         return temporaryPassword;
@@ -111,6 +113,64 @@ public sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration co
         var location = response.Headers.Location
             ?? throw new InvalidOperationException("Keycloak user creation response did not include a Location header.");
         return location.Segments[^1];
+    }
+
+    // default-roles-birrapoint (the composite Keycloak assigns automatically on user creation)
+    // grants ORGANIZER + offline_access, never JUDGE (infra/keycloak/birrapoint-realm.json) — so
+    // every judge account, new or pre-existing, needs this explicit grant. Looked up via the
+    // user-scoped "available roles" endpoint rather than the realm-scoped /roles/{name}: the
+    // latter requires the realm-management view-realm permission, which the birrapoint-api-admin
+    // service account (manage-users/view-users only) doesn't have.
+    private async Task EnsureJudgeRoleAsync(string userId, string token, CancellationToken cancellationToken)
+    {
+        using var availableRolesRequest = new HttpRequestMessage(
+            HttpMethod.Get, $"{AdminRealmBaseUrl}/users/{userId}/role-mappings/realm/available");
+        availableRolesRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var availableRolesResponse = await httpClient.SendAsync(availableRolesRequest, cancellationToken);
+        availableRolesResponse.EnsureSuccessStatusCode();
+
+        var availableRoles = await availableRolesResponse.Content.ReadFromJsonAsync<JsonArray>(cancellationToken);
+        var judgeRole = availableRoles?.OfType<JsonObject>().FirstOrDefault(role => role["name"]?.GetValue<string>() == "JUDGE");
+        if (judgeRole is null)
+        {
+            // Absent from "available" is ambiguous by itself: it means either JUDGE is already
+            // assigned to this user (the common, correct-and-idempotent case), or JUDGE doesn't
+            // exist in this realm at all (wrong realm, partial import, renamed role — the same
+            // silent-failure shape this method exists to fix). Disambiguate against the user's
+            // actually-assigned roles instead of guessing.
+            if (await UserHasJudgeRoleAssignedAsync(userId, token, cancellationToken))
+            {
+                return;
+            }
+
+            throw new InvalidOperationException(
+                $"Keycloak realm role \"JUDGE\" was not found among user {userId}'s available or " +
+                "assigned realm roles — it may not exist in this realm.");
+        }
+
+        using var assignRoleRequest = new HttpRequestMessage(
+            HttpMethod.Post, $"{AdminRealmBaseUrl}/users/{userId}/role-mappings/realm")
+        {
+            Content = JsonContent.Create(new JsonArray(judgeRole.DeepClone())),
+        };
+        assignRoleRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var assignRoleResponse = await httpClient.SendAsync(assignRoleRequest, cancellationToken);
+        assignRoleResponse.EnsureSuccessStatusCode();
+    }
+
+    private async Task<bool> UserHasJudgeRoleAssignedAsync(string userId, string token, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, $"{AdminRealmBaseUrl}/users/{userId}/role-mappings/realm");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var assignedRoles = await response.Content.ReadFromJsonAsync<JsonArray>(cancellationToken);
+        return assignedRoles?.OfType<JsonObject>().Any(role => role["name"]?.GetValue<string>() == "JUDGE") ?? false;
     }
 
     private async Task EnsureUpdatePasswordRequiredActionAsync(JsonObject user, string token, CancellationToken cancellationToken)
