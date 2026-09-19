@@ -113,6 +113,49 @@ export async function createJudgeUser(email: string): Promise<ProvisionedJudge> 
   return { id, email, tempPassword };
 }
 
+// Read-only regression helper for T127-ish work: confirms a judge provisioned through the real
+// app code path (KeycloakAdminClient, via judge registration or roster import + "Notificar")
+// actually ended up with the JUDGE realm role assigned — the bug this branch fixes is that it
+// previously never did, so every invited judge got 403 on every judge endpoint forever. Looks the
+// user up by email (the app-provisioned path doesn't hand the test its Keycloak user id the way
+// createJudgeUser above does) then reads its *assigned* realm roles.
+export async function getUserRealmRoles(email: string): Promise<string[]> {
+  const token = await getAdminToken();
+  const authHeader = { Authorization: `Bearer ${token}` };
+
+  const lookupResponse = await fetch(
+    `${KEYCLOAK_URL}/admin/realms/${REALM}/users?email=${encodeURIComponent(email)}&exact=true`,
+    { headers: authHeader },
+  );
+  if (!lookupResponse.ok) {
+    throw new Error(
+      `Keycloak user lookup by email failed: ${lookupResponse.status} ${await lookupResponse.text()}`,
+    );
+  }
+  const users = (await lookupResponse.json()) as { id: string }[];
+  const user = users[0];
+  if (!user) {
+    throw new Error(`No Keycloak user found with email ${email}`);
+  }
+
+  // Assigned realm roles (not "available" ones, unlike createJudgeUser's lookup above) — the
+  // realm-scoped listing endpoint requires the realm-management `view-realm` permission, which the
+  // birrapoint-api-admin service account (manage-users/view-users only, per
+  // infra/keycloak/birrapoint-realm.json) doesn't have, so this user-scoped mapping endpoint is
+  // used instead, same reasoning as the comment at lines 80-83 above.
+  const rolesResponse = await fetch(
+    `${KEYCLOAK_URL}/admin/realms/${REALM}/users/${user.id}/role-mappings/realm`,
+    { headers: authHeader },
+  );
+  if (!rolesResponse.ok) {
+    throw new Error(
+      `Keycloak realm role-mappings lookup failed: ${rolesResponse.status} ${await rolesResponse.text()}`,
+    );
+  }
+  const roles = (await rolesResponse.json()) as KeycloakRole[];
+  return roles.map((role) => role.name);
+}
+
 export async function deleteUser(id: string): Promise<void> {
   const token = await getAdminToken();
   const response = await fetch(`${KEYCLOAK_URL}/admin/realms/${REALM}/users/${id}`, {

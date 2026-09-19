@@ -1274,9 +1274,19 @@ judge already provisioned with a Keycloak account.
   `ImportApiService`), reached once step 3's action advances `currentStep` to 5; a `judgeImportId`
   signal hoisted onto the wizard follows T109's exact survive-navigation pattern (no revalidate
   endpoint exists for judge imports, so returning to step 5 just re-fetches the batch's current
-  state). No "notify judges" action here — that stays a separate post-wizard action on
-  `features/judge-management/`'s roster table (T120), since bulk-inviting a whole roster isn't a
-  step-5-local concern.
+  state).
+  **Update (feature/judge-import-notify)**: the prior "no notify action here" scope cut was
+  reversed on explicit organizer request. After a successful consolidation, this step now renders
+  its own judges table (`GET /competitions/{id}/judges` via `JudgeManagementApiService`, the same
+  service/methods `features/judge-management/`'s standalone roster table (T120) already used) with
+  a bulk "Notificar a todos los pendientes" button (`notifyJudges`, FR-059, competition-wide by
+  design — the table intentionally shows the whole roster, not just this import batch, so the
+  confirm dialog's pending count and the visible rows never disagree) and a per-row "Notificar"
+  button (`resendInvitation`). No backend change was needed for this — `NotifyJudges`/
+  `ResendInvitation` were already provisioning-path-agnostic (`Judge`/`Invitation` rows from manual
+  registration and roster import are the same entities). `features/judge-management/`'s own table
+  is unchanged and still exists as an equivalent standalone screen; both surfaces now call the
+  same endpoints.
   **Step 6 (T123, added 2026-08-04, FR-016)**: `TablesStepComponent`
   (`steps/tables-step.component.ts`) — table assignment (create tables, assign judges/beers, see
   balance stats), now the wizard's actual terminal step (superseding the "step 3/step 4 is
@@ -2062,7 +2072,24 @@ safety-net poll — no new retry mechanism, just reuse of what T016 already buil
   sensitivity in a genuine-concurrency test (not something T062-T067 touched), not chased further —
   flagged here in case it recurs often enough to be worth a more deterministic race-inducing
   technique (e.g. a `SemaphoreSlim` barrier instead of bare `Task.WhenAll`).
-- **New, security-relevant**: real judge invitations never grant the Keycloak `JUDGE` realm role.
+- **Resolved (feature/judge-import-notify)** — was: real judge invitations never granted the
+  Keycloak `JUDGE` realm role, so an invited judge completed the forced password change and then
+  got `403` on every judge-facing endpoint forever (full prior write-up below, kept for history).
+  **Fix applied**: `KeycloakAdminClient.EnsureUserWithTemporaryPasswordAsync` now calls a new
+  private `EnsureJudgeRoleAsync(userId, token, ct)` once `userId` is resolved (single call site
+  covering both the new-user and existing-user branches, before the password reset) — mirrors
+  `keycloak-admin.ts`'s test helper: `GET .../users/{userId}/role-mappings/realm/available` (the
+  user-scoped endpoint, since the `birrapoint-api-admin` service account lacks `view-realm`), finds
+  the `JUDGE` role, `POST .../users/{userId}/role-mappings/realm` with it; no-ops (idempotent) if
+  `JUDGE` isn't in the available list, i.e. already assigned. Covered by
+  `backend/tests/BirraPoint.Api.UnitTests/Common/Keycloak/KeycloakAdminClientTests.cs` (new,
+  mocked-`HttpMessageHandler` unit tests: new user, existing user, already-assigned no-op, all
+  asserting the role-assignment call happens before the password reset) and, end-to-end, by
+  `frontend/e2e/us14-judge-import.spec.ts`'s new `getUserRealmRoles` assertion
+  (`frontend/e2e/support/keycloak-admin.ts`) against a judge provisioned through the real
+  invitation path (not `createJudgeUser`) — run manually against the full local stack and
+  confirmed green.
+  Original write-up: real judge invitations never granted the Keycloak `JUDGE` realm role.
   `RegisterJudgesCommandHandler` → `SendInvitationHandler` → `IKeycloakAdminClient.
   EnsureUserWithTemporaryPasswordAsync` (`Common/Keycloak/KeycloakAdminClient.cs`) creates/updates
   the Keycloak user but never calls a role-mappings endpoint, while the `JUDGE` authorization policy
@@ -2075,11 +2102,7 @@ safety-net poll — no new retry mechanism, just reuse of what T016 already buil
   needed two real judge logins) — `frontend/e2e/support/keycloak-admin.ts`'s test-only
   `createJudgeUser` already does the correct role-assignment call, so the spec provisions its own
   judges through that instead of the real invitation path and isn't blocked by the bug, but the bug
-  itself is unfixed. **Real fix**: add a `POST /admin/realms/{realm}/users/{id}/role-mappings/realm`
-  call to `KeycloakAdminClient.CreateUserAsync` (mirroring `keycloak-admin.ts`'s test helper) plus
-  an integration/E2E assertion that an invited-only judge can actually log in and reach a
-  `JUDGE`-authorized endpoint — deliberately not patched inline with T050–T054 since it's a
-  different story's slice (T038–T044) and warrants its own deliberate fix + tests.
+  itself is unfixed.
 - **Resolved 2026-07-22 (T069/US9)** — was: `TableOrderFixed` (T052) emitted only to the
   `table:{tableId}` group though contracts/signalr-hub.md also listed it under the organizer
   group's event table. Closed together with US9 exactly as this entry anticipated — see the

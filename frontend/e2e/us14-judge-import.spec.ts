@@ -2,6 +2,7 @@ import path from 'node:path';
 import { test, expect, Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { KEYCLOAK_ORIGIN, submitKeycloakLogin } from './support/auth';
+import { getUserRealmRoles } from './support/keycloak-admin';
 
 // quickstart.md scenario 14 / spec.md US14 (FR-055–FR-058): in wizard step 5, upload
 // judges-with-errors.xlsx (a roster mixing valid rows, one row missing an email, and one
@@ -15,6 +16,8 @@ const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
 
 const MAILPIT_ORIGIN = 'http://localhost:8025';
+const MAILPIT_POLL_TIMEOUT_MS = 10_000;
+const MAILPIT_POLL_INTERVAL_MS = 500;
 
 const FIXTURE_PATH = path.resolve(__dirname, 'fixtures/judges-with-errors.xlsx');
 
@@ -73,11 +76,45 @@ async function goToJudgeImportStep(page: Page): Promise<void> {
   await expect(page.getByLabel('Listado de jueces (.xlsx)')).toBeVisible();
 }
 
+interface MailpitMessageSummary {
+  To: { Address: string; Name: string }[];
+  Subject: string;
+}
+
 interface MailpitMessagesResponse {
   // Mailpit's `total` is the whole mailbox's message count, not this query's match count — the
   // filtered results are `messages` (this endpoint's own `messages_count` is a further, paginated
   // subset of that array's length, so counting the array itself is the simplest correct signal).
-  messages: unknown[];
+  messages: MailpitMessageSummary[];
+}
+
+// Polls Mailpit's REST API (v1) for a message addressed to `email` — invitation delivery is async
+// via a DispatchJob (SendInvitationHandler), so it does not land synchronously after the notify
+// POST. Copied faithfully from us4-judges.spec.ts's identically-named helper (not factored into a
+// shared support file — no such file exists yet for this pattern).
+async function waitForMailpitMessageTo(
+  request: Page['request'],
+  email: string,
+): Promise<MailpitMessageSummary> {
+  const deadline = Date.now() + MAILPIT_POLL_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    const response = await request.get(
+      `${MAILPIT_ORIGIN}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`,
+    );
+    if (response.ok()) {
+      const body = (await response.json()) as MailpitMessagesResponse;
+      const match = body.messages.find((message) =>
+        message.To.some((to) => to.Address.toLowerCase() === email.toLowerCase()),
+      );
+      if (match) {
+        return match;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, MAILPIT_POLL_INTERVAL_MS));
+  }
+
+  throw new Error(`Timed out waiting for a Mailpit message addressed to ${email}`);
 }
 
 async function countMailpitMessagesTo(request: Page['request'], email: string): Promise<number> {
@@ -177,8 +214,75 @@ test.describe('US14 — judge roster import via spreadsheet', () => {
     await assertNoNewMailpitMessage(page.request, ANA_EMAIL, anaBaseline);
     await assertNoNewMailpitMessage(page.request, LUIS_EMAIL, luisBaseline);
 
-    // Verify via the judges list (quickstart scenario 14): one profile per unique email, both
-    // still Pending, and the shared email reflects the later row's values (last-import-wins).
+    // The notify table/actions render right on this wizard step after a successful consolidation
+    // (JudgeImportStepComponent's consolidatedJudges table) — the whole point of this feature is
+    // that an organizer can notify judges without leaving the wizard, so these assertions
+    // deliberately stay on this page rather than navigating to /organizer/competitions/{id}/judges.
+    const notifySection = page.locator('section[aria-label="Jueces de la competición"]');
+    await expect(notifySection.getByRole('table')).toBeVisible();
+
+    const anaNotifyRow = notifySection.locator(`tr[data-judge-email="${ANA_EMAIL}"]`);
+    const luisNotifyRow = notifySection.locator(`tr[data-judge-email="${LUIS_EMAIL}"]`);
+    await expect(anaNotifyRow).toBeVisible();
+    await expect(luisNotifyRow).toBeVisible();
+    await expect(anaNotifyRow).toContainText('Pendiente');
+    await expect(luisNotifyRow).toContainText('Pendiente');
+
+    const notifyTableViolations = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(notifyTableViolations.violations).toEqual([]);
+
+    // Per-row "Notificar" (JudgeManagementApiService.resendInvitation) for Ana: confirm the
+    // invitation actually lands in Mailpit, then — the real regression proof for the Keycloak
+    // JUDGE-role bug this branch fixes — confirm the JUDGE realm role was actually assigned to the
+    // Keycloak account provisioned through the real app code path (KeycloakAdminClient), not just
+    // the pre-existing test-only createJudgeUser helper used elsewhere in this suite. The
+    // resend/notify endpoints only enqueue a SendInvitation job (contracts/rest-api.md), and this
+    // component's own success handler refetches the roster right when the POST is *acknowledged*,
+    // not once the background DispatchJob has actually run — so the row badge here can lag; the
+    // Mailpit poll and role check below are the reliable signals, not this page's own badge text.
+    await anaNotifyRow.getByRole('button', { name: `Notificar a ${ANA_EMAIL}` }).click();
+    const anaMessage = await waitForMailpitMessageTo(page.request, ANA_EMAIL);
+    expect(anaMessage.Subject).toContain('invited to judge');
+
+    const anaRoles = await getUserRealmRoles(ANA_EMAIL);
+    expect(anaRoles).toContain('JUDGE');
+
+    // Bulk "Notificar a todos los pendientes" — exercises the bulk path for Luis too, from the
+    // same consolidated batch. Luis was never individually resent, so he is guaranteed still
+    // Pending in this page's last-fetched roster and the button stays enabled; the exact pending
+    // count in its label (1 or 2, depending on whether Ana's background job above has already
+    // flipped her to Sent server-side by now) is not asserted for that same lagging-refetch reason,
+    // so the button is matched by a stable prefix instead of a hard-coded count. Accepts the
+    // native confirm() dialog the same way frontend/e2e/a11y/routes.a11y.spec.ts does for a
+    // destructive/irreversible action.
+    const bulkNotifyButton = notifySection.getByRole('button', {
+      name: /^Notificar a todos los pendientes/,
+    });
+    await expect(bulkNotifyButton).toBeVisible();
+    await expect(bulkNotifyButton).toBeEnabled();
+    page.once('dialog', (dialog) => dialog.accept());
+    await bulkNotifyButton.click();
+    // Unanchored: BpAlertComponent renders its `title` and projected content inside the same
+    // wrapper element ("Notificación en curso" + this message share one text node), so a
+    // start/end-anchored match against that combined text would never match either half.
+    await expect(notifySection.getByText(/Se enviarán \d+ invitaciones en breve\./)).toBeVisible();
+
+    const luisMessage = await waitForMailpitMessageTo(page.request, LUIS_EMAIL);
+    expect(luisMessage.Subject).toContain('invited to judge');
+
+    const postNotifyViolations = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(postNotifyViolations.violations).toEqual([]);
+
+    // Verify via the judges list (quickstart scenario 14): one profile per unique email, and the
+    // shared email reflects the later row's values (last-import-wins). Both are now Sent rather
+    // than Pending — Ana via the per-row "Notificar" above, Luis via the bulk action — this page
+    // renders the raw InvitationStatus value untranslated (judge-management.component.ts), unlike
+    // the wizard step's Spanish "Enviada" label. The DB status update can lag the Mailpit delivery
+    // already confirmed above, so retry via reload, same pattern as us4-judges.spec.ts.
     await page.goto(`/organizer/competitions/${competitionId}/judges`);
     await expect(page.getByRole('heading', { name: 'Judge management' })).toBeVisible();
 
@@ -188,8 +292,12 @@ test.describe('US14 — judge roster import via spreadsheet', () => {
     const luisRow = page.locator(`tr[data-judge-email="${LUIS_EMAIL}"]`);
     await expect(anaRow).toBeVisible();
     await expect(luisRow).toBeVisible();
-    await expect(anaRow).toContainText('Pending');
-    await expect(luisRow).toContainText('Pending');
+
+    await expect(async () => {
+      await page.reload();
+      await expect(anaRow).toContainText('Sent');
+      await expect(luisRow).toContainText('Sent');
+    }).toPass({ timeout: 10_000 });
 
     const luisRosterInfo = page.locator(`tr[data-judge-roster="${LUIS_EMAIL}"]`);
     await expect(luisRosterInfo).toContainText('10649-B');

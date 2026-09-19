@@ -30,7 +30,11 @@ import { BpTextareaComponent } from '../../../shared/components/bp-textarea/bp-t
 // client here (judge-management is the feature that owns judge provisioning/notification; this
 // step only reads the same list judge-management itself displays, nothing sensitive beyond it).
 import { JudgeManagementApiService } from '../../../core/api/judge-management-api.service';
-import type { JudgeProfile } from '../../../core/api/judge-management-api.service';
+import type {
+  InvitationStatus,
+  JudgeProfile,
+  NotifyJudgesResult,
+} from '../../../core/api/judge-management-api.service';
 
 interface RowDraft {
   name: string;
@@ -47,6 +51,21 @@ const STATUS_LABELS: Record<JudgeImportRowStatus, string> = {
   Valid: 'Válida',
   Invalid: 'Incompleta',
   Excluded: 'Excluida',
+};
+
+const INVITATION_STATUS_LABELS: Record<InvitationStatus, string> = {
+  Pending: 'Pendiente',
+  Sent: 'Enviada',
+  Failed: 'Fallida',
+};
+
+// Reuses the same badge visual language as STATUS_LABELS above (status-badge--valid/--invalid):
+// Sent maps onto the "valid"/green style, Failed onto "invalid"/red, Pending stays the neutral
+// default badge (no modifier class).
+const INVITATION_STATUS_CLASSES: Record<InvitationStatus, string> = {
+  Pending: '',
+  Sent: 'status-badge--valid',
+  Failed: 'status-badge--invalid',
 };
 
 function toGenericApiError(error: unknown): ApiError {
@@ -282,6 +301,94 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
           </bp-alert>
         }
 
+        @if (consolidatedJudgesLoadError(); as err) {
+          <bp-alert type="error" title="No hemos podido cargar el listado de jueces">{{
+            bannerMessage(err)
+          }}</bp-alert>
+        }
+
+        <!-- FR-059: the bulk-notify action targets the WHOLE competition roster server-side (both
+             this import batch and any judge registered through other paths), so this table
+             intentionally lists every registered judge (GET /competitions/{id}/judges) instead of
+             only the rows just consolidated — otherwise the confirm dialog's pending count and the
+             visible rows would disagree. -->
+        @if (consolidatedJudges().length > 0) {
+          <section class="consolidated-judges" aria-label="Jueces de la competición">
+            <div class="consolidated-judges__toolbar">
+              <bp-button
+                type="button"
+                [label]="'Notificar a todos los pendientes (' + pendingCount() + ')'"
+                variant="secondary"
+                [loading]="notifying()"
+                [disabled]="pendingCount() === 0 || notifying()"
+                (clicked)="onNotifyAll()"
+              ></bp-button>
+            </div>
+
+            @if (notifyError(); as err) {
+              <bp-alert type="error" title="No hemos podido notificar a los jueces">{{
+                bannerMessage(err)
+              }}</bp-alert>
+            }
+            @if (notifyResult(); as result) {
+              <bp-alert type="success" title="Notificación en curso">
+                @if (result.queued.length > 0) {
+                  Se enviarán {{ result.queued.length }} invitaciones en breve.
+                } @else {
+                  No había jueces pendientes de notificar.
+                }
+              </bp-alert>
+            }
+
+            @if (resendError(); as err) {
+              <bp-alert type="error" title="No hemos podido notificar al juez">{{
+                bannerMessage(err)
+              }}</bp-alert>
+            }
+
+            <table>
+              <caption class="sr-only">
+                Jueces registrados en esta competición
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Email</th>
+                  <th scope="col">Nombre</th>
+                  <th scope="col">Estado de invitación</th>
+                  <th scope="col">Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (judge of consolidatedJudges(); track judge.id) {
+                  <tr [attr.data-judge-email]="judge.email">
+                    <td>{{ judge.email }}</td>
+                    <td>{{ judge.displayName }}</td>
+                    <td>
+                      <span
+                        class="status-badge"
+                        [class]="invitationStatusClass(judge.invitationStatus)"
+                      >
+                        {{ invitationStatusLabel(judge.invitationStatus) }}
+                      </span>
+                    </td>
+                    <td>
+                      <bp-button
+                        type="button"
+                        label="Notificar"
+                        variant="ghost"
+                        [ariaLabel]="'Notificar a ' + judge.email"
+                        [loading]="busyJudgeId() === judge.id"
+                        [disabled]="busyJudgeId() === judge.id"
+                        (clicked)="onResendJudge(judge.id)"
+                      ></bp-button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </section>
+        }
+
         <bp-step-actions (back)="back.emit()" (next)="onNext()">
           @if (!consolidateResult()) {
             <bp-button
@@ -437,6 +544,34 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
       .registered-judges__email {
         color: var(--color-bp-text-muted);
       }
+
+      .consolidated-judges {
+        margin-bottom: var(--spacing-6);
+      }
+
+      .consolidated-judges__toolbar {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: var(--spacing-3);
+      }
+
+      .consolidated-judges table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+      }
+
+      .consolidated-judges th,
+      .consolidated-judges td {
+        text-align: left;
+        padding: var(--spacing-2) var(--spacing-3);
+        border-bottom: 1px solid var(--color-bp-border);
+      }
+
+      .consolidated-judges th {
+        color: var(--color-bp-text-muted);
+        font-weight: 600;
+      }
     `,
   ],
 })
@@ -482,6 +617,23 @@ export class JudgeImportStepComponent implements OnInit {
   protected readonly consolidating = signal(false);
   protected readonly consolidateError = signal<ApiError | null>(null);
   protected readonly consolidateResult = signal<JudgeImportConsolidateResult | null>(null);
+
+  // Populated from GET /competitions/{id}/judges right after a successful consolidation — the
+  // whole competition roster, not just this batch (see the template comment above the table for
+  // why). Drives both the notify table and the bulk-notify button's pending count.
+  protected readonly consolidatedJudges = signal<JudgeProfile[]>([]);
+  protected readonly consolidatedJudgesLoadError = signal<ApiError | null>(null);
+
+  protected readonly notifying = signal(false);
+  protected readonly notifyError = signal<ApiError | null>(null);
+  protected readonly notifyResult = signal<NotifyJudgesResult | null>(null);
+
+  protected readonly busyJudgeId = signal<string | null>(null);
+  protected readonly resendError = signal<ApiError | null>(null);
+
+  protected readonly pendingCount = computed(
+    () => this.consolidatedJudges().filter((judge) => judge.invitationStatus === 'Pending').length,
+  );
 
   protected readonly unresolvedCount = computed(
     () => this.importBatch()?.rows.filter((row) => UNRESOLVED_STATUSES.has(row.status)).length ?? 0,
@@ -688,10 +840,81 @@ export class JudgeImportStepComponent implements OnInit {
       next: (result) => {
         this.consolidating.set(false);
         this.consolidateResult.set(result);
+        this.loadConsolidatedJudges();
       },
       error: (error: unknown) => {
         this.consolidating.set(false);
         this.consolidateError.set(toGenericApiError(error));
+      },
+    });
+  }
+
+  private loadConsolidatedJudges(): void {
+    this.consolidatedJudgesLoadError.set(null);
+    this.judgeManagementApi.getJudges(this.competitionId()).subscribe({
+      next: (judges) => this.consolidatedJudges.set(judges),
+      error: (error: unknown) => {
+        this.consolidatedJudgesLoadError.set(toGenericApiError(error));
+      },
+    });
+  }
+
+  protected invitationStatusLabel(status: InvitationStatus): string {
+    return INVITATION_STATUS_LABELS[status];
+  }
+
+  protected invitationStatusClass(status: InvitationStatus): string {
+    return `status-badge ${INVITATION_STATUS_CLASSES[status]}`.trim();
+  }
+
+  // FR-059: single bulk action covering the whole competition roster (both provisioning paths),
+  // mirroring judge-management.component.ts's onNotify — not reversible and emails every pending
+  // judge in one click, so it requires an explicit confirmation naming the affected count first.
+  protected onNotifyAll(): void {
+    if (this.notifying()) {
+      return;
+    }
+
+    const pending = this.pendingCount();
+    if (!window.confirm(`Se enviarán invitaciones a ${pending} juez(es) pendientes. ¿Continuar?`)) {
+      return;
+    }
+
+    this.notifying.set(true);
+    this.notifyError.set(null);
+    this.notifyResult.set(null);
+
+    // The POST only enqueues SendInvitation jobs — it doesn't deliver them synchronously — so the
+    // roster is deliberately not refetched here; refetching would show rows still "Pendiente"
+    // right under a message saying they were notified.
+    this.judgeManagementApi.notifyJudges(this.competitionId()).subscribe({
+      next: (result) => {
+        this.notifying.set(false);
+        this.notifyResult.set(result);
+      },
+      error: (error: unknown) => {
+        this.notifying.set(false);
+        this.notifyError.set(toGenericApiError(error));
+      },
+    });
+  }
+
+  protected onResendJudge(judgeId: string): void {
+    if (this.busyJudgeId() === judgeId) {
+      return;
+    }
+
+    this.busyJudgeId.set(judgeId);
+    this.resendError.set(null);
+
+    this.judgeManagementApi.resendInvitation(this.competitionId(), judgeId).subscribe({
+      next: () => {
+        this.busyJudgeId.set(null);
+        this.loadConsolidatedJudges();
+      },
+      error: (error: unknown) => {
+        this.busyJudgeId.set(null);
+        this.resendError.set(toGenericApiError(error));
       },
     });
   }
