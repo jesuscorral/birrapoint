@@ -57,9 +57,9 @@ async function createCompetition(page: Page): Promise<string> {
 
   // T125: the wizard's forward action is "Siguiente" on every step now.
   await page.getByRole('button', { name: 'Siguiente' }).click();
-  await page.waitForURL(/\/organizer\/competitions\/[0-9a-fA-F-]{36}$/);
+  await page.waitForURL(/\/organizer\/competitions\/[0-9a-fA-F-]{36}(\?step=\d)?$/);
 
-  return page.url().split('/').pop()!;
+  return new URL(page.url()).pathname.split('/').pop()!;
 }
 
 interface MailpitMessageSummary {

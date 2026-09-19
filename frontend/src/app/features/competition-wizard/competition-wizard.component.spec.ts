@@ -155,7 +155,7 @@ describe('CompetitionWizardComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('No hemos podido cargar esta competición');
   });
 
-  it('advances to step 2 and updates the URL after basics is saved for a brand-new competition', () => {
+  it('advances to step 2 and writes the URL exactly once after basics is saved for a brand-new competition', () => {
     configure(null);
     const fixture = TestBed.createComponent(CompetitionWizardComponent);
     fixture.detectChanges();
@@ -166,7 +166,13 @@ describe('CompetitionWizardComponent', () => {
     fixture.componentInstance['onBasicsSaved'](detail);
     fixture.detectChanges();
 
-    expect(replaceStateSpy).toHaveBeenCalledWith('/organizer/competitions/new-id');
+    // T127 code review (m1): onBasicsSaved used to call replaceState itself for this exact
+    // case, racing the ?step= effect below and briefly exposing a query-less URL. It must now
+    // leave the address bar to that one effect, which sees id and step together in a single
+    // flush and writes the final `?step=2` URL directly.
+    expect(replaceStateSpy).toHaveBeenCalledTimes(1);
+    expect(replaceStateSpy.mock.calls[0]?.[0]).toBe('/organizer/competitions/new-id');
+    expect(replaceStateSpy.mock.calls[0]?.[1]).toBe('step=2');
     expect(fixture.nativeElement.querySelector('app-details-step')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('app-basics-step')).toBeFalsy();
   });
@@ -185,7 +191,8 @@ describe('CompetitionWizardComponent', () => {
     // T127: the URL is still kept in sync with the current step (see the "?step=N" describe
     // block below) — what this test pins is that onBasicsSaved itself never re-derives a URL
     // from the (already known) id the way it must for a brand-new competition above.
-    expect(replaceStateSpy).toHaveBeenCalledWith('/organizer/competitions/c1', 'step=2');
+    expect(replaceStateSpy.mock.calls[0]?.[0]).toBe('/organizer/competitions/c1');
+    expect(replaceStateSpy.mock.calls[0]?.[1]).toBe('step=2');
     expect(replaceStateSpy).not.toHaveBeenCalledWith('/organizer/competitions/c1');
     expect(fixture.nativeElement.querySelector('app-details-step')).toBeTruthy();
   });
@@ -874,7 +881,8 @@ describe('CompetitionWizardComponent', () => {
       step3Button.click();
       fixture.detectChanges();
 
-      expect(replaceStateSpy).toHaveBeenCalledWith('/organizer/competitions/c1', 'step=3');
+      expect(replaceStateSpy.mock.calls[0]?.[0]).toBe('/organizer/competitions/c1');
+      expect(replaceStateSpy.mock.calls[0]?.[1]).toBe('step=3');
     });
 
     it('does not touch the URL for a brand-new competition still on step 1 (no id yet)', () => {
@@ -929,6 +937,35 @@ describe('CompetitionWizardComponent', () => {
       fixture.detectChanges();
 
       expect(fixture.componentInstance['visitedSteps']()).toEqual(new Set([1, 2, 3, 4, 5, 6]));
+    });
+
+    it('code review M2: does not colour a pre-seeded-visited step amber until it has actually mounted and reported its status', () => {
+      configure('c1');
+      fakeApi.getById.mockReturnValue(of(detailFixture({ state: 'Finalized' })));
+      const fixture = TestBed.createComponent(CompetitionWizardComponent);
+      fixture.detectChanges();
+
+      // visitedSteps is pre-seeded with all six (see above), but @switch only ever mounts
+      // currentStep (1, since there's no ?step= here) — steps 3-6 never ran their own
+      // completeness check, so they must render unmarked rather than a false 'partial'.
+      const items = fixture.nativeElement.querySelectorAll('.stepper__item');
+      expect(items[2].classList.contains('is-complete')).toBe(false);
+      expect(items[2].classList.contains('is-partial')).toBe(false);
+      expect(items[5].classList.contains('is-complete')).toBe(false);
+      expect(items[5].classList.contains('is-partial')).toBe(false);
+
+      // Once the organizer actually opens step 6, it mounts, reports its real status, and the
+      // marker reflects it from then on — including after leaving the step again.
+      fixture.componentInstance['goToStep'](6);
+      fixture.detectChanges();
+      fixture.componentInstance['goToStep'](1);
+      fixture.detectChanges();
+
+      const itemsAfter = fixture.nativeElement.querySelectorAll('.stepper__item');
+      expect(
+        itemsAfter[5].classList.contains('is-complete') ||
+          itemsAfter[5].classList.contains('is-partial'),
+      ).toBe(true);
     });
 
     it('passes readOnly() to the currently mounted step', () => {

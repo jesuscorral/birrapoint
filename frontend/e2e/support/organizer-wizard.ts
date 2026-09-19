@@ -54,9 +54,12 @@ export async function createCompetition(page: Page, name: string): Promise<strin
 
   await page.getByRole('button', { name: 'Siguiente' }).click();
   // Step 1 replaces the URL with the persisted id rather than navigating (see onBasicsSaved).
-  await page.waitForURL(/\/organizer\/competitions\/[0-9a-fA-F-]{36}$/);
+  // Query-agnostic: the wizard's own ?step= tracking (T127/FR-061) means the URL settles on
+  // `.../{id}?step=2` right after creation, not a bare id — see the code review fix on
+  // competition-wizard.component.ts's onBasicsSaved/step effect.
+  await page.waitForURL(/\/organizer\/competitions\/[0-9a-fA-F-]{36}(\?step=\d)?$/);
 
-  return page.url().split('/').pop()!;
+  return new URL(page.url()).pathname.split('/').pop()!;
 }
 
 /**

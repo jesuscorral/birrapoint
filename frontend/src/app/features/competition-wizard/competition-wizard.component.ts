@@ -139,7 +139,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
                   (saved)="onCategoriesSaved()"
                   (back)="onBack()"
                   (dirtyChange)="stepDirty.set($event)"
-                  (statusChange)="categoriesStatus.set($event)"
+                  (statusChange)="onStepStatus(3, $event)"
                 />
               }
               @case (4) {
@@ -151,7 +151,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
                   (saved)="onImportSaved()"
                   (back)="onBack()"
                   (dirtyChange)="stepDirty.set($event)"
-                  (statusChange)="importStatus.set($event)"
+                  (statusChange)="onStepStatus(4, $event)"
                 />
               }
               @case (5) {
@@ -163,7 +163,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
                   (saved)="onJudgeImportSaved()"
                   (back)="onBack()"
                   (dirtyChange)="stepDirty.set($event)"
-                  (statusChange)="judgeImportStatus.set($event)"
+                  (statusChange)="onStepStatus(5, $event)"
                 />
               }
               @case (6) {
@@ -172,7 +172,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
                   [readOnly]="readOnly()"
                   (back)="onBack()"
                   (dirtyChange)="stepDirty.set($event)"
-                  (statusChange)="tablesStatus.set($event)"
+                  (statusChange)="onStepStatus(6, $event)"
                   (finished)="onRequestExit()"
                 />
               }
@@ -547,6 +547,14 @@ export class CompetitionWizardComponent {
   protected readonly judgeImportStatus = signal<'complete' | 'partial'>('partial');
   protected readonly tablesStatus = signal<'complete' | 'partial'>('partial');
 
+  // Which of steps 3-6 have actually mounted and emitted a real statusChange at least once.
+  // Read-only mode (below) pre-seeds visitedSteps with all six steps so the stepper renders every
+  // marker on load, but @switch still only ever mounts the current step — the other five never ran
+  // their own completeness check, so their status signal above is still just its unearned 'partial'
+  // default. stepStatus() consults this set to tell "genuinely partial" apart from "never actually
+  // checked" and shows the latter as unmarked (null) instead of a false amber.
+  protected readonly reportedSteps = signal<ReadonlySet<number>>(new Set());
+
   // Steps 1-2 write straight to the `competition` record this shell already holds, so their
   // completeness is derived from it directly rather than needing their own statusChange output.
   // Step 1's required fields (name, venue, startDate, endDate — see basics-step.component.ts) are
@@ -617,12 +625,22 @@ export class CompetitionWizardComponent {
 
     // T127/FR-061: keep the URL's ?step= query in sync with the current step — a reload or a
     // shared link then lands back on the same step. Only meaningful once competitionId is set;
-    // a brand-new competition has no address of its own yet to rewrite.
+    // a brand-new competition has no address of its own yet to rewrite. This is the wizard's only
+    // writer of the address bar: onBasicsSaved used to also call replaceState for the id-just-
+    // assigned case, but that ran in the same tick as this effect (both react to signals written
+    // in the same synchronous handler, so Angular coalesces them into one flush) and always lost
+    // the race, leaving a query-less URL exposed for one tick that E2E helpers reading page.url()
+    // could observe. Passing the existing history state back through also stops replaceState from
+    // clearing the Router's own navigation id on every step change.
     effect(() => {
       const step = this.currentStep();
       const currentId = this.competitionId();
       if (currentId) {
-        this.location.replaceState(`/organizer/competitions/${currentId}`, `step=${step}`);
+        this.location.replaceState(
+          `/organizer/competitions/${currentId}`,
+          `step=${step}`,
+          this.location.getState(),
+        );
       }
     });
   }
@@ -636,17 +654,13 @@ export class CompetitionWizardComponent {
   }
 
   protected onBasicsSaved(detail: CompetitionDetail): void {
-    const isNew = this.competitionId() === null;
+    // Setting competitionId here — rather than a router.navigate to the persisted id — is what
+    // lets the wizard stay on this same component instance: /new and /:id are different routes,
+    // so navigating would recreate the component and lose currentStep/competition state. The
+    // ?step= effect above owns the address bar and picks this up together with the advanceTo(2)
+    // below in the same flush, landing directly on `/organizer/competitions/{id}?step=2`.
     this.competitionId.set(detail.id);
     this.competition.set(detail);
-    if (isNew) {
-      // Location.replaceState only swaps the address bar/history entry, not the Router's active
-      // route — a router.navigate here would recreate this component (different Route config for
-      // /new vs /:id) and lose currentStep/competition state. This still satisfies "a reload lands
-      // back on the same wizard" since a fresh page load reads the real browser URL. The ?step=
-      // effect above then keeps the query in sync on the very next tick, once currentStep advances.
-      this.location.replaceState(`/organizer/competitions/${detail.id}`);
-    }
     this.advanceTo(2);
   }
 
@@ -698,13 +712,46 @@ export class CompetitionWizardComponent {
       case 2:
         return this.detailsStatus();
       case 3:
-        return this.categoriesStatus();
       case 4:
-        return this.importStatus();
       case 5:
-        return this.judgeImportStatus();
       case 6:
-        return this.tablesStatus();
+        // See reportedSteps above: in read-only mode visitedSteps is seeded for all six steps up
+        // front, but a step that has never actually mounted has no real status to show yet.
+        if (!this.reportedSteps().has(step)) {
+          return null;
+        }
+        switch (step) {
+          case 3:
+            return this.categoriesStatus();
+          case 4:
+            return this.importStatus();
+          case 5:
+            return this.judgeImportStatus();
+          case 6:
+            return this.tablesStatus();
+        }
+    }
+  }
+
+  // Single handler for steps 3-6's statusChange output: records both the reported value and the
+  // fact that the step has actually reported at least once (see reportedSteps above).
+  protected onStepStatus(step: 3 | 4 | 5 | 6, status: 'complete' | 'partial'): void {
+    switch (step) {
+      case 3:
+        this.categoriesStatus.set(status);
+        break;
+      case 4:
+        this.importStatus.set(status);
+        break;
+      case 5:
+        this.judgeImportStatus.set(status);
+        break;
+      case 6:
+        this.tablesStatus.set(status);
+        break;
+    }
+    if (!this.reportedSteps().has(step)) {
+      this.reportedSteps.update((set) => new Set(set).add(step));
     }
   }
 
