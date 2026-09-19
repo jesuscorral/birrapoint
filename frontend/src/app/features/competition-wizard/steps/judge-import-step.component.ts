@@ -138,8 +138,8 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
     } @else {
       <p class="step-lead">
         Sube el listado de jueces del club (formato .xlsx) para dar de alta sus perfiles en esta
-        competición. El envío de la invitación es una acción aparte, disponible después desde la
-        gestión de jueces.
+        competición. Una vez consolidada la importación podrás notificarlos desde aquí mismo, o más
+        adelante desde la gestión de jueces.
       </p>
 
       @if (loadError(); as err) {
@@ -901,6 +901,21 @@ export class JudgeImportStepComponent implements OnInit {
 
   protected onResendJudge(judgeId: string): void {
     if (this.busyJudgeId() === judgeId) {
+      return;
+    }
+
+    // Unlike the bulk action (server-side restricted to Pending, so it can never disturb a judge
+    // who's already working), a per-row resend regenerates the temp password for ANY status,
+    // including Sent — invalidating credentials the judge may already be using. Confirm first so
+    // that case isn't a silent surprise.
+    const judge = this.consolidatedJudges().find((j) => j.id === judgeId);
+    if (
+      judge?.invitationStatus === 'Sent' &&
+      !window.confirm(
+        `${judge.email} ya recibió sus credenciales. Volver a notificarle generará una contraseña ` +
+          'nueva e invalidará la anterior. ¿Continuar?',
+      )
+    ) {
       return;
     }
 

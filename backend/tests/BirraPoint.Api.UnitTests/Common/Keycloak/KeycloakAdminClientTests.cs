@@ -66,9 +66,13 @@ public sealed class KeycloakAdminClientTests
             r.Method == HttpMethod.Post && r.Path == $"/admin/realms/birrapoint/users/{NewUserId}/role-mappings/realm");
         using var assignedRoles = JsonDocument.Parse(roleAssignment.Body!);
         Assert.Equal(JsonValueKind.Array, assignedRoles.RootElement.ValueKind);
-        Assert.Contains(
-            assignedRoles.RootElement.EnumerateArray(),
-            role => role.GetProperty("name").GetString() == "JUDGE");
+        var assignedRole = Assert.Single(assignedRoles.RootElement.EnumerateArray());
+        // Keycloak's role-mappings endpoint requires the role representation's "id", not just its
+        // "name" — a body carrying only the name would pass a looser assertion here and then 400
+        // against the real API.
+        Assert.Equal("JUDGE", assignedRole.GetProperty("name").GetString());
+        Assert.Equal("role-judge-id", assignedRole.GetProperty("id").GetString());
+        Assert.Equal("Bearer fake-admin-token", roleAssignment.Authorization);
 
         AssertOrder(
             handler,
@@ -134,8 +138,14 @@ public sealed class KeycloakAdminClientTests
         handler.When(
             HttpMethod.Get,
             $"/admin/realms/birrapoint/users/{ExistingUserId}/role-mappings/realm/available",
-            // JUDGE not listed as available == already assigned to this user.
             _ => JsonResponse(HttpStatusCode.OK, """[{"id":"role-organizer-id","name":"ORGANIZER"}]"""));
+        handler.When(
+            HttpMethod.Get,
+            $"/admin/realms/birrapoint/users/{ExistingUserId}/role-mappings/realm",
+            // Absent from "available" is disambiguated against the user's actually-assigned
+            // roles — JUDGE showing up here (not just absent from "available") is what makes this
+            // genuinely a no-op rather than a misconfigured realm (see the next test).
+            _ => JsonResponse(HttpStatusCode.OK, $"[{JudgeRole.GetRawText()}]"));
         handler.When(
             HttpMethod.Put,
             $"/admin/realms/birrapoint/users/{ExistingUserId}/reset-password",
@@ -152,6 +162,62 @@ public sealed class KeycloakAdminClientTests
         Assert.Contains(
             handler.Requests,
             r => r.Method == HttpMethod.Put && r.Path == $"/admin/realms/birrapoint/users/{ExistingUserId}/reset-password");
+    }
+
+    [Fact]
+    public async Task Judge_role_missing_from_the_realm_entirely_throws_instead_of_silently_no_opping()
+    {
+        var handler = new RecordingHandler();
+        handler.When(HttpMethod.Post, "/realms/birrapoint/protocol/openid-connect/token", TokenResponse);
+        handler.When(
+            HttpMethod.Get,
+            "/admin/realms/birrapoint/users",
+            _ => JsonResponse(HttpStatusCode.OK, ExistingUserJson(requiredActions: "[\"UPDATE_PASSWORD\"]")));
+        handler.When(
+            HttpMethod.Get,
+            $"/admin/realms/birrapoint/users/{ExistingUserId}/role-mappings/realm/available",
+            _ => JsonResponse(HttpStatusCode.OK, """[{"id":"role-organizer-id","name":"ORGANIZER"}]"""));
+        handler.When(
+            HttpMethod.Get,
+            $"/admin/realms/birrapoint/users/{ExistingUserId}/role-mappings/realm",
+            // Absent here too — a misconfigured/mismatched realm, not "already assigned" — must
+            // not be swallowed the same way the original bug silently produced a role-less judge.
+            _ => JsonResponse(HttpStatusCode.OK, """[{"id":"role-organizer-id","name":"ORGANIZER"}]"""));
+
+        var client = BuildClient(handler);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.EnsureUserWithTemporaryPasswordAsync("misconfigured.judge@example.test", CancellationToken.None));
+
+        Assert.DoesNotContain(
+            handler.Requests,
+            r => r.Method == HttpMethod.Put && r.Path.EndsWith("/reset-password", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Role_assignment_failure_propagates_and_the_password_is_never_reset()
+    {
+        var handler = new RecordingHandler();
+        handler.When(HttpMethod.Post, "/realms/birrapoint/protocol/openid-connect/token", TokenResponse);
+        handler.When(HttpMethod.Get, "/admin/realms/birrapoint/users", _ => JsonResponse(HttpStatusCode.OK, "[]"));
+        handler.When(HttpMethod.Post, "/admin/realms/birrapoint/users", _ => CreatedUserResponse(NewUserId));
+        handler.When(
+            HttpMethod.Get,
+            $"/admin/realms/birrapoint/users/{NewUserId}/role-mappings/realm/available",
+            _ => JsonResponse(HttpStatusCode.OK, $"[{JudgeRole.GetRawText()}]"));
+        handler.When(
+            HttpMethod.Post,
+            $"/admin/realms/birrapoint/users/{NewUserId}/role-mappings/realm",
+            _ => JsonResponse(HttpStatusCode.Forbidden, string.Empty));
+
+        var client = BuildClient(handler);
+
+        await Assert.ThrowsAsync<HttpRequestException>(
+            () => client.EnsureUserWithTemporaryPasswordAsync("forbidden.judge@example.test", CancellationToken.None));
+
+        Assert.DoesNotContain(
+            handler.Requests,
+            r => r.Method == HttpMethod.Put && r.Path.EndsWith("/reset-password", StringComparison.Ordinal));
     }
 
     private static void AssertOrder(RecordingHandler handler, params (HttpMethod Method, string Path)[] expected)
@@ -193,7 +259,7 @@ public sealed class KeycloakAdminClientTests
     {
         private readonly Dictionary<(HttpMethod Method, string Path), Func<HttpRequestMessage, Task<HttpResponseMessage>>> _stubs = [];
 
-        public List<(HttpMethod Method, string Path, string? Body)> Requests { get; } = [];
+        public List<(HttpMethod Method, string Path, string? Body, string? Authorization)> Requests { get; } = [];
 
         public void When(HttpMethod method, string path, Func<HttpRequestMessage, Task<HttpResponseMessage>> respond) =>
             _stubs[(method, path)] = respond;
@@ -202,7 +268,7 @@ public sealed class KeycloakAdminClientTests
         {
             var path = request.RequestUri!.AbsolutePath;
             var body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
-            Requests.Add((request.Method, path, body));
+            Requests.Add((request.Method, path, body, request.Headers.Authorization?.ToString()));
 
             if (!_stubs.TryGetValue((request.Method, path), out var respond))
             {
