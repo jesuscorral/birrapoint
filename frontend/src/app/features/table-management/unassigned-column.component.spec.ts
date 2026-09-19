@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 
 import type { EntryListItem } from '../../core/api/entries-api.service';
+import { UNCATEGORIZED_COLOR } from './category-color';
 import { UnassignedColumnComponent } from './unassigned-column.component';
 import type { JudgeListItem } from './table-management-api.service';
 
@@ -30,13 +31,16 @@ function beersFixture(): EntryListItem[] {
 }
 
 describe('UnassignedColumnComponent', () => {
-  function createComponent() {
+  function createComponent(
+    categoryColorMap: ReadonlyMap<string, string> = new Map([['Estilos clásicos', '#d7e6f4']]),
+  ) {
     const fixture = TestBed.createComponent(UnassignedColumnComponent);
     fixture.componentRef.setInput('judges', judgesFixture());
     fixture.componentRef.setInput('beers', beersFixture());
     fixture.componentRef.setInput('beersTotal', beersFixture().length);
     fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned']);
     fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned']);
+    fixture.componentRef.setInput('categoryColorMap', categoryColorMap);
     fixture.detectChanges();
     return fixture;
   }
@@ -63,6 +67,7 @@ describe('UnassignedColumnComponent', () => {
     fixture.componentRef.setInput('beersTotal', 0);
     fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned']);
     fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned']);
+    fixture.componentRef.setInput('categoryColorMap', new Map());
     fixture.detectChanges();
 
     const headings = [...fixture.nativeElement.querySelectorAll('h3')] as HTMLElement[];
@@ -116,5 +121,41 @@ describe('UnassignedColumnComponent', () => {
 
     expect(judgeActivated).toHaveBeenCalledWith('j1');
     expect(beerActivated).toHaveBeenCalledWith('e1');
+  });
+
+  // T125c: the pool (full-variant) token's background is resolved from the board-supplied
+  // categoryColorMap, falling back to UNCATEGORIZED_COLOR for a category not in the map or a
+  // null competitionCategoryName.
+  describe('category color (T125c)', () => {
+    it("resolves a beer token's background from a known category in the map", () => {
+      const fixture = createComponent(new Map([['Estilos clásicos', '#d7e6f4']]));
+
+      const token = fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLElement;
+      // jsdom's CSSOM normalizes hex colors to rgb() on read; #d7e6f4 = rgb(215, 230, 244).
+      expect(token.style.background).toContain('rgb(215, 230, 244)');
+    });
+
+    it('falls back to UNCATEGORIZED_COLOR for a category absent from the map', () => {
+      const fixture = createComponent(new Map());
+
+      const token = fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLElement;
+      expect(token.style.background).toContain(UNCATEGORIZED_COLOR);
+    });
+
+    it('falls back to UNCATEGORIZED_COLOR for a null competitionCategoryName', () => {
+      const fixture = TestBed.createComponent(UnassignedColumnComponent);
+      fixture.componentRef.setInput('judges', judgesFixture());
+      fixture.componentRef.setInput('beers', [
+        { ...beersFixture()[0], competitionCategoryName: null },
+      ]);
+      fixture.componentRef.setInput('beersTotal', 1);
+      fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned']);
+      fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned']);
+      fixture.componentRef.setInput('categoryColorMap', new Map([['Estilos clásicos', '#d7e6f4']]));
+      fixture.detectChanges();
+
+      const token = fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLElement;
+      expect(token.style.background).toContain(UNCATEGORIZED_COLOR);
+    });
   });
 });

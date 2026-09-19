@@ -3,6 +3,7 @@ import { CdkDropList } from '@angular/cdk/drag-drop';
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 import { BeerTokenComponent } from './beer-token.component';
+import { UNCATEGORIZED_COLOR } from './category-color';
 import { JudgeSeatComponent } from './judge-seat.component';
 import type { TableSummary } from './table-management-api.service';
 
@@ -94,12 +95,14 @@ import type { TableSummary } from './table-management-api.service';
                 [beer]="{
                   id: sample.beerEntryId,
                   blindCode: sample.blindCode,
+                  styleCode: sample.styleCode,
                   notValidForBos: sample.notValidForBos,
                   styleName: sample.styleName,
                   abvPercent: sample.abvPercent,
                   competitionCategoryName: sample.competitionCategoryName,
                   bjcpCategoryNumber: sample.bjcpCategoryNumber,
                   bjcpCategoryName: sample.bjcpCategoryName,
+                  categoryColor: categoryColorFor(sample.competitionCategoryName),
                 }"
                 (activated)="beerActivated.emit(sample.beerEntryId)"
               />
@@ -278,6 +281,9 @@ export class MesaCardComponent {
   readonly compact = input(false);
   readonly connectedJudgeListIds = input.required<string[]>();
   readonly connectedBeerListIds = input.required<string[]>();
+  // T125c: computed once by the board over every entry in the competition (assigned or not), so a
+  // category's color stays identical whether its beers are seated here or still in the pool.
+  readonly categoryColorMap = input.required<ReadonlyMap<string, string>>();
 
   readonly judgeActivated = output<string>();
   readonly beerActivated = output<string>();
@@ -303,4 +309,10 @@ export class MesaCardComponent {
     const { styles } = this.table().stats;
     return styles.length === 0 ? '—' : styles.join(' · ');
   });
+
+  protected categoryColorFor(categoryName: string | null): string {
+    return categoryName
+      ? (this.categoryColorMap().get(categoryName) ?? UNCATEGORIZED_COLOR)
+      : UNCATEGORIZED_COLOR;
+  }
 }

@@ -7,6 +7,9 @@ import { ClickVsDragDirective } from './click-vs-drag.directive';
 export interface BeerTokenData {
   id: string;
   blindCode: string;
+  // T125c: BJCP style code (e.g. "21A") — the mini variant's visible label, since the pool
+  // (where blindCode is how the organizer searches/picks) already shows blindCode.
+  styleCode: string;
   notValidForBos: boolean;
   styleName: string;
   abvPercent: number;
@@ -15,6 +18,9 @@ export interface BeerTokenData {
   // T124: BJCP taxonomy category — an independent axis from competitionCategoryName.
   bjcpCategoryNumber: string | null;
   bjcpCategoryName: string | null;
+  // T125c: resolved from category-color.ts's buildCategoryColorMap by the caller — always a
+  // concrete CSS color, never null (UNCATEGORIZED_COLOR is the caller's own fallback).
+  categoryColor: string;
 }
 
 // `full` is the "Unassigned" column's card: a beer-glass icon plus everything the organizer needs
@@ -39,6 +45,7 @@ export type BeerTokenVariant = 'full' | 'mini';
       [class.beer-token--full]="variant() === 'full'"
       [class.beer-token--mini]="variant() === 'mini'"
       [class.beer-token--bos-flagged]="beer().notValidForBos"
+      [style.background]="beer().categoryColor"
       [attr.data-entry-id]="beer().id"
       role="button"
       tabindex="0"
@@ -47,18 +54,24 @@ export type BeerTokenVariant = 'full' | 'mini';
       appClickVsDrag
       (appClickVsDrag)="activated.emit()"
     >
-      <!-- Decorative: everything it depicts is already in the accessible name/description. -->
-      <svg class="beer-token__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path
-          d="M6 3h9v3h1.5A3.5 3.5 0 0 1 20 9.5v3a3.5 3.5 0 0 1-3.5 3.5H15v3a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V3Zm9 5v6h1.5a1.5 1.5 0 0 0 1.5-1.5v-3A1.5 1.5 0 0 0 16.5 8H15Z"
-          fill="currentColor"
-        />
-        <path d="M8.5 8.5v9M11 8.5v9" stroke="currentColor" stroke-width="1.2" opacity="0.5" />
-      </svg>
+      @if (variant() === 'full') {
+        <!-- Decorative: everything it depicts is already in the accessible name/description. -->
+        <svg class="beer-token__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path
+            d="M6 3h9v3h1.5A3.5 3.5 0 0 1 20 9.5v3a3.5 3.5 0 0 1-3.5 3.5H15v3a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V3Zm9 5v6h1.5a1.5 1.5 0 0 0 1.5-1.5v-3A1.5 1.5 0 0 0 16.5 8H15Z"
+            fill="currentColor"
+          />
+          <path d="M8.5 8.5v9M11 8.5v9" stroke="currentColor" stroke-width="1.2" opacity="0.5" />
+        </svg>
+      }
 
       <span class="beer-token__body">
         <span class="beer-token__code">
-          {{ beer().blindCode }}
+          @if (variant() === 'full') {
+            {{ beer().blindCode }}
+          } @else {
+            {{ beer().styleCode }}
+          }
           @if (beer().notValidForBos) {
             <span class="bos-marker" aria-hidden="true">&#9888;</span>
           }
@@ -76,7 +89,11 @@ export type BeerTokenVariant = 'full' | 'mini';
             <span class="beer-token__chip beer-token__chip--abv">{{ abvLabel() }}</span>
           </span>
         } @else {
-          <span class="beer-token__abv-mini" aria-hidden="true">{{ abvLabel() }}</span>
+          <!-- Seated on a table the organizer balances mean alcohol, so the graduation stays
+               visible — bare percent, no "ABV" suffix, since the pill has no room for a unit the
+               number already implies. The screen-reader description below still spells out the
+               full "X% ABV" via srDescription(). -->
+          <span class="beer-token__abv-mini" aria-hidden="true">{{ abvPercentLabel() }}</span>
         }
       </span>
     </div>
@@ -100,11 +117,11 @@ export type BeerTokenVariant = 'full' | 'mini';
       align-items: center;
       gap: var(--spacing-2);
       border-radius: var(--radius-md);
-      /* White text on --color-bp-cobre-700 (#9a4b27) is ~6.16:1, passing WCAG AA's 4.5:1 for this
-         small bold label -- one shade darker than the "primary button" cobre-500 token, which only
-         computes to ~3.2:1 against white and would fail here. */
-      background: var(--color-bp-cobre-700);
-      color: #fff;
+      /* Background is the per-category pastel tint set per instance via [style.background]
+         (category-color.ts's buildCategoryColorMap, or UNCATEGORIZED_COLOR). Ink stays this one
+         dark color against every tint -- computed contrast ranges 11.47:1-13.68:1 across the 8
+         palette tints, comfortably clear of WCAG AA's 4.5:1 for this small bold label. */
+      color: var(--color-bp-text);
       font-size: 0.8rem;
       font-weight: 700;
       cursor: grab;
@@ -136,11 +153,6 @@ export type BeerTokenVariant = 'full' | 'mini';
       height: 22px;
     }
 
-    .beer-token--mini .beer-token__icon {
-      width: 14px;
-      height: 14px;
-    }
-
     .beer-token__body {
       display: flex;
       flex-direction: column;
@@ -164,8 +176,10 @@ export type BeerTokenVariant = 'full' | 'mini';
       font-weight: 500;
       font-size: 0.75rem;
       line-height: 1.2;
-      /* --color-bp-cobre-100 (#f5e0cd) on cobre-700 is ~4.8:1 -- passes AA for this size. */
-      color: var(--color-bp-cobre-100);
+      /* This token now sits on a light pastel category tint, not a dark cobre-700 backdrop --
+         text-muted is the same secondary-ink color already used against light surfaces
+         elsewhere in this file, and clears AA at this size against every palette tint. */
+      color: var(--color-bp-text-muted);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -210,16 +224,20 @@ export type BeerTokenVariant = 'full' | 'mini';
       color: var(--color-bp-text-on-dark);
     }
 
+    /* Secondary to the style code beside it: lighter weight and muted ink, so the BJCP code still
+       reads first. text-muted clears AA against every category tint (same basis as
+       .beer-token__style above). */
     .beer-token__abv-mini {
       font-weight: 600;
-      opacity: 0.9;
+      font-size: 0.6875rem;
+      color: var(--color-bp-text-muted);
       white-space: nowrap;
     }
 
     .beer-token--bos-flagged {
-      /* --color-bp-cobre-100 (#f5e0cd) against this token's cobre-700 background is ~4.8:1 --
+      /* --color-bp-cobre-700 (#9a4b27) against every palette tint measures 4.44:1-5.29:1 --
          comfortably above WCAG 1.4.11's 3:1 non-text contrast minimum. */
-      box-shadow: 0 0 0 2px var(--color-bp-cobre-100) inset;
+      box-shadow: 0 0 0 2px var(--color-bp-cobre-700) inset;
     }
 
     .beer-token:focus-visible {
@@ -230,7 +248,9 @@ export type BeerTokenVariant = 'full' | 'mini';
     .bos-marker {
       display: inline-block;
       margin-left: 2px;
-      color: var(--color-bp-cobre-100);
+      /* --color-bp-cobre-700 (#9a4b27) against every palette tint measures 4.44:1-5.29:1 --
+         same ring color/rationale as .beer-token--bos-flagged above. */
+      color: var(--color-bp-cobre-700);
       font-size: 0.7rem;
     }
   `,
@@ -255,6 +275,9 @@ export class BeerTokenComponent {
   );
 
   protected readonly abvLabel = computed(() => `${this.beer().abvPercent}% ABV`);
+
+  // Mini (seated) variant only: the bare graduation, no unit suffix — see the template comment.
+  protected readonly abvPercentLabel = computed(() => `${this.beer().abvPercent}%`);
 
   // "21 · IPA" when the catalog row resolved, "IPA"/"21" when only one half is known, null when
   // the style code has no catalog row at all (the DTO's documented null case).

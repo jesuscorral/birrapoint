@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 
+import { UNCATEGORIZED_COLOR } from './category-color';
 import { MesaCardComponent } from './mesa-card.component';
 import type { TableSummary } from './table-management-api.service';
 
@@ -33,11 +34,15 @@ function tableFixture(): TableSummary {
 }
 
 describe('MesaCardComponent', () => {
-  function createComponent(table: TableSummary) {
+  function createComponent(
+    table: TableSummary,
+    categoryColorMap: ReadonlyMap<string, string> = new Map([['Estilos clásicos', '#d7e6f4']]),
+  ) {
     const fixture = TestBed.createComponent(MesaCardComponent);
     fixture.componentRef.setInput('table', table);
     fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned', 'judges-t1']);
     fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned', 'beers-t1']);
+    fixture.componentRef.setInput('categoryColorMap', categoryColorMap);
     fixture.detectChanges();
     return fixture;
   }
@@ -174,5 +179,36 @@ describe('MesaCardComponent', () => {
 
     expect(fixture.nativeElement.querySelector('.mesa-seats')?.id).toBe('judges-t1');
     expect(fixture.nativeElement.querySelector('.mesa-tokens')?.id).toBe('beers-t1');
+  });
+
+  // T125c: the seated (mini) token's background is resolved from the board-supplied
+  // categoryColorMap, falling back to UNCATEGORIZED_COLOR for a category not in the map or a
+  // null competitionCategoryName (entries created outside the import flow).
+  describe('category color (T125c)', () => {
+    it("resolves a seated beer's token background from a known category in the map", () => {
+      const fixture = createComponent(tableFixture(), new Map([['Estilos clásicos', '#d7e6f4']]));
+
+      const token = fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLElement;
+      // jsdom's CSSOM normalizes hex colors to rgb() on read; #d7e6f4 = rgb(215, 230, 244).
+      expect(token.style.background).toContain('rgb(215, 230, 244)');
+    });
+
+    it('falls back to UNCATEGORIZED_COLOR for a category absent from the map', () => {
+      const fixture = createComponent(tableFixture(), new Map());
+
+      const token = fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLElement;
+      expect(token.style.background).toContain(UNCATEGORIZED_COLOR);
+    });
+
+    it('falls back to UNCATEGORIZED_COLOR for a null competitionCategoryName', () => {
+      const table = tableFixture();
+      const fixture = createComponent(
+        { ...table, samples: [{ ...table.samples[0], competitionCategoryName: null }] },
+        new Map([['Estilos clásicos', '#d7e6f4']]),
+      );
+
+      const token = fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLElement;
+      expect(token.style.background).toContain(UNCATEGORIZED_COLOR);
+    });
   });
 });

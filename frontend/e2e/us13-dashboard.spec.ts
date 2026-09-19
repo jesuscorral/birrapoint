@@ -132,11 +132,15 @@ test.describe('US13 — organizer competition selection', () => {
     await page.waitForURL(new RegExp(`/organizer/competitions/${competitionIdA}$`));
     await expect(page.getByLabel('Name')).toHaveValue(draftName);
 
-    // --- Acceptance scenario 2 (Active -> tables screen, the relevant management view) ---
+    // --- Acceptance scenario 2 (Active -> the same six-step wizard, T127) ---
+    // Active is still a setup state, so it opens the wizard rather than the standalone table
+    // board: routing straight to /tables stranded the organizer on what looked like a lone step 6.
+    // The wizard's sixth step embeds that same board, so nothing is lost.
     await page.goto('/organizer/dashboard');
     await dashboardItem(page, activeName).click();
-    await page.waitForURL(new RegExp(`/organizer/competitions/${competitionIdB}/tables$`));
-    await expect(page.getByRole('heading', { name: 'Table management' })).toBeVisible();
+    await page.waitForURL(new RegExp(`/organizer/competitions/${competitionIdB}$`));
+    await expect(page.getByLabel('Name')).toHaveValue(activeName);
+    await expect(page.getByRole('button', { name: 'Mesas' })).toBeVisible();
 
     // --- Acceptance scenario 3: "new competition" opens the wizard empty ---
     await page.goto('/organizer/dashboard');
