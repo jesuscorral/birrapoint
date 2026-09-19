@@ -115,8 +115,8 @@ var app = builder.Build();
 if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
+    app.UseHttpsRedirection();
 }
-app.UseHttpsRedirection();
 
 // Must run first so it wraps every downstream middleware/endpoint.
 app.UseExceptionHandler();
