@@ -58,6 +58,13 @@ describe('OrganizerDashboardComponent', () => {
     return fixture;
   }
 
+  it('renders the shared page shell topbar', () => {
+    const fixture = createComponent();
+
+    expect(fixture.nativeElement.querySelector('header')).not.toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('main').length).toBe(1);
+  });
+
   it('loads and renders each competition with its name, venue, dates, and state', () => {
     const fixture = createComponent();
 
@@ -77,11 +84,11 @@ describe('OrganizerDashboardComponent', () => {
     expect(link).not.toBeNull();
   });
 
-  it('links an Active competition to the tables screen', () => {
+  it('links an Active competition to the wizard, step 6 (tables)', () => {
     fakeApi.list.mockReturnValue(of([competitionFixture({ state: 'Active' })]));
     const fixture = createComponent();
 
-    const link = fixture.nativeElement.querySelector('a[href="/organizer/competitions/c1/tables"]');
+    const link = fixture.nativeElement.querySelector('a[href="/organizer/competitions/c1?step=6"]');
     expect(link).not.toBeNull();
   });
 

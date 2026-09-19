@@ -7,7 +7,26 @@ import type {
   JudgeImportRow,
   JudgeImportRowData,
 } from '../../../core/api/judge-import-api.service';
+import { JudgeManagementApiService } from '../../../core/api/judge-management-api.service';
+import type { JudgeProfile } from '../../../core/api/judge-management-api.service';
 import { JudgeImportStepComponent } from './judge-import-step.component';
+
+function judgeProfileFixture(overrides: Partial<JudgeProfile> = {}): JudgeProfile {
+  return {
+    id: 'j1',
+    email: 'ana@example.com',
+    displayName: 'Ana García Ruiz',
+    bjcpRank: null,
+    bjcpId: null,
+    preferredCategory: null,
+    preferences: null,
+    invitationStatus: 'Sent',
+    attempts: 1,
+    lastError: null,
+    sentAt: '2026-01-01T00:00:00Z',
+    ...overrides,
+  };
+}
 
 function rowDataFixture(overrides: Partial<JudgeImportRowData> = {}): JudgeImportRowData {
   return {
@@ -43,6 +62,7 @@ describe('JudgeImportStepComponent', () => {
     excludeRow: jest.Mock;
     consolidate: jest.Mock;
   };
+  let fakeJudgeManagementApi: { getJudges: jest.Mock };
 
   beforeEach(() => {
     fakeJudgeImportApi = {
@@ -52,9 +72,13 @@ describe('JudgeImportStepComponent', () => {
       excludeRow: jest.fn(),
       consolidate: jest.fn(),
     };
+    fakeJudgeManagementApi = { getJudges: jest.fn().mockReturnValue(of([])) };
 
     TestBed.configureTestingModule({
-      providers: [{ provide: JudgeImportApiService, useValue: fakeJudgeImportApi }],
+      providers: [
+        { provide: JudgeImportApiService, useValue: fakeJudgeImportApi },
+        { provide: JudgeManagementApiService, useValue: fakeJudgeManagementApi },
+      ],
     });
   });
 
@@ -384,5 +408,69 @@ describe('JudgeImportStepComponent', () => {
     const fixture = uploadedFixture([rowFixture({ rowNumber: 1, status: 'Valid', error: null })]);
 
     expect(fixture.nativeElement.querySelector('.judge-import-row__error')).toBeFalsy();
+  });
+
+  // FR-061 / Session 2026-09-19 clarification: read-only wizard once InEvaluation/Finalized. The
+  // upload flow is skipped entirely in favour of listing the judges already registered for this
+  // competition (GET /competitions/{id}/judges via JudgeManagementApiService).
+  describe('readOnly', () => {
+    function createReadOnlyComponent() {
+      const fixture = TestBed.createComponent(JudgeImportStepComponent);
+      fixture.componentRef.setInput('competitionId', 'c1');
+      fixture.componentRef.setInput('readOnly', true);
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('skips the upload UI and lists registered judges', () => {
+      fakeJudgeManagementApi.getJudges.mockReturnValue(
+        of([judgeProfileFixture({ displayName: 'Ana García Ruiz', email: 'ana@example.com' })]),
+      );
+      const fixture = createReadOnlyComponent();
+
+      expect(fakeJudgeManagementApi.getJudges).toHaveBeenCalledWith('c1');
+      expect(fixture.nativeElement.querySelector('input[type="file"]')).toBeNull();
+      const section = fixture.nativeElement.querySelector(
+        '[aria-label="Jueces registrados"]',
+      ) as HTMLElement;
+      expect(section).toBeTruthy();
+      expect(section.textContent).toContain('Ana García Ruiz');
+      expect(section.textContent).toContain('ana@example.com');
+    });
+
+    it('shows "No hay jueces registrados." when the competition has none', () => {
+      const fixture = createReadOnlyComponent();
+
+      expect(fixture.nativeElement.textContent).toContain('No hay jueces registrados.');
+    });
+
+    it('hides "Subir archivo" and "Consolidar"', () => {
+      const fixture = createReadOnlyComponent();
+
+      const texts = [...fixture.nativeElement.querySelectorAll('button')].map(
+        (button: HTMLButtonElement) => button.textContent?.trim(),
+      );
+      expect(texts).not.toContain('Subir archivo');
+      expect(texts).not.toContain('Consolidar');
+    });
+
+    it('advances via "Siguiente" without uploading, and never calls JudgeImportApiService', () => {
+      const fixture = createReadOnlyComponent();
+      const emitted: void[] = [];
+      fixture.componentInstance.saved.subscribe(() => emitted.push(undefined));
+
+      buttonWithText(fixture.nativeElement, 'Siguiente').click();
+
+      expect(fakeJudgeImportApi.upload).not.toHaveBeenCalled();
+      expect(fakeJudgeImportApi.consolidate).not.toHaveBeenCalled();
+      expect(emitted.length).toBe(1);
+    });
+  });
+
+  it('keeps the upload UI visible and never calls GET judges when readOnly is false (default)', () => {
+    const fixture = createComponent();
+
+    expect(fixture.nativeElement.querySelector('input[type="file"]')).not.toBeNull();
+    expect(fakeJudgeManagementApi.getJudges).not.toHaveBeenCalled();
   });
 });

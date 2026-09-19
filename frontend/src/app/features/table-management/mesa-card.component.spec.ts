@@ -175,4 +175,72 @@ describe('MesaCardComponent', () => {
     expect(fixture.nativeElement.querySelector('.mesa-seats')?.id).toBe('judges-t1');
     expect(fixture.nativeElement.querySelector('.mesa-tokens')?.id).toBe('beers-t1');
   });
+
+  // FR-061 / Session 2026-09-19 clarification: read-only wizard/table-board.
+  describe('readOnly', () => {
+    it('keeps both drop lists enabled by default (readOnly=false)', () => {
+      const fixture = createComponent(tableFixture());
+
+      expect(fixture.nativeElement.querySelector('.mesa-seats')?.classList).not.toContain(
+        'cdk-drop-list-disabled',
+      );
+      expect(fixture.nativeElement.querySelector('.mesa-tokens')?.classList).not.toContain(
+        'cdk-drop-list-disabled',
+      );
+    });
+
+    it('disables both drop lists and dragging on seated judges/beers when readOnly is true', () => {
+      const fixture = TestBed.createComponent(MesaCardComponent);
+      fixture.componentRef.setInput('table', tableFixture());
+      fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned', 'judges-t1']);
+      fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned', 'beers-t1']);
+      fixture.componentRef.setInput('readOnly', true);
+      fixture.detectChanges();
+
+      expect(
+        fixture.nativeElement
+          .querySelector('.mesa-seats')
+          ?.classList.contains('cdk-drop-list-disabled'),
+      ).toBe(true);
+      expect(
+        fixture.nativeElement
+          .querySelector('.mesa-tokens')
+          ?.classList.contains('cdk-drop-list-disabled'),
+      ).toBe(true);
+      expect(
+        fixture.nativeElement
+          .querySelector('[data-judge-id="j1"]')
+          ?.classList.contains('cdk-drag-disabled'),
+      ).toBe(true);
+      expect(
+        fixture.nativeElement
+          .querySelector('[data-entry-id="e1"]')
+          ?.classList.contains('cdk-drag-disabled'),
+      ).toBe(true);
+    });
+
+    it('still emits judgeActivated/beerActivated (click-to-detail stays available) when readOnly', () => {
+      const fixture = TestBed.createComponent(MesaCardComponent);
+      fixture.componentRef.setInput('table', tableFixture());
+      fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned', 'judges-t1']);
+      fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned', 'beers-t1']);
+      fixture.componentRef.setInput('readOnly', true);
+      fixture.detectChanges();
+
+      const judgeActivated = jest.fn();
+      const beerActivated = jest.fn();
+      fixture.componentInstance.judgeActivated.subscribe(judgeActivated);
+      fixture.componentInstance.beerActivated.subscribe(beerActivated);
+
+      (fixture.nativeElement.querySelector('[data-judge-id="j1"]') as HTMLElement).dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter' }),
+      );
+      (fixture.nativeElement.querySelector('[data-entry-id="e1"]') as HTMLElement).dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter' }),
+      );
+
+      expect(judgeActivated).toHaveBeenCalledWith('j1');
+      expect(beerActivated).toHaveBeenCalledWith('e1');
+    });
+  });
 });

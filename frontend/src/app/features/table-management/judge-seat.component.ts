@@ -30,6 +30,7 @@ function initialsOf(displayName: string): string {
     <div
       cdkDrag
       [cdkDragData]="judge().id"
+      [cdkDragDisabled]="dragDisabled()"
       class="judge-seat"
       [class.judge-seat--named]="showName()"
       [class.judge-seat--dense]="dense()"
@@ -142,6 +143,10 @@ export class JudgeSeatComponent {
   // the dense form lays the two out in a row with a one-line name. The name stays visible — losing
   // it was the whole complaint that put it there.
   readonly dense = input(false);
+  // FR-061 / Session 2026-09-19 clarification: the read-only wizard/table-board disables dragging
+  // (the drop lists themselves are also disabled — see mesa-card/unassigned-column) while leaving
+  // the accessible name and click-to-detail behaviour identical to the editable mode.
+  readonly dragDisabled = input(false);
   readonly activated = output<void>();
 
   protected readonly initials = computed(() => initialsOf(this.judge().displayName));

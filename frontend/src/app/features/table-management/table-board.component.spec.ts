@@ -676,4 +676,56 @@ describe('TableBoardComponent', () => {
       expect(fixture.nativeElement.textContent).toContain('Cervezas sin asignar (2)');
     });
   });
+
+  // FR-061 / Session 2026-09-19 clarification: read-only wizard/table-board.
+  describe('readOnly', () => {
+    function createReadOnlyComponent() {
+      const fixture = TestBed.createComponent(TableBoardComponent);
+      fixture.componentRef.setInput('competitionId', 'c1');
+      fixture.componentRef.setInput('readOnly', true);
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('hides the "Add table" section entirely', () => {
+      const fixture = createReadOnlyComponent();
+
+      expect(fixture.nativeElement.querySelector('[aria-label="Add table"]')).toBeNull();
+      expect(fixture.nativeElement.querySelector('#new-table-name')).toBeNull();
+    });
+
+    it('disables every drop list on the board', () => {
+      const fixture = createReadOnlyComponent();
+
+      const lists = [
+        ...fixture.nativeElement.querySelectorAll('.mesa-seats, .mesa-tokens, .unassigned-list'),
+      ] as HTMLElement[];
+      expect(lists.length).toBeGreaterThan(0);
+      expect(lists.every((list) => list.classList.contains('cdk-drop-list-disabled'))).toBe(true);
+    });
+
+    it('hides the "Move" control in the detail modal, while click-to-detail still opens it', () => {
+      const fixture = createReadOnlyComponent();
+
+      fixture.componentInstance.onJudgeClicked('j2');
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Grace Hopper');
+      const buttons = [...fixture.nativeElement.querySelectorAll('button')].map(
+        (button: HTMLButtonElement) => button.textContent?.trim(),
+      );
+      expect(buttons).not.toContain('Move');
+      expect(buttons).toContain('Close');
+    });
+  });
+
+  it('keeps the "Add table" section and enabled drop lists when readOnly is false (default)', () => {
+    const fixture = createComponent();
+
+    expect(fixture.nativeElement.querySelector('[aria-label="Add table"]')).not.toBeNull();
+    const lists = [
+      ...fixture.nativeElement.querySelectorAll('.mesa-seats, .mesa-tokens, .unassigned-list'),
+    ] as HTMLElement[];
+    expect(lists.some((list) => list.classList.contains('cdk-drop-list-disabled'))).toBe(false);
+  });
 });

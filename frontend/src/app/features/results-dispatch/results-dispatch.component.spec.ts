@@ -1,4 +1,4 @@
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
 import type { WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -84,6 +84,9 @@ describe('ResultsDispatchComponent', () => {
       providers: [
         { provide: DispatchApiService, useValue: fakeDispatchApi },
         { provide: CompetitionHubService, useValue: fakeHub },
+        provideRouter([]),
+        // Must come after provideRouter([]) — it registers its own root ActivatedRoute, which
+        // would otherwise win over this mock and silently drop the :id route param.
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: convertToParamMap({ id: 'c1' }) } },
@@ -111,6 +114,13 @@ describe('ResultsDispatchComponent', () => {
     const buttons = [...root.querySelectorAll('button')] as HTMLButtonElement[];
     return buttons.find((button) => button.textContent?.trim() === text) ?? null;
   }
+
+  it('renders the shared page shell topbar', () => {
+    const fixture = createComponent();
+
+    expect(fixture.nativeElement.querySelector('header')).not.toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('main').length).toBe(1);
+  });
 
   it('loads and renders the per-participant dispatch status table', async () => {
     const fixture = createComponent();

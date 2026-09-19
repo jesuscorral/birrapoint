@@ -183,32 +183,39 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
               }
             </ul>
           </section>
+        } @else if (readOnly() && !entriesLoadFailed()) {
+          <p class="step-lead">No se importaron cervezas.</p>
         }
-        <div class="upload-phase">
-          <bp-file-dropzone
-            inputId="import-file"
-            ariaLabel="Archivo de inscripciones (.xlsx)"
-            hint="Archivo de inscripciones en formato ACCE (.xlsx)"
-            [disabled]="categories().length === 0"
-            [(file)]="selectedFile"
-          ></bp-file-dropzone>
 
-          @if (uploadError(); as err) {
-            <bp-alert type="error" title="No hemos podido subir el archivo">{{
-              bannerMessage(err)
-            }}</bp-alert>
-          }
-        </div>
+        @if (!readOnly()) {
+          <div class="upload-phase">
+            <bp-file-dropzone
+              inputId="import-file"
+              ariaLabel="Archivo de inscripciones (.xlsx)"
+              hint="Archivo de inscripciones en formato ACCE (.xlsx)"
+              [disabled]="categories().length === 0"
+              [(file)]="selectedFile"
+            ></bp-file-dropzone>
+
+            @if (uploadError(); as err) {
+              <bp-alert type="error" title="No hemos podido subir el archivo">{{
+                bannerMessage(err)
+              }}</bp-alert>
+            }
+          </div>
+        }
 
         <bp-step-actions (back)="back.emit()" (next)="onNext()">
-          <bp-button
-            type="button"
-            label="Subir archivo"
-            variant="secondary"
-            [loading]="uploading()"
-            [disabled]="!selectedFile() || uploading() || categories().length === 0"
-            (clicked)="onUpload()"
-          ></bp-button>
+          @if (!readOnly()) {
+            <bp-button
+              type="button"
+              label="Subir archivo"
+              variant="secondary"
+              [loading]="uploading()"
+              [disabled]="!selectedFile() || uploading() || categories().length === 0"
+              (clicked)="onUpload()"
+            ></bp-button>
+          }
         </bp-step-actions>
       } @else {
         <section class="import-rows" aria-label="Filas importadas">
@@ -396,7 +403,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
                     {{ statusLabel(row.status) }}
                   </span>
                   <div class="import-row__actions">
-                    @if (row.status !== 'Excluded') {
+                    @if (row.status !== 'Excluded' && !readOnly()) {
                       <bp-button
                         type="button"
                         label="Editar"
@@ -412,7 +419,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
                         [loading]="rowSaving()"
                         (clicked)="excludeRow(i)"
                       ></bp-button>
-                    } @else {
+                    } @else if (row.status === 'Excluded') {
                       <span class="import-row__excluded-label">Fila excluida</span>
                     }
                   </div>
@@ -442,7 +449,7 @@ function toEditRequest(draft: RowDraft): EditImportRowRequest {
         }
 
         <bp-step-actions (back)="back.emit()" (next)="onNext()">
-          @if (!consolidateResult()) {
+          @if (!consolidateResult() && !readOnly()) {
             <bp-button
               type="button"
               label="Consolidar"
@@ -678,6 +685,10 @@ export class ImportStepComponent implements OnInit {
   // and recreated on every navigation, so it cannot hold that state locally.
   readonly importId = input<string | null>(null);
   readonly importIdChange = output<string>();
+  // FR-061 / Session 2026-09-19 clarification: the wizard is read-only once the competition is
+  // InEvaluation or Finalized. Already-imported beers stay visible, but the upload dropzone and
+  // every row mutation are hidden, and "Siguiente" advances without persisting (see onNext()).
+  readonly readOnly = input(false);
   // Emitted by "Siguiente" once there's nothing left to do at this step — advances the wizard
   // shell to step 5 (see onNext() below). T125: step 4 previously dead-ended at "Ir al panel de
   // organizador"; it now advances like every other step, whether or not a batch was consolidated
@@ -827,6 +838,10 @@ export class ImportStepComponent implements OnInit {
   // step, so it simply advances. An unresolved batch (or none at all) never blocks navigation —
   // see importStatus() above for how that's surfaced instead, via the stepper marker.
   protected onNext(): void {
+    if (this.readOnly()) {
+      this.saved.emit();
+      return;
+    }
     if (this.uploading() || this.rowSaving() || this.consolidating()) {
       return;
     }

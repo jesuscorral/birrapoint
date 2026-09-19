@@ -31,6 +31,7 @@ import type {
   TableClosedEvent,
   TableOrderFixedEvent,
 } from '../../core/realtime/competition-hub.events';
+import { BpPageShellComponent } from '../../shared/components/bp-page-shell/bp-page-shell.component';
 
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError
@@ -53,147 +54,152 @@ function errorMessage(error: ApiError): string {
 // consolidatedScores payload — simpler, and correctness only depends on one round trip per click.
 @Component({
   selector: 'app-competition-monitor',
-  imports: [RouterLink, CdkTrapFocus],
+  imports: [RouterLink, CdkTrapFocus, BpPageShellComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <p><a routerLink="/organizer/dashboard">&larr; Competitions</a></p>
+    <bp-page-shell>
+      <p><a routerLink="/organizer/dashboard">&larr; Competitions</a></p>
 
-    @if (loadError(); as message) {
-      <p role="alert">{{ message }}</p>
-    }
-
-    @if (!loadError()) {
-      @if (competition(); as comp) {
-        <h1>{{ comp.name }}</h1>
-        <p class="competition-meta">{{ comp.venue }} &middot; {{ comp.state }}</p>
-        @if (comp.state === 'Finalized') {
-          <p>
-            <a [routerLink]="['/organizer', 'competitions', comp.id, 'dispatch']"
-              >Results &amp; Dispatch</a
-            >
-          </p>
-        }
-      }
-
-      @if (removeJudgeError(); as message) {
+      @if (loadError(); as message) {
         <p role="alert">{{ message }}</p>
       }
 
-      <ul class="table-progress-list">
-        @for (row of tableRows(); track row.tableId) {
-          <li class="table-progress-row" [attr.data-table-id]="row.tableId">
-            <div class="table-progress-header">
-              <span class="table-name">{{ row.name }}</span>
-              <span [class]="tableBadgeClass(row.state)">{{ row.state }}</span>
-              <span class="table-progress-count"
-                >{{ row.completed }} / {{ row.expected }} ({{ row.percent }}%)</span
-              >
-            </div>
-
-            @if (orderFixedNote(row.tableId); as note) {
-              <p role="status" class="order-fixed-note">{{ note }}</p>
-            }
-
-            <ul class="sample-list" [attr.aria-label]="'Samples at ' + row.name">
-              @for (entry of samplesByTable().get(row.tableId) ?? []; track entry.id) {
-                <li>
-                  <button
-                    type="button"
-                    [attr.data-entry-id]="entry.id"
-                    (click)="onSelectSample(entry)"
-                  >
-                    {{ entry.blindCode }}
-                  </button>
-                </li>
-              }
-            </ul>
-
-            <ul class="judge-list" [attr.aria-label]="'Judges at ' + row.name">
-              @for (judge of judgesByTable().get(row.tableId) ?? []; track judge.id) {
-                <li class="judge-row" [attr.data-judge-id]="judge.id">
-                  <span class="judge-name">{{ judge.displayName }}</span>
-                  @if (row.state === 'Open') {
-                    <button
-                      type="button"
-                      class="remove-judge-action"
-                      (click)="onRequestRemoveJudge(row.tableId, row.name, judge)"
-                    >
-                      Remove
-                    </button>
-                  }
-                </li>
-              }
-            </ul>
-          </li>
-        }
-      </ul>
-    }
-
-    @if (confirmingRemoveJudge(); as target) {
-      <div class="modal-backdrop" role="presentation" (click)="onCancelRemoveJudge()">
-        <div
-          role="alertdialog"
-          aria-modal="true"
-          aria-label="Confirm remove judge"
-          class="modal-panel"
-          cdkTrapFocus
-          cdkTrapFocusAutoCapture
-          (click)="$event.stopPropagation()"
-          (keydown.escape)="onCancelRemoveJudge()"
-        >
-          <h2>Remove judge</h2>
+      @if (!loadError()) {
+        @if (competition(); as comp) {
+          <h1>{{ comp.name }}</h1>
+          <p class="competition-meta">{{ comp.venue }} &middot; {{ comp.state }}</p>
           <p>
-            This immediately revokes {{ target.judgeDisplayName }}'s access to
-            {{ target.tableName }} and cannot be undone. Their already-submitted evaluations stay
-            valid. Continue?
+            <a [routerLink]="['/organizer', 'competitions', comp.id]">Ver configuración</a>
           </p>
-          <button type="button" [disabled]="removingJudge()" (click)="onConfirmRemoveJudge()">
-            Confirm remove judge
-          </button>
-          <button type="button" (click)="onCancelRemoveJudge()">Cancel</button>
-        </div>
-      </div>
-    }
-
-    @if (selectedEntry(); as entry) {
-      <section [attr.aria-label]="'Evaluations for ' + entry.blindCode" class="drill-down">
-        <h2>{{ entry.blindCode }}</h2>
-        <button type="button" (click)="onCloseDrillDown()">Close</button>
-
-        @if (entryEvaluationsLoading()) {
-          <p>Loading…</p>
-        }
-        @if (entryEvaluationsError(); as message) {
-          <p role="alert">{{ message }}</p>
-        }
-        @if (entryEvaluations(); as result) {
-          <p class="consolidated-mean">
-            Consolidated mean:
-            {{ result.consolidatedMean !== null ? result.consolidatedMean : 'not yet closed' }}
-          </p>
-
-          @for (evaluation of result.evaluations; track $index) {
-            <article class="evaluation-audit">
-              <h3>{{ evaluation.judgeDisplayName }}</h3>
-              <p class="evaluation-status">Status: {{ evaluation.status }}</p>
-              <dl>
-                <dt>Aroma</dt>
-                <dd>{{ evaluation.scores.aroma }} — {{ evaluation.comments.aroma }}</dd>
-                <dt>Appearance</dt>
-                <dd>{{ evaluation.scores.appearance }} — {{ evaluation.comments.appearance }}</dd>
-                <dt>Flavor</dt>
-                <dd>{{ evaluation.scores.flavor }} — {{ evaluation.comments.flavor }}</dd>
-                <dt>Mouthfeel</dt>
-                <dd>{{ evaluation.scores.mouthfeel }} — {{ evaluation.comments.mouthfeel }}</dd>
-                <dt>Overall</dt>
-                <dd>{{ evaluation.scores.overall }} — {{ evaluation.comments.overall }}</dd>
-              </dl>
-              <p class="evaluation-total">Total: {{ evaluation.total }}</p>
-            </article>
+          @if (comp.state === 'Finalized') {
+            <p>
+              <a [routerLink]="['/organizer', 'competitions', comp.id, 'dispatch']"
+                >Results &amp; Dispatch</a
+              >
+            </p>
           }
         }
-      </section>
-    }
+
+        @if (removeJudgeError(); as message) {
+          <p role="alert">{{ message }}</p>
+        }
+
+        <ul class="table-progress-list">
+          @for (row of tableRows(); track row.tableId) {
+            <li class="table-progress-row" [attr.data-table-id]="row.tableId">
+              <div class="table-progress-header">
+                <span class="table-name">{{ row.name }}</span>
+                <span [class]="tableBadgeClass(row.state)">{{ row.state }}</span>
+                <span class="table-progress-count"
+                  >{{ row.completed }} / {{ row.expected }} ({{ row.percent }}%)</span
+                >
+              </div>
+
+              @if (orderFixedNote(row.tableId); as note) {
+                <p role="status" class="order-fixed-note">{{ note }}</p>
+              }
+
+              <ul class="sample-list" [attr.aria-label]="'Samples at ' + row.name">
+                @for (entry of samplesByTable().get(row.tableId) ?? []; track entry.id) {
+                  <li>
+                    <button
+                      type="button"
+                      [attr.data-entry-id]="entry.id"
+                      (click)="onSelectSample(entry)"
+                    >
+                      {{ entry.blindCode }}
+                    </button>
+                  </li>
+                }
+              </ul>
+
+              <ul class="judge-list" [attr.aria-label]="'Judges at ' + row.name">
+                @for (judge of judgesByTable().get(row.tableId) ?? []; track judge.id) {
+                  <li class="judge-row" [attr.data-judge-id]="judge.id">
+                    <span class="judge-name">{{ judge.displayName }}</span>
+                    @if (row.state === 'Open') {
+                      <button
+                        type="button"
+                        class="remove-judge-action"
+                        (click)="onRequestRemoveJudge(row.tableId, row.name, judge)"
+                      >
+                        Remove
+                      </button>
+                    }
+                  </li>
+                }
+              </ul>
+            </li>
+          }
+        </ul>
+      }
+
+      @if (confirmingRemoveJudge(); as target) {
+        <div class="modal-backdrop" role="presentation" (click)="onCancelRemoveJudge()">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="Confirm remove judge"
+            class="modal-panel"
+            cdkTrapFocus
+            cdkTrapFocusAutoCapture
+            (click)="$event.stopPropagation()"
+            (keydown.escape)="onCancelRemoveJudge()"
+          >
+            <h2>Remove judge</h2>
+            <p>
+              This immediately revokes {{ target.judgeDisplayName }}'s access to
+              {{ target.tableName }} and cannot be undone. Their already-submitted evaluations stay
+              valid. Continue?
+            </p>
+            <button type="button" [disabled]="removingJudge()" (click)="onConfirmRemoveJudge()">
+              Confirm remove judge
+            </button>
+            <button type="button" (click)="onCancelRemoveJudge()">Cancel</button>
+          </div>
+        </div>
+      }
+
+      @if (selectedEntry(); as entry) {
+        <section [attr.aria-label]="'Evaluations for ' + entry.blindCode" class="drill-down">
+          <h2>{{ entry.blindCode }}</h2>
+          <button type="button" (click)="onCloseDrillDown()">Close</button>
+
+          @if (entryEvaluationsLoading()) {
+            <p>Loading…</p>
+          }
+          @if (entryEvaluationsError(); as message) {
+            <p role="alert">{{ message }}</p>
+          }
+          @if (entryEvaluations(); as result) {
+            <p class="consolidated-mean">
+              Consolidated mean:
+              {{ result.consolidatedMean !== null ? result.consolidatedMean : 'not yet closed' }}
+            </p>
+
+            @for (evaluation of result.evaluations; track $index) {
+              <article class="evaluation-audit">
+                <h3>{{ evaluation.judgeDisplayName }}</h3>
+                <p class="evaluation-status">Status: {{ evaluation.status }}</p>
+                <dl>
+                  <dt>Aroma</dt>
+                  <dd>{{ evaluation.scores.aroma }} — {{ evaluation.comments.aroma }}</dd>
+                  <dt>Appearance</dt>
+                  <dd>{{ evaluation.scores.appearance }} — {{ evaluation.comments.appearance }}</dd>
+                  <dt>Flavor</dt>
+                  <dd>{{ evaluation.scores.flavor }} — {{ evaluation.comments.flavor }}</dd>
+                  <dt>Mouthfeel</dt>
+                  <dd>{{ evaluation.scores.mouthfeel }} — {{ evaluation.comments.mouthfeel }}</dd>
+                  <dt>Overall</dt>
+                  <dd>{{ evaluation.scores.overall }} — {{ evaluation.comments.overall }}</dd>
+                </dl>
+                <p class="evaluation-total">Total: {{ evaluation.total }}</p>
+              </article>
+            }
+          }
+        </section>
+      }
+    </bp-page-shell>
   `,
   styles: `
     .competition-meta {

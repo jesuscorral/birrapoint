@@ -15,14 +15,19 @@ import { BpStepActionsComponent } from '../../../shared/components/bp-step-actio
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <p class="step-lead">
-      Crea las mesas de cata, asigna jueces y cervezas a cada una, y comprueba el balance de estilos
-      y grado alcohólico antes de arrancar la competición.
+      @if (readOnly()) {
+        Consulta las mesas de cata y sus asignaciones de jueces y cervezas.
+      } @else {
+        Crea las mesas de cata, asigna jueces y cervezas a cada una, y comprueba el balance de
+        estilos y grado alcohólico antes de arrancar la competición.
+      }
     </p>
 
     <app-table-board
       [competitionId]="competitionId()"
       [headingLevel]="2"
       [heading]="'Mesas'"
+      [readOnly]="readOnly()"
       (dirtyChange)="dirtyChange.emit($event)"
       (statusChange)="statusChange.emit($event)"
     />
@@ -48,6 +53,9 @@ import { BpStepActionsComponent } from '../../../shared/components/bp-step-actio
 })
 export class TablesStepComponent {
   readonly competitionId = input.required<string>();
+  // FR-061 / Session 2026-09-19 clarification: the wizard is read-only once the competition is
+  // InEvaluation or Finalized. Forwarded straight to the embedded table-board.
+  readonly readOnly = input(false);
   readonly back = output<void>();
   // "Finalizar" — handled by the wizard shell via onRequestExit(), so an un-submitted "Add table"
   // name still raises the FR-007 stay-or-discard prompt instead of being dropped on the way out.

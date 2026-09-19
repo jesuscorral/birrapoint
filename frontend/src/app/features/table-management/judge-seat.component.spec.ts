@@ -76,4 +76,24 @@ describe('JudgeSeatComponent', () => {
 
     expect(activated).toHaveBeenCalledTimes(1);
   });
+
+  // FR-061 / Session 2026-09-19 clarification: read-only wizard/table-board — dragging is
+  // disabled, but the accessible name and click-to-detail stay identical to the editable mode.
+  it('is draggable by default (dragDisabled=false)', () => {
+    const fixture = createComponent(ada);
+
+    const seat = fixture.nativeElement.querySelector('.judge-seat') as HTMLDivElement;
+    expect(seat.classList.contains('cdk-drag-disabled')).toBe(false);
+  });
+
+  it('disables dragging when dragDisabled is true, without changing the accessible name', () => {
+    const fixture = TestBed.createComponent(JudgeSeatComponent);
+    fixture.componentRef.setInput('judge', ada);
+    fixture.componentRef.setInput('dragDisabled', true);
+    fixture.detectChanges();
+
+    const seat = fixture.nativeElement.querySelector('.judge-seat') as HTMLDivElement;
+    expect(seat.classList.contains('cdk-drag-disabled')).toBe(true);
+    expect(seat.getAttribute('aria-label')).toBe('Judge Ada Lovelace — view details');
+  });
 });

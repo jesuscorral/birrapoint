@@ -199,4 +199,65 @@ describe('TableDetailModalComponent', () => {
 
     expect(move).toHaveBeenCalledWith(null);
   });
+
+  // FR-061 / Session 2026-09-19 clarification: read-only wizard/table-board — details and Close
+  // stay available, but the "Move to" reassignment control is hidden.
+  describe('readOnly', () => {
+    const judge: JudgeDetailContent = {
+      kind: 'judge',
+      id: 'j1',
+      displayName: 'Ada Lovelace',
+      email: 'ada@example.com',
+    };
+
+    function createReadOnlyComponent() {
+      const fixture = TestBed.createComponent(TableDetailModalComponent);
+      fixture.componentRef.setInput('content', judge);
+      fixture.componentRef.setInput('assignedTableIds', ['t1']);
+      fixture.componentRef.setInput('tables', tables);
+      fixture.componentRef.setInput('readOnly', true);
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('hides the "Move to" control and the Move button', () => {
+      const fixture = createReadOnlyComponent();
+
+      expect(fixture.nativeElement.querySelector('select')).toBeNull();
+      const buttons = [...fixture.nativeElement.querySelectorAll('button')].map(
+        (button: HTMLButtonElement) => button.textContent?.trim(),
+      );
+      expect(buttons).not.toContain('Move');
+    });
+
+    it('still shows the details and the Close button, which still closes the modal', () => {
+      const fixture = createReadOnlyComponent();
+
+      expect(fixture.nativeElement.textContent).toContain('Ada Lovelace');
+      expect(fixture.nativeElement.textContent).toContain('Mesa 1');
+
+      const closed = jest.fn();
+      fixture.componentInstance.closed.subscribe(closed);
+      const buttons = [...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[];
+      buttons.find((b) => b.textContent?.trim() === 'Close')!.click();
+
+      expect(closed).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('keeps the "Move to" control visible when readOnly is false (default)', () => {
+    const judge: JudgeDetailContent = {
+      kind: 'judge',
+      id: 'j1',
+      displayName: 'Ada',
+      email: 'a@example.com',
+    };
+    const fixture = createComponent(judge, []);
+
+    expect(fixture.nativeElement.querySelector('select')).not.toBeNull();
+    const buttons = [...fixture.nativeElement.querySelectorAll('button')].map(
+      (button: HTMLButtonElement) => button.textContent?.trim(),
+    );
+    expect(buttons).toContain('Move');
+  });
 });

@@ -35,6 +35,7 @@ export type BeerTokenVariant = 'full' | 'mini';
     <div
       cdkDrag
       [cdkDragData]="beer().id"
+      [cdkDragDisabled]="dragDisabled()"
       class="beer-token"
       [class.beer-token--full]="variant() === 'full'"
       [class.beer-token--mini]="variant() === 'mini'"
@@ -238,6 +239,10 @@ export type BeerTokenVariant = 'full' | 'mini';
 export class BeerTokenComponent {
   readonly beer = input.required<BeerTokenData>();
   readonly variant = input<BeerTokenVariant>('mini');
+  // FR-061 / Session 2026-09-19 clarification: the read-only wizard/table-board disables dragging
+  // (the drop lists themselves are also disabled — see mesa-card/unassigned-column) while leaving
+  // the accessible name and click-to-detail behaviour identical to the editable mode.
+  readonly dragDisabled = input(false);
   readonly activated = output<void>();
 
   protected readonly bosNoteId = computed(() => `bos-note-${this.beer().id}`);

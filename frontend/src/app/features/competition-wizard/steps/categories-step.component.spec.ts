@@ -578,4 +578,87 @@ describe('CategoriesStepComponent', () => {
 
     expect(emitted.length).toBe(1);
   });
+
+  // FR-061 / Session 2026-09-19 clarification: read-only wizard once InEvaluation/Finalized.
+  describe('readOnly', () => {
+    function createReadOnlyComponent() {
+      const fixture = TestBed.createComponent(CategoriesStepComponent);
+      fixture.componentRef.setInput('competitionId', 'c1');
+      fixture.componentRef.setInput('readOnly', true);
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('still shows categories and their assigned styles', () => {
+      fakeCatalogApi.getStyles.mockReturnValue(of([styleFixture()]));
+      fakeCompetitionsApi.getCategories.mockReturnValue(
+        of(
+          categoriesResponseFixture({
+            categories: [
+              { id: 'cat-1', name: 'Estilos clásicos', displayOrder: 0, styleCodes: ['18A'] },
+            ],
+          }),
+        ),
+      );
+
+      const fixture = createReadOnlyComponent();
+
+      expect(fixture.nativeElement.textContent).toContain('Estilos clásicos');
+      expect(fixture.nativeElement.textContent).toContain('Blonde Ale');
+    });
+
+    it('hides "+ Añadir categoría", "Editar", "Eliminar" and "Guardar borrador"', () => {
+      fakeCompetitionsApi.getCategories.mockReturnValue(
+        of(
+          categoriesResponseFixture({
+            categories: [{ id: 'cat-1', name: 'A', displayOrder: 0, styleCodes: ['18A'] }],
+          }),
+        ),
+      );
+      const fixture = createReadOnlyComponent();
+
+      const texts = [...fixture.nativeElement.querySelectorAll('button')].map(
+        (button: HTMLButtonElement) => button.textContent?.trim(),
+      );
+      expect(texts).not.toContain('+ Añadir categoría');
+      expect(texts).not.toContain('Editar');
+      expect(texts).not.toContain('Eliminar');
+      expect(texts).not.toContain('Guardar borrador');
+    });
+
+    it('disables the per-style and bulk-assign selects', () => {
+      fakeCatalogApi.getStyles.mockReturnValue(of([styleFixture()]));
+      const fixture = createReadOnlyComponent();
+
+      const bulkSelect = fixture.nativeElement.querySelector(
+        '.style-group__bulk-select',
+      ) as HTMLSelectElement;
+      const rowSelect = fixture.nativeElement.querySelector(
+        '.style-row__select',
+      ) as HTMLSelectElement;
+      expect(bulkSelect.disabled).toBe(true);
+      expect(rowSelect.disabled).toBe(true);
+    });
+
+    it('advances via "Siguiente" without calling setCategories, even with nothing assigned', () => {
+      const fixture = createReadOnlyComponent();
+      const emitted: void[] = [];
+      fixture.componentInstance.saved.subscribe(() => emitted.push(undefined));
+
+      fixture.componentInstance.onFinish();
+
+      expect(fakeCompetitionsApi.setCategories).not.toHaveBeenCalled();
+      expect(emitted.length).toBe(1);
+    });
+  });
+
+  it('keeps "+ Añadir categoría" and "Guardar borrador" visible when readOnly is false (default)', () => {
+    const fixture = createComponent();
+
+    const texts = [...fixture.nativeElement.querySelectorAll('button')].map(
+      (button: HTMLButtonElement) => button.textContent?.trim(),
+    );
+    expect(texts).toContain('+ Añadir categoría');
+    expect(texts).toContain('Guardar borrador');
+  });
 });

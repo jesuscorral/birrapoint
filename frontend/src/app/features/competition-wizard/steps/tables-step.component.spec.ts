@@ -121,4 +121,29 @@ describe('TablesStepComponent', () => {
 
     expect(emitted.length).toBe(1);
   });
+
+  // FR-061 / Session 2026-09-19 clarification: read-only wizard once InEvaluation/Finalized.
+  it('forwards readOnly to the embedded table-board and updates the lead text, while keeping "Finalizar"', () => {
+    const fixture = TestBed.createComponent(TablesStepComponent);
+    fixture.componentRef.setInput('competitionId', 'c1');
+    fixture.componentRef.setInput('readOnly', true);
+    fixture.detectChanges();
+
+    const boardDebugEl = fixture.debugElement.query(By.directive(TableBoardComponent));
+    expect(boardDebugEl.componentInstance.readOnly()).toBe(true);
+    expect(fixture.nativeElement.querySelector('.step-lead').textContent.trim()).toBe(
+      'Consulta las mesas de cata y sus asignaciones de jueces y cervezas.',
+    );
+    const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
+      (button: HTMLButtonElement) => button.textContent?.trim(),
+    );
+    expect(buttons).toEqual(['Atrás', 'Finalizar']);
+  });
+
+  it('does not forward readOnly (defaults false) and keeps the original lead text', () => {
+    const fixture = createComponent();
+
+    const boardDebugEl = fixture.debugElement.query(By.directive(TableBoardComponent));
+    expect(boardDebugEl.componentInstance.readOnly()).toBe(false);
+  });
 });

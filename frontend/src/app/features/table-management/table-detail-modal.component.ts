@@ -101,26 +101,30 @@ export interface TableOption {
 
         <p>Assigned table: {{ assignedTableNames() }}</p>
 
-        <label class="move-label">
-          Move to
-          <select
-            class="move-select"
-            [value]="moveTarget()"
-            (change)="moveTarget.set($any($event.target).value)"
-          >
-            <option value="">Unassigned</option>
-            @for (table of tables(); track table.id) {
-              <option [value]="table.id">{{ table.name }}</option>
-            }
-          </select>
-        </label>
+        @if (!readOnly()) {
+          <label class="move-label">
+            Move to
+            <select
+              class="move-select"
+              [value]="moveTarget()"
+              (change)="moveTarget.set($any($event.target).value)"
+            >
+              <option value="">Unassigned</option>
+              @for (table of tables(); track table.id) {
+                <option [value]="table.id">{{ table.name }}</option>
+              }
+            </select>
+          </label>
+        }
         <div class="modal-actions">
-          <bp-button
-            type="button"
-            label="Move"
-            variant="secondary"
-            (clicked)="onMove()"
-          ></bp-button>
+          @if (!readOnly()) {
+            <bp-button
+              type="button"
+              label="Move"
+              variant="secondary"
+              (clicked)="onMove()"
+            ></bp-button>
+          }
           <bp-button
             type="button"
             label="Close"
@@ -205,6 +209,9 @@ export class TableDetailModalComponent implements OnInit {
   readonly content = input.required<DetailModalContent>();
   readonly assignedTableIds = input.required<string[]>();
   readonly tables = input.required<TableOption[]>();
+  // FR-061 / Session 2026-09-19 clarification: read-only wizard/table-board — details stay
+  // visible and Close still works, but the "Move to" reassignment control is hidden.
+  readonly readOnly = input(false);
 
   readonly closed = output<void>();
   readonly move = output<string | null>();

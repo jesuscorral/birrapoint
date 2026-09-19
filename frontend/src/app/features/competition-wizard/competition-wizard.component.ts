@@ -12,8 +12,9 @@ import { ActivatedRoute, Router } from '@angular/router';
 
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
 import type { CompetitionDetail } from '../../core/api/competitions-api.service';
+import { BpAlertComponent } from '../../shared/components/bp-alert/bp-alert.component';
 import { BpButtonComponent } from '../../shared/components/bp-button/bp-button.component';
-import { BpTopbarComponent } from '../../shared/components/bp-topbar/bp-topbar.component';
+import { BpPageShellComponent } from '../../shared/components/bp-page-shell/bp-page-shell.component';
 import { BasicsStepComponent } from './steps/basics-step.component';
 import { CategoriesStepComponent } from './steps/categories-step.component';
 import { DetailsStepComponent } from './steps/details-step.component';
@@ -24,8 +25,9 @@ import { TablesStepComponent } from './steps/tables-step.component';
 @Component({
   selector: 'app-competition-wizard',
   imports: [
-    BpTopbarComponent,
+    BpPageShellComponent,
     BpButtonComponent,
+    BpAlertComponent,
     CdkTrapFocus,
     BasicsStepComponent,
     DetailsStepComponent,
@@ -36,139 +38,149 @@ import { TablesStepComponent } from './steps/tables-step.component';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="wizard-shell">
-      <bp-topbar homeLink="/organizer/dashboard"></bp-topbar>
-
-      <main class="wizard-main">
-        <div class="wizard-container">
-          <div class="wizard-header">
-            <div>
-              <span class="eyebrow">{{
-                competitionId() ? 'Editar competición' : 'Crear competición'
-              }}</span>
-              <h1 class="wizard-title">
-                {{ competition()?.name || 'Registra tu competición' }}
-              </h1>
-            </div>
-            <!-- T125: hoisted out of the step action bars, where it existed on steps 1 and 3 only
-                 and competed with "Atrás" for the same corner. One exit affordance, same place on
-                 all six steps, guarded by the wizard's own unsaved-changes dialog. -->
-            <button type="button" class="back-to-list-link" (click)="onRequestExit()">
-              <span aria-hidden="true">←</span> Volver al listado
-            </button>
+    <bp-page-shell homeLink="/organizer/dashboard">
+      <div class="wizard-container">
+        <div class="wizard-header">
+          <div>
+            <span class="eyebrow">{{ eyebrowText() }}</span>
+            <h1 class="wizard-title">
+              {{ competition()?.name || 'Registra tu competición' }}
+            </h1>
           </div>
+          <!-- T125: hoisted out of the step action bars, where it existed on steps 1 and 3 only
+               and competed with "Atrás" for the same corner. One exit affordance, same place on
+               all six steps, guarded by the wizard's own unsaved-changes dialog. -->
+          <button type="button" class="back-to-list-link" (click)="onRequestExit()">
+            <span aria-hidden="true">←</span> Volver al listado
+          </button>
+        </div>
 
-          <!-- Stepper -->
-          <ol class="stepper" aria-label="Progreso del asistente">
-            @for (step of steps; track step.number) {
-              <li
-                class="stepper__item"
-                [class.is-active]="currentStep() === step.number"
-                [class.is-reached]="currentStep() >= step.number"
-                [class.is-complete]="stepStatus(step.number) === 'complete'"
-                [class.is-partial]="stepStatus(step.number) === 'partial'"
+        <!-- T127/FR-061: the wizard is read-only once the competition has moved past Active
+             (InEvaluation/Finalized) -- every step stays reachable for review, but the organizer
+             can no longer change anything. -->
+        @if (readOnly()) {
+          <bp-alert type="info" title="Modo consulta">
+            Esta competición está en evaluación o finalizada: puedes revisar todos los pasos, pero
+            ya no se pueden modificar.
+          </bp-alert>
+        }
+
+        <!-- Stepper -->
+        <ol class="stepper" aria-label="Progreso del asistente">
+          @for (step of steps; track step.number) {
+            <li
+              class="stepper__item"
+              [class.is-active]="currentStep() === step.number"
+              [class.is-reached]="currentStep() >= step.number"
+              [class.is-complete]="stepStatus(step.number) === 'complete'"
+              [class.is-partial]="stepStatus(step.number) === 'partial'"
+            >
+              <button
+                type="button"
+                class="stepper__step"
+                [disabled]="!canJumpTo(step.number)"
+                [attr.aria-current]="currentStep() === step.number ? 'step' : null"
+                (click)="goToStep(step.number)"
               >
-                <button
-                  type="button"
-                  class="stepper__step"
-                  [disabled]="!canJumpTo(step.number)"
-                  [attr.aria-current]="currentStep() === step.number ? 'step' : null"
-                  (click)="goToStep(step.number)"
-                >
-                  <span class="stepper__marker" aria-hidden="true">
-                    @if (stepStatus(step.number) === 'complete') {
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="3"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <path d="M20 6 9 17l-5-5" />
-                      </svg>
-                    } @else {
-                      {{ step.number }}
-                    }
-                  </span>
-                  <span class="stepper__label">{{ step.label }}</span>
-                </button>
-              </li>
-            }
-          </ol>
+                <span class="stepper__marker" aria-hidden="true">
+                  @if (stepStatus(step.number) === 'complete') {
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  } @else {
+                    {{ step.number }}
+                  }
+                </span>
+                <span class="stepper__label">{{ step.label }}</span>
+              </button>
+            </li>
+          }
+        </ol>
 
-          <div class="wizard-card">
-            @if (loading()) {
-              <p class="wizard-loading" role="status">Cargando…</p>
-            } @else if (loadError()) {
-              <p class="wizard-loading" role="alert">No hemos podido cargar esta competición.</p>
-            } @else {
-              @switch (currentStep()) {
-                @case (1) {
-                  <app-basics-step
-                    [competitionId]="competitionId()"
-                    [initialValue]="competition()"
-                    (saved)="onBasicsSaved($event)"
-                    (dirtyChange)="stepDirty.set($event)"
-                  />
-                }
-                @case (2) {
-                  <app-details-step
-                    [competitionId]="competitionId()!"
-                    [initialValue]="competition()"
-                    (saved)="onDetailsSaved($event)"
-                    (back)="onBack()"
-                    (dirtyChange)="stepDirty.set($event)"
-                  />
-                }
-                @case (3) {
-                  <app-categories-step
-                    [competitionId]="competitionId()!"
-                    (saved)="onCategoriesSaved()"
-                    (back)="onBack()"
-                    (dirtyChange)="stepDirty.set($event)"
-                    (statusChange)="categoriesStatus.set($event)"
-                  />
-                }
-                @case (4) {
-                  <app-import-step
-                    [competitionId]="competitionId()!"
-                    [importId]="importId()"
-                    (importIdChange)="importId.set($event)"
-                    (saved)="onImportSaved()"
-                    (back)="onBack()"
-                    (dirtyChange)="stepDirty.set($event)"
-                    (statusChange)="importStatus.set($event)"
-                  />
-                }
-                @case (5) {
-                  <app-judge-import-step
-                    [competitionId]="competitionId()!"
-                    [judgeImportId]="judgeImportId()"
-                    (judgeImportIdChange)="judgeImportId.set($event)"
-                    (saved)="onJudgeImportSaved()"
-                    (back)="onBack()"
-                    (dirtyChange)="stepDirty.set($event)"
-                    (statusChange)="judgeImportStatus.set($event)"
-                  />
-                }
-                @case (6) {
-                  <app-tables-step
-                    [competitionId]="competitionId()!"
-                    (back)="onBack()"
-                    (dirtyChange)="stepDirty.set($event)"
-                    (statusChange)="tablesStatus.set($event)"
-                    (finished)="onRequestExit()"
-                  />
-                }
+        <div class="wizard-card">
+          @if (loading()) {
+            <p class="wizard-loading" role="status">Cargando…</p>
+          } @else if (loadError()) {
+            <p class="wizard-loading" role="alert">No hemos podido cargar esta competición.</p>
+          } @else {
+            @switch (currentStep()) {
+              @case (1) {
+                <app-basics-step
+                  [competitionId]="competitionId()"
+                  [initialValue]="competition()"
+                  [readOnly]="readOnly()"
+                  (saved)="onBasicsSaved($event)"
+                  (dirtyChange)="stepDirty.set($event)"
+                />
+              }
+              @case (2) {
+                <app-details-step
+                  [competitionId]="competitionId()!"
+                  [initialValue]="competition()"
+                  [readOnly]="readOnly()"
+                  (saved)="onDetailsSaved($event)"
+                  (back)="onBack()"
+                  (dirtyChange)="stepDirty.set($event)"
+                />
+              }
+              @case (3) {
+                <app-categories-step
+                  [competitionId]="competitionId()!"
+                  [readOnly]="readOnly()"
+                  (saved)="onCategoriesSaved()"
+                  (back)="onBack()"
+                  (dirtyChange)="stepDirty.set($event)"
+                  (statusChange)="categoriesStatus.set($event)"
+                />
+              }
+              @case (4) {
+                <app-import-step
+                  [competitionId]="competitionId()!"
+                  [importId]="importId()"
+                  [readOnly]="readOnly()"
+                  (importIdChange)="importId.set($event)"
+                  (saved)="onImportSaved()"
+                  (back)="onBack()"
+                  (dirtyChange)="stepDirty.set($event)"
+                  (statusChange)="importStatus.set($event)"
+                />
+              }
+              @case (5) {
+                <app-judge-import-step
+                  [competitionId]="competitionId()!"
+                  [judgeImportId]="judgeImportId()"
+                  [readOnly]="readOnly()"
+                  (judgeImportIdChange)="judgeImportId.set($event)"
+                  (saved)="onJudgeImportSaved()"
+                  (back)="onBack()"
+                  (dirtyChange)="stepDirty.set($event)"
+                  (statusChange)="judgeImportStatus.set($event)"
+                />
+              }
+              @case (6) {
+                <app-tables-step
+                  [competitionId]="competitionId()!"
+                  [readOnly]="readOnly()"
+                  (back)="onBack()"
+                  (dirtyChange)="stepDirty.set($event)"
+                  (statusChange)="tablesStatus.set($event)"
+                  (finished)="onRequestExit()"
+                />
               }
             }
-          </div>
+          }
         </div>
-      </main>
-    </div>
+      </div>
+    </bp-page-shell>
 
     @if (pendingStep() !== null || pendingExit()) {
       <div class="modal-backdrop" role="presentation" (click)="onKeepEditing()">
@@ -223,42 +235,8 @@ import { TablesStepComponent } from './steps/tables-step.component';
   `,
   styles: [
     `
-      :host {
-        display: block;
-        min-height: 100vh;
-        background: var(--color-bp-hueso-50);
-      }
-
-      .wizard-shell {
-        min-height: 100vh;
-      }
-
-      /* T125b: real breathing room at the sides. The shell spans the viewport but the content
-         never runs up against it — the gutter widens with the screen instead of the card growing
-         to fill every last pixel. */
-      .wizard-main {
-        display: flex;
-        justify-content: center;
-        padding: var(--spacing-10) var(--spacing-8) var(--spacing-16);
-      }
-
-      @media (min-width: 1280px) {
-        .wizard-main {
-          padding-inline: var(--spacing-12);
-        }
-      }
-
-      @media (min-width: 1800px) {
-        .wizard-main {
-          padding-inline: var(--spacing-16);
-        }
-      }
-
-      @media (max-width: 640px) {
-        .wizard-main {
-          padding: var(--spacing-8) var(--spacing-4) var(--spacing-12);
-        }
-      }
+      /* T127: the shared bp-page-shell now owns the outer :host sizing/background and the gutter
+         (.page-main) rules this component used to duplicate as .wizard-shell/.wizard-main. */
 
       /* T125: the organizer console is desktop-first. The shell now spans the viewport (capped so
          it does not sprawl on ultrawide displays) and each step decides its own inner measure —
@@ -586,6 +564,21 @@ export class CompetitionWizardComponent {
     this.competition() ? 'complete' : 'partial',
   );
 
+  // T127/FR-061 + clarification "Session 2026-09-19": the wizard opens in every competition
+  // state, all 6 steps visible and reachable; it's read-only once the competition has moved past
+  // Active (InEvaluation/Finalized) — nothing can be modified from there, only reviewed.
+  protected readonly readOnly = computed(() => {
+    const state = this.competition()?.state;
+    return state === 'InEvaluation' || state === 'Finalized';
+  });
+
+  protected readonly eyebrowText = computed(() => {
+    if (this.readOnly()) {
+      return 'Consultar competición';
+    }
+    return this.competitionId() ? 'Editar competición' : 'Crear competición';
+  });
+
   constructor() {
     // currentStep starts at 1 and visitedSteps is seeded with 1, so this only ever adds steps 2-6
     // as the organizer actually reaches them.
@@ -599,11 +592,21 @@ export class CompetitionWizardComponent {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.competitionId.set(id);
+      // T127/FR-061: deep link via ?step=N — only meaningful once an id exists (a brand-new,
+      // unsaved competition at /new always starts at step 1, ignoring any stray query string).
+      this.currentStep.set(this.parseStepParam());
       this.loading.set(true);
       this.api.getById(id).subscribe({
         next: (detail) => {
           this.competition.set(detail);
           this.loading.set(false);
+          // Read-only competitions (InEvaluation/Finalized) render every step for review, so the
+          // stepper should show each one's real complete/partial status rather than the empty
+          // "never visited" look — seed the full set once, here, rather than requiring the
+          // organizer to click through all six just to see them coloured in.
+          if (detail.state === 'InEvaluation' || detail.state === 'Finalized') {
+            this.visitedSteps.set(new Set([1, 2, 3, 4, 5, 6]));
+          }
         },
         error: () => {
           this.loading.set(false);
@@ -611,6 +614,25 @@ export class CompetitionWizardComponent {
         },
       });
     }
+
+    // T127/FR-061: keep the URL's ?step= query in sync with the current step — a reload or a
+    // shared link then lands back on the same step. Only meaningful once competitionId is set;
+    // a brand-new competition has no address of its own yet to rewrite.
+    effect(() => {
+      const step = this.currentStep();
+      const currentId = this.competitionId();
+      if (currentId) {
+        this.location.replaceState(`/organizer/competitions/${currentId}`, `step=${step}`);
+      }
+    });
+  }
+
+  private parseStepParam(): 1 | 2 | 3 | 4 | 5 | 6 {
+    const raw = this.route.snapshot.queryParamMap.get('step');
+    const parsed = raw !== null ? Number(raw) : NaN;
+    return Number.isInteger(parsed) && parsed >= 1 && parsed <= 6
+      ? (parsed as 1 | 2 | 3 | 4 | 5 | 6)
+      : 1;
   }
 
   protected onBasicsSaved(detail: CompetitionDetail): void {
@@ -621,7 +643,8 @@ export class CompetitionWizardComponent {
       // Location.replaceState only swaps the address bar/history entry, not the Router's active
       // route — a router.navigate here would recreate this component (different Route config for
       // /new vs /:id) and lose currentStep/competition state. This still satisfies "a reload lands
-      // back on the same wizard" since a fresh page load reads the real browser URL.
+      // back on the same wizard" since a fresh page load reads the real browser URL. The ?step=
+      // effect above then keeps the query in sync on the very next tick, once currentStep advances.
       this.location.replaceState(`/organizer/competitions/${detail.id}`);
     }
     this.advanceTo(2);

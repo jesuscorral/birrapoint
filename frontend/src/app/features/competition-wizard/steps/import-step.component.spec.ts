@@ -560,4 +560,72 @@ describe('ImportStepComponent', () => {
 
     expect(emitted).toEqual([true, false]);
   });
+
+  // FR-061 / Session 2026-09-19 clarification: read-only wizard once InEvaluation/Finalized.
+  describe('readOnly', () => {
+    function createReadOnlyComponent(importId: string | null = null) {
+      const fixture = TestBed.createComponent(ImportStepComponent);
+      fixture.componentRef.setInput('competitionId', 'c1');
+      fixture.componentRef.setInput('readOnly', true);
+      if (importId) {
+        fixture.componentRef.setInput('importId', importId);
+      }
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('keeps "Cervezas ya importadas" visible and hides the dropzone and "Subir archivo"', () => {
+      fakeEntriesApi.getEntries.mockReturnValue(of([entryFixture()]));
+      const fixture = createReadOnlyComponent();
+
+      expect(fixture.nativeElement.textContent).toContain('Cervezas ya importadas');
+      expect(fixture.nativeElement.querySelector('input[type="file"]')).toBeNull();
+      const texts = [...fixture.nativeElement.querySelectorAll('button')].map(
+        (button: HTMLButtonElement) => button.textContent?.trim(),
+      );
+      expect(texts).not.toContain('Subir archivo');
+    });
+
+    it('shows "No se importaron cervezas." when there is nothing imported', () => {
+      const fixture = createReadOnlyComponent();
+
+      expect(fixture.nativeElement.textContent).toContain('No se importaron cervezas.');
+    });
+
+    it('hides per-row Editar/Excluir and Consolidar when a pending batch exists', () => {
+      fakeImportApi.revalidate.mockReturnValue(
+        of(batchFixture([rowFixture({ rowNumber: 1, status: 'Valid' })])),
+      );
+      const fixture = createReadOnlyComponent('i1');
+
+      const texts = [...fixture.nativeElement.querySelectorAll('button')].map(
+        (button: HTMLButtonElement) => button.textContent?.trim(),
+      );
+      expect(texts).not.toContain('Editar');
+      expect(texts).not.toContain('Excluir');
+      expect(texts).not.toContain('Consolidar');
+    });
+
+    it('advances via "Siguiente" without uploading or consolidating', () => {
+      const fixture = createReadOnlyComponent();
+      const emitted: void[] = [];
+      fixture.componentInstance.saved.subscribe(() => emitted.push(undefined));
+
+      buttonWithText(fixture.nativeElement, 'Siguiente').click();
+
+      expect(fakeImportApi.upload).not.toHaveBeenCalled();
+      expect(fakeImportApi.consolidate).not.toHaveBeenCalled();
+      expect(emitted.length).toBe(1);
+    });
+  });
+
+  it('keeps the dropzone and "Subir archivo" visible when readOnly is false (default)', () => {
+    const fixture = createComponent();
+
+    expect(fixture.nativeElement.querySelector('input[type="file"]')).not.toBeNull();
+    const texts = [...fixture.nativeElement.querySelectorAll('button')].map(
+      (button: HTMLButtonElement) => button.textContent?.trim(),
+    );
+    expect(texts).toContain('Subir archivo');
+  });
 });

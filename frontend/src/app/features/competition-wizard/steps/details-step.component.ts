@@ -138,14 +138,16 @@ function toGenericApiError(error: unknown): ApiError {
            is simply left unsaved and the step advances anyway. Disabling it would trap the
            organizer with no way forward short of blanking the offending field. -->
       <bp-step-actions nextType="submit" [nextLoading]="submitting()" (back)="back.emit()">
-        <bp-button
-          type="button"
-          label="Guardar borrador"
-          variant="secondary"
-          [loading]="submitting()"
-          [disabled]="form.invalid"
-          (clicked)="onSaveAndLeave()"
-        ></bp-button>
+        @if (!readOnly()) {
+          <bp-button
+            type="button"
+            label="Guardar borrador"
+            variant="secondary"
+            [loading]="submitting()"
+            [disabled]="form.invalid"
+            (clicked)="onSaveAndLeave()"
+          ></bp-button>
+        }
       </bp-step-actions>
     </form>
   `,
@@ -192,6 +194,10 @@ export class DetailsStepComponent {
 
   readonly competitionId = input.required<string>();
   readonly initialValue = input<CompetitionDetail | null>(null);
+  // FR-061 / Session 2026-09-19 clarification: the wizard is read-only once the competition is
+  // InEvaluation or Finalized. Every field stays visible but disabled, mutating actions are
+  // hidden, and "Siguiente" advances without persisting (see onSaveDraft()).
+  readonly readOnly = input(false);
   readonly saved = output<CompetitionDetail>();
   readonly back = output<void>();
   // See basics-step.component.ts for why this is driven off FormGroup.dirty via valueChanges
@@ -229,6 +235,14 @@ export class DetailsStepComponent {
     this.form.valueChanges.subscribe(() => {
       this.dirtyChange.emit(this.form.dirty);
     });
+
+    effect(() => {
+      if (this.readOnly()) {
+        this.form.disable({ emitEvent: false });
+      } else {
+        this.form.enable({ emitEvent: false });
+      }
+    });
   }
 
   protected fieldError(field: string): string | null {
@@ -248,6 +262,13 @@ export class DetailsStepComponent {
   // step advances with whatever was already persisted. Without this, removing [nextDisabled] would
   // just turn "Siguiente" into a dead button on an invalid form.
   protected onSaveDraft(): void {
+    if (this.readOnly()) {
+      const current = this.initialValue();
+      if (current) {
+        this.saved.emit(current);
+      }
+      return;
+    }
     if (this.submitting()) {
       return;
     }

@@ -275,4 +275,86 @@ describe('BasicsStepComponent', () => {
     expect(emitted).toEqual([true]);
     expect(fixture.componentInstance.form.dirty).toBe(true);
   });
+
+  // FR-061 / Session 2026-09-19 clarification: the wizard is read-only once the competition is
+  // InEvaluation or Finalized — every step keeps rendering its data, but every field is disabled
+  // and "Siguiente" advances without persisting.
+  describe('readOnly', () => {
+    function createReadOnlyComponent(initialValue: CompetitionDetail | null = detailFixture()) {
+      const fixture = TestBed.createComponent(BasicsStepComponent);
+      fixture.componentRef.setInput('competitionId', 'c1');
+      fixture.componentRef.setInput('initialValue', initialValue);
+      fixture.componentRef.setInput('readOnly', true);
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('disables the form while still displaying the prefilled values', () => {
+      const fixture = createReadOnlyComponent();
+
+      expect(fixture.componentInstance.form.disabled).toBe(true);
+      expect(fixture.componentInstance.form.getRawValue()).toEqual({
+        name: 'Golden Ale Cup',
+        venue: 'Town Hall',
+        startDate: '2026-08-01',
+        endDate: '2026-08-02',
+      });
+      const nameInput = fixture.nativeElement.querySelector(
+        'input#basics-name',
+      ) as HTMLInputElement;
+      expect(nameInput.disabled).toBe(true);
+    });
+
+    it('hides "Guardar borrador"', () => {
+      const fixture = createReadOnlyComponent();
+
+      const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
+        (button: HTMLButtonElement) => button.textContent?.trim(),
+      );
+      expect(buttons).toEqual(['Siguiente']);
+    });
+
+    it('does not disable "Siguiente" despite the form status being DISABLED', () => {
+      const fixture = createReadOnlyComponent();
+
+      const button = fixture.nativeElement.querySelector(
+        'button[type="submit"]',
+      ) as HTMLButtonElement;
+      expect(button.disabled).toBe(false);
+    });
+
+    it('advances by emitting saved with the current initialValue, without calling the API', () => {
+      const detail = detailFixture();
+      const fixture = createReadOnlyComponent(detail);
+      const emitted: CompetitionDetail[] = [];
+      fixture.componentInstance.saved.subscribe((value) => emitted.push(value));
+
+      fixture.componentInstance.onNext();
+
+      expect(fakeApi.create).not.toHaveBeenCalled();
+      expect(fakeApi.update).not.toHaveBeenCalled();
+      expect(emitted).toEqual([detail]);
+    });
+
+    it('does not emit saved when there is no initialValue yet', () => {
+      const fixture = createReadOnlyComponent(null);
+      const emitted: CompetitionDetail[] = [];
+      fixture.componentInstance.saved.subscribe((value) => emitted.push(value));
+
+      fixture.componentInstance.onNext();
+
+      expect(emitted).toEqual([]);
+    });
+  });
+
+  // Guard: editable mode (the default) must keep behaving exactly as before.
+  it('keeps the form editable and "Guardar borrador" visible when readOnly is false (default)', () => {
+    const fixture = createComponent();
+
+    expect(fixture.componentInstance.form.disabled).toBe(false);
+    const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
+      (button: HTMLButtonElement) => button.textContent?.trim(),
+    );
+    expect(buttons).toEqual(['Guardar borrador', 'Siguiente']);
+  });
 });

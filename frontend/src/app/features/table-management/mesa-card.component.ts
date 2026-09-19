@@ -60,6 +60,7 @@ import type { TableSummary } from './table-management-api.service';
           cdkDropList
           [id]="judgeListId()"
           [cdkDropListConnectedTo]="connectedJudgeListIds()"
+          [cdkDropListDisabled]="readOnly()"
           (cdkDropListDropped)="judgesDropped.emit($event)"
         >
           @for (judge of table().judges; track judge.id) {
@@ -67,6 +68,7 @@ import type { TableSummary } from './table-management-api.service';
               <app-judge-seat
                 [judge]="judge"
                 [dense]="compact()"
+                [dragDisabled]="readOnly()"
                 (activated)="judgeActivated.emit(judge.id)"
               />
             </li>
@@ -85,6 +87,7 @@ import type { TableSummary } from './table-management-api.service';
           cdkDropList
           [id]="beerListId()"
           [cdkDropListConnectedTo]="connectedBeerListIds()"
+          [cdkDropListDisabled]="readOnly()"
           (cdkDropListDropped)="beersDropped.emit($event)"
         >
           @for (sample of table().samples; track sample.beerEntryId) {
@@ -101,6 +104,7 @@ import type { TableSummary } from './table-management-api.service';
                   bjcpCategoryNumber: sample.bjcpCategoryNumber,
                   bjcpCategoryName: sample.bjcpCategoryName,
                 }"
+                [dragDisabled]="readOnly()"
                 (activated)="beerActivated.emit(sample.beerEntryId)"
               />
             </li>
@@ -278,6 +282,9 @@ export class MesaCardComponent {
   readonly compact = input(false);
   readonly connectedJudgeListIds = input.required<string[]>();
   readonly connectedBeerListIds = input.required<string[]>();
+  // FR-061 / Session 2026-09-19 clarification: read-only wizard/table-board — both drop lists and
+  // every seated judge/beer's dragging are disabled, but click-to-detail stays available.
+  readonly readOnly = input(false);
 
   readonly judgeActivated = output<string>();
   readonly beerActivated = output<string>();
