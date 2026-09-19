@@ -1544,6 +1544,27 @@ judge already provisioned with a Keycloak account.
   An always-visible "New competition" action routes to
   `/organizer/competitions/new`; zero competitions renders an empty state with the same CTA
   (FR-050, Acceptance Scenario 4). Single component, no list/item split.
+  **T127 routing correction**: `Active` previously linked straight to the standalone table board
+  (`/organizer/competitions/{id}/tables`). Since T123 made table setup the wizard's own sixth step,
+  that shortcut landed the organizer on a bare board with no stepper — indistinguishable from "the
+  wizard lost steps 1–5", which is exactly how it was reported. Both setup states now open the
+  wizard; the standalone `/tables` route still exists and is unchanged, just no longer the
+  dashboard's destination. `spec.md` US13 Acceptance Scenario 2 and FR-060 were amended in the same
+  change (requirement change flows to the spec first, never silently into code).
+  **T126 header**: the dashboard now renders the shared `bp-topbar` (previously used only by the
+  wizard) carrying two projected actions — a "Settings" `routerLink` to `/organizer/settings` and a
+  "Log out" button calling `keycloak.logout({ redirectUri: origin + '/' })`. The page's own padding
+  moved from `:host` onto a `.dashboard-main` wrapper so the bar spans the viewport flush, matching
+  `competition-wizard.component.ts`'s `.wizard-shell`/`.wizard-main` split.
+
+- **`features/settings/`** (T126): `UserSettingsComponent` — route `/organizer/settings`, under the
+  existing `organizerGuard`. Renders the logged-in user's identity as a `dl`: first name, last name,
+  email (with a "Verified" pill when `emailVerified`), username, realm role(s) and member-since.
+  Purely frontend and backend-free by design: identity is Keycloak-only (Principle VII), so every
+  field comes from `keycloak-js` directly — `loadUserProfile()` for the profile and
+  `tokenParsed.realm_access.roles` for the roles. The realm defines no custom user attributes
+  (`infra/keycloak/birrapoint-realm.json`), so this is the complete set of data the app actually
+  holds about a user, not a partial view. Carries the same `bp-topbar` + "Log out" affordance.
   **Bug found and fixed the same day, unrelated to this task's own files**: while visually
   verifying this component in a real browser (not just Jest/jsdom), the routed content rendered
   correctly but was pushed entirely below the fold — `frontend/src/app/app.html` (unchanged since

@@ -8,12 +8,14 @@ describe('BeerTokenComponent', () => {
     return {
       id: 'e1',
       blindCode: 'AB12',
+      styleCode: '21A',
       notValidForBos: false,
       styleName: 'American IPA',
       abvPercent: 6.8,
       competitionCategoryName: 'Estilos clásicos',
       bjcpCategoryNumber: '21',
       bjcpCategoryName: 'IPA',
+      categoryColor: '#d7e6f4',
       ...overrides,
     };
   }
@@ -32,8 +34,8 @@ describe('BeerTokenComponent', () => {
     return fixture.nativeElement.querySelector('.beer-token') as HTMLDivElement;
   }
 
-  it('renders the blind code and a data-entry-id attribute', () => {
-    const fixture = createComponent(beerFixture());
+  it('renders the blind code and a data-entry-id attribute (full variant)', () => {
+    const fixture = createComponent(beerFixture(), 'full');
 
     const token = tokenOf(fixture);
     expect(token.querySelector('.beer-token__code')?.textContent?.trim()).toBe('AB12');
@@ -76,14 +78,43 @@ describe('BeerTokenComponent', () => {
     expect(chips).toEqual(['Estilos clásicos', '6.8% ABV']);
   });
 
-  it('renders a compact code + ABV pill in the mini variant, with no style or chips', () => {
+  // T125c: the mini token is a compact seated pill — BJCP style code plus the bare graduation
+  // only; no icon, no style name, no chips. The full variant (asserted above/below) is untouched
+  // by this compaction.
+  it('renders the style code and bare graduation in the mini variant, with no icon, style name or chips', () => {
     const fixture = createComponent(beerFixture(), 'mini');
 
     const token = tokenOf(fixture);
     expect(token.classList.contains('beer-token--mini')).toBe(true);
-    expect(token.querySelector('.beer-token__abv-mini')?.textContent?.trim()).toBe('6.8% ABV');
+    expect(token.querySelector('.beer-token__code')?.textContent?.trim()).toBe('21A');
+    expect(token.querySelector('svg.beer-token__icon')).toBeNull();
     expect(token.querySelector('.beer-token__style')).toBeNull();
     expect(token.querySelector('.beer-token__chip')).toBeNull();
+  });
+
+  // The graduation is shown WITHOUT the "ABV" suffix the full variant's chip carries — the pill
+  // has no room for a unit the percent sign already implies.
+  it('shows the graduation as a bare percent in the mini variant, never suffixed with ABV', () => {
+    const fixture = createComponent(beerFixture(), 'mini');
+
+    const abv = tokenOf(fixture).querySelector('.beer-token__abv-mini');
+    expect(abv?.textContent?.trim()).toBe('6.8%');
+    expect(abv?.textContent).not.toContain('ABV');
+  });
+
+  it('shows the blind code (not the style code) as the visible label in the full variant', () => {
+    const fixture = createComponent(beerFixture(), 'full');
+
+    const token = tokenOf(fixture);
+    expect(token.querySelector('.beer-token__code')?.textContent?.trim()).toBe('AB12');
+    expect(token.querySelector('svg.beer-token__icon')).not.toBeNull();
+  });
+
+  it('sets the background to the resolved categoryColor', () => {
+    const fixture = createComponent(beerFixture({ categoryColor: '#f4e2d7' }));
+
+    // jsdom's CSSOM normalizes hex colors to rgb() on read; #f4e2d7 = rgb(244, 226, 215).
+    expect(tokenOf(fixture).style.background).toContain('rgb(244, 226, 215)');
   });
 
   it('defaults to the mini variant (the seated form on a MesaCard)', () => {

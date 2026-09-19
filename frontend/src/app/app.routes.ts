@@ -12,6 +12,7 @@ import { JudgeTablesListComponent } from './features/judge-tables/judge-tables-l
 import { OrganizerDashboardComponent } from './features/dashboard/organizer-dashboard.component';
 import { ResultsDispatchComponent } from './features/results-dispatch/results-dispatch.component';
 import { TableManagementComponent } from './features/table-management/table-management.component';
+import { UserSettingsComponent } from './features/settings/user-settings.component';
 import { WelcomeComponent } from './features/auth/welcome/welcome.component';
 import { KeycloakHandoffComponent } from './features/auth/keycloak-handoff/keycloak-handoff.component';
 
@@ -38,6 +39,7 @@ export const routes: Routes = [
     canActivate: [organizerGuard],
     children: [
       { path: 'dashboard', component: OrganizerDashboardComponent },
+      { path: 'settings', component: UserSettingsComponent },
       { path: 'competitions/new', component: CompetitionWizardComponent },
       { path: 'competitions/:id', component: CompetitionWizardComponent },
       { path: 'competitions/:id/judges', component: JudgeManagementComponent },

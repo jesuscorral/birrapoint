@@ -4,6 +4,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 
 import type { EntryListItem } from '../../core/api/entries-api.service';
 import { BeerTokenComponent } from './beer-token.component';
+import { UNCATEGORIZED_COLOR } from './category-color';
 import { JudgeSeatComponent } from './judge-seat.component';
 import type { JudgeListItem } from './table-management-api.service';
 
@@ -71,12 +72,14 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
               [beer]="{
                 id: beer.id,
                 blindCode: beer.blindCode,
+                styleCode: beer.styleCode,
                 notValidForBos: beer.notValidForBos,
                 styleName: beer.styleName,
                 abvPercent: beer.abvPercent,
                 competitionCategoryName: beer.competitionCategoryName,
                 bjcpCategoryNumber: beer.bjcpCategoryNumber,
                 bjcpCategoryName: beer.bjcpCategoryName,
+                categoryColor: categoryColorFor(beer.competitionCategoryName),
               }"
               [dragDisabled]="readOnly()"
               (activated)="beerActivated.emit(beer.id)"
@@ -204,4 +207,10 @@ export class UnassignedColumnComponent {
       ? 'Ninguna cerveza coincide con el filtro'
       : 'Todas las cervezas están asignadas',
   );
+
+  protected categoryColorFor(categoryName: string | null): string {
+    return categoryName
+      ? (this.categoryColorMap().get(categoryName) ?? UNCATEGORIZED_COLOR)
+      : UNCATEGORIZED_COLOR;
+  }
 }

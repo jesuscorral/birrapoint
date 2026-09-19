@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 
+import { UNCATEGORIZED_COLOR } from './category-color';
 import { MesaCardComponent } from './mesa-card.component';
 import type { TableSummary } from './table-management-api.service';
 
@@ -33,11 +34,15 @@ function tableFixture(): TableSummary {
 }
 
 describe('MesaCardComponent', () => {
-  function createComponent(table: TableSummary) {
+  function createComponent(
+    table: TableSummary,
+    categoryColorMap: ReadonlyMap<string, string> = new Map([['Estilos clásicos', '#d7e6f4']]),
+  ) {
     const fixture = TestBed.createComponent(MesaCardComponent);
     fixture.componentRef.setInput('table', table);
     fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned', 'judges-t1']);
     fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned', 'beers-t1']);
+    fixture.componentRef.setInput('categoryColorMap', categoryColorMap);
     fixture.detectChanges();
     return fixture;
   }

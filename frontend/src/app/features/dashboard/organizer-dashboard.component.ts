@@ -1,6 +1,7 @@
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import Keycloak from 'keycloak-js';
 
 import { ApiError } from '../../core/api/api-error';
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
@@ -36,10 +37,11 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
 
 // T100/US13: post-login ORGANIZER landing — every competition the caller has created
 // (contracts/rest-api.md GET /competitions), so they can resume or start work without knowing or
-// typing an internal address. Selecting a Draft competition reopens the setup wizard; Active goes
-// to the tables screen (still the setup/assignment view for that state); InEvaluation and
-// Finalized go to the live monitoring dashboard (T070/US9) — there's nothing left to set up once
-// evaluation has started.
+// typing an internal address. Selecting a Draft *or* Active competition reopens the six-step setup
+// wizard (T127 — Active previously opened the standalone table board directly, which read as "the
+// wizard lost its steps"; the wizard's step 6 embeds that same board); InEvaluation and Finalized
+// go to the live monitoring dashboard (T070/US9) — there's nothing left to set up once evaluation
+// has started.
 //
 // T102/FR-051: the advance-state action lives as a sibling of the navigation `<a>`, never nested
 // inside it — a `<button>` inside an `<a>` is invalid HTML and an accessibility hazard (nested
@@ -363,6 +365,7 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
 })
 export class OrganizerDashboardComponent {
   private readonly api = inject(CompetitionsApiService);
+  private readonly keycloak = inject(Keycloak);
 
   protected readonly competitions = signal<CompetitionSummary[]>([]);
   protected readonly loadError = signal<string | null>(null);
@@ -374,6 +377,10 @@ export class OrganizerDashboardComponent {
 
   constructor() {
     this.loadCompetitions();
+  }
+
+  protected onLogout(): void {
+    this.keycloak.logout({ redirectUri: window.location.origin + '/' });
   }
 
   private loadCompetitions(): void {

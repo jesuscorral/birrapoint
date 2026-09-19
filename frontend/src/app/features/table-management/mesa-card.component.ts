@@ -3,6 +3,7 @@ import { CdkDropList } from '@angular/cdk/drag-drop';
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 import { BeerTokenComponent } from './beer-token.component';
+import { UNCATEGORIZED_COLOR } from './category-color';
 import { JudgeSeatComponent } from './judge-seat.component';
 import type { TableSummary } from './table-management-api.service';
 
@@ -97,12 +98,14 @@ import type { TableSummary } from './table-management-api.service';
                 [beer]="{
                   id: sample.beerEntryId,
                   blindCode: sample.blindCode,
+                  styleCode: sample.styleCode,
                   notValidForBos: sample.notValidForBos,
                   styleName: sample.styleName,
                   abvPercent: sample.abvPercent,
                   competitionCategoryName: sample.competitionCategoryName,
                   bjcpCategoryNumber: sample.bjcpCategoryNumber,
                   bjcpCategoryName: sample.bjcpCategoryName,
+                  categoryColor: categoryColorFor(sample.competitionCategoryName),
                 }"
                 [dragDisabled]="readOnly()"
                 (activated)="beerActivated.emit(sample.beerEntryId)"
@@ -310,4 +313,10 @@ export class MesaCardComponent {
     const { styles } = this.table().stats;
     return styles.length === 0 ? '—' : styles.join(' · ');
   });
+
+  protected categoryColorFor(categoryName: string | null): string {
+    return categoryName
+      ? (this.categoryColorMap().get(categoryName) ?? UNCATEGORIZED_COLOR)
+      : UNCATEGORIZED_COLOR;
+  }
 }

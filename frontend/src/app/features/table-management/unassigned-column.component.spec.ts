@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 
 import type { EntryListItem } from '../../core/api/entries-api.service';
+import { UNCATEGORIZED_COLOR } from './category-color';
 import { UnassignedColumnComponent } from './unassigned-column.component';
 import type { JudgeListItem } from './table-management-api.service';
 
@@ -30,13 +31,16 @@ function beersFixture(): EntryListItem[] {
 }
 
 describe('UnassignedColumnComponent', () => {
-  function createComponent() {
+  function createComponent(
+    categoryColorMap: ReadonlyMap<string, string> = new Map([['Estilos clásicos', '#d7e6f4']]),
+  ) {
     const fixture = TestBed.createComponent(UnassignedColumnComponent);
     fixture.componentRef.setInput('judges', judgesFixture());
     fixture.componentRef.setInput('beers', beersFixture());
     fixture.componentRef.setInput('beersTotal', beersFixture().length);
     fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned']);
     fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned']);
+    fixture.componentRef.setInput('categoryColorMap', categoryColorMap);
     fixture.detectChanges();
     return fixture;
   }
@@ -63,6 +67,7 @@ describe('UnassignedColumnComponent', () => {
     fixture.componentRef.setInput('beersTotal', 0);
     fixture.componentRef.setInput('connectedJudgeListIds', ['judges-unassigned']);
     fixture.componentRef.setInput('connectedBeerListIds', ['beers-unassigned']);
+    fixture.componentRef.setInput('categoryColorMap', new Map());
     fixture.detectChanges();
 
     const headings = [...fixture.nativeElement.querySelectorAll('h3')] as HTMLElement[];

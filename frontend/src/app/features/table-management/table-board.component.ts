@@ -19,6 +19,7 @@ import type { EntryListItem } from '../../core/api/entries-api.service';
 import { BpAlertComponent } from '../../shared/components/bp-alert/bp-alert.component';
 import { BpButtonComponent } from '../../shared/components/bp-button/bp-button.component';
 import { BpInputComponent } from '../../shared/components/bp-input/bp-input.component';
+import { buildCategoryColorMap } from './category-color';
 import { MesaCardComponent } from './mesa-card.component';
 import { TableDetailModalComponent } from './table-detail-modal.component';
 import type { DetailModalContent, TableOption } from './table-detail-modal.component';
@@ -543,6 +544,17 @@ export class TableBoardComponent implements OnInit {
           .filter((name): name is string => name !== null),
       ),
     ].sort((a, b) => a.localeCompare(b)),
+  );
+
+  // T125c: over ALL entries (not just unassignedBeers) — a category's color must stay identical
+  // whether its beers are seated on a table or still in the pool, so a beer that gets dragged onto
+  // a table cannot silently change color underneath the organizer.
+  protected readonly categoryColorMap = computed(() =>
+    buildCategoryColorMap(
+      this.entries()
+        .map((entry) => entry.competitionCategoryName)
+        .filter((name): name is string => name !== null),
+    ),
   );
 
   protected readonly isFiltering = computed(

@@ -1,6 +1,7 @@
 import { provideRouter } from '@angular/router';
 import type { ComponentFixture } from '@angular/core/testing';
 import { TestBed } from '@angular/core/testing';
+import Keycloak from 'keycloak-js';
 import { of, throwError } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
@@ -41,14 +42,20 @@ function clickConfirm(fixture: ComponentFixture<OrganizerDashboardComponent>): v
 
 describe('OrganizerDashboardComponent', () => {
   let fakeApi: { list: jest.Mock; changeState: jest.Mock };
+  let fakeKeycloak: { logout: jest.Mock };
 
   beforeEach(() => {
     fakeApi = {
       list: jest.fn().mockReturnValue(of([competitionFixture()])),
       changeState: jest.fn().mockReturnValue(of({ state: 'Active' })),
     };
+    fakeKeycloak = { logout: jest.fn() };
     TestBed.configureTestingModule({
-      providers: [{ provide: CompetitionsApiService, useValue: fakeApi }, provideRouter([])],
+      providers: [
+        { provide: CompetitionsApiService, useValue: fakeApi },
+        { provide: Keycloak, useValue: fakeKeycloak },
+        provideRouter([]),
+      ],
     });
   });
 
@@ -133,6 +140,26 @@ describe('OrganizerDashboardComponent', () => {
     const link = fixture.nativeElement.querySelector('a[href="/organizer/competitions/new"]');
     expect(link).not.toBeNull();
     expect(link.textContent).toContain('New competition');
+  });
+
+  describe('topbar (user settings and log out)', () => {
+    it('renders a Settings link to the user-settings page', () => {
+      const fixture = createComponent();
+
+      const link = fixture.nativeElement.querySelector('a[href="/organizer/settings"]');
+      expect(link).not.toBeNull();
+      expect(link.textContent).toContain('Settings');
+    });
+
+    it('calls keycloak.logout with the app-root redirect when "Log out" is clicked', () => {
+      const fixture = createComponent();
+
+      findButtonByText(fixture.nativeElement as Element, 'Log out').click();
+
+      expect(fakeKeycloak.logout).toHaveBeenCalledWith({
+        redirectUri: window.location.origin + '/',
+      });
+    });
   });
 
   describe('advance-state action (FR-051)', () => {
