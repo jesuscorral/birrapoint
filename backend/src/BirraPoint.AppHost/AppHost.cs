@@ -28,7 +28,6 @@ var db = postgres.AddDatabase("db", "birrapoint");
 var keycloakDb = postgres.AddDatabase("keycloakdb", "keycloak");
 
 // Keycloak 26 (constitution: 25+) with the birrapoint realm auto-imported.
-// Bootstrap admin + realm seed credentials are LOCAL-DEV placeholders only;
 // production injects real secrets at deploy time (FR-046).
 // Realm import uses the IGNORE_EXISTING strategy, so it only seeds the realm once. Backed by
 // Postgres (keycloakDb above), not dev-mode's default embedded H2 — H2's single-file store isn't
@@ -88,4 +87,4 @@ builder.AddNpmApp("frontend", "../../../frontend", "start")
     .WithExternalHttpEndpoints()
     .WaitFor(api);
 
-builder.Build().Run();
+await builder.Build().RunAsync();

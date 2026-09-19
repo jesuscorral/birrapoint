@@ -55,6 +55,13 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <bp-page-shell>
+      <ng-container bpTopbarActions>
+        <a routerLink="/organizer/settings" class="topbar-action topbar-action--link">Settings</a>
+        <button type="button" class="topbar-action topbar-action--button" (click)="onLogout()">
+          Log out
+        </button>
+      </ng-container>
+
       <h1>Competitions</h1>
 
       @if (loadError(); as message) {
@@ -133,6 +140,44 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
     </bp-page-shell>
   `,
   styles: `
+    .topbar-action {
+      display: inline-flex;
+      align-items: center;
+      min-height: 40px;
+      padding: 0 var(--spacing-4);
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 0.875rem;
+      text-decoration: none;
+      cursor: pointer;
+      background: transparent;
+      font-family: inherit;
+    }
+
+    .topbar-action--link {
+      color: var(--color-bp-cobre-700);
+    }
+
+    .topbar-action--link:hover {
+      background: var(--color-bp-cobre-50);
+    }
+
+    .topbar-action--button {
+      color: var(--color-bp-text-muted);
+      border: 1.5px solid var(--color-bp-border-strong);
+    }
+
+    .topbar-action--button:hover {
+      background: var(--color-bp-hueso-100);
+    }
+
+    .topbar-action:focus-visible {
+      outline: none;
+      box-shadow:
+        0 0 0 3px var(--color-bp-surface),
+        0 0 0 5px var(--color-bp-cobre-500);
+    }
+
     h1 {
       font-family: 'Fraunces', serif;
       font-size: 1.75rem;

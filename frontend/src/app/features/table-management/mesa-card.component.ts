@@ -285,6 +285,9 @@ export class MesaCardComponent {
   readonly compact = input(false);
   readonly connectedJudgeListIds = input.required<string[]>();
   readonly connectedBeerListIds = input.required<string[]>();
+  // T125c: computed once by the board over every entry in the competition (assigned or not), so a
+  // category's color stays identical whether its beers are seated here or still in the pool.
+  readonly categoryColorMap = input.required<ReadonlyMap<string, string>>();
   // FR-061 / Session 2026-09-19 clarification: read-only wizard/table-board — both drop lists and
   // every seated judge/beer's dragging are disabled, but click-to-detail stays available.
   readonly readOnly = input(false);

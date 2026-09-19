@@ -183,8 +183,4 @@ if (app.Environment.IsDevelopment())
     await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
 }
 
-app.Run();
-
-// Minimal-API top-level Program is implicitly internal; WebApplicationFactory<Program>
-// (BirraPoint.Api.IntegrationTests/TestHost, T018) needs it visible to the test assembly.
-public partial class Program;
+await app.RunAsync();

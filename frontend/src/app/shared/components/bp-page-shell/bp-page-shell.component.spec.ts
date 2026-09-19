@@ -31,6 +31,20 @@ class HostComponent {
 })
 class DefaultsHostComponent {}
 
+@Component({
+  standalone: true,
+  imports: [BpPageShellComponent],
+  template: `
+    <bp-page-shell>
+      <ng-container bpTopbarActions>
+        <button type="button">Log out</button>
+      </ng-container>
+      <p>Main content</p>
+    </bp-page-shell>
+  `,
+})
+class TopbarActionsHostComponent {}
+
 describe('BpPageShellComponent', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -71,5 +85,19 @@ describe('BpPageShellComponent', () => {
     const topbar = fixture.debugElement.query(By.directive(BpTopbarComponent));
     expect(topbar.componentInstance.homeLink()).toBe('/organizer/dashboard');
     expect(topbar.componentInstance.title()).toBe('');
+  });
+
+  // A page like the organizer dashboard needs its own Settings/Log out controls in the topbar,
+  // not just the main content area — content marked [bpTopbarActions] is forwarded into
+  // bp-topbar's own projection slot rather than landing in <main>.
+  it('projects [bpTopbarActions] content into the topbar header, not the main landmark', () => {
+    const fixture = TestBed.createComponent(TopbarActionsHostComponent);
+    fixture.detectChanges();
+
+    const header = fixture.nativeElement.querySelector('header') as HTMLElement;
+    const main = fixture.nativeElement.querySelector('main') as HTMLElement;
+    expect(header.querySelector('button')?.textContent).toContain('Log out');
+    expect(main.querySelector('button')).toBeNull();
+    expect(main.textContent).toContain('Main content');
   });
 });

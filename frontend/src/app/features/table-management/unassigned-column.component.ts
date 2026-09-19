@@ -171,6 +171,9 @@ export class UnassignedColumnComponent {
   readonly beersTotal = input.required<number>();
   readonly connectedJudgeListIds = input.required<string[]>();
   readonly connectedBeerListIds = input.required<string[]>();
+  // T125c: computed once by the board over every entry in the competition (assigned or not), so a
+  // category's color stays identical whether its beers are seated on a table or still in this pool.
+  readonly categoryColorMap = input.required<ReadonlyMap<string, string>>();
   // FR-061 / Session 2026-09-19 clarification: read-only wizard/table-board — both drop lists and
   // every judge/beer's dragging are disabled, but click-to-detail stays available.
   readonly readOnly = input(false);
