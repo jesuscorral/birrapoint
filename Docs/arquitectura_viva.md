@@ -971,23 +971,46 @@ judge already provisioned with a Keycloak account.
     requests.
   - `role.guard.ts`: `organizerGuard`/`judgeGuard` (`CanActivateFn` via `createAuthGuard`), each
     wrapping a directly-unit-testable predicate (`isOrganizerAllowed`/`isJudgeAllowed`) that
-    checks `authData.grantedRoles.realmRoles`. Since ADR-0012's `check-sso` switch no longer
-    guarantees authentication before a guard runs, these carry the real access-control weight now
-    (previously they only branched on role, on the assumption `login-required` had already
-    blocked anonymous access) — an unauthenticated caller simply has empty `grantedRoles`, so
-    `hasRealmRole` is `false` for both and the caller falls through to the same landing-resolution
-    fallback as a role mismatch. **T024**: a mismatch (or anonymous caller) redirects to the
-    caller's *own* role landing via `role-landing.ts`'s `resolveRoleLandingUrlTree(authData)`
-    (e.g. a JUDGE hitting `/organizer/**` lands on `/judge/tables`, not a dead end at root) —
-    `parseUrl('/')` (the public landing) is the fallback for a caller holding neither role,
-    including an anonymous one.
-  - `role-landing.ts` (T024, new): `resolveRoleLandingUrlTree(authData): UrlTree | null` — the
-    single ORGANIZER → `/organizer/dashboard`, JUDGE → `/judge/tables` mapping, shared by
-    `role.guard.ts`'s mismatch branch above and `home-redirect.guard.ts` below (ORGANIZER wins if
-    a caller somehow holds both roles).
+    checks `role-landing.ts`'s `isActiveRole(authData, role)` rather than a plain realm-role
+    membership check (see below). Since ADR-0012's `check-sso` switch no longer guarantees
+    authentication before a guard runs, these carry the real access-control weight now (previously
+    they only branched on role, on the assumption `login-required` had already blocked anonymous
+    access) — an unauthenticated caller simply has empty `grantedRoles`, so `isActiveRole` is
+    `false` for both and the caller falls through to the same landing-resolution fallback as a
+    role mismatch. **T024**: a mismatch (or anonymous caller) redirects to the caller's *own* role
+    landing via `role-landing.ts`'s `resolveRoleLandingUrlTree(authData)` (e.g. a JUDGE hitting
+    `/organizer/**` lands on `/judge/tables`, not a dead end at root) — `parseUrl('/')` (the public
+    landing) is the fallback for a caller holding neither role, including an anonymous one.
+  - `active-role.service.ts` (Session 2026-09-20, new): `ActiveRoleService` —
+    `getActiveRole()/setActiveRole()/clearActiveRole()` over `sessionStorage`
+    (`birrapoint.activeRole`), the session-scoped choice a dual-role (ORGANIZER + JUDGE) account
+    made at `/select-role`. Purely a frontend UX partition: it never touches backend
+    authorization, which keeps enforcing the account's real Keycloak roles on every endpoint
+    regardless (Principle VII). Every read/write is wrapped in try/catch (private browsing / a
+    disabled storage API degrades to "no choice made," not a thrown error — the picker just shows
+    again).
+  - `role-landing.ts` (T024; dual-role handling added Session 2026-09-20):
+    `resolveRoleLandingUrlTree(authData): UrlTree | null` — single-role ORGANIZER →
+    `/organizer/dashboard`, single-role JUDGE → `/judge/tables`, shared by `role.guard.ts`'s
+    mismatch branch above and `home-redirect.guard.ts` below. A caller holding **both** roles is
+    resolved via `ActiveRoleService.getActiveRole()`: an existing choice routes straight to that
+    role's landing, no choice yet routes to `/select-role` (`RoleSelectComponent`,
+    `features/auth/role-select/`). The file also exports `isActiveRole(authData, role)` — true for
+    a single-role caller holding `role` outright, but for a dual-role caller only when
+    `ActiveRoleService`'s stored choice matches — which `role.guard.ts` uses so a caller who picked
+    JUDGE can't bypass that choice by navigating straight to an `/organizer/**` URL (and vice
+    versa); the fallback `resolveRoleLandingUrlTree` call then bounces them to their actual active
+    workspace, or `/select-role` if they haven't picked one yet.
   - `home-redirect.guard.ts` (T024, new): `homeRedirectGuard`, the `canActivate` for `''` —
-    resolves to the caller's role landing when one exists, else `true` (falls through to render
+    resolves to the caller's role landing when one exists (including `/select-role` for an
+    as-yet-undecided dual-role caller), else `true` (falls through to render
     `AuthPlaceholderComponent`).
+  - "Switch role" (Session 2026-09-20): a button visible only when the caller's own Keycloak token
+    carries both realm roles (`hasDualRole()`, same `keycloak.tokenParsed?.realm_access?.roles`
+    read as `UserSettingsComponent.rolesLabel()`) — in `OrganizerDashboardComponent`'s
+    `bpTopbarActions` slot, and inline in `JudgeTablesListComponent`'s own header (that screen has
+    no shared topbar yet). Both call `ActiveRoleService.clearActiveRole()` then navigate to
+    `/select-role`; neither logs the caller out.
   - `auth-placeholder.component.ts`: **T024** repurposed this from "temporary render target for
     all three routes" (T019) to the `''`-only fallback for a caller recognized by Keycloak but
     holding neither `ORGANIZER` nor `JUDGE` (shouldn't happen given the backend's deny-by-default

@@ -1,10 +1,11 @@
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import type { ComponentFixture } from '@angular/core/testing';
 import { TestBed } from '@angular/core/testing';
 import Keycloak from 'keycloak-js';
 import { of, throwError } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
+import { ActiveRoleService } from '../../core/auth/active-role.service';
 import { OrganizerDashboardComponent } from './organizer-dashboard.component';
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
 import type { CompetitionSummary } from '../../core/api/competitions-api.service';
@@ -42,14 +43,15 @@ function clickConfirm(fixture: ComponentFixture<OrganizerDashboardComponent>): v
 
 describe('OrganizerDashboardComponent', () => {
   let fakeApi: { list: jest.Mock; changeState: jest.Mock };
-  let fakeKeycloak: { logout: jest.Mock };
+  let fakeKeycloak: { logout: jest.Mock; tokenParsed?: { realm_access?: { roles: string[] } } };
 
   beforeEach(() => {
+    sessionStorage.clear();
     fakeApi = {
       list: jest.fn().mockReturnValue(of([competitionFixture()])),
       changeState: jest.fn().mockReturnValue(of({ state: 'Active' })),
     };
-    fakeKeycloak = { logout: jest.fn() };
+    fakeKeycloak = { logout: jest.fn(), tokenParsed: { realm_access: { roles: ['ORGANIZER'] } } };
     TestBed.configureTestingModule({
       providers: [
         { provide: CompetitionsApiService, useValue: fakeApi },
@@ -161,6 +163,27 @@ describe('OrganizerDashboardComponent', () => {
       expect(fakeKeycloak.logout).toHaveBeenCalledWith({
         redirectUri: window.location.origin + '/',
       });
+    });
+
+    it('does not render "Cambiar rol" for an ORGANIZER-only account', () => {
+      const fixture = createComponent();
+      const header = fixture.nativeElement.querySelector('header') as Element;
+
+      expect(() => findButtonByText(header, 'Cambiar rol')).toThrow();
+    });
+
+    it('renders "Cambiar rol" for a dual-role account, clearing the active role and navigating to /select-role', () => {
+      fakeKeycloak.tokenParsed = { realm_access: { roles: ['ORGANIZER', 'JUDGE'] } };
+      TestBed.inject(ActiveRoleService).setActiveRole('ORGANIZER');
+      const fixture = createComponent();
+      const router = TestBed.inject(Router);
+      const navigateSpy = jest.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+      const header = fixture.nativeElement.querySelector('header') as Element;
+
+      findButtonByText(header, 'Cambiar rol').click();
+
+      expect(TestBed.inject(ActiveRoleService).getActiveRole()).toBeNull();
+      expect(navigateSpy).toHaveBeenCalledWith('/select-role');
     });
   });
 

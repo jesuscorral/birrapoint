@@ -15,6 +15,7 @@ import { TableManagementComponent } from './features/table-management/table-mana
 import { UserSettingsComponent } from './features/settings/user-settings.component';
 import { WelcomeComponent } from './features/auth/welcome/welcome.component';
 import { KeycloakHandoffComponent } from './features/auth/keycloak-handoff/keycloak-handoff.component';
+import { RoleSelectComponent } from './features/auth/role-select/role-select.component';
 
 export const routes: Routes = [
   // Keycloak handoff (visual transition, then redirect). Public but only used in browser after click.
@@ -22,6 +23,17 @@ export const routes: Routes = [
     path: 'auth/handoff',
     component: KeycloakHandoffComponent,
     data: { label: 'Acceso seguro' },
+  },
+  // Reached via resolveRoleLandingUrlTree (role-landing.ts) whenever a dual-role (ORGANIZER +
+  // JUDGE) caller has no ActiveRoleService choice yet this session, and via the "switch role"
+  // actions on the organizer/judge shells. No guard: unreachable for an anonymous caller in
+  // practice (check-sso doesn't force login, and nothing public links here), and a single-role
+  // caller who lands here directly just gets bounced by organizerGuard/judgeGuard to their real
+  // workspace after picking — same graceful-degradation shape as every other role mismatch.
+  {
+    path: 'select-role',
+    component: RoleSelectComponent,
+    data: { label: 'Elegir rol' },
   },
   // Root: public login/register landing (WelcomeComponent) for unauthenticated callers.
   // homeRedirectGuard redirects an authenticated caller to their role-specific workspace when
