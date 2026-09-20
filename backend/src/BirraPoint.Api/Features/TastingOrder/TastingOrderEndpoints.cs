@@ -28,6 +28,15 @@ public static class TastingOrderEndpoints
         .Produces<IReadOnlyList<JudgeSampleDto>>()
         .Produces(StatusCodes.Status404NotFound);
 
+        group.MapGet("/{tableId:guid}/judges", async (Guid tableId, ISender sender, CancellationToken cancellationToken) =>
+        {
+            var result = await sender.Send(new GetTableJudgesQuery(tableId), cancellationToken);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        })
+        .WithName("GetTableJudges")
+        .Produces<IReadOnlyList<JudgeTableMemberDto>>()
+        .Produces(StatusCodes.Status404NotFound);
+
         group.MapPost("/{tableId:guid}/order", async (
             Guid tableId, FixOrderRequest request, ISender sender, CancellationToken cancellationToken) =>
         {

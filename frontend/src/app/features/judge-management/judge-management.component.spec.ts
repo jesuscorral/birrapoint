@@ -1,3 +1,4 @@
+import Keycloak from 'keycloak-js';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
@@ -69,6 +70,10 @@ describe('JudgeManagementComponent', () => {
     };
     TestBed.configureTestingModule({
       providers: [
+        {
+          provide: Keycloak,
+          useValue: { tokenParsed: { realm_access: { roles: ['ORGANIZER'] } }, logout: jest.fn() },
+        },
         { provide: JudgeManagementApiService, useValue: fakeApi },
         provideRouter([]),
         // Must come after provideRouter([]) — it registers its own root ActivatedRoute, which

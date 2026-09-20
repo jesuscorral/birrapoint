@@ -62,6 +62,22 @@ export async function isRoleSelectAllowed(
   return resolveRoleLandingUrlTree(authData) ?? inject(Router).parseUrl('/');
 }
 
+// /settings is role-agnostic identity info (Keycloak profile + realm roles), reachable by either
+// role — an organizer or a judge, whichever this account holds (or both). Only an anonymous or
+// no-role caller is bounced, to the public landing.
+export async function isSettingsAllowed(
+  _route: ActivatedRouteSnapshot,
+  _state: RouterStateSnapshot,
+  authData: AuthGuardData,
+): Promise<boolean | UrlTree> {
+  const { realmRoles } = authData.grantedRoles;
+  if (realmRoles.includes('ORGANIZER') || realmRoles.includes('JUDGE')) {
+    return true;
+  }
+  return inject(Router).parseUrl('/');
+}
+
 export const organizerGuard: CanActivateFn = createAuthGuard(isOrganizerAllowed);
 export const judgeGuard: CanActivateFn = createAuthGuard(isJudgeAllowed);
 export const roleSelectGuard: CanActivateFn = createAuthGuard(isRoleSelectAllowed);
+export const settingsGuard: CanActivateFn = createAuthGuard(isSettingsAllowed);

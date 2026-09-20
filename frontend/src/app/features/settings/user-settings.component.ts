@@ -22,6 +22,10 @@ const APP_REALM_ROLES = ['ORGANIZER', 'JUDGE'] as const;
 // tokenParsed.realm_access.roles for the realm role(s). There are no custom Keycloak user
 // attributes configured in this realm (infra/keycloak/birrapoint-realm.json), so this is the
 // complete, honest set of "everything we have" about the user — not a generic attributes dump.
+//
+// Session 2026-09-20: now reachable from both /organizer/** and /judge/** (top-level /settings,
+// settingsGuard) — the "back" link/label adapts to the caller's effective workspace instead of
+// always pointing at the organizer dashboard.
 @Component({
   selector: 'app-user-settings',
   imports: [BpTopbarComponent, RouterLink],
@@ -30,7 +34,7 @@ const APP_REALM_ROLES = ['ORGANIZER', 'JUDGE'] as const;
     <div class="settings-shell">
       <bp-topbar>
         <button type="button" class="topbar-action topbar-action--button" (click)="onLogout()">
-          Log out
+          Cerrar sesión
         </button>
       </bp-topbar>
 
@@ -38,11 +42,11 @@ const APP_REALM_ROLES = ['ORGANIZER', 'JUDGE'] as const;
         <!-- An anchor, not a button: this is navigation, so it gets open-in-new-tab, the link role
              and Enter-to-follow for free. The wizard's own "back to list" is a button only because
              it has to run the FR-007 unsaved-changes guard first; this screen is read-only. -->
-        <a routerLink="/organizer/dashboard" class="back-to-list-link">
-          <span aria-hidden="true">←</span> Back to competitions
+        <a [routerLink]="backLink().href" class="back-to-list-link">
+          <span aria-hidden="true">←</span> {{ backLink().label }}
         </a>
 
-        <h1>Your account</h1>
+        <h1>Tu cuenta</h1>
 
         @if (loadError(); as message) {
           <p role="alert">{{ message }}</p>
@@ -51,33 +55,33 @@ const APP_REALM_ROLES = ['ORGANIZER', 'JUDGE'] as const;
         @if (profile(); as user) {
           <dl class="profile-details">
             <div>
-              <dt>First name</dt>
+              <dt>Nombre</dt>
               <dd>{{ user.firstName || '—' }}</dd>
             </div>
             <div>
-              <dt>Last name</dt>
+              <dt>Apellidos</dt>
               <dd>{{ user.lastName || '—' }}</dd>
             </div>
             <div>
-              <dt>Email</dt>
+              <dt>Correo electrónico</dt>
               <dd>
                 {{ user.email || '—' }}
                 @if (user.emailVerified) {
-                  <span class="verified-badge">Verified</span>
+                  <span class="verified-badge">Verificado</span>
                 }
               </dd>
             </div>
             <div>
-              <dt>Username</dt>
+              <dt>Usuario</dt>
               <dd>{{ user.username || '—' }}</dd>
             </div>
             <div>
-              <dt>Role(s)</dt>
+              <dt>Rol(es)</dt>
               <dd>{{ rolesLabel() }}</dd>
             </div>
             @if (memberSinceLabel(); as since) {
               <div>
-                <dt>Member since</dt>
+                <dt>Miembro desde</dt>
                 <dd>{{ since }}</dd>
               </div>
             }
@@ -216,7 +220,9 @@ export class UserSettingsComponent {
       .loadUserProfile()
       .then((profile) => this.profile.set(profile))
       .catch(() =>
-        this.loadError.set('We could not load your account details. Try again shortly.'),
+        this.loadError.set(
+          'No hemos podido cargar los datos de tu cuenta. Vuelve a intentarlo en unos instantes.',
+        ),
       );
   }
 
@@ -229,6 +235,21 @@ export class UserSettingsComponent {
   protected memberSinceLabel(): string | null {
     const timestamp = this.profile()?.createdTimestamp;
     return timestamp ? new Date(timestamp).toLocaleDateString() : null;
+  }
+
+  // A single-role account always goes back to its one workspace. A dual-role account goes back
+  // to whichever it's currently using (ActiveRoleService) — defaulting to the organizer dashboard
+  // if, somehow, neither has been chosen yet this session.
+  protected backLink(): { href: string; label: string } {
+    const roles = this.keycloak.tokenParsed?.realm_access?.roles ?? [];
+    const hasOrganizer = roles.includes('ORGANIZER');
+    const hasJudge = roles.includes('JUDGE');
+    const effectiveJudge =
+      hasJudge && (!hasOrganizer || this.activeRole.getActiveRole() === 'JUDGE');
+
+    return effectiveJudge
+      ? { href: '/judge/tables', label: 'Volver a mis mesas' }
+      : { href: '/organizer/dashboard', label: 'Volver a competiciones' };
   }
 
   protected onLogout(): void {

@@ -18,13 +18,14 @@ import type {
   DiscrepancyRaisedEvent,
   DiscrepancyResolvedEvent,
 } from '../../core/realtime/competition-hub.events';
+import { BpPageShellComponent } from '../../shared/components/bp-page-shell/bp-page-shell.component';
 import { DiscrepancyApiService } from './discrepancy-api.service';
 import type { DiscrepancyView } from './discrepancy-api.service';
 
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError
     ? error
-    : new ApiError({ status: 0, title: 'An unexpected error occurred.', urn: null });
+    : new ApiError({ status: 0, title: 'Ha ocurrido un error inesperado.', urn: null });
 }
 
 function errorMessage(error: ApiError): string {
@@ -56,28 +57,28 @@ const SECTIONS: AdjustSectionConfig[] = [
   },
   {
     key: 'appearance',
-    label: 'Appearance',
+    label: 'Aspecto',
     max: 3,
     scoreControl: 'appearanceScore',
     commentControl: 'appearanceComment',
   },
   {
     key: 'flavor',
-    label: 'Flavor',
+    label: 'Sabor',
     max: 20,
     scoreControl: 'flavorScore',
     commentControl: 'flavorComment',
   },
   {
     key: 'mouthfeel',
-    label: 'Mouthfeel',
+    label: 'Sensación en boca',
     max: 5,
     scoreControl: 'mouthfeelScore',
     commentControl: 'mouthfeelComment',
   },
   {
     key: 'overall',
-    label: 'Overall Impression',
+    label: 'Impresión general',
     max: 10,
     scoreControl: 'overallScore',
     commentControl: 'overallComment',
@@ -130,112 +131,117 @@ interface AdjustFormState {
 // DiscrepancyApiService's doc comment); it is not routed through the offline outbox.
 @Component({
   selector: 'app-discrepancy-alert',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, BpPageShellComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <p><a [routerLink]="['/judge', 'tables', tableId]">&larr; Back to table</a></p>
-    <h1>Discrepancy alerts</h1>
+    <bp-page-shell homeLink="/judge/tables">
+      <p><a [routerLink]="['/judge', 'tables', tableId]">&larr; Volver a la mesa</a></p>
+      <h1>Alertas de discrepancia</h1>
 
-    @if (loadError(); as message) {
-      <p role="alert">{{ message }}</p>
-    }
-
-    @if (!loadError()) {
-      @for (resolved of resolvedAlerts(); track resolved.alertId) {
-        <div class="alert-card alert-card--resolved" role="status">
-          <h2>{{ resolved.blindCode }}</h2>
-          <p>Resolved — your evaluation is confirmed.</p>
-        </div>
+      @if (loadError(); as message) {
+        <p role="alert">{{ message }}</p>
       }
 
-      @if (alerts().length === 0) {
-        <p>
-          No open discrepancies on this table.
-          <a [routerLink]="['/judge', 'tables', tableId]">Back to table</a>
-        </p>
-      }
+      @if (!loadError()) {
+        @for (resolved of resolvedAlerts(); track resolved.alertId) {
+          <div class="alert-card alert-card--resolved" role="status">
+            <h2>{{ resolved.blindCode }}</h2>
+            <p>Resuelta — tu evaluación ha quedado confirmada.</p>
+          </div>
+        }
 
-      @for (alert of alerts(); track alert.alertId) {
-        <div class="alert-card">
-          <h2>{{ alert.blindCode }}</h2>
-          <table class="totals-table">
-            <thead>
-              <tr>
-                <th scope="col">Judge</th>
-                <th scope="col">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (total of alert.totals; track total.evaluationId) {
+        @if (alerts().length === 0) {
+          <p>
+            No hay discrepancias abiertas en esta mesa.
+            <a [routerLink]="['/judge', 'tables', tableId]">Volver a la mesa</a>
+          </p>
+        }
+
+        @for (alert of alerts(); track alert.alertId) {
+          <div class="alert-card">
+            <h2>{{ alert.blindCode }}</h2>
+            <table class="totals-table">
+              <thead>
                 <tr>
-                  <td>{{ total.judgeDisplayName }}{{ total.isMine ? ' (you)' : '' }}</td>
-                  <td>{{ total.total }}</td>
+                  <th scope="col">Juez</th>
+                  <th scope="col">Total</th>
                 </tr>
+              </thead>
+              <tbody>
+                @for (total of alert.totals; track total.evaluationId) {
+                  <tr>
+                    <td>{{ total.judgeDisplayName }}{{ total.isMine ? ' (tú)' : '' }}</td>
+                    <td>{{ total.total }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+
+            @if (mineEvaluationId(alert); as evaluationId) {
+              @if (!isExpanded(alert.alertId)) {
+                <button type="button" (click)="onAdjustClick(alert.alertId)">
+                  Ajustar mi evaluación
+                </button>
+              } @else {
+                <form [formGroup]="formFor(alert.alertId)" (ngSubmit)="onAdjustSubmit(alert)">
+                  @for (section of sections; track section.key) {
+                    <fieldset class="evaluation-section">
+                      <legend>{{ section.label }} (0–{{ section.max }})</legend>
+
+                      <label>
+                        Puntuación
+                        <input
+                          type="number"
+                          [min]="0"
+                          [max]="section.max"
+                          [formControlName]="section.scoreControl"
+                        />
+                      </label>
+
+                      <label>
+                        Comentario
+                        <textarea [formControlName]="section.commentControl" rows="3"></textarea>
+                      </label>
+                      <p class="comment-hint">
+                        @if (remainingChars(alert.alertId, section.key) > 0) {
+                          Faltan {{ remainingChars(alert.alertId, section.key) }}
+                          {{
+                            remainingChars(alert.alertId, section.key) === 1
+                              ? 'carácter'
+                              : 'caracteres'
+                          }}
+                          (mínimo {{ minCommentLength }}).
+                        } @else {
+                          Longitud mínima alcanzada.
+                        }
+                      </p>
+                    </fieldset>
+                  }
+
+                  @if (adjustError(alert.alertId); as message) {
+                    <p role="alert">{{ message }}</p>
+                  }
+
+                  <button
+                    type="submit"
+                    [disabled]="formFor(alert.alertId).invalid || isSubmitting(alert.alertId)"
+                  >
+                    Enviar ajuste
+                  </button>
+                  <button
+                    type="button"
+                    [disabled]="isSubmitting(alert.alertId)"
+                    (click)="onCancelAdjust(alert.alertId)"
+                  >
+                    Cancelar
+                  </button>
+                </form>
               }
-            </tbody>
-          </table>
-
-          @if (mineEvaluationId(alert); as evaluationId) {
-            @if (!isExpanded(alert.alertId)) {
-              <button type="button" (click)="onAdjustClick(alert.alertId)">
-                Adjust my evaluation
-              </button>
-            } @else {
-              <form [formGroup]="formFor(alert.alertId)" (ngSubmit)="onAdjustSubmit(alert)">
-                @for (section of sections; track section.key) {
-                  <fieldset class="evaluation-section">
-                    <legend>{{ section.label }} (0–{{ section.max }})</legend>
-
-                    <label>
-                      Score
-                      <input
-                        type="number"
-                        [min]="0"
-                        [max]="section.max"
-                        [formControlName]="section.scoreControl"
-                      />
-                    </label>
-
-                    <label>
-                      Comment
-                      <textarea [formControlName]="section.commentControl" rows="3"></textarea>
-                    </label>
-                    <p class="comment-hint">
-                      @if (remainingChars(alert.alertId, section.key) > 0) {
-                        {{ remainingChars(alert.alertId, section.key) }} more character{{
-                          remainingChars(alert.alertId, section.key) === 1 ? '' : 's'
-                        }}
-                        needed (minimum {{ minCommentLength }}).
-                      } @else {
-                        Minimum length met.
-                      }
-                    </p>
-                  </fieldset>
-                }
-
-                @if (adjustError(alert.alertId); as message) {
-                  <p role="alert">{{ message }}</p>
-                }
-
-                <button
-                  type="submit"
-                  [disabled]="formFor(alert.alertId).invalid || isSubmitting(alert.alertId)"
-                >
-                  Submit adjustment
-                </button>
-                <button
-                  type="button"
-                  [disabled]="isSubmitting(alert.alertId)"
-                  (click)="onCancelAdjust(alert.alertId)"
-                >
-                  Cancel
-                </button>
-              </form>
             }
-          }
-        </div>
+          </div>
+        }
       }
-    }
+    </bp-page-shell>
   `,
   styles: `
     .alert-card {
@@ -421,7 +427,7 @@ export class DiscrepancyAlertComponent implements OnInit, OnDestroy {
   private describeAdjustError(error: unknown): string {
     const apiError = toGenericApiError(error);
     if (apiError.urn === 'urn:birrapoint:evaluation-locked') {
-      return 'This evaluation is no longer open for adjustment — it may already have been resolved.';
+      return 'Esta evaluación ya no está abierta para ajustes — puede que ya haya sido resuelta.';
     }
     return errorMessage(apiError);
   }

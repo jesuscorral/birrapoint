@@ -1,5 +1,6 @@
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
+import Keycloak from 'keycloak-js';
 import { of, Subject, throwError } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
@@ -88,6 +89,11 @@ describe('DiscrepancyAlertComponent', () => {
         { provide: DiscrepancyApiService, useValue: fakeApi },
         { provide: CompetitionHubService, useValue: fakeHub },
         {
+          provide: Keycloak,
+          useValue: { tokenParsed: { realm_access: { roles: ['JUDGE'] } }, logout: jest.fn() },
+        },
+        provideRouter([]),
+        {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: convertToParamMap({ tableId: 't1' }) } },
         },
@@ -116,9 +122,9 @@ describe('DiscrepancyAlertComponent', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('AB12');
     expect(text).toContain('Ada Lovelace');
-    expect(text).toContain('(you)');
+    expect(text).toContain('(tú)');
     expect(text).toContain('Grace Hopper');
-    expect(text).not.toContain('Grace Hopper (you)');
+    expect(text).not.toContain('Grace Hopper (tú)');
   });
 
   it('joins the table SignalR group on init and leaves it on destroy', async () => {
@@ -140,7 +146,9 @@ describe('DiscrepancyAlertComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('No open discrepancies on this table.');
+    expect(fixture.nativeElement.textContent).toContain(
+      'No hay discrepancias abiertas en esta mesa.',
+    );
     expect(fixture.nativeElement.querySelector('a[href="/judge/tables/t1"]')).not.toBeNull();
   });
 
@@ -164,7 +172,7 @@ describe('DiscrepancyAlertComponent', () => {
 
     expect(fixture.nativeElement.querySelector('form')).toBeNull();
 
-    buttonWithText(fixture.nativeElement, 'Adjust my evaluation').click();
+    buttonWithText(fixture.nativeElement, 'Ajustar mi evaluación').click();
     fixture.detectChanges();
 
     const submitButton = fixture.nativeElement.querySelector(
@@ -179,9 +187,9 @@ describe('DiscrepancyAlertComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    buttonWithText(fixture.nativeElement, 'Adjust my evaluation').click();
+    buttonWithText(fixture.nativeElement, 'Ajustar mi evaluación').click();
     fixture.detectChanges();
-    buttonWithText(fixture.nativeElement, 'Cancel').click();
+    buttonWithText(fixture.nativeElement, 'Cancelar').click();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('form')).toBeNull();
@@ -201,12 +209,12 @@ describe('DiscrepancyAlertComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    buttonWithText(fixture.nativeElement, 'Adjust my evaluation').click();
+    buttonWithText(fixture.nativeElement, 'Ajustar mi evaluación').click();
     fixture.detectChanges();
     fixture.componentInstance.formFor('a1').setValue(validForm());
     fixture.detectChanges();
 
-    buttonWithText(fixture.nativeElement, 'Submit adjustment').click();
+    buttonWithText(fixture.nativeElement, 'Enviar ajuste').click();
     fixture.detectChanges();
     await flush();
     fixture.detectChanges();
@@ -229,8 +237,10 @@ describe('DiscrepancyAlertComponent', () => {
         overall: validForm().overallComment,
       },
     );
-    expect(fixture.nativeElement.textContent).toContain('Resolved — your evaluation is confirmed.');
-    expect(findButtonWithText(fixture.nativeElement, 'Adjust my evaluation')).toBeUndefined();
+    expect(fixture.nativeElement.textContent).toContain(
+      'Resuelta — tu evaluación ha quedado confirmada.',
+    );
+    expect(findButtonWithText(fixture.nativeElement, 'Ajustar mi evaluación')).toBeUndefined();
   });
 
   it('updates the totals table in place and collapses the form when still PendingConsensus', async () => {
@@ -252,12 +262,12 @@ describe('DiscrepancyAlertComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    buttonWithText(fixture.nativeElement, 'Adjust my evaluation').click();
+    buttonWithText(fixture.nativeElement, 'Ajustar mi evaluación').click();
     fixture.detectChanges();
     fixture.componentInstance.formFor('a1').setValue(validForm());
     fixture.detectChanges();
 
-    buttonWithText(fixture.nativeElement, 'Submit adjustment').click();
+    buttonWithText(fixture.nativeElement, 'Enviar ajuste').click();
     fixture.detectChanges();
     await flush();
     fixture.detectChanges();
@@ -265,9 +275,9 @@ describe('DiscrepancyAlertComponent', () => {
     expect(fixture.nativeElement.querySelector('form')).toBeNull();
     expect(fixture.nativeElement.textContent).toContain('33');
     expect(fixture.nativeElement.textContent).not.toContain(
-      'Resolved — your evaluation is confirmed.',
+      'Resuelta — tu evaluación ha quedado confirmada.',
     );
-    expect(buttonWithText(fixture.nativeElement, 'Adjust my evaluation')).not.toBeNull();
+    expect(buttonWithText(fixture.nativeElement, 'Ajustar mi evaluación')).not.toBeNull();
   });
 
   it('shows an evaluation-locked error and keeps the typed-in values on a 409', async () => {
@@ -286,17 +296,17 @@ describe('DiscrepancyAlertComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    buttonWithText(fixture.nativeElement, 'Adjust my evaluation').click();
+    buttonWithText(fixture.nativeElement, 'Ajustar mi evaluación').click();
     fixture.detectChanges();
     fixture.componentInstance.formFor('a1').setValue(validForm());
     fixture.detectChanges();
 
-    buttonWithText(fixture.nativeElement, 'Submit adjustment').click();
+    buttonWithText(fixture.nativeElement, 'Enviar ajuste').click();
     fixture.detectChanges();
     await flush();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('no longer open for adjustment');
+    expect(fixture.nativeElement.textContent).toContain('ya no está abierta para ajustes');
     expect(fixture.componentInstance.formFor('a1').getRawValue()).toMatchObject({
       aromaScore: 10,
       aromaComment: validForm().aromaComment,

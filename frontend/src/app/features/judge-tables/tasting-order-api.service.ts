@@ -34,8 +34,19 @@ export interface JudgeSample {
   blindCode: string;
   styleCode: string;
   styleName: string;
+  // The beer's own real ABV% — not an entrant field (data-model.md §Anonymity boundary), the
+  // beer's physical attribute, same value the organizer sees.
+  abvPercent: number;
   sequenceOrder: number | null;
   evaluationStatus: EvaluationStatus;
+}
+
+// GET /me/tables/{tableId}/judges response shape (contracts/rest-api.md §Judge workspace) — the
+// table's other actively-assigned judges, informational only: no field here grants any editing
+// capability, and the caller is never included in their own list.
+export interface JudgeTableMember {
+  displayName: string;
+  bjcpRank: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -48,6 +59,10 @@ export class TastingOrderApiService {
 
   getTableSamples(tableId: string): Observable<JudgeSample[]> {
     return this.apiClient.get<JudgeSample[]>(`/me/tables/${tableId}/samples`);
+  }
+
+  getTableJudges(tableId: string): Observable<JudgeTableMember[]> {
+    return this.apiClient.get<JudgeTableMember[]>(`/me/tables/${tableId}/judges`);
   }
 
   // Body must be an exact permutation of the table's current sample beerEntryIds

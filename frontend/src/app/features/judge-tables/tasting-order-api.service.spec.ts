@@ -5,7 +5,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { TastingOrderApiService } from './tasting-order-api.service';
-import type { JudgeSample, JudgeTableSummary } from './tasting-order-api.service';
+import type { JudgeSample, JudgeTableMember, JudgeTableSummary } from './tasting-order-api.service';
 
 describe('TastingOrderApiService', () => {
   let service: TastingOrderApiService;
@@ -48,6 +48,7 @@ describe('TastingOrderApiService', () => {
         blindCode: 'AB12',
         styleCode: '4A',
         styleName: 'Munich Helles',
+        abvPercent: 5.2,
         sequenceOrder: null,
         evaluationStatus: 'NotStarted',
       },
@@ -61,6 +62,17 @@ describe('TastingOrderApiService', () => {
     expect(await result).toEqual(samples);
   });
 
+  it('getTableJudges() gets the other judges assigned to a table', async () => {
+    const members: JudgeTableMember[] = [{ displayName: 'Ana García', bjcpRank: 'Certificado' }];
+    const result = firstValueFrom(service.getTableJudges('t1'));
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/me/tables/t1/judges`);
+    expect(req.request.method).toBe('GET');
+    req.flush(members);
+
+    expect(await result).toEqual(members);
+  });
+
   it('fixOrder() posts the ordered beer entry ids and returns the updated samples', async () => {
     const samples: JudgeSample[] = [
       {
@@ -68,6 +80,7 @@ describe('TastingOrderApiService', () => {
         blindCode: 'AB12',
         styleCode: '4A',
         styleName: 'Munich Helles',
+        abvPercent: 5.2,
         sequenceOrder: 1,
         evaluationStatus: 'NotStarted',
       },

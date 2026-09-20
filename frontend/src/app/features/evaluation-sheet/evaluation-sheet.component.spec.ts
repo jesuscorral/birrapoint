@@ -1,5 +1,6 @@
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
+import Keycloak from 'keycloak-js';
 import { of, Subject, throwError } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
@@ -18,6 +19,7 @@ function sampleFixture(overrides: Partial<JudgeSample> = {}): JudgeSample {
     blindCode: 'AB12',
     styleCode: '21A',
     styleName: 'American IPA',
+    abvPercent: 6.2,
     sequenceOrder: 1,
     evaluationStatus: 'NotStarted',
     ...overrides,
@@ -91,6 +93,10 @@ describe('EvaluationSheetComponent', () => {
         { provide: SyncService, useValue: fakeSync },
         { provide: CatalogApiService, useValue: fakeCatalog },
         { provide: CompetitionHubService, useValue: fakeHub },
+        {
+          provide: Keycloak,
+          useValue: { tokenParsed: { realm_access: { roles: ['JUDGE'] } }, logout: jest.fn() },
+        },
         provideRouter([]),
         {
           provide: ActivatedRoute,
@@ -126,6 +132,15 @@ describe('EvaluationSheetComponent', () => {
     expect(text).toContain('American IPA');
   });
 
+  it('shows the ABV of the sample (Session 2026-09-20)', async () => {
+    fakeTastingOrderApi.getTableSamples.mockReturnValue(of([sampleFixture({ abvPercent: 7.1 })]));
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('7.1% ABV');
+  });
+
   it('shows a load error when the sample cannot be found in this table', async () => {
     fakeTastingOrderApi.getTableSamples.mockReturnValue(
       of([sampleFixture({ beerEntryId: 'other' })]),
@@ -134,7 +149,7 @@ describe('EvaluationSheetComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('not found');
+    expect(fixture.nativeElement.textContent).toContain('No se ha encontrado');
   });
 
   it('shows a load error when fetching samples fails', async () => {
@@ -182,7 +197,7 @@ describe('EvaluationSheetComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('already been evaluated');
+    expect(fixture.nativeElement.textContent).toContain('ya ha sido evaluada');
     expect(fixture.nativeElement.querySelector('form')).toBeNull();
   });
 
@@ -194,8 +209,8 @@ describe('EvaluationSheetComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('scoring discrepancy');
-    expect(fixture.nativeElement.textContent).not.toContain('already been evaluated');
+    expect(fixture.nativeElement.textContent).toContain('discrepancia de puntuación');
+    expect(fixture.nativeElement.textContent).not.toContain('ya ha sido evaluada');
     expect(fixture.nativeElement.querySelector('form')).toBeNull();
     expect(
       fixture.nativeElement.querySelector('a[href="/judge/tables/t1/discrepancies"]'),
@@ -400,7 +415,7 @@ describe('EvaluationSheetComponent', () => {
     fixture.detectChanges();
 
     expect(navigateSpy).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.textContent).toContain('not the next one');
+    expect(fixture.nativeElement.textContent).toContain('no es la siguiente');
   });
 
   it('ejects directly on a 404 submit rejection (removed from the table mid-session), without waiting for the hub event', async () => {
@@ -451,7 +466,9 @@ describe('EvaluationSheetComponent', () => {
     fixture.detectChanges();
 
     expect(navigateSpy).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.textContent).toContain("couldn't be saved locally");
+    expect(fixture.nativeElement.textContent).toContain(
+      'No hemos podido guardar esta evaluación localmente',
+    );
   });
 
   it('shows the offline badge when navigator.onLine is false, and reacts live to online/offline events', async () => {
@@ -460,7 +477,9 @@ describe('EvaluationSheetComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Offline mode — data protected locally');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Modo sin conexión — datos protegidos localmente',
+    );
 
     window.dispatchEvent(new Event('online'));
     fixture.detectChanges();
@@ -468,7 +487,9 @@ describe('EvaluationSheetComponent', () => {
 
     window.dispatchEvent(new Event('offline'));
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('Offline mode — data protected locally');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Modo sin conexión — datos protegidos localmente',
+    );
   });
 
   it('does not show the offline badge when online', async () => {
@@ -526,7 +547,7 @@ describe('EvaluationSheetComponent', () => {
       await flush();
 
       expect(navigateSpy).toHaveBeenCalledWith(['/judge', 'tables'], {
-        state: { ejected: true, tableName: 'Table' },
+        state: { ejected: true, tableName: 'Mesa' },
       });
     });
 

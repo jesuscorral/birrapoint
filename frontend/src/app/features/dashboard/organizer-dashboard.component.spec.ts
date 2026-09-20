@@ -1,11 +1,10 @@
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import type { ComponentFixture } from '@angular/core/testing';
 import { TestBed } from '@angular/core/testing';
 import Keycloak from 'keycloak-js';
 import { of, throwError } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
-import { ActiveRoleService } from '../../core/auth/active-role.service';
 import { OrganizerDashboardComponent } from './organizer-dashboard.component';
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
 import type { CompetitionSummary } from '../../core/api/competitions-api.service';
@@ -144,58 +143,9 @@ describe('OrganizerDashboardComponent', () => {
     expect(link.textContent).toContain('New competition');
   });
 
-  describe('topbar (user settings and log out)', () => {
-    it('renders a Settings link to the user-settings page in the topbar', () => {
-      const fixture = createComponent();
-
-      const header = fixture.nativeElement.querySelector('header') as Element;
-      const link = header.querySelector('a[href="/organizer/settings"]');
-      expect(link).not.toBeNull();
-      expect(link.textContent).toContain('Settings');
-    });
-
-    it('calls keycloak.logout with the app-root redirect when the topbar "Log out" is clicked', () => {
-      const fixture = createComponent();
-      const header = fixture.nativeElement.querySelector('header') as Element;
-
-      findButtonByText(header, 'Log out').click();
-
-      expect(fakeKeycloak.logout).toHaveBeenCalledWith({
-        redirectUri: window.location.origin + '/',
-      });
-    });
-
-    it("clears the session's chosen active role before logging out", () => {
-      TestBed.inject(ActiveRoleService).setActiveRole('ORGANIZER');
-      const fixture = createComponent();
-      const header = fixture.nativeElement.querySelector('header') as Element;
-
-      findButtonByText(header, 'Log out').click();
-
-      expect(TestBed.inject(ActiveRoleService).getActiveRole()).toBeNull();
-    });
-
-    it('does not render "Cambiar rol" for an ORGANIZER-only account', () => {
-      const fixture = createComponent();
-      const header = fixture.nativeElement.querySelector('header') as Element;
-
-      expect(() => findButtonByText(header, 'Cambiar rol')).toThrow();
-    });
-
-    it('renders "Cambiar rol" for a dual-role account, clearing the active role and navigating to /select-role', () => {
-      fakeKeycloak.tokenParsed = { realm_access: { roles: ['ORGANIZER', 'JUDGE'] } };
-      TestBed.inject(ActiveRoleService).setActiveRole('ORGANIZER');
-      const fixture = createComponent();
-      const router = TestBed.inject(Router);
-      const navigateSpy = jest.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
-      const header = fixture.nativeElement.querySelector('header') as Element;
-
-      findButtonByText(header, 'Cambiar rol').click();
-
-      expect(TestBed.inject(ActiveRoleService).getActiveRole()).toBeNull();
-      expect(navigateSpy).toHaveBeenCalledWith('/select-role');
-    });
-  });
+  // Settings link / Cambiar rol / Log out moved into BpPageShellComponent itself (Session
+  // 2026-09-20 — every screen gets these now, not just this one) — covered generically by
+  // bp-page-shell.component.spec.ts instead of duplicated here.
 
   describe('advance-state action (FR-051)', () => {
     it.each([
