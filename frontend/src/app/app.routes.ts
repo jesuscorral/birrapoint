@@ -1,7 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { homeRedirectGuard } from './core/auth/home-redirect.guard';
-import { judgeGuard, organizerGuard } from './core/auth/role.guard';
+import { judgeGuard, organizerGuard, roleSelectGuard } from './core/auth/role.guard';
 import { CompetitionMonitorComponent } from './features/dashboard/competition-monitor.component';
 import { CompetitionWizardComponent } from './features/competition-wizard/competition-wizard.component';
 import { DiscrepancyAlertComponent } from './features/discrepancy/discrepancy-alert.component';
@@ -26,12 +26,14 @@ export const routes: Routes = [
   },
   // Reached via resolveRoleLandingUrlTree (role-landing.ts) whenever a dual-role (ORGANIZER +
   // JUDGE) caller has no ActiveRoleService choice yet this session, and via the "switch role"
-  // actions on the organizer/judge shells. No guard: unreachable for an anonymous caller in
-  // practice (check-sso doesn't force login, and nothing public links here), and a single-role
-  // caller who lands here directly just gets bounced by organizerGuard/judgeGuard to their real
-  // workspace after picking — same graceful-degradation shape as every other role mismatch.
+  // actions on the organizer/judge shells. roleSelectGuard bounces anyone who isn't actually a
+  // dual-role caller (an anonymous visitor via a bookmarked/shared link, browser Back after
+  // logout, a single-role caller typing the URL) to their own real landing — this route's copy
+  // ("Tu cuenta tiene acceso como organizador y como juez") would otherwise be shown, wrongly, to
+  // any of those.
   {
     path: 'select-role',
+    canActivate: [roleSelectGuard],
     component: RoleSelectComponent,
     data: { label: 'Elegir rol' },
   },

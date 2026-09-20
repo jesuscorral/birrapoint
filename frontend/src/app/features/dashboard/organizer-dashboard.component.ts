@@ -437,6 +437,10 @@ export class OrganizerDashboardComponent {
   }
 
   protected onLogout(): void {
+    // Don't leak this tab's chosen workspace into whoever logs in next on it — a different
+    // dual-role account (or this one, re-authenticating) must be prompted again, not silently
+    // dropped into a stale choice.
+    this.activeRole.clearActiveRole();
     this.keycloak.logout({ redirectUri: window.location.origin + '/' });
   }
 

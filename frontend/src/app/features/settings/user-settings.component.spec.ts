@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 import Keycloak from 'keycloak-js';
 import type { KeycloakProfile, KeycloakTokenParsed } from 'keycloak-js';
 
+import { ActiveRoleService } from '../../core/auth/active-role.service';
 import { UserSettingsComponent } from './user-settings.component';
 
 function profileFixture(overrides: Partial<KeycloakProfile> = {}): KeycloakProfile {
@@ -35,6 +36,7 @@ describe('UserSettingsComponent', () => {
   }
 
   beforeEach(() => {
+    sessionStorage.clear();
     keycloak = {
       loadUserProfile: jest.fn().mockResolvedValue(profileFixture()),
       logout: jest.fn(),
@@ -146,5 +148,19 @@ describe('UserSettingsComponent', () => {
     expect(keycloak.logout).toHaveBeenCalledWith({
       redirectUri: window.location.origin + '/',
     });
+  });
+
+  it("clears the session's chosen active role before logging out", async () => {
+    TestBed.inject(ActiveRoleService).setActiveRole('JUDGE');
+    fixture = createComponent();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const buttons = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ) as HTMLButtonElement[];
+    buttons.find((button) => button.textContent?.trim() === 'Log out')?.click();
+
+    expect(TestBed.inject(ActiveRoleService).getActiveRole()).toBeNull();
   });
 });

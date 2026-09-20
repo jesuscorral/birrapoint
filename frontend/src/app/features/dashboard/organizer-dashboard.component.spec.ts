@@ -165,6 +165,16 @@ describe('OrganizerDashboardComponent', () => {
       });
     });
 
+    it("clears the session's chosen active role before logging out", () => {
+      TestBed.inject(ActiveRoleService).setActiveRole('ORGANIZER');
+      const fixture = createComponent();
+      const header = fixture.nativeElement.querySelector('header') as Element;
+
+      findButtonByText(header, 'Log out').click();
+
+      expect(TestBed.inject(ActiveRoleService).getActiveRole()).toBeNull();
+    });
+
     it('does not render "Cambiar rol" for an ORGANIZER-only account', () => {
       const fixture = createComponent();
       const header = fixture.nativeElement.querySelector('header') as Element;

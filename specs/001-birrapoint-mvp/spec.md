@@ -85,7 +85,7 @@ role-based landing pages with no bypass.
 3. **Given** an authenticated organizer, **When** login completes, **Then** they land on the organizer dashboard.
 4. **Given** an authenticated judge, **When** login completes, **Then** they land on their assigned-tables view.
 5. **Given** a judge whose account is flagged as requiring a password change, **When** they authenticate, **Then** they must set a new password before any competition data is shown, **and** navigating directly to internal addresses cannot bypass this step.
-6. **Given** an authenticated account holding both the ORGANIZER and JUDGE realm roles, **When** login completes, **Then** they are prompted to choose which workspace to enter for this browser session, **and** an explicit "switch role" action in either workspace lets them change that choice at any time without affecting their underlying permissions in either role.
+6. **Given** an authenticated account holding both the ORGANIZER and JUDGE realm roles, **When** login completes, **Then** they are prompted to choose which workspace to enter for this browser tab, **and** an explicit "switch role" action in either workspace lets them change that choice at any time without affecting their underlying permissions in either role.
 
 ---
 
@@ -403,7 +403,7 @@ the duplicate reported.
 **Identity & Access**
 
 - **FR-001**: Unauthenticated users MUST see only a public product landing page — no competition data and no organizer/judge workspace content — with explicit actions to sign in or create an organizer account; the system MUST NOT force an immediate login redirect before this page renders. Authenticated users MUST be routed automatically to the workspace matching their role, with no re-prompt for credentials (Session 2026-08-02).
-- **FR-002**: After login the system MUST route users to the workspace matching their role: organizers to the organizer dashboard, judges to their assigned-tables view. An account holding both the ORGANIZER and JUDGE realm roles MUST instead be prompted, once per browser session, to choose which workspace to enter; the choice is session-scoped and can be changed at any time via an explicit "switch role" action, without affecting the account's underlying permissions in either role (Session 2026-09-20).
+- **FR-002**: After login the system MUST route users to the workspace matching their role: organizers to the organizer dashboard, judges to their assigned-tables view. An account holding both the ORGANIZER and JUDGE realm roles MUST instead be prompted, once per browser tab, to choose which workspace to enter; the choice is scoped to that tab (not shared across other tabs or devices) and can be changed at any time via an explicit "switch role" action, without affecting the account's underlying permissions in either role (Session 2026-09-20).
 - **FR-003**: Accounts flagged as requiring a password change MUST be forced to set a new password before any competition data is displayed; direct navigation MUST NOT bypass this step.
 - **FR-004**: Judges MUST be able to view and edit only the samples assigned to their table(s); removing an assignment revokes that access immediately.
 - **FR-005**: Only organizers can: manage the competition lifecycle, import entries, register judges, manage tables, view audit panels, close the event, and trigger dispatch.

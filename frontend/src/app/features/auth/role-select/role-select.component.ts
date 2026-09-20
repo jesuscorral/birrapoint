@@ -1,8 +1,9 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 
-import { ActiveRoleService } from '../../../core/auth/active-role.service';
 import type { AppRole } from '../../../core/auth/active-role.service';
+import { ActiveRoleService } from '../../../core/auth/active-role.service';
+import { landingPathFor } from '../../../core/auth/role-landing';
 import { BpButtonComponent } from '../../../shared/components/bp-button/bp-button.component';
 
 // Shown once per session to an account holding both ORGANIZER and JUDGE realm roles
@@ -18,7 +19,7 @@ import { BpButtonComponent } from '../../../shared/components/bp-button/bp-butto
     <div class="role-select">
       <h1>¿Cómo querés entrar?</h1>
       <p class="role-select__lead">
-        Tu cuenta tiene acceso como organizador y como juez. Podés cambiar de vista más adelante.
+        Tu cuenta tiene acceso como organizador y como juez. Puedes cambiar de vista más adelante.
       </p>
 
       <div class="role-select__options">
@@ -67,6 +68,6 @@ export class RoleSelectComponent {
 
   protected chooseRole(role: AppRole): void {
     this.activeRole.setActiveRole(role);
-    void this.router.navigateByUrl(role === 'ORGANIZER' ? '/organizer/dashboard' : '/judge/tables');
+    void this.router.navigateByUrl(landingPathFor(role));
   }
 }

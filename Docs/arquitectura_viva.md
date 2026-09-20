@@ -982,13 +982,23 @@ judge already provisioned with a Keycloak account.
     `/organizer/**` lands on `/judge/tables`, not a dead end at root) — `parseUrl('/')` (the public
     landing) is the fallback for a caller holding neither role, including an anonymous one.
   - `active-role.service.ts` (Session 2026-09-20, new): `ActiveRoleService` —
-    `getActiveRole()/setActiveRole()/clearActiveRole()` over `sessionStorage`
-    (`birrapoint.activeRole`), the session-scoped choice a dual-role (ORGANIZER + JUDGE) account
-    made at `/select-role`. Purely a frontend UX partition: it never touches backend
-    authorization, which keeps enforcing the account's real Keycloak roles on every endpoint
-    regardless (Principle VII). Every read/write is wrapped in try/catch (private browsing / a
-    disabled storage API degrades to "no choice made," not a thrown error — the picker just shows
-    again).
+    `getActiveRole()/setActiveRole()/clearActiveRole()`, the tab-scoped choice a dual-role
+    (ORGANIZER + JUDGE) account made at `/select-role`. Purely a frontend UX partition: it never
+    touches backend authorization, which keeps enforcing the account's real Keycloak roles on
+    every endpoint regardless (Principle VII). An in-memory `signal<AppRole | null>` is the source
+    of truth for the tab's lifetime; `sessionStorage` (`birrapoint.activeRole`) is only a
+    best-effort mirror so the choice survives a reload, written/read behind try/catch. **Fixed
+    post-review (senior-code-reviewer, PR #43, B1)**: earlier drafts read the choice from
+    `sessionStorage` directly on every call — when storage was unavailable (private browsing,
+    quota, a partitioned/blocked store), `setActiveRole` silently no-opped and every later
+    `getActiveRole` read back `null`, so `role.guard.ts`'s `isActiveRole` never matched and a
+    dual-role caller bounced between `/select-role` and the guards forever, reaching neither
+    workspace. The in-memory signal fixes this: a storage failure only costs surviving a reload,
+    never the current tab's navigation.
+  - Both `OrganizerDashboardComponent.onLogout` and `UserSettingsComponent.onLogout` call
+    `ActiveRoleService.clearActiveRole()` before `keycloak.logout(...)` (fixed post-review, PR #43
+    M3) — otherwise a stale choice from the account that just logged out would silently carry into
+    whichever account logs into that same tab next, skipping the picker FR-002 requires.
   - `role-landing.ts` (T024; dual-role handling added Session 2026-09-20):
     `resolveRoleLandingUrlTree(authData): UrlTree | null` — single-role ORGANIZER →
     `/organizer/dashboard`, single-role JUDGE → `/judge/tables`, shared by `role.guard.ts`'s
@@ -1005,6 +1015,16 @@ judge already provisioned with a Keycloak account.
     resolves to the caller's role landing when one exists (including `/select-role` for an
     as-yet-undecided dual-role caller), else `true` (falls through to render
     `AuthPlaceholderComponent`).
+  - `/select-role`'s `canActivate: [roleSelectGuard]` (`isRoleSelectAllowed`, `role.guard.ts`;
+    added post-review, PR #43 B2): `true` only for a caller who actually holds both realm roles;
+    anyone else falls back to `resolveRoleLandingUrlTree(authData) ?? parseUrl('/')` — the same
+    redirect every other role mismatch uses. Without it, `RoleSelectComponent`'s unconditional
+    *"Tu cuenta tiene acceso como organizador y como juez"* copy would render, wrongly, for a
+    single-role caller who typed the URL, or an anonymous caller who reached it via a bookmarked
+    link or the browser's Back button after `keycloak.logout()` (which lands on `/`, one Back
+    press away from `/select-role` if that was the previous page). No redirect loop is possible:
+    `resolveRoleLandingUrlTree` only ever returns `/select-role` from its own dual-role branch,
+    which this guard already returns `true` for before ever reaching that call.
   - "Switch role" (Session 2026-09-20): a button visible only when the caller's own Keycloak token
     carries both realm roles (`hasDualRole()`, same `keycloak.tokenParsed?.realm_access?.roles`
     read as `UserSettingsComponent.rolesLabel()`) — in `OrganizerDashboardComponent`'s
@@ -2174,6 +2194,12 @@ safety-net poll — no new retry mechanism, just reuse of what T016 already buil
   local/test path goes through Aspire or a test-config override), but will need a real value wired
   into whatever non-Aspire deployment Phase 16 (`azd`) produces, or the job will fail every time in
   that environment. Flagged during T039 review; not fixed here since Phase 16 doesn't exist yet.
+- **New (Session 2026-09-20)**: `/select-role` (`RoleSelectComponent`) has no E2E or axe-core a11y
+  coverage — `frontend/e2e/a11y/routes.a11y.spec.ts`'s route enumeration predates this route and
+  wasn't extended to include it. Flagged by senior-code-reviewer on PR #43; not fixed there given
+  the E2E suite's broader known fragility post-redesign (see the "E2E suite broken post-redesign"
+  entry this doc's history already tracks) — adding one more route to a suite already due for a
+  wider fix isn't the right place to do it piecemeal. Worth picking up together with that fix.
 - **Resolved 2026-07-28 (T089)**: `frontend/e2e/smoke.spec.ts` and `frontend/e2e/a11y/
   home.a11y.spec.ts` (both dating to T004, before Keycloak's `login-required` existed) — removed
   rather than fixed. `us1-auth.spec.ts` already asserts the Keycloak redirect `smoke.spec.ts` was

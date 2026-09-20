@@ -44,5 +44,24 @@ export async function isJudgeAllowed(
   );
 }
 
+// /select-role only makes sense for a caller who actually holds both realm roles — anyone else
+// (a bookmarked/shared link, browser Back after logout landing back on it, a single-role caller
+// typing the URL) is bounced via the same resolveRoleLandingUrlTree(authData) || parseUrl('/')
+// fallback the other two guards use. No redirect loop: resolveRoleLandingUrlTree only returns
+// /select-role from its own dual-role branch, which this guard already short-circuits with `true`
+// before ever reaching it.
+export async function isRoleSelectAllowed(
+  _route: ActivatedRouteSnapshot,
+  _state: RouterStateSnapshot,
+  authData: AuthGuardData,
+): Promise<boolean | UrlTree> {
+  const { realmRoles } = authData.grantedRoles;
+  if (realmRoles.includes('ORGANIZER') && realmRoles.includes('JUDGE')) {
+    return true;
+  }
+  return resolveRoleLandingUrlTree(authData) ?? inject(Router).parseUrl('/');
+}
+
 export const organizerGuard: CanActivateFn = createAuthGuard(isOrganizerAllowed);
 export const judgeGuard: CanActivateFn = createAuthGuard(isJudgeAllowed);
+export const roleSelectGuard: CanActivateFn = createAuthGuard(isRoleSelectAllowed);
