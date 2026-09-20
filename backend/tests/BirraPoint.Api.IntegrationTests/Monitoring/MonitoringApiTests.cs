@@ -204,7 +204,7 @@ public sealed class MonitoringApiTests(ApiFactory factory) : IClassFixture<ApiFa
         var response = await GetProgressAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var tables = document.RootElement.EnumerateArray().ToList();
         Assert.Equal(2, tables.Count);
 
@@ -273,7 +273,7 @@ public sealed class MonitoringApiTests(ApiFactory factory) : IClassFixture<ApiFa
         var response = await GetEntryEvaluationsAsync(organizer, competitionId, entryId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var root = document.RootElement;
 
         var evaluations = root.GetProperty("evaluations").EnumerateArray().ToList();
@@ -324,7 +324,7 @@ public sealed class MonitoringApiTests(ApiFactory factory) : IClassFixture<ApiFa
         var response = await GetEntryEvaluationsAsync(organizer, competitionId, entryId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal(44.5m, document.RootElement.GetProperty("consolidatedMean").GetDecimal());
     }
 

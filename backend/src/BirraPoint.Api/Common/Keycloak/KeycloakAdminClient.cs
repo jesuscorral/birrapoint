@@ -16,23 +16,33 @@ public sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration co
     // ".../realms/birrapoint" -> ".../admin/realms/birrapoint" — no separate config key needed.
     private string AdminRealmBaseUrl => _authority.Replace("/realms/", "/admin/realms/");
 
-    public async Task<string> EnsureUserWithTemporaryPasswordAsync(string email, CancellationToken cancellationToken)
+    public async Task<string?> EnsureUserWithTemporaryPasswordAsync(string email, CancellationToken cancellationToken)
     {
         var token = await GetAdminAccessTokenAsync(cancellationToken);
         var existingUser = await FindUserByEmailAsync(email, token, cancellationToken);
 
         string userId;
+        bool needsPassword;
         if (existingUser is null)
         {
             userId = await CreateUserAsync(email, token, cancellationToken);
+            needsPassword = true;
         }
         else
         {
             userId = existingUser["id"]!.GetValue<string>();
-            await EnsureUpdatePasswordRequiredActionAsync(existingUser, token, cancellationToken);
+            needsPassword = HasPendingPasswordUpdate(existingUser);
         }
 
         await EnsureJudgeRoleAsync(userId, token, cancellationToken);
+
+        if (!needsPassword)
+        {
+            // Account already completed its own UPDATE_PASSWORD setup — some other persona
+            // (e.g. this same email organizing a different competition, R-20/JudgeResolver) may
+            // be actively using this password. Granting JUDGE must not reset it out from under them.
+            return null;
+        }
 
         var temporaryPassword = GenerateTemporaryPassword();
         await ResetPasswordAsync(userId, temporaryPassword, token, cancellationToken);
@@ -173,23 +183,12 @@ public sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration co
         return assignedRoles?.OfType<JsonObject>().Any(role => role["name"]?.GetValue<string>() == "JUDGE") ?? false;
     }
 
-    private async Task EnsureUpdatePasswordRequiredActionAsync(JsonObject user, string token, CancellationToken cancellationToken)
-    {
-        var requiredActions = (user["requiredActions"] as JsonArray)?
-            .Select(action => action!.GetValue<string>())
-            .ToHashSet() ?? [];
-
-        if (requiredActions.Contains("UPDATE_PASSWORD"))
-        {
-            return;
-        }
-
-        requiredActions.Add("UPDATE_PASSWORD");
-        user["requiredActions"] = new JsonArray(requiredActions.Select(action => JsonValue.Create(action)).ToArray());
-
-        var userId = user["id"]!.GetValue<string>();
-        await PutUserAsync(userId, user, token, cancellationToken);
-    }
+    // An account still mid-setup (never completed its first login) has UPDATE_PASSWORD pending —
+    // safe to keep reissuing a temporary password for it. An account without it has already set
+    // its own real password, which must be left alone (see EnsureUserWithTemporaryPasswordAsync).
+    private static bool HasPendingPasswordUpdate(JsonObject user) =>
+        (user["requiredActions"] as JsonArray)?
+            .Any(action => action!.GetValue<string>() == "UPDATE_PASSWORD") ?? false;
 
     private async Task PutUserAsync(string userId, JsonObject user, string token, CancellationToken cancellationToken)
     {

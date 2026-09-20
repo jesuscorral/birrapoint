@@ -308,7 +308,7 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
         var response = await RemoveJudgeAsync(organizer, fixture.CompetitionId, fixture.TableId, fixture.Judges[0].JudgeId);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:invalid-state-transition", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -322,7 +322,7 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
         var response = await RemoveJudgeAsync(organizer, fixture.CompetitionId, fixture.TableId, fixture.Judges[0].JudgeId);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:invalid-state-transition", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -408,7 +408,7 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
         var evaluationsResponse = await GetEntryEvaluationsAsync(organizer, fixture.CompetitionId, entryId);
 
         Assert.Equal(HttpStatusCode.OK, evaluationsResponse.StatusCode);
-        using var document = JsonDocument.Parse(await evaluationsResponse.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await evaluationsResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var evaluations = document.RootElement.GetProperty("evaluations").EnumerateArray().ToList();
         Assert.Contains(evaluations, e => e.GetProperty("total").GetInt32() == 39); // aroma 10 + appearance 2 + flavor 15 + mouthfeel 4 + overall 8
     }
@@ -430,14 +430,14 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
         var opening = await SubmitAsync(judgeB, fixture.TableId, entryId, Scores(5, 1, 10, 2, 2)); // 20, diff 20 -> A & B involved
         Assert.Equal(HttpStatusCode.Created, opening.StatusCode);
         Assert.Equal(
-            "PendingConsensus", (await opening.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
+            "PendingConsensus", (await opening.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("status").GetString());
         Assert.Equal(HttpStatusCode.Created, (await SubmitAsync(judgeC, fixture.TableId, entryId, Scores(11, 3, 17, 4, 9))).StatusCode); // 44, diff to B 24 -> C involved too
 
         Assert.Equal(1, await CountOpenAlertsAsync(fixture.TableId, entryId));
 
         var blockedClose = await CloseAsync(judgeA, fixture.TableId);
         Assert.Equal(HttpStatusCode.Conflict, blockedClose.StatusCode);
-        using var blockedDocument = JsonDocument.Parse(await blockedClose.Content.ReadAsStringAsync());
+        using var blockedDocument = JsonDocument.Parse(await blockedClose.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("discrepancy-open", blockedDocument.RootElement.GetProperty("type").GetString());
 
         // Removing judge B leaves A (40) and C (44) — only 4 points apart, so the alert should now
@@ -448,11 +448,11 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
         Assert.Equal(0, await CountOpenAlertsAsync(fixture.TableId, entryId));
 
         var discrepanciesForA = await GetDiscrepanciesAsync(judgeA, fixture.TableId);
-        using var forA = JsonDocument.Parse(await discrepanciesForA.Content.ReadAsStringAsync());
+        using var forA = JsonDocument.Parse(await discrepanciesForA.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Empty(forA.RootElement.EnumerateArray());
 
         var discrepanciesForC = await GetDiscrepanciesAsync(judgeC, fixture.TableId);
-        using var forC = JsonDocument.Parse(await discrepanciesForC.Content.ReadAsStringAsync());
+        using var forC = JsonDocument.Parse(await discrepanciesForC.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Empty(forC.RootElement.EnumerateArray());
 
         var close = await CloseAsync(judgeA, fixture.TableId);
@@ -484,12 +484,12 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
             s => Assert.Equal(EvaluationStatus.PendingConsensus, s));
 
         var discrepanciesForA = await GetDiscrepanciesAsync(judgeA, fixture.TableId);
-        using var forA = JsonDocument.Parse(await discrepanciesForA.Content.ReadAsStringAsync());
+        using var forA = JsonDocument.Parse(await discrepanciesForA.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Single(forA.RootElement.EnumerateArray());
 
         var close = await CloseAsync(judgeA, fixture.TableId);
         Assert.Equal(HttpStatusCode.Conflict, close.StatusCode);
-        using var closeDocument = JsonDocument.Parse(await close.Content.ReadAsStringAsync());
+        using var closeDocument = JsonDocument.Parse(await close.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("discrepancy-open", closeDocument.RootElement.GetProperty("type").GetString());
     }
 
@@ -518,12 +518,12 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
         Assert.Equal(1, await CountOpenAlertsAsync(fixture.TableId, entryId));
 
         var discrepanciesForB = await GetDiscrepanciesAsync(judgeB, fixture.TableId);
-        using var forB = JsonDocument.Parse(await discrepanciesForB.Content.ReadAsStringAsync());
+        using var forB = JsonDocument.Parse(await discrepanciesForB.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Single(forB.RootElement.EnumerateArray());
 
         var close = await CloseAsync(judgeB, fixture.TableId);
         Assert.Equal(HttpStatusCode.Conflict, close.StatusCode);
-        using var closeDocument = JsonDocument.Parse(await close.Content.ReadAsStringAsync());
+        using var closeDocument = JsonDocument.Parse(await close.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("discrepancy-open", closeDocument.RootElement.GetProperty("type").GetString());
     }
 }

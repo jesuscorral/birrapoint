@@ -383,7 +383,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
             organizer, competitionId, "not an xlsx file"u8.ToArray(), fileName: "entries.txt", contentType: "text/plain");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:invalid-import-file", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -401,7 +401,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await UploadAsync(organizer, competitionId, xlsx);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:invalid-import-file", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -412,12 +412,12 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var competitionId = await CreateCompetitionAsync(organizer);
         await SetStandardCategoryAsync(organizer, competitionId);
         await TransitionToActiveAsync(organizer, competitionId);
-        await organizer.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/state", new { target = "InEvaluation" });
+        await organizer.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/state", new { target = "InEvaluation" }, cancellationToken: TestContext.Current.CancellationToken);
 
         var response = await UploadAsync(organizer, competitionId, BuildAcceWorkbook(Row()));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:invalid-state-transition", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -443,7 +443,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var consolidate = await ConsolidateAsync(organizer, competitionId, secondImportId);
         Assert.Equal(HttpStatusCode.OK, consolidate.StatusCode);
 
-        using var document = JsonDocument.Parse(await consolidate.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await consolidate.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         // Only the second (active) batch's row landed — if the first batch had not been
         // discarded, this would be 3.
         Assert.Equal(1, document.RootElement.GetProperty("imported").GetInt32());
@@ -506,13 +506,13 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var edit = await EditRowAsync(organizer, competitionId, importId, rowNumber: 1,
             FullEditBody(competitionCategoryId: categoryId, styleCode: StyleCodeStout));
         Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
-        using var editDocument = JsonDocument.Parse(await edit.Content.ReadAsStringAsync());
+        using var editDocument = JsonDocument.Parse(await edit.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("Valid", editDocument.RootElement.GetProperty("status").GetString());
 
         var consolidate = await ConsolidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.OK, consolidate.StatusCode);
-        using var document = JsonDocument.Parse(await consolidate.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await consolidate.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var entries = document.RootElement.GetProperty("entries").EnumerateArray().ToList();
         Assert.Single(entries);
         Assert.Equal(StyleCodeStout, entries[0].GetProperty("styleCode").GetString());
@@ -529,7 +529,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var edit = await EditRowAsync(organizer, competitionId, importId, rowNumber: 1,
             FullEditBody(competitionCategoryId: categoryId, styleCode: StyleCodeHazyIpa));
         Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
-        using var editDocument = JsonDocument.Parse(await edit.Content.ReadAsStringAsync());
+        using var editDocument = JsonDocument.Parse(await edit.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("Valid", editDocument.RootElement.GetProperty("status").GetString());
 
         var consolidate = await ConsolidateAsync(organizer, competitionId, importId);
@@ -549,7 +549,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
             FullEditBody(competitionCategoryId: null, styleCode: StyleCodeHazyIpa));
 
         Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
-        using var document = JsonDocument.Parse(await edit.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await edit.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("Invalid", document.RootElement.GetProperty("status").GetString());
     }
 
@@ -596,7 +596,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
             FullEditBody(competitionCategoryId: categoryId, beerName: "Hop Cannon"));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("Hop Cannon", document.RootElement.GetProperty("data").GetProperty("beerName").GetString());
     }
 
@@ -613,7 +613,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
             FullEditBody(competitionCategoryId: categoryId));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:invalid-import-file", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -652,7 +652,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
             FullEditBody(competitionCategoryId: categoryId, styleCode: StyleCodeStout));
 
         Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
-        using var document = JsonDocument.Parse(await edit.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await edit.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("CategoryStyleMismatch", document.RootElement.GetProperty("status").GetString());
         Assert.True(document.RootElement.TryGetProperty("error", out var error));
         Assert.False(string.IsNullOrWhiteSpace(error.GetString()));
@@ -669,7 +669,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await ConsolidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:unresolved-import-rows", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -699,13 +699,13 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
 
         var exclude = await ExcludeRowAsync(organizer, competitionId, importId, rowNumber: 1);
         Assert.Equal(HttpStatusCode.OK, exclude.StatusCode);
-        using var excludeDocument = JsonDocument.Parse(await exclude.Content.ReadAsStringAsync());
+        using var excludeDocument = JsonDocument.Parse(await exclude.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("Excluded", excludeDocument.RootElement.GetProperty("status").GetString());
 
         var consolidate = await ConsolidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.OK, consolidate.StatusCode);
-        using var document = JsonDocument.Parse(await consolidate.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await consolidate.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal(0, document.RootElement.GetProperty("imported").GetInt32());
         Assert.Equal(1, document.RootElement.GetProperty("excluded").GetInt32());
     }
@@ -739,7 +739,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await ConsolidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:unresolved-import-rows", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -754,7 +754,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await ConsolidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:unresolved-import-rows", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -769,14 +769,14 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await ConsolidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal(1, document.RootElement.GetProperty("imported").GetInt32());
         var entries = document.RootElement.GetProperty("entries").EnumerateArray().ToList();
         var entryId = entries[0].GetProperty("id").GetGuid();
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var entry = await db.BeerEntries.SingleAsync(e => e.Id == entryId);
+        var entry = await db.BeerEntries.SingleAsync(e => e.Id == entryId, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(categoryId, entry.CompetitionCategoryId);
         Assert.Equal(StyleCodeHazyIpa, entry.StyleCode);
@@ -788,7 +788,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         Assert.Equal("White Lab WL-001-P California Ale", entry.Yeast);
         Assert.Null(entry.BeerName);
 
-        var participant = await db.Participants.SingleAsync(p => p.Id == entry.ParticipantId);
+        var participant = await db.Participants.SingleAsync(p => p.Id == entry.ParticipantId, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal("1423", participant.AcceMemberNumber);
         Assert.Equal("699989612", participant.Phone);
     }
@@ -807,7 +807,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var second = await ConsolidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
-        using var document = JsonDocument.Parse(await second.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await second.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:invalid-state-transition", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -847,12 +847,12 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
 
         var participants = await db.Participants
             .Where(p => p.CompetitionId == competitionId && p.Email == "dezaprieto@gmail.com")
-            .ToListAsync();
+            .ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Single(participants);
         Assert.Equal("José Deza Prieto (updated)", participants[0].Name);
         Assert.Equal("2000", participants[0].AcceMemberNumber);
 
-        var entryCount = await db.BeerEntries.CountAsync(e => e.ParticipantId == participants[0].Id);
+        var entryCount = await db.BeerEntries.CountAsync(e => e.ParticipantId == participants[0].Id, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(2, entryCount);
     }
 
@@ -876,9 +876,9 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var firstParticipant = await db.Participants
-            .SingleAsync(p => p.CompetitionId == firstCompetitionId && p.Email == "shared@brew.example");
+            .SingleAsync(p => p.CompetitionId == firstCompetitionId && p.Email == "shared@brew.example", cancellationToken: TestContext.Current.CancellationToken);
         var secondParticipant = await db.Participants
-            .SingleAsync(p => p.CompetitionId == secondCompetitionId && p.Email == "shared@brew.example");
+            .SingleAsync(p => p.CompetitionId == secondCompetitionId && p.Email == "shared@brew.example", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotEqual(firstParticipant.Id, secondParticipant.Id);
         Assert.Equal("Name In First Competition", firstParticipant.Name);
@@ -945,7 +945,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await RevalidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var row = document.RootElement.GetProperty("rows")[0];
         Assert.Equal("Valid", row.GetProperty("status").GetString());
         var data = row.GetProperty("data");
@@ -966,13 +966,13 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var putResponse = await organizer.PutAsJsonAsync($"/api/v1/competitions/{competitionId}/categories", new
         {
             categories = new[] { new { name = "Otra categoria", displayOrder = 0, styleCodes = new[] { StyleCodeHazyIpa } } },
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         putResponse.EnsureSuccessStatusCode();
 
         var response = await RevalidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var row = document.RootElement.GetProperty("rows")[0];
         Assert.Equal("CategoryMismatch", row.GetProperty("status").GetString());
         var data = row.GetProperty("data");
@@ -994,7 +994,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await RevalidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var row = document.RootElement.GetProperty("rows")[0];
         Assert.Equal("Valid", row.GetProperty("status").GetString());
     }

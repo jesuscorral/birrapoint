@@ -28,21 +28,21 @@ public sealed class JudgeResolverTests(PostgresFixture fixture) : IClassFixture<
         await using (var seed = NewContext())
         {
             seed.AddRange(competitionA, competitionB, judgeA, judgeB);
-            await seed.SaveChangesAsync();
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await using var db = NewContext();
         var resolver = new JudgeResolver(db);
 
-        var resolved = await resolver.ResolveAndBackfillAsync("kc-sub-1", email, "Real Name");
-        await db.SaveChangesAsync();
+        var resolved = await resolver.ResolveAndBackfillAsync("kc-sub-1", email, "Real Name", TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(2, resolved.Count);
         Assert.All(resolved, judge => Assert.Equal("kc-sub-1", judge.KeycloakUserId));
         Assert.All(resolved, judge => Assert.Equal("Real Name", judge.DisplayName));
 
         await using var verify = NewContext();
-        var stored = await verify.Judges.AsNoTracking().Where(judge => judge.Email == email).ToListAsync();
+        var stored = await verify.Judges.AsNoTracking().Where(judge => judge.Email == email).ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(2, stored.Count);
         Assert.All(stored, judge => Assert.Equal("kc-sub-1", judge.KeycloakUserId));
         Assert.All(stored, judge => Assert.Equal("Real Name", judge.DisplayName));
@@ -58,19 +58,19 @@ public sealed class JudgeResolverTests(PostgresFixture fixture) : IClassFixture<
         await using (var seed = NewContext())
         {
             seed.AddRange(competition, judge);
-            await seed.SaveChangesAsync();
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await using (var first = NewContext())
         {
-            await new JudgeResolver(first).ResolveAndBackfillAsync("kc-sub-2", email, "First Name");
-            await first.SaveChangesAsync();
+            await new JudgeResolver(first).ResolveAndBackfillAsync("kc-sub-2", email, "First Name", TestContext.Current.CancellationToken);
+            await first.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         // Replay with a different sub/name — an already-backfilled row must not change.
         await using var db = NewContext();
-        var resolved = await new JudgeResolver(db).ResolveAndBackfillAsync("kc-sub-other", email, "Other Name");
-        await db.SaveChangesAsync();
+        var resolved = await new JudgeResolver(db).ResolveAndBackfillAsync("kc-sub-other", email, "Other Name", TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var stored = Assert.Single(resolved);
         Assert.Equal("kc-sub-2", stored.KeycloakUserId);
@@ -83,8 +83,7 @@ public sealed class JudgeResolverTests(PostgresFixture fixture) : IClassFixture<
         await using var db = NewContext();
         var resolver = new JudgeResolver(db);
 
-        var resolved = await resolver.ResolveAndBackfillAsync(
-            "kc-sub-3", $"nobody-{Guid.NewGuid():N}@example.test", "Someone");
+        var resolved = await resolver.ResolveAndBackfillAsync("kc-sub-3", $"nobody-{Guid.NewGuid():N}@example.test", "Someone", TestContext.Current.CancellationToken);
 
         Assert.Empty(resolved);
     }
@@ -99,12 +98,12 @@ public sealed class JudgeResolverTests(PostgresFixture fixture) : IClassFixture<
         await using (var seed = NewContext())
         {
             seed.AddRange(competition, judge);
-            await seed.SaveChangesAsync();
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await using var db = NewContext();
-        var resolved = await new JudgeResolver(db).ResolveAndBackfillAsync("kc-sub-4", email, name: null);
-        await db.SaveChangesAsync();
+        var resolved = await new JudgeResolver(db).ResolveAndBackfillAsync("kc-sub-4", email, name: null, ct: TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var stored = Assert.Single(resolved);
         Assert.Equal("kc-sub-4", stored.KeycloakUserId);

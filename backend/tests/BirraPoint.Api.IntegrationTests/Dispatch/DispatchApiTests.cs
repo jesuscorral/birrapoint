@@ -297,7 +297,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
         var response = await FinalizeAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:tables-still-open", document.RootElement.GetProperty("type").GetString());
         var openTableIds = document.RootElement.GetProperty("openTableIds").EnumerateArray().Select(e => e.GetGuid()).ToList();
         Assert.Contains(openTableId, openTableIds);
@@ -316,7 +316,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var hasGeneratePdfsJob = await db.DispatchJobs
-            .AnyAsync(j => j.CompetitionId == competitionId && j.Type == DispatchJobType.GeneratePdfs);
+            .AnyAsync(j => j.CompetitionId == competitionId && j.Type == DispatchJobType.GeneratePdfs, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(hasGeneratePdfsJob);
     }
 
@@ -344,7 +344,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
 
             using var entryStream = zipEntry!.Open();
             using var pdfBytes = new MemoryStream();
-            await entryStream.CopyToAsync(pdfBytes);
+            await entryStream.CopyToAsync(pdfBytes, TestContext.Current.CancellationToken);
             // %PDF is the standard PDF magic header — enough to confirm this is a real PDF, not
             // parsing its content (not required by this test).
             Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString(pdfBytes.ToArray(), 0, 4));
@@ -470,7 +470,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
         var response = await GetResultsArchiveAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("Running", document.RootElement.GetProperty("status").GetString());
     }
 
@@ -493,7 +493,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
 
         // Reset itself is synchronous within the retry request — no polling needed for this part.
         var statusResponse = await GetDispatchStatusAsync(organizer, competitionId);
-        using var document = JsonDocument.Parse(await statusResponse.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await statusResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var row = document.RootElement.EnumerateArray().Single();
         Assert.True(row.GetProperty("status").GetString() is "Pending" or "Completed");
         Assert.Null(row.GetProperty("lastError").GetString());

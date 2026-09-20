@@ -3,6 +3,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BirraPoint.Api.Common.Email;
+using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
@@ -200,7 +202,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
             newEmail, existingEmail, duplicateInListEmail, duplicateInListEmail.ToLowerInvariant());
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
 
         var created = document.RootElement.GetProperty("created").EnumerateArray().ToList();
         var skipped = document.RootElement.GetProperty("skipped").EnumerateArray().ToList();
@@ -234,7 +236,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         await WaitForDispatchJobCompletionAsync(competitionId, DispatchJobType.ProvisionJudgeAccount);
 
         var listResponse = await GetJudgesAsync(organizer, competitionId);
-        using var document = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var judge = document.RootElement.EnumerateArray().Single(j => j.GetProperty("email").GetString() == email);
         Assert.Equal("Pending", judge.GetProperty("invitationStatus").GetString());
     }
@@ -277,7 +279,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await GetJudgesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var judges = document.RootElement.EnumerateArray().ToList();
         Assert.Single(judges);
         Assert.Equal(email, judges[0].GetProperty("email").GetString());
@@ -313,7 +315,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var listResponse = await GetJudgesAsync(organizer, competitionId);
-        using var document = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var judges = document.RootElement.EnumerateArray().ToList();
         Assert.Single(judges);
         Assert.Equal(correctedEmail, judges[0].GetProperty("email").GetString());
@@ -331,7 +333,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
             organizer, competitionId, judgeId, $"corrected-{Guid.NewGuid():N}@brew.example");
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:judge-already-active", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -407,7 +409,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         // contract), so this doesn't depend on RegisterJudges' own (now Pending-only) behavior —
         // the judge id comes straight off the registration response.
         var registerResponse = await RegisterJudgesAsync(organizer, competitionId, email);
-        using var registerDocument = JsonDocument.Parse(await registerResponse.Content.ReadAsStringAsync());
+        using var registerDocument = JsonDocument.Parse(await registerResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var judgeId = registerDocument.RootElement.GetProperty("created")[0].GetProperty("id").GetGuid();
 
         var response = await ResendInvitationAsync(organizer, competitionId, judgeId);
@@ -443,7 +445,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await GetJudgesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var judge = document.RootElement.EnumerateArray().Single(j => j.GetProperty("email").GetString() == email);
         Assert.Equal(JsonValueKind.Null, judge.GetProperty("bjcpRank").ValueKind);
         Assert.Equal(JsonValueKind.Null, judge.GetProperty("bjcpId").ValueKind);
@@ -496,7 +498,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await NotifyJudgesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Empty(document.RootElement.GetProperty("queued").EnumerateArray());
     }
 
@@ -511,7 +513,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await NotifyJudgesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var queued = document.RootElement.GetProperty("queued").EnumerateArray().ToList();
         Assert.Single(queued);
         Assert.Equal(email, queued[0].GetProperty("email").GetString());
@@ -532,7 +534,36 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var secondNotify = await NotifyJudgesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, secondNotify.StatusCode);
-        using var document = JsonDocument.Parse(await secondNotify.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await secondNotify.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Empty(document.RootElement.GetProperty("queued").EnumerateArray());
+    }
+
+    /// <summary>Regression test: sharing one email across roles/competitions (e.g. an organizer
+    /// registering under the same address as a judge elsewhere, per JudgeResolver/
+    /// OrganizerResolver) must never reset a Keycloak password some other persona is actively
+    /// using — see KeycloakAdminClientTests for the unit-level coverage of the underlying
+    /// skip-reset logic.</summary>
+    [Fact]
+    public async Task Notify_for_an_email_with_an_already_active_Keycloak_account_does_not_reset_its_password()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+        var email = $"shared-identity-{Guid.NewGuid():N}@brew.example";
+
+        var fakeKeycloak = (FakeKeycloakAdminClient)factory.Services.GetRequiredService<IKeycloakAdminClient>();
+        fakeKeycloak.MarkAccountActive(email);
+
+        await RegisterJudgesAsync(organizer, competitionId, email);
+        var notifyResponse = await NotifyJudgesAsync(organizer, competitionId);
+        Assert.Equal(HttpStatusCode.OK, notifyResponse.StatusCode);
+
+        await PollForInvitationStatusAsync(organizer, competitionId, email);
+
+        Assert.Equal(0, fakeKeycloak.PasswordResetCallCount(email));
+
+        var fakeEmailSender = (FakeEmailSender)factory.Services.GetRequiredService<IEmailSender>();
+        var sentEmail = Assert.Single(fakeEmailSender.Sent, s => s.ToEmail == email);
+        Assert.DoesNotContain("temporary password", sentEmail.HtmlBody, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("already have a BirraPoint account", sentEmail.HtmlBody, StringComparison.OrdinalIgnoreCase);
     }
 }

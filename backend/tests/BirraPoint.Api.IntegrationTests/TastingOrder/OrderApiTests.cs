@@ -185,7 +185,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
         var response = await GetMyTablesAsync(judge);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Empty(document.RootElement.EnumerateArray());
     }
 
@@ -202,7 +202,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
         var response = await GetMyTablesAsync(judge);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var tables = document.RootElement.EnumerateArray().ToList();
         var table = Assert.Single(tables);
         Assert.Equal(tableId, table.GetProperty("tableId").GetGuid());
@@ -225,7 +225,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
         var response = await GetMyTablesAsync(judge);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Empty(document.RootElement.EnumerateArray());
     }
 
@@ -246,7 +246,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
         var response = await GetMyTablesAsync(judge);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Empty(document.RootElement.EnumerateArray());
     }
 
@@ -276,7 +276,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
         var response = await GetTableSamplesAsync(judge, tableId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var raw = await response.Content.ReadAsStringAsync();
+        var raw = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var lowered = raw.ToLowerInvariant();
         foreach (var forbidden in new[] { "beername", "participant", "brewery", "origin", "collaborator" })
         {
@@ -308,7 +308,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
         var response = await GetTableSamplesAsync(judge, tableId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var sample = Assert.Single(document.RootElement.EnumerateArray());
         Assert.Equal("Serve at cellar temperature.", sample.GetProperty("entryInstructions").GetString());
     }
@@ -325,13 +325,13 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
         var response = await FixOrderAsync(judge, tableId, entryIds);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var samples = document.RootElement.EnumerateArray().ToList();
         Assert.Equal(entryIds.Count, samples.Count);
         Assert.All(samples, s => Assert.Equal(JsonValueKind.Number, s.GetProperty("sequenceOrder").ValueKind));
 
         var tablesResponse = await GetMyTablesAsync(judge);
-        using var tablesDocument = JsonDocument.Parse(await tablesResponse.Content.ReadAsStringAsync());
+        using var tablesDocument = JsonDocument.Parse(await tablesResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var table = tablesDocument.RootElement.EnumerateArray().Single(t => t.GetProperty("tableId").GetGuid() == tableId);
         Assert.True(table.GetProperty("orderFixed").GetBoolean());
     }
@@ -369,7 +369,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
         Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Conflict));
 
         var conflictResponse = responses.First(r => r.StatusCode == HttpStatusCode.Conflict);
-        using var document = JsonDocument.Parse(await conflictResponse.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await conflictResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("order-already-fixed", document.RootElement.GetProperty("type").GetString());
     }
 }

@@ -112,7 +112,7 @@ public sealed class CurrentUserTests
         var resolver = new SpyJudgeResolver();
         var currentUser = new CurrentUser(accessor, resolver, new SpyOrganizerResolver());
 
-        await currentUser.GetJudgeRecordsAsync();
+        await currentUser.GetJudgeRecordsAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(("kc-user-123", "judge@example.test", "Judge Judy"), resolver.LastCall);
     }
@@ -134,7 +134,7 @@ public sealed class CurrentUserTests
         var resolver = new SpyOrganizerResolver();
         var currentUser = new CurrentUser(accessor, new SpyJudgeResolver(), resolver);
 
-        await currentUser.GetOrganizerAsync();
+        await currentUser.GetOrganizerAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(("kc-user-123", "organizer@example.test", "Ada", "Lovelace"), resolver.LastCall);
     }

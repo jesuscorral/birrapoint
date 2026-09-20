@@ -314,7 +314,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
             organizer, competitionId, "not an xlsx file"u8.ToArray(), fileName: "judges.txt", contentType: "text/plain");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:invalid-import-file", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -330,7 +330,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         var response = await UploadAsync(organizer, competitionId, xlsx);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:invalid-import-file", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -340,12 +340,12 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
         await TransitionToActiveAsync(organizer, competitionId);
-        await organizer.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/state", new { target = "InEvaluation" });
+        await organizer.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/state", new { target = "InEvaluation" }, cancellationToken: TestContext.Current.CancellationToken);
 
         var response = await UploadAsync(organizer, competitionId, BuildJudgeWorkbook(Row()));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:invalid-state-transition", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -365,7 +365,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         var consolidate = await ConsolidateAsync(organizer, competitionId, secondImportId);
         Assert.Equal(HttpStatusCode.OK, consolidate.StatusCode);
 
-        using var document = JsonDocument.Parse(await consolidate.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await consolidate.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         // Only the second (active) batch's row landed — if the first batch had not been
         // discarded, this would be 3.
         Assert.Equal(1, document.RootElement.GetProperty("created").GetArrayLength());
@@ -424,13 +424,13 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
 
         var edit = await EditRowAsync(organizer, competitionId, importId, rowNumber: 1, FullEditBody(email: fixedEmail));
         Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
-        using var editDocument = JsonDocument.Parse(await edit.Content.ReadAsStringAsync());
+        using var editDocument = JsonDocument.Parse(await edit.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("Valid", editDocument.RootElement.GetProperty("status").GetString());
 
         var consolidate = await ConsolidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.OK, consolidate.StatusCode);
-        using var document = JsonDocument.Parse(await consolidate.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await consolidate.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var created = document.RootElement.GetProperty("created").EnumerateArray().ToList();
         Assert.Single(created);
         Assert.Equal(fixedEmail, created[0].GetProperty("email").GetString());
@@ -446,7 +446,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         var edit = await EditRowAsync(organizer, competitionId, importId, rowNumber: 1, FullEditBody(email: null));
 
         Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
-        using var document = JsonDocument.Parse(await edit.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await edit.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("Invalid", document.RootElement.GetProperty("status").GetString());
     }
 
@@ -461,7 +461,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         var response = await EditRowAsync(organizer, competitionId, importId, rowNumber: 1, FullEditBody());
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:invalid-import-file", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -489,13 +489,13 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
 
         var exclude = await ExcludeRowAsync(organizer, competitionId, importId, rowNumber: 1);
         Assert.Equal(HttpStatusCode.OK, exclude.StatusCode);
-        using var excludeDocument = JsonDocument.Parse(await exclude.Content.ReadAsStringAsync());
+        using var excludeDocument = JsonDocument.Parse(await exclude.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("Excluded", excludeDocument.RootElement.GetProperty("status").GetString());
 
         var consolidate = await ConsolidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.OK, consolidate.StatusCode);
-        using var document = JsonDocument.Parse(await consolidate.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await consolidate.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal(0, document.RootElement.GetProperty("created").GetArrayLength());
         Assert.Equal(1, document.RootElement.GetProperty("excluded").GetInt32());
     }
@@ -526,7 +526,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         var response = await ConsolidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:unresolved-import-rows", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -543,7 +543,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         var second = await ConsolidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
-        using var document = JsonDocument.Parse(await second.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await second.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:invalid-state-transition", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -571,14 +571,14 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         var response = await ConsolidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var created = document.RootElement.GetProperty("created").EnumerateArray().ToList();
         Assert.Single(created);
         var judgeId = created[0].GetProperty("id").GetGuid();
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var judge = await db.Judges.SingleAsync(j => j.Id == judgeId);
+        var judge = await db.Judges.SingleAsync(j => j.Id == judgeId, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(email, judge.Email);
         Assert.Equal("Ana García Ruiz", judge.DisplayName);
@@ -586,7 +586,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         Assert.Equal("E4612", judge.BjcpId);
         Assert.Equal("Estilos Clásicos", judge.PreferredCategory);
 
-        var invitation = await db.Invitations.SingleAsync(i => i.JudgeId == judgeId);
+        var invitation = await db.Invitations.SingleAsync(i => i.JudgeId == judgeId, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(InvitationStatus.Pending, invitation.Status);
     }
 
@@ -600,7 +600,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
 
         var response = await ConsolidateAsync(organizer, competitionId, importId);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var judgeId = document.RootElement.GetProperty("created")[0].GetProperty("id").GetGuid();
 
         await WaitForDispatchJobCompletionAsync(competitionId, DispatchJobType.ProvisionJudgeAccount);
@@ -609,7 +609,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var invitation = await db.Invitations.SingleAsync(i => i.JudgeId == judgeId);
+        var invitation = await db.Invitations.SingleAsync(i => i.JudgeId == judgeId, cancellationToken: TestContext.Current.CancellationToken);
         // Provisioning never sends the invitation email — status stays Pending until the
         // organizer's explicit "Notify judges" action (FR-059).
         Assert.Equal(InvitationStatus.Pending, invitation.Status);
@@ -632,14 +632,14 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         var secondConsolidate = await ConsolidateAsync(organizer, competitionId, secondImportId);
 
         Assert.Equal(HttpStatusCode.OK, secondConsolidate.StatusCode);
-        using var document = JsonDocument.Parse(await secondConsolidate.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await secondConsolidate.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal(0, document.RootElement.GetProperty("created").GetArrayLength());
         var updated = document.RootElement.GetProperty("updated").EnumerateArray().ToList();
         Assert.Single(updated);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var judges = await db.Judges.Where(j => j.CompetitionId == competitionId && j.Email == email).ToListAsync();
+        var judges = await db.Judges.Where(j => j.CompetitionId == competitionId && j.Email == email).ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Single(judges);
         Assert.Equal("Updated Name", judges[0].DisplayName);
         Assert.Equal("Certificado", judges[0].BjcpRank);
@@ -662,7 +662,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         Assert.Equal(HttpStatusCode.OK, consolidate.StatusCode);
         await WaitForDispatchJobCompletionAsync(competitionId, DispatchJobType.ProvisionJudgeAccount);
 
-        var notifyResponse = await organizer.PostAsync($"/api/v1/competitions/{competitionId}/judges/notify", null);
+        var notifyResponse = await organizer.PostAsync($"/api/v1/competitions/{competitionId}/judges/notify", null, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, notifyResponse.StatusCode);
         await WaitForDispatchJobCompletionAsync(competitionId, DispatchJobType.SendInvitation);
 
@@ -677,8 +677,8 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
             judgeId = await db.Judges
                 .Where(j => j.CompetitionId == competitionId && j.Email == email)
                 .Select(j => j.Id)
-                .SingleAsync();
-            Assert.Equal(InvitationStatus.Sent, (await db.Invitations.SingleAsync(i => i.JudgeId == judgeId)).Status);
+                .SingleAsync(cancellationToken: TestContext.Current.CancellationToken);
+            Assert.Equal(InvitationStatus.Sent, (await db.Invitations.SingleAsync(i => i.JudgeId == judgeId, cancellationToken: TestContext.Current.CancellationToken)).Status);
         }
 
         // Simulates a stale re-enqueue of ProvisionJudgeAccount for a judge who has already been
@@ -687,7 +687,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         await using (var enqueueScope = factory.Services.CreateAsyncScope())
         {
             var dispatchJobQueue = enqueueScope.ServiceProvider.GetRequiredService<IDispatchJobQueue>();
-            await dispatchJobQueue.EnqueueAsync(competitionId, DispatchJobType.ProvisionJudgeAccount, new { JudgeId = judgeId });
+            await dispatchJobQueue.EnqueueAsync(competitionId, DispatchJobType.ProvisionJudgeAccount, new { JudgeId = judgeId }, TestContext.Current.CancellationToken);
         }
 
         await WaitForDispatchJobCompletionAsync(competitionId, DispatchJobType.ProvisionJudgeAccount, expectedCount: 2);
@@ -710,7 +710,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         var response = await ConsolidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal(1, document.RootElement.GetProperty("created").GetArrayLength());
         var skipped = document.RootElement.GetProperty("skipped").EnumerateArray().ToList();
         Assert.Single(skipped);
@@ -719,7 +719,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var judges = await db.Judges.Where(j => j.CompetitionId == competitionId && j.Email == sharedEmail).ToListAsync();
+        var judges = await db.Judges.Where(j => j.CompetitionId == competitionId && j.Email == sharedEmail).ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Single(judges);
         // Last-import-wins within the batch — the second occurrence's values win.
         Assert.Equal("Second Occurrence", judges[0].DisplayName);
@@ -734,20 +734,20 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
 
         // Seed via the plain email-list flow (RegisterJudges) first — this already creates an
         // Invitation{Status=Pending} row.
-        await organizer.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/judges", new { emails = new[] { email } });
+        await organizer.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/judges", new { emails = new[] { email } }, cancellationToken: TestContext.Current.CancellationToken);
 
         var (importId, _) = await UploadJudgeRowsAsync(organizer, competitionId, Row(name: "Roster Name", email: email));
         var response = await ConsolidateAsync(organizer, competitionId, importId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal(0, document.RootElement.GetProperty("created").GetArrayLength());
         Assert.Equal(1, document.RootElement.GetProperty("updated").GetArrayLength());
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var judge = await db.Judges.SingleAsync(j => j.CompetitionId == competitionId && j.Email == email);
-        var invitations = await db.Invitations.Where(i => i.JudgeId == judge.Id).ToListAsync();
+        var judge = await db.Judges.SingleAsync(j => j.CompetitionId == competitionId && j.Email == email, cancellationToken: TestContext.Current.CancellationToken);
+        var invitations = await db.Invitations.Where(i => i.JudgeId == judge.Id).ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Single(invitations);
         Assert.Equal("Roster Name", judge.DisplayName);
     }

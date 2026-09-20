@@ -22,7 +22,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:16").Build();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _container.StartAsync();
 
@@ -32,7 +32,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         await db.Database.MigrateAsync();
     }
 
-    async Task IAsyncLifetime.DisposeAsync()
+
+    async ValueTask IAsyncDisposable.DisposeAsync()
     {
         // Stop hosted services (DispatchWorker) and drain the Npgsql pool against a live DB
         // before the container goes away, not after.

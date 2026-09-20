@@ -54,14 +54,14 @@ public sealed class CompetitionCategoriesApiTests(ApiFactory factory) : IClassFi
                 new { name = "Classic Styles", displayOrder = 0, styleCodes = new[] { StyleCodeApa } },
                 new { name = "Pale Styles", displayOrder = 1, styleCodes = new[] { StyleCodeBlonde } },
             },
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
 
-        var getResponse = await client.GetAsync($"/api/v1/competitions/{competitionId}/categories");
+        var getResponse = await client.GetAsync($"/api/v1/competitions/{competitionId}/categories", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
 
-        using var document = JsonDocument.Parse(await getResponse.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await getResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var categories = document.RootElement.GetProperty("categories").EnumerateArray().ToList();
 
         Assert.Equal(2, categories.Count);
@@ -82,7 +82,7 @@ public sealed class CompetitionCategoriesApiTests(ApiFactory factory) : IClassFi
         var response = await otherClient.PutAsJsonAsync($"/api/v1/competitions/{competitionId}/categories", new
         {
             categories = new[] { new { name = "Classic Styles", displayOrder = 0, styleCodes = new[] { StyleCodeApa } } },
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -93,17 +93,17 @@ public sealed class CompetitionCategoriesApiTests(ApiFactory factory) : IClassFi
         using var client = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(client, "Locked");
 
-        await client.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/state", new { target = "Active" });
-        await client.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/state", new { target = "InEvaluation" });
-        await client.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/state", new { target = "Finalized" });
+        await client.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/state", new { target = "Active" }, cancellationToken: TestContext.Current.CancellationToken);
+        await client.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/state", new { target = "InEvaluation" }, cancellationToken: TestContext.Current.CancellationToken);
+        await client.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/state", new { target = "Finalized" }, cancellationToken: TestContext.Current.CancellationToken);
 
         var response = await client.PutAsJsonAsync($"/api/v1/competitions/{competitionId}/categories", new
         {
             categories = new[] { new { name = "Classic Styles", displayOrder = 0, styleCodes = new[] { StyleCodeApa } } },
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:invalid-state-transition", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -120,7 +120,7 @@ public sealed class CompetitionCategoriesApiTests(ApiFactory factory) : IClassFi
                 new { name = "Classic Styles", displayOrder = 0, styleCodes = new[] { StyleCodeApa } },
                 new { name = "Modern Styles", displayOrder = 1, styleCodes = new[] { StyleCodeApa } },
             },
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -134,7 +134,7 @@ public sealed class CompetitionCategoriesApiTests(ApiFactory factory) : IClassFi
         var response = await client.PutAsJsonAsync($"/api/v1/competitions/{competitionId}/categories", new
         {
             categories = new[] { new { name = "Classic Styles", displayOrder = 0, styleCodes = new[] { "99Z" } } },
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -148,17 +148,17 @@ public sealed class CompetitionCategoriesApiTests(ApiFactory factory) : IClassFi
         await client.PutAsJsonAsync($"/api/v1/competitions/{competitionId}/categories", new
         {
             categories = new[] { new { name = "Classic Styles", displayOrder = 0, styleCodes = new[] { StyleCodeApa } } },
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         var response = await client.PutAsJsonAsync($"/api/v1/competitions/{competitionId}/categories", new
         {
             categories = new[] { new { name = "Pale Styles", displayOrder = 0, styleCodes = new[] { StyleCodeBlonde } } },
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var getResponse = await client.GetAsync($"/api/v1/competitions/{competitionId}/categories");
-        using var document = JsonDocument.Parse(await getResponse.Content.ReadAsStringAsync());
+        var getResponse = await client.GetAsync($"/api/v1/competitions/{competitionId}/categories", TestContext.Current.CancellationToken);
+        using var document = JsonDocument.Parse(await getResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var categories = document.RootElement.GetProperty("categories").EnumerateArray().ToList();
 
         Assert.Single(categories);

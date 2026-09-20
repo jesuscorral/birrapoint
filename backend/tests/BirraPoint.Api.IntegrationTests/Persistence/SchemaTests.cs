@@ -10,13 +10,13 @@ namespace BirraPoint.Api.IntegrationTests.Persistence;
 /// One PostgreSQL 16 container per test class; the InitialCreate migration is applied once.
 /// Tests isolate their data with fresh Guids/codes instead of per-test databases.
 /// </summary>
-public sealed class PostgresFixture : IAsyncLifetime
+public sealed class PostgresFixture : IAsyncLifetime, IAsyncDisposable
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:16").Build();
 
     public DbContextOptions<AppDbContext> Options { get; private set; } = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _container.StartAsync();
         Options = new DbContextOptionsBuilder<AppDbContext>()
@@ -27,7 +27,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         await db.Database.MigrateAsync();
     }
 
-    public Task DisposeAsync() => _container.DisposeAsync().AsTask();
+    ValueTask IAsyncDisposable.DisposeAsync() => _container.DisposeAsync();
 }
 
 /// <summary>
@@ -44,14 +44,14 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
     {
         await using var db = NewContext();
 
-        var applied = await db.Database.GetAppliedMigrationsAsync();
+        var applied = await db.Database.GetAppliedMigrationsAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotEmpty(applied);
 
         // Spot-check that the core tables exist and are queryable (the fixture's database
         // is shared across this class's tests, so row counts here are not assumed to be zero).
-        await db.Evaluations.CountAsync();
-        await db.Competitions.CountAsync();
-        await db.AuditLogs.CountAsync();
+        await db.Evaluations.CountAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await db.Competitions.CountAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await db.AuditLogs.CountAsync(cancellationToken: TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -63,10 +63,10 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
         var evaluation = NewEvaluation(table.Id, judge.Id, entry.Id,
             aroma: 10, appearance: 2, flavor: 15, mouthfeel: 4, overall: 8);
         db.Evaluations.Add(evaluation);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await using var verify = NewContext();
-        var stored = await verify.Evaluations.AsNoTracking().SingleAsync(e => e.Id == evaluation.Id);
+        var stored = await verify.Evaluations.AsNoTracking().SingleAsync(e => e.Id == evaluation.Id, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(39, stored.Total);
     }
 
@@ -77,11 +77,11 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
         var (_, judge, entry, table) = await SeedTableGraphAsync(db);
 
         db.Evaluations.Add(NewEvaluation(table.Id, judge.Id, entry.Id));
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await using var second = NewContext();
         second.Evaluations.Add(NewEvaluation(table.Id, judge.Id, entry.Id));
-        var ex = await Assert.ThrowsAsync<DbUpdateException>(() => second.SaveChangesAsync());
+        var ex = await Assert.ThrowsAsync<DbUpdateException>(() => second.SaveChangesAsync(TestContext.Current.CancellationToken));
         var pg = Assert.IsType<PostgresException>(ex.InnerException);
         Assert.Equal(PostgresErrorCodes.UniqueViolation, pg.SqlState);
     }
@@ -95,7 +95,7 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
         competition.EndDate = new DateOnly(2026, 9, 1);
 
         db.Competitions.Add(competition);
-        var ex = await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        var ex = await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync(TestContext.Current.CancellationToken));
         var pg = Assert.IsType<PostgresException>(ex.InnerException);
         Assert.Equal(PostgresErrorCodes.CheckViolation, pg.SqlState);
     }
@@ -120,7 +120,7 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
             BeerEntryId = entry.Id,
             Status = DiscrepancyStatus.Open,
         });
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // …but a second open alert violates the partial unique index.
         await using var second = NewContext();
@@ -130,7 +130,7 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
             BeerEntryId = entry.Id,
             Status = DiscrepancyStatus.Open,
         });
-        var ex = await Assert.ThrowsAsync<DbUpdateException>(() => second.SaveChangesAsync());
+        var ex = await Assert.ThrowsAsync<DbUpdateException>(() => second.SaveChangesAsync(TestContext.Current.CancellationToken));
         var pg = Assert.IsType<PostgresException>(ex.InnerException);
         Assert.Equal(PostgresErrorCodes.UniqueViolation, pg.SqlState);
     }
@@ -143,14 +143,14 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
 
         var competition = NewCompetition();
         db.Competitions.Add(competition);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         Assert.InRange(competition.CreatedAt, before, DateTimeOffset.UtcNow);
         Assert.Equal(competition.CreatedAt, competition.UpdatedAt);
 
-        await Task.Delay(10);
+        await Task.Delay(10, TestContext.Current.CancellationToken);
         competition.Name = "Renamed";
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         Assert.True(competition.UpdatedAt > competition.CreatedAt);
     }

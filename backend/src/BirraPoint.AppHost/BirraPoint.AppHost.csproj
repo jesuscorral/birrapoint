@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project Sdk="Aspire.AppHost.Sdk/13.4.6">
+<Project Sdk="Aspire.AppHost.Sdk/13.5.4">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>$(BirraPointTargetFramework)</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <UserSecretsId>a2ebe169-3993-4c3f-a649-cd18842901bf</UserSecretsId>
+    <AspireUseCliBundle>true</AspireUseCliBundle>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.NodeJs"/>
+    <PackageReference Include="Aspire.Hosting.JavaScript"/>
     <PackageReference Include="Aspire.Hosting.PostgreSQL"/>
     <PackageReference Include="CommunityToolkit.Aspire.Hosting.MailPit"/>
     <PackageReference Include="EnvDTE"/>
