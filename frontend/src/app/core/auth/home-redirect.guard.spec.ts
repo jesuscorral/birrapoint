@@ -52,4 +52,16 @@ describe('isHomeRedirectAllowed', () => {
 
     expect(result).toBe(true);
   });
+
+  it('redirects a dual-role caller with no chosen active role to /select-role', async () => {
+    const result = await TestBed.runInInjectionContext(() =>
+      isHomeRedirectAllowed(
+        {} as ActivatedRouteSnapshot,
+        {} as RouterStateSnapshot,
+        authData(['ORGANIZER', 'JUDGE']),
+      ),
+    );
+
+    expect(result).toEqual(router.parseUrl('/select-role'));
+  });
 });

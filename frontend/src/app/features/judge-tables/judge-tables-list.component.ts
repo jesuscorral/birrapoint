@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
+import Keycloak from 'keycloak-js';
 
 import { ApiError } from '../../core/api/api-error';
+import { ActiveRoleService } from '../../core/auth/active-role.service';
 import { TastingOrderApiService } from './tasting-order-api.service';
 import type { JudgeTableSummary } from './tasting-order-api.service';
 
@@ -36,7 +38,14 @@ function errorMessage(error: ApiError): string {
   imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h1>My tables</h1>
+    <div class="page-header">
+      <h1>My tables</h1>
+      @if (hasDualRole()) {
+        <button type="button" class="switch-role-action" (click)="onSwitchRole()">
+          Cambiar rol
+        </button>
+      }
+    </div>
 
     @if (ejectionNotice(); as notice) {
       <p role="status" class="ejection-banner">
@@ -72,6 +81,27 @@ function errorMessage(error: ApiError): string {
     </ul>
   `,
   styles: `
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .switch-role-action {
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
+      padding: 0 var(--spacing-4);
+      border-radius: var(--radius-md);
+      border: 1px solid #d1d5db;
+      background: transparent;
+      font-weight: 600;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+
     .ejection-banner {
       background: #fef3c7;
       color: #92400e;
@@ -132,6 +162,9 @@ function errorMessage(error: ApiError): string {
 })
 export class JudgeTablesListComponent {
   private readonly api = inject(TastingOrderApiService);
+  private readonly keycloak = inject(Keycloak);
+  private readonly activeRole = inject(ActiveRoleService);
+  private readonly router = inject(Router);
 
   protected readonly tables = signal<JudgeTableSummary[]>([]);
   protected readonly loadError = signal<string | null>(null);
@@ -147,6 +180,21 @@ export class JudgeTablesListComponent {
 
   protected dismissEjectionNotice(): void {
     this.ejectionNotice.set(null);
+  }
+
+  // "Cambiar rol" only makes sense for an account that actually holds both realm roles — same
+  // reasoning and tokenParsed read as OrganizerDashboardComponent.hasDualRole().
+  protected hasDualRole(): boolean {
+    const roles = this.keycloak.tokenParsed?.realm_access?.roles ?? [];
+    return roles.includes('ORGANIZER') && roles.includes('JUDGE');
+  }
+
+  // Clears the session's chosen workspace and sends the caller back to the picker — does not log
+  // them out, and doesn't touch backend authorization (Principle VII), only ActiveRoleService's
+  // frontend-only partition (role-landing.ts).
+  protected onSwitchRole(): void {
+    this.activeRole.clearActiveRole();
+    void this.router.navigateByUrl('/select-role');
   }
 
   private loadTables(): void {

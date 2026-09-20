@@ -1,7 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { homeRedirectGuard } from './core/auth/home-redirect.guard';
-import { judgeGuard, organizerGuard } from './core/auth/role.guard';
+import { judgeGuard, organizerGuard, roleSelectGuard } from './core/auth/role.guard';
 import { CompetitionMonitorComponent } from './features/dashboard/competition-monitor.component';
 import { CompetitionWizardComponent } from './features/competition-wizard/competition-wizard.component';
 import { DiscrepancyAlertComponent } from './features/discrepancy/discrepancy-alert.component';
@@ -15,6 +15,7 @@ import { TableManagementComponent } from './features/table-management/table-mana
 import { UserSettingsComponent } from './features/settings/user-settings.component';
 import { WelcomeComponent } from './features/auth/welcome/welcome.component';
 import { KeycloakHandoffComponent } from './features/auth/keycloak-handoff/keycloak-handoff.component';
+import { RoleSelectComponent } from './features/auth/role-select/role-select.component';
 
 export const routes: Routes = [
   // Keycloak handoff (visual transition, then redirect). Public but only used in browser after click.
@@ -22,6 +23,19 @@ export const routes: Routes = [
     path: 'auth/handoff',
     component: KeycloakHandoffComponent,
     data: { label: 'Acceso seguro' },
+  },
+  // Reached via resolveRoleLandingUrlTree (role-landing.ts) whenever a dual-role (ORGANIZER +
+  // JUDGE) caller has no ActiveRoleService choice yet this session, and via the "switch role"
+  // actions on the organizer/judge shells. roleSelectGuard bounces anyone who isn't actually a
+  // dual-role caller (an anonymous visitor via a bookmarked/shared link, browser Back after
+  // logout, a single-role caller typing the URL) to their own real landing — this route's copy
+  // ("Tu cuenta tiene acceso como organizador y como juez") would otherwise be shown, wrongly, to
+  // any of those.
+  {
+    path: 'select-role',
+    canActivate: [roleSelectGuard],
+    component: RoleSelectComponent,
+    data: { label: 'Elegir rol' },
   },
   // Root: public login/register landing (WelcomeComponent) for unauthenticated callers.
   // homeRedirectGuard redirects an authenticated caller to their role-specific workspace when

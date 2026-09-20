@@ -1,8 +1,10 @@
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
+import Keycloak from 'keycloak-js';
 import { of, throwError } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
+import { ActiveRoleService } from '../../core/auth/active-role.service';
 import { JudgeTablesListComponent } from './judge-tables-list.component';
 import { TastingOrderApiService } from './tasting-order-api.service';
 import type { JudgeTableSummary } from './tasting-order-api.service';
@@ -19,13 +21,26 @@ function tableFixture(overrides: Partial<JudgeTableSummary> = {}): JudgeTableSum
   };
 }
 
+function buttonWithText(root: Element, text: string): HTMLButtonElement | undefined {
+  return ([...root.querySelectorAll('button')] as HTMLButtonElement[]).find(
+    (button) => button.textContent?.trim() === text,
+  );
+}
+
 describe('JudgeTablesListComponent', () => {
   let fakeApi: { getMyTables: jest.Mock };
+  let fakeKeycloak: { tokenParsed?: { realm_access?: { roles: string[] } } };
 
   beforeEach(() => {
+    sessionStorage.clear();
     fakeApi = { getMyTables: jest.fn().mockReturnValue(of([tableFixture()])) };
+    fakeKeycloak = { tokenParsed: { realm_access: { roles: ['JUDGE'] } } };
     TestBed.configureTestingModule({
-      providers: [{ provide: TastingOrderApiService, useValue: fakeApi }, provideRouter([])],
+      providers: [
+        { provide: TastingOrderApiService, useValue: fakeApi },
+        { provide: Keycloak, useValue: fakeKeycloak },
+        provideRouter([]),
+      ],
     });
   });
 
@@ -120,6 +135,27 @@ describe('JudgeTablesListComponent', () => {
       fixture.detectChanges();
 
       expect(fixture.nativeElement.querySelector('[role="status"]')).toBeNull();
+    });
+  });
+
+  describe('"Cambiar rol" (dual-role accounts only)', () => {
+    it('does not render for a JUDGE-only account', () => {
+      const fixture = createComponent();
+
+      expect(buttonWithText(fixture.nativeElement, 'Cambiar rol')).toBeUndefined();
+    });
+
+    it('clears the active role and navigates to /select-role for a dual-role account', () => {
+      fakeKeycloak.tokenParsed = { realm_access: { roles: ['ORGANIZER', 'JUDGE'] } };
+      TestBed.inject(ActiveRoleService).setActiveRole('JUDGE');
+      const fixture = createComponent();
+      const router = TestBed.inject(Router);
+      const navigateSpy = jest.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+
+      buttonWithText(fixture.nativeElement, 'Cambiar rol')!.click();
+
+      expect(TestBed.inject(ActiveRoleService).getActiveRole()).toBeNull();
+      expect(navigateSpy).toHaveBeenCalledWith('/select-role');
     });
   });
 });

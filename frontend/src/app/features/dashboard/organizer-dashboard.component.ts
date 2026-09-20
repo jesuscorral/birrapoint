@@ -1,9 +1,10 @@
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import Keycloak from 'keycloak-js';
 
 import { ApiError } from '../../core/api/api-error';
+import { ActiveRoleService } from '../../core/auth/active-role.service';
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
 import type { CompetitionState, CompetitionSummary } from '../../core/api/competitions-api.service';
 import { BpPageShellComponent } from '../../shared/components/bp-page-shell/bp-page-shell.component';
@@ -56,6 +57,15 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
   template: `
     <bp-page-shell>
       <ng-container bpTopbarActions>
+        @if (hasDualRole()) {
+          <button
+            type="button"
+            class="topbar-action topbar-action--button"
+            (click)="onSwitchRole()"
+          >
+            Cambiar rol
+          </button>
+        }
         <a routerLink="/organizer/settings" class="topbar-action topbar-action--link">Settings</a>
         <button type="button" class="topbar-action topbar-action--button" (click)="onLogout()">
           Log out
@@ -411,6 +421,8 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
 export class OrganizerDashboardComponent {
   private readonly api = inject(CompetitionsApiService);
   private readonly keycloak = inject(Keycloak);
+  private readonly activeRole = inject(ActiveRoleService);
+  private readonly router = inject(Router);
 
   protected readonly competitions = signal<CompetitionSummary[]>([]);
   protected readonly loadError = signal<string | null>(null);
@@ -425,7 +437,28 @@ export class OrganizerDashboardComponent {
   }
 
   protected onLogout(): void {
+    // Don't leak this tab's chosen workspace into whoever logs in next on it — a different
+    // dual-role account (or this one, re-authenticating) must be prompted again, not silently
+    // dropped into a stale choice.
+    this.activeRole.clearActiveRole();
     this.keycloak.logout({ redirectUri: window.location.origin + '/' });
+  }
+
+  // "Cambiar rol" only makes sense for an account that actually holds both realm roles — a
+  // plain ORGANIZER never picked a role to begin with, so there's nothing to switch away from.
+  // Same tokenParsed read as UserSettingsComponent.rolesLabel() (not a signal — Keycloak's own
+  // token data, stable for the component's lifetime, so a plain method is enough).
+  protected hasDualRole(): boolean {
+    const roles = this.keycloak.tokenParsed?.realm_access?.roles ?? [];
+    return roles.includes('ORGANIZER') && roles.includes('JUDGE');
+  }
+
+  // Clears the session's chosen workspace and sends the caller back to the picker — does not log
+  // them out, and doesn't touch backend authorization (Principle VII), only ActiveRoleService's
+  // frontend-only partition (role-landing.ts).
+  protected onSwitchRole(): void {
+    this.activeRole.clearActiveRole();
+    void this.router.navigateByUrl('/select-role');
   }
 
   private loadCompetitions(): void {

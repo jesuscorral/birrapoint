@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import Keycloak from 'keycloak-js';
 import type { KeycloakProfile } from 'keycloak-js';
 
+import { ActiveRoleService } from '../../core/auth/active-role.service';
 import { BpTopbarComponent } from '../../shared/components/bp-topbar/bp-topbar.component';
 
 // The two realm roles BirraPoint assigns meaning to — the same pair core/auth's route guards
@@ -205,6 +206,7 @@ const APP_REALM_ROLES = ['ORGANIZER', 'JUDGE'] as const;
 })
 export class UserSettingsComponent {
   private readonly keycloak = inject(Keycloak);
+  private readonly activeRole = inject(ActiveRoleService);
 
   protected readonly profile = signal<KeycloakProfile | null>(null);
   protected readonly loadError = signal<string | null>(null);
@@ -230,6 +232,9 @@ export class UserSettingsComponent {
   }
 
   protected onLogout(): void {
+    // Don't leak this tab's chosen workspace into whoever logs in next on it — see
+    // OrganizerDashboardComponent.onLogout for the same reasoning.
+    this.activeRole.clearActiveRole();
     this.keycloak.logout({ redirectUri: window.location.origin + '/' });
   }
 }
