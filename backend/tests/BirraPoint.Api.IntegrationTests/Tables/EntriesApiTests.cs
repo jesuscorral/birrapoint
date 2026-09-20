@@ -154,7 +154,7 @@ public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFacto
 
         var beforeResponse = await GetEntriesAsync(organizer, competitionId);
         Assert.Equal(HttpStatusCode.OK, beforeResponse.StatusCode);
-        using var before = JsonDocument.Parse(await beforeResponse.Content.ReadAsStringAsync());
+        using var before = JsonDocument.Parse(await beforeResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var beforeEntry = before.RootElement.EnumerateArray().Single(e => e.GetProperty("id").GetGuid() == entryId);
 
         Assert.Equal("Hop Cannon", beforeEntry.GetProperty("beerName").GetString());
@@ -167,10 +167,10 @@ public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFacto
         var tableName = $"Table {Guid.NewGuid():N}";
         var createResponse = await CreateTableAsync(organizer, competitionId, tableName, [], [entryId]);
         Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
-        var tableId = (await createResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var tableId = (await createResponse.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("id").GetGuid();
 
         var afterResponse = await GetEntriesAsync(organizer, competitionId);
-        using var after = JsonDocument.Parse(await afterResponse.Content.ReadAsStringAsync());
+        using var after = JsonDocument.Parse(await afterResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var afterEntry = after.RootElement.EnumerateArray().Single(e => e.GetProperty("id").GetGuid() == entryId);
 
         Assert.Equal(tableId, afterEntry.GetProperty("tastingTableId").GetGuid());
@@ -189,7 +189,7 @@ public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFacto
         var response = await GetEntriesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var entry = document.RootElement.EnumerateArray().Single(e => e.GetProperty("id").GetGuid() == entryId);
         Assert.Equal(6.20m, entry.GetProperty("abvPercent").GetDecimal());
     }
@@ -210,7 +210,7 @@ public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFacto
         var response = await GetEntriesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var entry = document.RootElement.EnumerateArray().Single(e => e.GetProperty("id").GetGuid() == entryId);
 
         Assert.Equal("Estilos clasicos", entry.GetProperty("competitionCategoryName").GetString());
@@ -231,7 +231,7 @@ public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFacto
 
         var response = await GetEntriesAsync(organizer, competitionId);
 
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var entry = document.RootElement.EnumerateArray().Single(e => e.GetProperty("id").GetGuid() == entryId);
 
         Assert.Equal(JsonValueKind.Null, entry.GetProperty("competitionCategoryName").ValueKind);

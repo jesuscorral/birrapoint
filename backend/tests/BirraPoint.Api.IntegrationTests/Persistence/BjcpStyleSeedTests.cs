@@ -17,7 +17,7 @@ public sealed class BjcpStyleSeedTests(PostgresFixture fixture) : IClassFixture<
     {
         await using var db = NewContext();
 
-        Assert.Equal(125, await db.BjcpStyles.CountAsync());
+        Assert.Equal(125, await db.BjcpStyles.CountAsync(cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -25,7 +25,7 @@ public sealed class BjcpStyleSeedTests(PostgresFixture fixture) : IClassFixture<
     {
         await using var db = NewContext();
 
-        var style = await db.BjcpStyles.AsNoTracking().SingleAsync(s => s.Code == "21A");
+        var style = await db.BjcpStyles.AsNoTracking().SingleAsync(s => s.Code == "21A", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("American IPA", style.Name);
         Assert.Equal("21", style.CategoryNumber);
@@ -42,7 +42,7 @@ public sealed class BjcpStyleSeedTests(PostgresFixture fixture) : IClassFixture<
     {
         await using var db = NewContext();
 
-        var style = await db.BjcpStyles.AsNoTracking().SingleAsync(s => s.Code == "27-Sahti");
+        var style = await db.BjcpStyles.AsNoTracking().SingleAsync(s => s.Code == "27-Sahti", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("27", style.CategoryNumber);
         Assert.NotNull(style.OGLow); // Sahti carries real vital statistics
@@ -55,7 +55,7 @@ public sealed class BjcpStyleSeedTests(PostgresFixture fixture) : IClassFixture<
     {
         await using var db = NewContext();
 
-        var style = await db.BjcpStyles.AsNoTracking().SingleAsync(s => s.Code == "28A");
+        var style = await db.BjcpStyles.AsNoTracking().SingleAsync(s => s.Code == "28A", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("American Wild Ale", style.CategoryName);
         Assert.Null(style.OGLow);
@@ -67,7 +67,7 @@ public sealed class BjcpStyleSeedTests(PostgresFixture fixture) : IClassFixture<
     {
         await using var db = NewContext();
 
-        var descriptions = await db.BjcpStyles.AsNoTracking().Select(s => s.DescriptionJson).ToListAsync();
+        var descriptions = await db.BjcpStyles.AsNoTracking().Select(s => s.DescriptionJson).ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.All(descriptions, json => JsonDocument.Parse(json).Dispose());
     }

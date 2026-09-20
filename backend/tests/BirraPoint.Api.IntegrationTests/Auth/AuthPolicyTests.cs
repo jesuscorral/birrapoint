@@ -24,7 +24,7 @@ public sealed class AuthPolicyTests(ApiFactory factory) : IClassFixture<ApiFacto
     {
         using var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/api/v1/styles");
+        var response = await client.GetAsync("/api/v1/styles", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -36,7 +36,7 @@ public sealed class AuthPolicyTests(ApiFactory factory) : IClassFixture<ApiFacto
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", TestJwtIssuer.IssueToken(sub: "kc-judge-1", roles: ["JUDGE"]));
 
-        var response = await client.GetAsync("/__test/organizer-only");
+        var response = await client.GetAsync("/__test/organizer-only", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
@@ -50,7 +50,7 @@ public sealed class AuthPolicyTests(ApiFactory factory) : IClassFixture<ApiFacto
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", TestJwtIssuer.IssueToken(sub: "sub-owner-b", roles: ["ORGANIZER"]));
 
-        var response = await client.GetAsync($"/__test/organizer-only/competitions/{competitionId}");
+        var response = await client.GetAsync($"/__test/organizer-only/competitions/{competitionId}", TestContext.Current.CancellationToken);
 
         // Explicitly not 403: an organizer role holder must never learn (via a distinguishable
         // status code) that a competition they don't own exists.
@@ -67,7 +67,7 @@ public sealed class AuthPolicyTests(ApiFactory factory) : IClassFixture<ApiFacto
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", TestJwtIssuer.IssueToken(sub: ownerSub, roles: ["ORGANIZER"]));
 
-        var response = await client.GetAsync($"/__test/organizer-only/competitions/{competitionId}");
+        var response = await client.GetAsync($"/__test/organizer-only/competitions/{competitionId}", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }

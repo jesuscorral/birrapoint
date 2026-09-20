@@ -82,7 +82,7 @@ var api = builder.AddProject<Projects.BirraPoint_Api>("api")
     .WithExternalHttpEndpoints();
 
 // Angular PWA via ng serve (fixed :4200, matching the SPA client redirect URIs).
-builder.AddNpmApp("frontend", "../../../frontend", "start")
+builder.AddNodeApp("frontend", "../../../frontend", "start")
     .WithHttpEndpoint(port: 4200, isProxied: false)
     .WithExternalHttpEndpoints()
     .WaitFor(api);

@@ -16,7 +16,7 @@ public sealed class GetStylesTests(ApiFactory factory) : IClassFixture<ApiFactor
     {
         using var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/api/v1/styles");
+        var response = await client.GetAsync("/api/v1/styles", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -28,11 +28,11 @@ public sealed class GetStylesTests(ApiFactory factory) : IClassFixture<ApiFactor
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", TestJwtIssuer.IssueToken(sub: "kc-user-1"));
 
-        var response = await client.GetAsync("/api/v1/styles");
+        var response = await client.GetAsync("/api/v1/styles", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var styles = document.RootElement.EnumerateArray().ToList();
 
         Assert.Equal(FullCatalogSize, styles.Count);

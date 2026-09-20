@@ -245,14 +245,14 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
 
         var first = await SubmitAsync(judgeA, fixture.TableId, fixture.EntryId, Scores(10, 2, 16, 4, 8)); // total 40
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
-        using var firstDocument = JsonDocument.Parse(await first.Content.ReadAsStringAsync());
+        using var firstDocument = JsonDocument.Parse(await first.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         // Nothing to compare against yet — a lone submission is never a discrepancy.
         Assert.Equal("Confirmed", firstDocument.RootElement.GetProperty("status").GetString());
         Assert.False(firstDocument.RootElement.TryGetProperty("discrepancy", out var noDiscrepancy) && noDiscrepancy.ValueKind != JsonValueKind.Null);
 
         var second = await SubmitAsync(judgeB, fixture.TableId, fixture.EntryId, Scores(5, 1, 10, 2, 2)); // total 20, diff 20
         Assert.Equal(HttpStatusCode.Created, second.StatusCode);
-        using var secondDocument = JsonDocument.Parse(await second.Content.ReadAsStringAsync());
+        using var secondDocument = JsonDocument.Parse(await second.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var secondRoot = secondDocument.RootElement;
 
         Assert.Equal("PendingConsensus", secondRoot.GetProperty("status").GetString());
@@ -270,7 +270,7 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
         // must reflect the alert for them too.
         var discrepanciesForA = await GetDiscrepanciesAsync(judgeA, fixture.TableId);
         Assert.Equal(HttpStatusCode.OK, discrepanciesForA.StatusCode);
-        using var discrepanciesDocument = JsonDocument.Parse(await discrepanciesForA.Content.ReadAsStringAsync());
+        using var discrepanciesDocument = JsonDocument.Parse(await discrepanciesForA.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Single(discrepanciesDocument.RootElement.EnumerateArray());
     }
 
@@ -291,7 +291,7 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
 
         var third = await SubmitAsync(judgeC, fixture.TableId, fixture.EntryId, Scores(11, 3, 17, 4, 9)); // 44: diff to 40 is 4, diff to 48 is 4
         Assert.Equal(HttpStatusCode.Created, third.StatusCode);
-        using var thirdDocument = JsonDocument.Parse(await third.Content.ReadAsStringAsync());
+        using var thirdDocument = JsonDocument.Parse(await third.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var thirdRoot = thirdDocument.RootElement;
         // Judge C's own total is within 7 of both others, so their own evaluation is Confirmed, and
         // their own response's `discrepancy` field reflects THEIR situation (null) — even though an
@@ -301,11 +301,11 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
         Assert.False(thirdRoot.TryGetProperty("discrepancy", out var thirdDiscrepancy) && thirdDiscrepancy.ValueKind != JsonValueKind.Null);
 
         var discrepanciesForA = await GetDiscrepanciesAsync(judgeA, fixture.TableId);
-        using var forA = JsonDocument.Parse(await discrepanciesForA.Content.ReadAsStringAsync());
+        using var forA = JsonDocument.Parse(await discrepanciesForA.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Single(forA.RootElement.EnumerateArray());
 
         var discrepanciesForC = await GetDiscrepanciesAsync(judgeC, fixture.TableId);
-        using var forC = JsonDocument.Parse(await discrepanciesForC.Content.ReadAsStringAsync());
+        using var forC = JsonDocument.Parse(await discrepanciesForC.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         // Judge C is never involved, so no alert is returned for them specifically.
         Assert.Empty(forC.RootElement.EnumerateArray());
     }
@@ -322,15 +322,15 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
         using var judgeB = JudgeClient(fixture.Judges[1].JudgeSub);
 
         var first = await SubmitAsync(judgeA, fixture.TableId, fixture.EntryId, Scores(10, 2, 16, 4, 8)); // 40
-        var evaluationIdA = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("evaluationId").GetGuid();
+        var evaluationIdA = (await first.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("evaluationId").GetGuid();
 
         var second = await SubmitAsync(judgeB, fixture.TableId, fixture.EntryId, Scores(5, 1, 10, 2, 2)); // 20, diff 20 -> both involved
-        Assert.Equal("PendingConsensus", (await second.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
+        Assert.Equal("PendingConsensus", (await second.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("status").GetString());
 
         var adjustment = await AdjustAsync(judgeA, fixture.TableId, evaluationIdA, Scores(6, 1, 12, 3, 3)); // 25, diff to 20 is 5
 
         Assert.Equal(HttpStatusCode.OK, adjustment.StatusCode);
-        using var adjustedDocument = JsonDocument.Parse(await adjustment.Content.ReadAsStringAsync());
+        using var adjustedDocument = JsonDocument.Parse(await adjustment.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var adjustedRoot = adjustedDocument.RootElement;
         Assert.Equal("Confirmed", adjustedRoot.GetProperty("status").GetString());
         Assert.Equal(25, adjustedRoot.GetProperty("total").GetInt32());
@@ -339,7 +339,7 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
         Assert.Equal(0, await CountOpenAlertsAsync(fixture.TableId, fixture.EntryId));
 
         var remainingDiscrepancies = await GetDiscrepanciesAsync(judgeB, fixture.TableId);
-        using var remaining = JsonDocument.Parse(await remainingDiscrepancies.Content.ReadAsStringAsync());
+        using var remaining = JsonDocument.Parse(await remainingDiscrepancies.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Empty(remaining.RootElement.EnumerateArray());
     }
 
@@ -351,12 +351,12 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
         using var judge = JudgeClient(fixture.Judges[0].JudgeSub);
 
         var submit = await SubmitAsync(judge, fixture.TableId, fixture.EntryId, Scores(10, 2, 16, 4, 8));
-        var evaluationId = (await submit.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("evaluationId").GetGuid();
+        var evaluationId = (await submit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("evaluationId").GetGuid();
 
         var response = await AdjustAsync(judge, fixture.TableId, evaluationId, Scores(9, 2, 15, 4, 8));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("evaluation-locked", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -370,7 +370,7 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
         using var judgeB = JudgeClient(fixture.Judges[1].JudgeSub);
 
         var first = await SubmitAsync(judgeA, fixture.TableId, fixture.EntryId, Scores(10, 2, 16, 4, 8)); // 40
-        var evaluationIdA = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("evaluationId").GetGuid();
+        var evaluationIdA = (await first.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("evaluationId").GetGuid();
         await SubmitAsync(judgeB, fixture.TableId, fixture.EntryId, Scores(5, 1, 10, 2, 2)); // 20, opens the alert
 
         var response = await AdjustAsync(judgeB, fixture.TableId, evaluationIdA, Scores(9, 2, 15, 4, 8));
@@ -390,13 +390,13 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
         using var judgeB = JudgeClient(fixture.Judges[1].JudgeSub);
 
         var first = await SubmitAsync(judgeA, fixture.TableId, fixture.EntryId, Scores(10, 2, 16, 4, 8)); // 40
-        var evaluationIdA = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("evaluationId").GetGuid();
+        var evaluationIdA = (await first.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("evaluationId").GetGuid();
         await SubmitAsync(judgeB, fixture.TableId, fixture.EntryId, Scores(5, 1, 10, 2, 2)); // 20, diff 20 -> opens the alert
 
         var blockedClose = await CloseAsync(judgeA, fixture.TableId);
 
         Assert.Equal(HttpStatusCode.Conflict, blockedClose.StatusCode);
-        using var blockedDocument = JsonDocument.Parse(await blockedClose.Content.ReadAsStringAsync());
+        using var blockedDocument = JsonDocument.Parse(await blockedClose.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("discrepancy-open", blockedDocument.RootElement.GetProperty("type").GetString());
 
         var resolve = await AdjustAsync(judgeA, fixture.TableId, evaluationIdA, Scores(6, 1, 12, 3, 3)); // 25, diff to 20 is 5

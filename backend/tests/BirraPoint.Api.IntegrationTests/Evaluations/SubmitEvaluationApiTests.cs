@@ -244,7 +244,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         var response = await SubmitAsync(judge, fixture.TableId, fixture.EntryIds[0]);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("invalid-state-transition", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -261,7 +261,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         var response = await SubmitAsync(judge, fixture.TableId, fixture.EntryIds[0]);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("order-not-fixed", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -276,7 +276,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         var response = await SubmitAsync(judge, fixture.TableId, fixture.EntryIds[0]);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("table-closed", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -294,7 +294,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         var response = await SubmitAsync(judge, fixture.TableId, fixture.EntryIds[2]);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("out-of-sequence", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -362,7 +362,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         var response = await SubmitAsync(judge, fixture.TableId, fixture.EntryIds[0]);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var root = document.RootElement;
 
         Assert.Equal(JsonValueKind.String, root.GetProperty("evaluationId").ValueKind);
@@ -381,14 +381,14 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         using var judge = JudgeClient(fixture.JudgeSub);
         var first = await SubmitAsync(judge, fixture.TableId, fixture.EntryIds[0]);
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
-        using var firstDocument = JsonDocument.Parse(await first.Content.ReadAsStringAsync());
+        using var firstDocument = JsonDocument.Parse(await first.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var firstEvaluationId = firstDocument.RootElement.GetProperty("evaluationId").GetGuid();
         var firstTotal = firstDocument.RootElement.GetProperty("total").GetInt32();
 
         var second = await SubmitAsync(judge, fixture.TableId, fixture.EntryIds[0]);
 
         Assert.Equal(HttpStatusCode.OK, second.StatusCode);
-        using var secondDocument = JsonDocument.Parse(await second.Content.ReadAsStringAsync());
+        using var secondDocument = JsonDocument.Parse(await second.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal(firstEvaluationId, secondDocument.RootElement.GetProperty("evaluationId").GetGuid());
         Assert.Equal(firstTotal, secondDocument.RootElement.GetProperty("total").GetInt32());
 
@@ -410,7 +410,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         using var judge = JudgeClient(fixture.JudgeSub);
         var first = await SubmitAsync(judge, fixture.TableId, fixture.EntryIds[0]);
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
-        using var firstDocument = JsonDocument.Parse(await first.Content.ReadAsStringAsync());
+        using var firstDocument = JsonDocument.Parse(await first.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var firstEvaluationId = firstDocument.RootElement.GetProperty("evaluationId").GetGuid();
 
         await CloseTableDirectlyAsync(fixture.TableId);
@@ -418,7 +418,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         var replay = await SubmitAsync(judge, fixture.TableId, fixture.EntryIds[0]);
 
         Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
-        using var replayDocument = JsonDocument.Parse(await replay.Content.ReadAsStringAsync());
+        using var replayDocument = JsonDocument.Parse(await replay.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal(firstEvaluationId, replayDocument.RootElement.GetProperty("evaluationId").GetGuid());
         Assert.Equal(1, await CountEvaluationsAsync(fixture.JudgeId, fixture.EntryIds[0]));
     }

@@ -23,7 +23,7 @@ public sealed class FallbackExceptionHandlerTests
         Assert.StartsWith("application/problem+json", context.Response.ContentType);
 
         context.Response.Body.Seek(0, SeekOrigin.Begin);
-        var raw = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        var raw = await new StreamReader(context.Response.Body).ReadToEndAsync(TestContext.Current.CancellationToken);
         Assert.DoesNotContain("hunter2", raw);
         Assert.DoesNotContain(nameof(InvalidOperationException), raw);
 

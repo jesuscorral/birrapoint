@@ -13,7 +13,7 @@ public sealed class EventPublisherTests
         var competitionId = Guid.NewGuid();
         var payload = new { competitionId, state = "Active" };
 
-        await publisher.PublishToOrganizersAsync(competitionId, CompetitionEvents.CompetitionStateChanged, payload);
+        await publisher.PublishToOrganizersAsync(competitionId, CompetitionEvents.CompetitionStateChanged, payload, TestContext.Current.CancellationToken);
 
         var proxy = hubContext.Clients.RequireGroup(CompetitionGroups.Organizers(competitionId));
         var sent = Assert.Single(proxy.Sent);
@@ -29,7 +29,7 @@ public sealed class EventPublisherTests
         var tableId = Guid.NewGuid();
         var payload = new { tableId };
 
-        await publisher.PublishToTableAsync(tableId, CompetitionEvents.TableClosed, payload);
+        await publisher.PublishToTableAsync(tableId, CompetitionEvents.TableClosed, payload, TestContext.Current.CancellationToken);
 
         var proxy = hubContext.Clients.RequireGroup(CompetitionGroups.Table(tableId));
         var sent = Assert.Single(proxy.Sent);

@@ -40,10 +40,10 @@ public sealed class AuditWriterTests(PostgresFixture fixture) : IClassFixture<Po
         var after = new Dictionary<string, object?> { ["Total"] = 35 };
 
         writer.Record("EvaluationCorrected", "Evaluation", entryId.ToString(), before, after);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await using var verify = NewContext();
-        var stored = await verify.AuditLogs.AsNoTracking().SingleAsync(a => a.EntityId == entryId.ToString());
+        var stored = await verify.AuditLogs.AsNoTracking().SingleAsync(a => a.EntityId == entryId.ToString(), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("kc-organizer-42", stored.ActorUserId);
         Assert.Equal("EvaluationCorrected", stored.Action);
@@ -63,10 +63,10 @@ public sealed class AuditWriterTests(PostgresFixture fixture) : IClassFixture<Po
         var entryId = Guid.NewGuid();
 
         writer.Record("JudgeInvited", "Judge", entryId.ToString(), before: null, after: new { Email = "judge@example.test" });
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await using var verify = NewContext();
-        var stored = await verify.AuditLogs.AsNoTracking().SingleAsync(a => a.EntityId == entryId.ToString());
+        var stored = await verify.AuditLogs.AsNoTracking().SingleAsync(a => a.EntityId == entryId.ToString(), cancellationToken: TestContext.Current.CancellationToken);
 
         using var data = JsonDocument.Parse(stored.DataJson);
         Assert.Equal(JsonValueKind.Null, data.RootElement.GetProperty("before").ValueKind);
@@ -84,7 +84,7 @@ public sealed class AuditWriterTests(PostgresFixture fixture) : IClassFixture<Po
         // Intentionally no SaveChangesAsync call.
 
         await using var verify = NewContext();
-        var exists = await verify.AuditLogs.AsNoTracking().AnyAsync(a => a.EntityId == entryId.ToString());
+        var exists = await verify.AuditLogs.AsNoTracking().AnyAsync(a => a.EntityId == entryId.ToString(), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.False(exists);
     }

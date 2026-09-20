@@ -27,10 +27,10 @@ public sealed class GetStyleDetailTests(ApiFactory factory) : IClassFixture<ApiF
     {
         using var client = AuthenticatedClient();
 
-        var response = await client.GetAsync($"/api/v1/styles/{KnownStyleCode}");
+        var response = await client.GetAsync($"/api/v1/styles/{KnownStyleCode}", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var root = document.RootElement;
 
         Assert.Equal(KnownStyleCode, root.GetProperty("code").GetString());
@@ -62,7 +62,7 @@ public sealed class GetStyleDetailTests(ApiFactory factory) : IClassFixture<ApiF
     {
         using var client = AuthenticatedClient();
 
-        var response = await client.GetAsync("/api/v1/styles/NOT-A-REAL-CODE");
+        var response = await client.GetAsync("/api/v1/styles/NOT-A-REAL-CODE", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }

@@ -265,7 +265,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
         var response = await CloseAsync(judgeClient, fixture.TableId);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var root = document.RootElement;
         Assert.Contains("evaluations-incomplete", root.GetProperty("type").GetString());
         var missing = root.GetProperty("missing").EnumerateArray().Select(e => e.GetString()).ToList();
@@ -290,7 +290,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
         var secondClose = await CloseAsync(judgeClient, fixture.TableId);
 
         Assert.Equal(HttpStatusCode.Conflict, secondClose.StatusCode);
-        using var document = JsonDocument.Parse(await secondClose.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await secondClose.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("table-closed", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -315,7 +315,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
         var closeResponse = await CloseAsync(judgeAClient, fixture.TableId);
 
         Assert.Equal(HttpStatusCode.OK, closeResponse.StatusCode);
-        using var document = JsonDocument.Parse(await closeResponse.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await closeResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         // consolidatedScores is organizer-only (contracts/rest-api.md, signalr-hub.md): the closing
         // judge's own HTTP response must not carry per-sample means, only confirmation. The mean
         // computation itself (CloseTableRules.ComputeMean) is covered directly by
@@ -352,7 +352,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
         var lateSubmit = await SubmitAsync(latecomerClient, fixture.TableId, fixture.EntryIds[0]);
 
         Assert.Equal(HttpStatusCode.Conflict, lateSubmit.StatusCode);
-        using var document = JsonDocument.Parse(await lateSubmit.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await lateSubmit.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("table-closed", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -368,7 +368,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
         var originalScores = new { aroma = 10, appearance = 2, flavor = 15, mouthfeel = 4, overall = 8 }; // total 39
         var submit = await SubmitAsync(judgeClient, fixture.TableId, fixture.EntryIds[0], originalScores);
         Assert.Equal(HttpStatusCode.Created, submit.StatusCode);
-        var evaluationId = (await submit.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("evaluationId").GetGuid();
+        var evaluationId = (await submit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("evaluationId").GetGuid();
 
         Assert.Equal(HttpStatusCode.OK, (await CloseAsync(judgeClient, fixture.TableId)).StatusCode);
 
@@ -376,7 +376,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
         var correctionResponse = await CorrectAsync(organizer, fixture.CompetitionId, evaluationId, correctedScores);
 
         Assert.Equal(HttpStatusCode.OK, correctionResponse.StatusCode);
-        using var document = JsonDocument.Parse(await correctionResponse.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await correctionResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal(50, document.RootElement.GetProperty("total").GetInt32());
         // Only evaluation for this sample, so the consolidated mean equals the corrected total.
         Assert.Equal(50m, document.RootElement.GetProperty("consolidatedMean").GetDecimal());
@@ -399,7 +399,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
         using var judgeClient = JudgeClient(fixture.Judges[0].JudgeSub);
 
         var submit = await SubmitAsync(judgeClient, fixture.TableId, fixture.EntryIds[0]);
-        var evaluationId = (await submit.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("evaluationId").GetGuid();
+        var evaluationId = (await submit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("evaluationId").GetGuid();
         await CloseAsync(judgeClient, fixture.TableId);
 
         using var otherOrganizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
@@ -428,7 +428,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
         var fixture = await SeedReadyTableAsync(organizer);
         using var judgeClient = JudgeClient(fixture.Judges[0].JudgeSub);
         var submit = await SubmitAsync(judgeClient, fixture.TableId, fixture.EntryIds[0]);
-        var evaluationId = (await submit.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("evaluationId").GetGuid();
+        var evaluationId = (await submit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("evaluationId").GetGuid();
 
         var invalidScores = new { aroma = 13, appearance = 2, flavor = 15, mouthfeel = 4, overall = 8 }; // aroma cap is 12
 
@@ -444,7 +444,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
         var fixture = await SeedReadyTableAsync(organizer);
         using var judgeClient = JudgeClient(fixture.Judges[0].JudgeSub);
         var submit = await SubmitAsync(judgeClient, fixture.TableId, fixture.EntryIds[0]);
-        var evaluationId = (await submit.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("evaluationId").GetGuid();
+        var evaluationId = (await submit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("evaluationId").GetGuid();
 
         var shortComments = new
         {

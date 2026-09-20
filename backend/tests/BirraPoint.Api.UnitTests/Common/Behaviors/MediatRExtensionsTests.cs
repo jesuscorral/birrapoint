@@ -34,7 +34,7 @@ public sealed class MediatRExtensionsTests
     {
         var mediator = BuildMediator();
 
-        var result = await mediator.Send(new PingRequest("hello"));
+        var result = await mediator.Send(new PingRequest("hello"), TestContext.Current.CancellationToken);
 
         Assert.Equal("pong:hello", result);
     }
@@ -44,7 +44,7 @@ public sealed class MediatRExtensionsTests
     {
         var mediator = BuildMediator();
 
-        var exception = await Assert.ThrowsAsync<ValidationException>(() => mediator.Send(new PingRequest("")));
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => mediator.Send(new PingRequest(""), TestContext.Current.CancellationToken));
 
         Assert.Contains(exception.Errors, e => e.PropertyName == "Message");
     }

@@ -238,7 +238,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await CreateTableAsync(organizer, competitionId, tableName, [judgeId], [entryId]);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        using var created = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var created = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.NotEqual(Guid.Empty, created.RootElement.GetProperty("id").GetGuid());
         Assert.Equal(tableName, created.RootElement.GetProperty("name").GetString());
         Assert.Equal("Open", created.RootElement.GetProperty("state").GetString());
@@ -250,7 +250,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         }
 
         var listResponse = await GetTablesAsync(organizer, competitionId);
-        using var list = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync());
+        using var list = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var tables = list.RootElement.EnumerateArray().ToList();
         Assert.Single(tables);
         var table = tables[0];
@@ -279,7 +279,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await CreateTableAsync(organizer, competitionId, $"Table {Guid.NewGuid():N}", [judgeId], [tableEntryId]);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        using var created = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var created = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var bosFlagged = created.RootElement.GetProperty("bosFlaggedEntryIds").EnumerateArray()
             .Select(e => e.GetGuid()).ToHashSet();
         Assert.Contains(elsewhereEntryId, bosFlagged);
@@ -310,7 +310,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
             [conflictingJudgeId, cleanJudgeId], [conflictingEntryId, cleanEntryId]);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:conflict-of-interest", document.RootElement.GetProperty("type").GetString());
 
         var conflicts = document.RootElement.GetProperty("conflicts").EnumerateArray().ToList();
@@ -320,7 +320,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
 
         // Atomic rollback: nothing persisted, not even the non-conflicting judge/entry.
         var listResponse = await GetTablesAsync(organizer, competitionId);
-        using var list = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync());
+        using var list = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Empty(list.RootElement.EnumerateArray());
     }
 
@@ -339,7 +339,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await CreateTableAsync(organizer, competitionId, $"Table {Guid.NewGuid():N}", [judgeId], [entryId]);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:conflict-of-interest", document.RootElement.GetProperty("type").GetString());
         var conflicts = document.RootElement.GetProperty("conflicts").EnumerateArray().ToList();
         Assert.Contains(conflicts, c => c.GetProperty("judgeId").GetGuid() == judgeId);
@@ -387,7 +387,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
         var createResponse = await CreateTableAsync(organizer, competitionId, $"Table {Guid.NewGuid():N}", [], []);
-        var tableId = (await createResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var tableId = (await createResponse.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("id").GetGuid();
 
         using var judge = JudgeClient($"judge-{Guid.NewGuid():N}");
         var response = await UpdateTableAsync(judge, competitionId, tableId, "Renamed", [], []);
@@ -401,7 +401,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner);
         var createResponse = await CreateTableAsync(owner, competitionId, $"Table {Guid.NewGuid():N}", [], []);
-        var tableId = (await createResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var tableId = (await createResponse.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("id").GetGuid();
 
         using var other = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var response = await UpdateTableAsync(other, competitionId, tableId, "Renamed", [], []);
@@ -420,7 +420,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await UpdateTableAsync(organizer, competitionId, tableId, "Renamed", [judgeId], []);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:table-closed", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -442,7 +442,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
 
         var tableName = $"Table {Guid.NewGuid():N}";
         var createResponse = await CreateTableAsync(organizer, competitionId, tableName, [judge1], [entry1]);
-        var tableId = (await createResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var tableId = (await createResponse.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("id").GetGuid();
 
         // Full desired-state replace: drop judge1 for judge2, add entry2 alongside entry1.
         var response = await UpdateTableAsync(organizer, competitionId, tableId, tableName, [judge2], [entry1, entry2]);
@@ -450,7 +450,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var listResponse = await GetTablesAsync(organizer, competitionId);
-        using var list = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync());
+        using var list = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var table = list.RootElement.EnumerateArray().Single(t => t.GetProperty("id").GetGuid() == tableId);
 
         var judgeIds = ExtractIds(table.GetProperty("judges"), "judgeId", "id");
@@ -481,7 +481,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var tableName = $"Table {Guid.NewGuid():N}";
         var createResponse = await CreateTableAsync(
             organizer, competitionId, tableName, [flaggedJudgeId, bystanderJudgeId], [tableEntryId]);
-        var tableId = (await createResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var tableId = (await createResponse.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("id").GetGuid();
         Assert.True(await GetNotValidForBosAsync(elsewhereEntryId));
 
         // Remove the flagged judge from their only table (bystanderJudgeId stays, so the
@@ -520,7 +520,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var table1Name = $"Table1 {Guid.NewGuid():N}";
         var table1Response = await CreateTableAsync(
             organizer, competitionId, table1Name, [ownerJudgeId, bystanderJudgeId], [table1EntryId]);
-        var table1Id = (await table1Response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var table1Id = (await table1Response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("id").GetGuid();
 
         var table2Name = $"Table2 {Guid.NewGuid():N}";
         await CreateTableAsync(organizer, competitionId, table2Name, [collaboratorJudgeId], [table2EntryId]);
@@ -576,7 +576,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await GetTablesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var tables = document.RootElement.EnumerateArray().ToList();
         Assert.Single(tables);
         var table = tables[0];
@@ -602,7 +602,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await GetTablesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var table = document.RootElement.EnumerateArray().Single();
         var sample = table.GetProperty("samples").EnumerateArray().Single(s => s.GetProperty("beerEntryId").GetGuid() == entryId);
         Assert.Equal(6.50m, sample.GetProperty("abvPercent").GetDecimal());
@@ -626,7 +626,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await GetTablesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var table = document.RootElement.EnumerateArray().Single();
         Assert.Equal(6.00m, table.GetProperty("stats").GetProperty("meanAbv").GetDecimal());
     }
@@ -651,7 +651,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await GetTablesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var table = document.RootElement.EnumerateArray().Single();
         var sample = table.GetProperty("samples").EnumerateArray().Single();
         Assert.Equal(JsonValueKind.Null, sample.GetProperty("abvLow").ValueKind);
@@ -673,7 +673,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await GetTablesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var table = document.RootElement.EnumerateArray().Single();
         Assert.Equal(JsonValueKind.Null, table.GetProperty("stats").GetProperty("meanAbv").ValueKind);
     }
@@ -703,7 +703,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await GetTablesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var table = document.RootElement.EnumerateArray().Single();
         var stats = table.GetProperty("stats");
         Assert.Equal(1, stats.GetProperty("styleCount").GetInt32());
@@ -752,7 +752,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await GetTablesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var table = document.RootElement.EnumerateArray().Single();
         var sample = table.GetProperty("samples").EnumerateArray()
             .Single(s => s.GetProperty("beerEntryId").GetGuid() == entryId);
@@ -776,7 +776,7 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
 
         var response = await GetTablesAsync(organizer, competitionId);
 
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var sample = document.RootElement.EnumerateArray().Single()
             .GetProperty("samples").EnumerateArray().Single();
 

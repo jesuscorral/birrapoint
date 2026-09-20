@@ -200,7 +200,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
             newEmail, existingEmail, duplicateInListEmail, duplicateInListEmail.ToLowerInvariant());
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
 
         var created = document.RootElement.GetProperty("created").EnumerateArray().ToList();
         var skipped = document.RootElement.GetProperty("skipped").EnumerateArray().ToList();
@@ -234,7 +234,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         await WaitForDispatchJobCompletionAsync(competitionId, DispatchJobType.ProvisionJudgeAccount);
 
         var listResponse = await GetJudgesAsync(organizer, competitionId);
-        using var document = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var judge = document.RootElement.EnumerateArray().Single(j => j.GetProperty("email").GetString() == email);
         Assert.Equal("Pending", judge.GetProperty("invitationStatus").GetString());
     }
@@ -277,7 +277,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await GetJudgesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var judges = document.RootElement.EnumerateArray().ToList();
         Assert.Single(judges);
         Assert.Equal(email, judges[0].GetProperty("email").GetString());
@@ -313,7 +313,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var listResponse = await GetJudgesAsync(organizer, competitionId);
-        using var document = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var judges = document.RootElement.EnumerateArray().ToList();
         Assert.Single(judges);
         Assert.Equal(correctedEmail, judges[0].GetProperty("email").GetString());
@@ -331,7 +331,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
             organizer, competitionId, judgeId, $"corrected-{Guid.NewGuid():N}@brew.example");
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal("urn:birrapoint:judge-already-active", document.RootElement.GetProperty("type").GetString());
     }
 
@@ -407,7 +407,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         // contract), so this doesn't depend on RegisterJudges' own (now Pending-only) behavior —
         // the judge id comes straight off the registration response.
         var registerResponse = await RegisterJudgesAsync(organizer, competitionId, email);
-        using var registerDocument = JsonDocument.Parse(await registerResponse.Content.ReadAsStringAsync());
+        using var registerDocument = JsonDocument.Parse(await registerResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var judgeId = registerDocument.RootElement.GetProperty("created")[0].GetProperty("id").GetGuid();
 
         var response = await ResendInvitationAsync(organizer, competitionId, judgeId);
@@ -443,7 +443,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await GetJudgesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var judge = document.RootElement.EnumerateArray().Single(j => j.GetProperty("email").GetString() == email);
         Assert.Equal(JsonValueKind.Null, judge.GetProperty("bjcpRank").ValueKind);
         Assert.Equal(JsonValueKind.Null, judge.GetProperty("bjcpId").ValueKind);
@@ -496,7 +496,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await NotifyJudgesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Empty(document.RootElement.GetProperty("queued").EnumerateArray());
     }
 
@@ -511,7 +511,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var response = await NotifyJudgesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var queued = document.RootElement.GetProperty("queued").EnumerateArray().ToList();
         Assert.Single(queued);
         Assert.Equal(email, queued[0].GetProperty("email").GetString());
@@ -532,7 +532,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         var secondNotify = await NotifyJudgesAsync(organizer, competitionId);
 
         Assert.Equal(HttpStatusCode.OK, secondNotify.StatusCode);
-        using var document = JsonDocument.Parse(await secondNotify.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await secondNotify.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Empty(document.RootElement.GetProperty("queued").EnumerateArray());
     }
 }
