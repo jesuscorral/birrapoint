@@ -475,11 +475,32 @@ describe('JudgeImportStepComponent', () => {
     });
   });
 
-  it('keeps the upload UI visible and never calls GET judges when readOnly is false (default)', () => {
+  it('keeps the upload UI visible when readOnly is false (default), alongside fetching the roster', () => {
     const fixture = createComponent();
 
     expect(fixture.nativeElement.querySelector('input[type="file"]')).not.toBeNull();
-    expect(fakeJudgeManagementApi.getJudges).not.toHaveBeenCalled();
+    expect(fakeJudgeManagementApi.getJudges).toHaveBeenCalledWith('c1');
+  });
+
+  // Regression: judgeImportId only survives in-session step navigation (a wizard-shell signal),
+  // so revisiting this step after a reload/fresh login always starts with judgeImportId back to
+  // null — previously that meant the already-consolidated roster (and the notify table/button)
+  // simply never loaded again, looking like the import had been lost.
+  it('shows the already-registered roster and notify table on a plain revisit, with no pending judgeImportId', () => {
+    fakeJudgeManagementApi.getJudges.mockReturnValue(
+      of([
+        judgeProfileFixture({ id: 'j1', email: 'ana@example.com', invitationStatus: 'Pending' }),
+      ]),
+    );
+    const fixture = createComponent();
+
+    expect(fakeJudgeManagementApi.getJudges).toHaveBeenCalledWith('c1');
+    const rows = fixture.nativeElement.querySelectorAll('tr[data-judge-email]');
+    expect(rows.length).toBe(1);
+    expect(fixture.nativeElement.textContent).toContain('ana@example.com');
+    expect(fixture.nativeElement.textContent.includes('Notificar a todos los pendientes (1)')).toBe(
+      true,
+    );
   });
 
   // T126-ish: the notify table/bulk action added right after a successful consolidation.
@@ -561,7 +582,8 @@ describe('JudgeImportStepComponent', () => {
       fixture.detectChanges();
 
       expect(fakeJudgeManagementApi.resendInvitation).toHaveBeenCalledWith('c1', 'j1');
-      expect(fakeJudgeManagementApi.getJudges).toHaveBeenCalledTimes(2);
+      // 3 calls: ngOnInit's own fetch, consolidatedFixture's post-consolidate fetch, and this resend's own.
+      expect(fakeJudgeManagementApi.getJudges).toHaveBeenCalledTimes(3);
       expect(fixture.nativeElement.textContent).toContain('Enviada');
     });
   });

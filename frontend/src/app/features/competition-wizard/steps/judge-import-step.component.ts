@@ -148,6 +148,97 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
         }}</bp-alert>
       }
 
+      @if (consolidatedJudgesLoadError(); as err) {
+        <bp-alert type="error" title="No hemos podido cargar el listado de jueces">{{
+          bannerMessage(err)
+        }}</bp-alert>
+      }
+
+      <!-- FR-059: the bulk-notify action targets the WHOLE competition roster server-side (both
+           an import batch and any judge registered through other paths), so this table
+           intentionally lists every registered judge (GET /competitions/{id}/judges) instead of
+           only the rows of a batch currently open below — otherwise the confirm dialog's pending
+           count and the visible rows would disagree. Rendered independently of whether an import
+           batch is open below (it's fetched unconditionally on init, not just right after a
+           consolidate in this session) so a revisited step still shows the roster/notify action
+           even with no pending batch in view. -->
+      @if (consolidatedJudges().length > 0) {
+        <section class="consolidated-judges" aria-label="Jueces de la competición">
+          <div class="consolidated-judges__toolbar">
+            <bp-button
+              type="button"
+              [label]="'Notificar a todos los pendientes (' + pendingCount() + ')'"
+              variant="secondary"
+              [loading]="notifying()"
+              [disabled]="pendingCount() === 0 || notifying()"
+              (clicked)="onNotifyAll()"
+            ></bp-button>
+          </div>
+
+          @if (notifyError(); as err) {
+            <bp-alert type="error" title="No hemos podido notificar a los jueces">{{
+              bannerMessage(err)
+            }}</bp-alert>
+          }
+          @if (notifyResult(); as result) {
+            <bp-alert type="success" title="Notificación en curso">
+              @if (result.queued.length > 0) {
+                Se enviarán {{ result.queued.length }} invitaciones en breve.
+              } @else {
+                No había jueces pendientes de notificar.
+              }
+            </bp-alert>
+          }
+
+          @if (resendError(); as err) {
+            <bp-alert type="error" title="No hemos podido notificar al juez">{{
+              bannerMessage(err)
+            }}</bp-alert>
+          }
+
+          <table>
+            <caption class="sr-only">
+              Jueces registrados en esta competición
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Email</th>
+                <th scope="col">Nombre</th>
+                <th scope="col">Estado de invitación</th>
+                <th scope="col">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (judge of consolidatedJudges(); track judge.id) {
+                <tr [attr.data-judge-email]="judge.email">
+                  <td>{{ judge.email }}</td>
+                  <td>{{ judge.displayName }}</td>
+                  <td>
+                    <span
+                      class="status-badge"
+                      [class]="invitationStatusClass(judge.invitationStatus)"
+                    >
+                      {{ invitationStatusLabel(judge.invitationStatus) }}
+                    </span>
+                  </td>
+                  <td>
+                    <bp-button
+                      type="button"
+                      label="Notificar"
+                      variant="ghost"
+                      [ariaLabel]="'Notificar a ' + judge.email"
+                      [loading]="busyJudgeId() === judge.id"
+                      [disabled]="busyJudgeId() === judge.id"
+                      (clicked)="onResendJudge(judge.id)"
+                    ></bp-button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </section>
+      }
+
       @if (!importBatch()) {
         <div class="upload-phase">
           <bp-file-dropzone
@@ -299,94 +390,6 @@ function toEditRequest(draft: RowDraft): EditJudgeImportRowRequest {
               Omitidos: {{ result.skipped.length }} (correos duplicados en el archivo).
             }
           </bp-alert>
-        }
-
-        @if (consolidatedJudgesLoadError(); as err) {
-          <bp-alert type="error" title="No hemos podido cargar el listado de jueces">{{
-            bannerMessage(err)
-          }}</bp-alert>
-        }
-
-        <!-- FR-059: the bulk-notify action targets the WHOLE competition roster server-side (both
-             this import batch and any judge registered through other paths), so this table
-             intentionally lists every registered judge (GET /competitions/{id}/judges) instead of
-             only the rows just consolidated — otherwise the confirm dialog's pending count and the
-             visible rows would disagree. -->
-        @if (consolidatedJudges().length > 0) {
-          <section class="consolidated-judges" aria-label="Jueces de la competición">
-            <div class="consolidated-judges__toolbar">
-              <bp-button
-                type="button"
-                [label]="'Notificar a todos los pendientes (' + pendingCount() + ')'"
-                variant="secondary"
-                [loading]="notifying()"
-                [disabled]="pendingCount() === 0 || notifying()"
-                (clicked)="onNotifyAll()"
-              ></bp-button>
-            </div>
-
-            @if (notifyError(); as err) {
-              <bp-alert type="error" title="No hemos podido notificar a los jueces">{{
-                bannerMessage(err)
-              }}</bp-alert>
-            }
-            @if (notifyResult(); as result) {
-              <bp-alert type="success" title="Notificación en curso">
-                @if (result.queued.length > 0) {
-                  Se enviarán {{ result.queued.length }} invitaciones en breve.
-                } @else {
-                  No había jueces pendientes de notificar.
-                }
-              </bp-alert>
-            }
-
-            @if (resendError(); as err) {
-              <bp-alert type="error" title="No hemos podido notificar al juez">{{
-                bannerMessage(err)
-              }}</bp-alert>
-            }
-
-            <table>
-              <caption class="sr-only">
-                Jueces registrados en esta competición
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Email</th>
-                  <th scope="col">Nombre</th>
-                  <th scope="col">Estado de invitación</th>
-                  <th scope="col">Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (judge of consolidatedJudges(); track judge.id) {
-                  <tr [attr.data-judge-email]="judge.email">
-                    <td>{{ judge.email }}</td>
-                    <td>{{ judge.displayName }}</td>
-                    <td>
-                      <span
-                        class="status-badge"
-                        [class]="invitationStatusClass(judge.invitationStatus)"
-                      >
-                        {{ invitationStatusLabel(judge.invitationStatus) }}
-                      </span>
-                    </td>
-                    <td>
-                      <bp-button
-                        type="button"
-                        label="Notificar"
-                        variant="ghost"
-                        [ariaLabel]="'Notificar a ' + judge.email"
-                        [loading]="busyJudgeId() === judge.id"
-                        [disabled]="busyJudgeId() === judge.id"
-                        (clicked)="onResendJudge(judge.id)"
-                      ></bp-button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </section>
         }
 
         <bp-step-actions (back)="back.emit()" (next)="onNext()">
@@ -675,6 +678,14 @@ export class JudgeImportStepComponent implements OnInit {
       });
       return;
     }
+
+    // judgeImportId only survives an in-session step navigation (hoisted on the wizard shell, see
+    // its own comment) — it's gone after a reload or a fresh login, so it can't be relied on to
+    // tell "no roster yet" apart from "roster exists, just not in memory anymore". Always refetch
+    // the competition's already-registered judges here too, same as the read-only branch above,
+    // so a revisited step shows the roster (and the notify table/button) instead of looking like
+    // nothing was ever imported.
+    this.loadConsolidatedJudges();
 
     const judgeImportId = this.judgeImportId();
     if (!judgeImportId) {
