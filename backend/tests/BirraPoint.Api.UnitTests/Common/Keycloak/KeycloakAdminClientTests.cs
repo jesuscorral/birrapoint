@@ -126,6 +126,51 @@ public sealed class KeycloakAdminClientTests
             (HttpMethod.Put, $"/admin/realms/birrapoint/users/{ExistingUserId}/reset-password"));
     }
 
+    /// <summary>
+    /// Covers sharing a Keycloak account across roles/competitions (one email organizing
+    /// competition A and judging competition B, per JudgeResolver/OrganizerResolver): once the
+    /// account has completed its own UPDATE_PASSWORD setup, granting JUDGE must never reset (and
+    /// therefore never invalidate) a password some other persona is actively using elsewhere.
+    /// </summary>
+    [Fact]
+    public async Task Existing_active_user_keeps_JUDGE_role_but_skips_the_password_reset()
+    {
+        var handler = new RecordingHandler();
+        handler.When(HttpMethod.Post, "/realms/birrapoint/protocol/openid-connect/token", TokenResponse);
+        handler.When(
+            HttpMethod.Get,
+            "/admin/realms/birrapoint/users",
+            _ => JsonResponse(HttpStatusCode.OK, ExistingUserJson(requiredActions: "[]")));
+        handler.When(
+            HttpMethod.Get,
+            $"/admin/realms/birrapoint/users/{ExistingUserId}/role-mappings/realm/available",
+            _ => JsonResponse(HttpStatusCode.OK, $"[{JudgeRole.GetRawText()}]"));
+        handler.When(
+            HttpMethod.Post,
+            $"/admin/realms/birrapoint/users/{ExistingUserId}/role-mappings/realm",
+            _ => JsonResponse(HttpStatusCode.NoContent, string.Empty));
+
+        var client = BuildClient(handler);
+
+        var password = await client.EnsureUserWithTemporaryPasswordAsync("active.organizer@example.test", CancellationToken.None);
+
+        Assert.Null(password);
+
+        var roleAssignment = handler.Requests.Single(r =>
+            r.Method == HttpMethod.Post && r.Path == $"/admin/realms/birrapoint/users/{ExistingUserId}/role-mappings/realm");
+        using var assignedRoles = JsonDocument.Parse(roleAssignment.Body!);
+        Assert.Contains(
+            assignedRoles.RootElement.EnumerateArray(),
+            role => role.GetProperty("name").GetString() == "JUDGE");
+
+        Assert.DoesNotContain(
+            handler.Requests,
+            r => r.Method == HttpMethod.Put && r.Path.EndsWith("/reset-password", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            handler.Requests,
+            r => r.Method == HttpMethod.Put && r.Path == $"/admin/realms/birrapoint/users/{ExistingUserId}");
+    }
+
     [Fact]
     public async Task Already_having_JUDGE_assigned_is_a_no_op_and_still_resets_the_password()
     {

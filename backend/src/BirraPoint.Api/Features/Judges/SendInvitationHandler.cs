@@ -41,7 +41,9 @@ public sealed class SendInvitationHandler(
         {
             var temporaryPassword = await keycloakAdminClient.EnsureUserWithTemporaryPasswordAsync(judge.Email, cancellationToken);
             var loginUrl = configuration["Frontend:BaseUrl"] ?? throw new InvalidOperationException("Frontend:BaseUrl is not configured.");
-            var (subject, body) = BuildInvitationEmail(competition.Name, temporaryPassword, loginUrl);
+            var (subject, body) = temporaryPassword is null
+                ? BuildAlreadyActiveEmail(competition.Name, loginUrl)
+                : BuildInvitationEmail(competition.Name, temporaryPassword, loginUrl);
 
             await emailSender.SendAsync(judge.Email, subject, body, cancellationToken);
 
@@ -67,6 +69,20 @@ public sealed class SendInvitationHandler(
             <p>You have been invited to judge <strong>{WebUtility.HtmlEncode(competitionName)}</strong> on BirraPoint.</p>
             <p>Your temporary password is: <strong>{WebUtility.HtmlEncode(temporaryPassword)}</strong></p>
             <p>You will be asked to set a new password the first time you log in.</p>
+            <p>Log in at <a href="{loginUrl}">{WebUtility.HtmlEncode(loginUrl)}</a>.</p>
+            """;
+        return (subject, body);
+    }
+
+    // Account already existed under this email with its own password set (e.g. the same person
+    // organizes another competition, R-20/JudgeResolver) — EnsureUserWithTemporaryPasswordAsync
+    // deliberately didn't reset it, so there is no temporary password to hand over here.
+    private static (string Subject, string Body) BuildAlreadyActiveEmail(string competitionName, string loginUrl)
+    {
+        var subject = $"You've been added as a judge for {competitionName} on BirraPoint";
+        var body = $"""
+            <p>You have been invited to judge <strong>{WebUtility.HtmlEncode(competitionName)}</strong> on BirraPoint.</p>
+            <p>You already have a BirraPoint account under this email address — sign in with your existing password, no new one is needed.</p>
             <p>Log in at <a href="{loginUrl}">{WebUtility.HtmlEncode(loginUrl)}</a>.</p>
             """;
         return (subject, body);

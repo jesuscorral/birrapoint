@@ -598,11 +598,17 @@ judge already provisioned with a Keycloak account.
   `view-users`); the admin REST base is derived from `Authority` by swapping `/realms/` for
   `/admin/realms/` in the same URL — no separate config key needed.
   `EnsureUserWithTemporaryPasswordAsync(email)` is idempotent on an existing account (one
-  person's Keycloak user can be shared across competitions, per `JudgeResolver`'s own comment):
-  finds-or-creates the user, ensures the `UPDATE_PASSWORD` required action, resets the password
-  with `temporary: true`, and returns the plaintext password — **never persisted anywhere**, the
-  caller emails it once and discards it. `UpdateUserEmailAsync` is a no-op if no Keycloak account
-  exists yet for the old address (the judge's invitation hasn't been dispatched yet).
+  person's Keycloak user can be shared across competitions/roles, per `JudgeResolver`'s own
+  comment — e.g. the same email organizing competition A and judging competition B):
+  finds-or-creates the user and always grants the `JUDGE` role, but only resets the password
+  (`temporary: true`) and returns the plaintext password when the account is brand-new or has
+  never completed its own first `UPDATE_PASSWORD`. An account that already finished that setup
+  keeps its own password untouched — some other persona under the same email may be actively
+  using it — and the call returns `null` instead. `SendInvitationHandler` treats `null` as
+  "already has an account": it sends a distinct notice email (no password) rather than
+  `BuildInvitationEmail`'s temporary-password one. `UpdateUserEmailAsync` is a no-op if no
+  Keycloak account exists yet for the old address (the judge's invitation hasn't been dispatched
+  yet).
 - **`Common/Email/`** (T041, R-10): `IEmailSender`/`MailKitEmailSender` — one method,
   `SendAsync(toEmail, subject, htmlBody)`, against `Smtp:Host`/`Smtp:Port` (already wired to
   Mailpit locally, `SecureSocketOptions.None`, no auth needed for Mailpit).

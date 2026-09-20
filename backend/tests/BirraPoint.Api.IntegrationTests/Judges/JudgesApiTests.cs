@@ -3,6 +3,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BirraPoint.Api.Common.Email;
+using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
@@ -534,5 +536,34 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         Assert.Equal(HttpStatusCode.OK, secondNotify.StatusCode);
         using var document = JsonDocument.Parse(await secondNotify.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Empty(document.RootElement.GetProperty("queued").EnumerateArray());
+    }
+
+    /// <summary>Regression test: sharing one email across roles/competitions (e.g. an organizer
+    /// registering under the same address as a judge elsewhere, per JudgeResolver/
+    /// OrganizerResolver) must never reset a Keycloak password some other persona is actively
+    /// using — see KeycloakAdminClientTests for the unit-level coverage of the underlying
+    /// skip-reset logic.</summary>
+    [Fact]
+    public async Task Notify_for_an_email_with_an_already_active_Keycloak_account_does_not_reset_its_password()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+        var email = $"shared-identity-{Guid.NewGuid():N}@brew.example";
+
+        var fakeKeycloak = (FakeKeycloakAdminClient)factory.Services.GetRequiredService<IKeycloakAdminClient>();
+        fakeKeycloak.MarkAccountActive(email);
+
+        await RegisterJudgesAsync(organizer, competitionId, email);
+        var notifyResponse = await NotifyJudgesAsync(organizer, competitionId);
+        Assert.Equal(HttpStatusCode.OK, notifyResponse.StatusCode);
+
+        await PollForInvitationStatusAsync(organizer, competitionId, email);
+
+        Assert.Equal(0, fakeKeycloak.PasswordResetCallCount(email));
+
+        var fakeEmailSender = (FakeEmailSender)factory.Services.GetRequiredService<IEmailSender>();
+        var sentEmail = Assert.Single(fakeEmailSender.Sent, s => s.ToEmail == email);
+        Assert.DoesNotContain("temporary password", sentEmail.HtmlBody, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("already have a BirraPoint account", sentEmail.HtmlBody, StringComparison.OrdinalIgnoreCase);
     }
 }
