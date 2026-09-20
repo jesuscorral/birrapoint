@@ -168,6 +168,17 @@ describe('UserSettingsComponent', () => {
       const backLink = fixture.nativeElement.querySelector('a.back-to-list-link');
       expect(backLink?.getAttribute('href')).toBe('/organizer/dashboard');
     });
+
+    it('sends a dual-role account with no active choice yet to the role picker', async () => {
+      keycloak.tokenParsed = { realm_access: { roles: ['ORGANIZER', 'JUDGE'] } };
+      fixture = createComponent();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const backLink = fixture.nativeElement.querySelector('a.back-to-list-link');
+      expect(backLink?.getAttribute('href')).toBe('/select-role');
+      expect(backLink?.textContent).toContain('Elegir rol');
+    });
   });
 
   it('calls keycloak.logout with the app-root redirect when "Cerrar sesión" is clicked', async () => {

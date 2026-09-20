@@ -2,8 +2,8 @@ import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core
 import { Router, RouterLink } from '@angular/router';
 import Keycloak from 'keycloak-js';
 
-import { ActiveRoleService } from '../../../core/auth/active-role.service';
-import { BpTopbarComponent } from '../bp-topbar/bp-topbar.component';
+import { ActiveRoleService } from '../../auth/active-role.service';
+import { BpTopbarComponent } from '../../../shared/components/bp-topbar/bp-topbar.component';
 
 // T127/FR-061: shared page chrome (topbar + main landmark + gutter rules) extracted from the
 // wizard shell so every organizer screen gets the same breathing room and a single `main` per
@@ -14,6 +14,13 @@ import { BpTopbarComponent } from '../bp-topbar/bp-topbar.component';
 // JudgeTablesListComponent used to each carry a byte-for-byte duplicate of this logic — a real
 // finding from PR #43's review). Every screen that wraps its content in <bp-page-shell> now gets
 // these for free, organizer or judge alike.
+//
+// **Lives under `core/layout/`, not `shared/components/`** (relocated same session, ADR-0014):
+// it injects `Keycloak`/`ActiveRoleService`/`Router` directly, which are `core/`-owned identity
+// and navigation concerns — `shared/` primitives must stay free of app-specific/cross-cutting
+// dependencies so they remain independently reusable and testable. This component earned its way
+// out of `shared/` the moment it started doing that, rather than staying there as the one
+// exception to the rule.
 @Component({
   selector: 'bp-page-shell',
   standalone: true,

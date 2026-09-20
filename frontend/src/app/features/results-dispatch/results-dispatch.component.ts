@@ -8,7 +8,7 @@ import { DispatchApiService } from '../../core/api/dispatch-api.service';
 import type { DispatchStatusRow } from '../../core/api/dispatch-api.service';
 import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
 import type { DispatchProgressEvent } from '../../core/realtime/competition-hub.events';
-import { BpPageShellComponent } from '../../shared/components/bp-page-shell/bp-page-shell.component';
+import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-shell.component';
 
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError

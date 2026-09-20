@@ -54,11 +54,15 @@ const NEUTRAL_STYLE_CODE = '1A';
 
 const ORIGINAL_SECTIONS = [
   { legend: 'Aroma', score: 10, comment: 'Citrus and pine hop aroma, moderate intensity.' },
-  { legend: 'Appearance', score: 2, comment: 'Deep golden, persistent white head, brilliant.' },
-  { legend: 'Flavor', score: 15, comment: 'Balanced malt backbone with resinous hop finish.' },
-  { legend: 'Mouthfeel', score: 4, comment: 'Medium body, lively carbonation, dry finish.' },
+  { legend: 'Apariencia', score: 2, comment: 'Deep golden, persistent white head, brilliant.' },
+  { legend: 'Sabor', score: 15, comment: 'Balanced malt backbone with resinous hop finish.' },
   {
-    legend: 'Overall Impression',
+    legend: 'Sensación en boca',
+    score: 4,
+    comment: 'Medium body, lively carbonation, dry finish.',
+  },
+  {
+    legend: 'Impresión general',
     score: 8,
     comment: 'A clean, well-executed example of the style.',
   },
@@ -265,8 +269,8 @@ function sectionFieldset(page: Page, legend: string): Locator {
 async function fillEvaluationForm(page: Page): Promise<void> {
   for (const section of ORIGINAL_SECTIONS) {
     const fieldset = sectionFieldset(page, section.legend);
-    await fieldset.getByLabel('Score').fill(String(section.score));
-    await fieldset.getByLabel('Comment').fill(section.comment);
+    await fieldset.getByLabel('Puntuación').fill(String(section.score));
+    await fieldset.getByLabel('Comentario').fill(section.comment);
   }
 }
 
@@ -403,7 +407,7 @@ test.describe('US8 — table closing and score immutability', () => {
       await loginAsJudge(judgePage, judge.email, judgeTempPassword);
 
       const tableLink = judgePage.getByRole('link', { name: new RegExp('Mesa 1') });
-      await expect(tableLink).toContainText('Order not fixed');
+      await expect(tableLink).toContainText('Orden sin fijar');
       await tableLink.click();
       await judgePage.waitForURL(`**/judge/tables/${mesa1Id}`);
 
@@ -412,15 +416,15 @@ test.describe('US8 — table closing and score immutability', () => {
       // Fixing the order itself (drag vs. keyboard) isn't what this scenario is testing — already
       // covered by us6-order.spec.ts. A single-sample table still requires the fix-order step
       // (FR-022 mandatory precondition) before any sheet can be opened.
-      await judgePage.getByRole('button', { name: 'Fix order' }).click();
-      const fixDialog = judgePage.getByRole('alertdialog', { name: 'Confirm fix order' });
+      await judgePage.getByRole('button', { name: 'Fijar orden' }).click();
+      const fixDialog = judgePage.getByRole('alertdialog', { name: 'Confirmar fijar orden' });
       await expect(fixDialog).toBeVisible();
-      await fixDialog.getByRole('button', { name: 'Confirm fix order' }).click();
+      await fixDialog.getByRole('button', { name: 'Confirmar fijar orden' }).click();
       await expect(judgePage.locator('p.order-status--fixed')).toBeVisible();
 
       // Close isn't offered until every sample is evaluated (FR-033 precondition, mirrored
       // client-side by canCloseTable()).
-      await expect(judgePage.getByRole('button', { name: 'Close table' })).toHaveCount(0);
+      await expect(judgePage.getByRole('button', { name: 'Cerrar mesa' })).toHaveCount(0);
 
       const evaluateLink = judgePage.locator('a.evaluate-action');
       await expect(evaluateLink).toHaveCount(1);
@@ -440,7 +444,7 @@ test.describe('US8 — table closing and score immutability', () => {
             response.request().method() === 'POST' &&
             /\/api\/v1\/me\/tables\/.+\/evaluations$/.test(new URL(response.url()).pathname),
         ),
-        judgePage.getByRole('button', { name: 'Submit evaluation' }).click(),
+        judgePage.getByRole('button', { name: 'Enviar evaluación' }).click(),
       ]);
       expect(submitResponse.status()).toBe(201);
       const submitBody = (await submitResponse.json()) as { evaluationId: string; total: number };
@@ -451,14 +455,14 @@ test.describe('US8 — table closing and score immutability', () => {
 
       // --- Acceptance Scenario 1 (FR-033): every evaluation at the table is complete and no
       // discrepancy is open (only one judge submitted, so there's nothing to discrepancy-check
-      // against) -> "Close table" is now offered ---
-      const closeButton = judgePage.getByRole('button', { name: 'Close table' });
+      // against) -> "Cerrar mesa" is now offered ---
+      const closeButton = judgePage.getByRole('button', { name: 'Cerrar mesa' });
       await expect(closeButton).toBeVisible();
       await closeButton.click();
 
-      const closeDialog = judgePage.getByRole('alertdialog', { name: 'Confirm close table' });
+      const closeDialog = judgePage.getByRole('alertdialog', { name: 'Confirmar cierre de mesa' });
       await expect(closeDialog).toBeVisible();
-      await closeDialog.getByRole('button', { name: 'Confirm close table' }).click();
+      await closeDialog.getByRole('button', { name: 'Confirmar cierre de mesa' }).click();
       await expect(closeDialog).not.toBeVisible();
 
       // Closing succeeded with no error surfaced, and the table flips to the permanent closed
@@ -466,8 +470,8 @@ test.describe('US8 — table closing and score immutability', () => {
       await expect(judgePage.locator('[role="alert"]')).toHaveCount(0);
       const closedBanner = judgePage.locator('p.order-status--closed');
       await expect(closedBanner).toBeVisible();
-      await expect(closedBanner).toContainText('Table closed');
-      await expect(judgePage.getByRole('button', { name: 'Close table' })).toHaveCount(0);
+      await expect(closedBanner).toContainText('Mesa cerrada');
+      await expect(judgePage.getByRole('button', { name: 'Cerrar mesa' })).toHaveCount(0);
       // No path left in the UI for this judge to open or resubmit the (now locked) sample.
       await expect(judgePage.locator('a.evaluate-action')).toHaveCount(0);
 

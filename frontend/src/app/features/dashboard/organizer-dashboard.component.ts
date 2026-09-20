@@ -5,7 +5,7 @@ import { RouterLink } from '@angular/router';
 import { ApiError } from '../../core/api/api-error';
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
 import type { CompetitionState, CompetitionSummary } from '../../core/api/competitions-api.service';
-import { BpPageShellComponent } from '../../shared/components/bp-page-shell/bp-page-shell.component';
+import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-shell.component';
 
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError

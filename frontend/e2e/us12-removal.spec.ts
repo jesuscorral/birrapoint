@@ -78,22 +78,22 @@ function buildSections(scores: ScoreSet, tag: string): SectionInput[] {
       comment: `${tag} aroma note, long enough to satisfy the minimum comment length rule.`,
     },
     {
-      legend: 'Appearance',
+      legend: 'Apariencia',
       score: scores.appearance,
       comment: `${tag} appearance note, long enough to satisfy the minimum length rule.`,
     },
     {
-      legend: 'Flavor',
+      legend: 'Sabor',
       score: scores.flavor,
       comment: `${tag} flavor note, long enough to satisfy the minimum comment length rule.`,
     },
     {
-      legend: 'Mouthfeel',
+      legend: 'Sensación en boca',
       score: scores.mouthfeel,
       comment: `${tag} mouthfeel note, long enough to satisfy the minimum length rule.`,
     },
     {
-      legend: 'Overall Impression',
+      legend: 'Impresión general',
       score: scores.overall,
       comment: `${tag} overall note, long enough to satisfy the minimum length rule.`,
     },
@@ -295,8 +295,8 @@ function sectionFieldset(page: Page, legend: string): Locator {
 async function fillEvaluationForm(page: Page, sections: SectionInput[]): Promise<void> {
   for (const section of sections) {
     const fieldset = sectionFieldset(page, section.legend);
-    await fieldset.getByLabel('Score').fill(String(section.score));
-    await fieldset.getByLabel('Comment').fill(section.comment);
+    await fieldset.getByLabel('Puntuación').fill(String(section.score));
+    await fieldset.getByLabel('Comentario').fill(section.comment);
   }
 }
 
@@ -496,7 +496,7 @@ test.describe('US12 — live judge removal', () => {
       await loginAsJudge(pageA, judgeA.email, judgeATempPassword);
 
       const tableLinkA = pageA.getByRole('link', { name: new RegExp('Mesa 1') });
-      await expect(tableLinkA).toContainText('Order not fixed');
+      await expect(tableLinkA).toContainText('Orden sin fijar');
       await tableLinkA.click();
       await pageA.waitForURL(`**/judge/tables/${mesa1Id}`);
 
@@ -504,10 +504,10 @@ test.describe('US12 — live judge removal', () => {
 
       // Fixing the order itself isn't what this scenario is testing (covered by
       // us6-order.spec.ts) -- fix as-is.
-      await pageA.getByRole('button', { name: 'Fix order' }).click();
-      const fixDialog = pageA.getByRole('alertdialog', { name: 'Confirm fix order' });
+      await pageA.getByRole('button', { name: 'Fijar orden' }).click();
+      const fixDialog = pageA.getByRole('alertdialog', { name: 'Confirmar fijar orden' });
       await expect(fixDialog).toBeVisible();
-      await fixDialog.getByRole('button', { name: 'Confirm fix order' }).click();
+      await fixDialog.getByRole('button', { name: 'Confirmar fijar orden' }).click();
       await expect(pageA.locator('p.order-status--fixed')).toBeVisible();
 
       // --- Sample 1: fill and submit for real -- this is the evaluation that must survive the
@@ -528,7 +528,7 @@ test.describe('US12 — live judge removal', () => {
             response.request().method() === 'POST' &&
             /\/api\/v1\/me\/tables\/.+\/evaluations$/.test(new URL(response.url()).pathname),
         ),
-        pageA.getByRole('button', { name: 'Submit evaluation' }).click(),
+        pageA.getByRole('button', { name: 'Enviar evaluación' }).click(),
       ]);
       expect(submitResponseA.status()).toBe(201);
       const submitBodyA = (await submitResponseA.json()) as SubmitEvaluationResponseBody;

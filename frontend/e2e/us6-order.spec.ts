@@ -369,12 +369,12 @@ test.describe('US6 — blind table dynamics: shared fixed order', () => {
       await loginAsJudge(pageB, judgeB.email, judgeBTempPassword);
 
       const tableLinkA = pageA.getByRole('link', { name: new RegExp(`Mesa 1`) });
-      await expect(tableLinkA).toContainText('Order not fixed');
+      await expect(tableLinkA).toContainText('Orden sin fijar');
       await tableLinkA.click();
       await pageA.waitForURL(`**/judge/tables/${mesa1Id}`);
 
       const tableLinkB = pageB.getByRole('link', { name: new RegExp(`Mesa 1`) });
-      await expect(tableLinkB).toContainText('Order not fixed');
+      await expect(tableLinkB).toContainText('Orden sin fijar');
       await tableLinkB.click();
       await pageB.waitForURL(`**/judge/tables/${mesa1Id}`);
 
@@ -411,14 +411,14 @@ test.describe('US6 — blind table dynamics: shared fixed order', () => {
       // Exercise the keyboard-accessible reorder mechanism only (FR-020) — drag-and-drop reorder
       // mechanics are already covered in isolation by T053's Jest specs; this E2E's job is the
       // cross-session propagation, not re-proving the reorder gesture itself.
-      await pageA.getByRole('button', { name: `Move ${firstBlindCodeBefore} down` }).click();
+      await pageA.getByRole('button', { name: `Bajar ${firstBlindCodeBefore}` }).click();
       await expect(rowsA.nth(0).locator('.sample-blind-code')).toHaveText(secondBlindCodeBefore);
       await expect(rowsA.nth(1).locator('.sample-blind-code')).toHaveText(firstBlindCodeBefore);
 
-      await pageA.getByRole('button', { name: 'Fix order' }).click();
-      const confirmDialog = pageA.getByRole('alertdialog', { name: 'Confirm fix order' });
+      await pageA.getByRole('button', { name: 'Fijar orden' }).click();
+      const confirmDialog = pageA.getByRole('alertdialog', { name: 'Confirmar fijar orden' });
       await expect(confirmDialog).toBeVisible();
-      await confirmDialog.getByRole('button', { name: 'Confirm fix order' }).click();
+      await confirmDialog.getByRole('button', { name: 'Confirmar fijar orden' }).click();
 
       // Judge A's own session reflects the fix immediately (local state update from the fixOrder
       // response, not dependent on the hub round-trip). Note: judgeADisplayName (the email
@@ -433,10 +433,10 @@ test.describe('US6 — blind table dynamics: shared fixed order', () => {
       const fixedStatusA = pageA.locator('p.order-status--fixed');
       await expect(fixedStatusA).toBeVisible();
       const fixedByLabel = (await fixedStatusA.innerText()).trim();
-      expect(fixedByLabel).toMatch(/^Order fixed by .+\.$/);
+      expect(fixedByLabel).toMatch(/^Orden fijado por .+\.$/);
       await expect(pageA.locator('.drag-handle')).toHaveCount(0);
-      await expect(pageA.getByRole('button', { name: /^Move / })).toHaveCount(0);
-      await expect(pageA.getByRole('button', { name: 'Fix order' })).toHaveCount(0);
+      await expect(pageA.getByRole('button', { name: /^(Subir|Bajar) / })).toHaveCount(0);
+      await expect(pageA.getByRole('button', { name: 'Fijar orden' })).toHaveCount(0);
 
       // Judge B's session, with NO manual reload/navigation, reflects the fix via the live
       // TableOrderFixed hub event within the FR-021 ≤1s propagation budget — a bounded timeout
@@ -446,8 +446,8 @@ test.describe('US6 — blind table dynamics: shared fixed order', () => {
       await expect(fixedStatusB).toBeVisible({ timeout: 1000 });
       await expect(fixedStatusB).toHaveText(fixedByLabel);
       await expect(pageB.locator('.drag-handle')).toHaveCount(0);
-      await expect(pageB.getByRole('button', { name: /^Move / })).toHaveCount(0);
-      await expect(pageB.getByRole('button', { name: 'Fix order' })).toHaveCount(0);
+      await expect(pageB.getByRole('button', { name: /^(Subir|Bajar) / })).toHaveCount(0);
+      await expect(pageB.getByRole('button', { name: 'Fijar orden' })).toHaveCount(0);
 
       // Judge B's sample order matches exactly what judge A fixed.
       await expect(rowsB.nth(0).locator('.sample-blind-code')).toHaveText(secondBlindCodeBefore);

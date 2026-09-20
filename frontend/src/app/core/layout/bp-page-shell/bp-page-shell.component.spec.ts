@@ -4,8 +4,8 @@ import { provideRouter, Router } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import Keycloak from 'keycloak-js';
 
-import { ActiveRoleService } from '../../../core/auth/active-role.service';
-import { BpTopbarComponent } from '../bp-topbar/bp-topbar.component';
+import { ActiveRoleService } from '../../auth/active-role.service';
+import { BpTopbarComponent } from '../../../shared/components/bp-topbar/bp-topbar.component';
 import { BpPageShellComponent } from './bp-page-shell.component';
 
 @Component({

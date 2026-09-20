@@ -17,7 +17,7 @@ import type { EvaluationComments, EvaluationScores } from '../../core/offline/db
 import { SyncService } from '../../core/offline/sync.service';
 import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
 import type { JudgeRemovedEvent } from '../../core/realtime/competition-hub.events';
-import { BpPageShellComponent } from '../../shared/components/bp-page-shell/bp-page-shell.component';
+import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-shell.component';
 import { StyleReferencePanelComponent } from './style-reference/style-reference-panel.component';
 import { TastingOrderApiService } from '../judge-tables/tasting-order-api.service';
 import type { JudgeSample, JudgeTableSummary } from '../judge-tables/tasting-order-api.service';
@@ -83,7 +83,7 @@ const SECTIONS: EvaluationSectionConfig[] = [
   },
   {
     key: 'appearance',
-    label: 'Aspecto',
+    label: 'Apariencia',
     max: 3,
     scoreControl: 'appearanceScore',
     commentControl: 'appearanceComment',
@@ -188,8 +188,11 @@ function buildForm(): FormGroup {
                 </label>
                 <p class="comment-hint">
                   @if (remainingChars(section.key) > 0) {
-                    Faltan {{ remainingChars(section.key) }}
-                    {{ remainingChars(section.key) === 1 ? 'carácter' : 'caracteres' }}
+                    {{
+                      remainingChars(section.key) === 1
+                        ? 'Falta 1 carácter'
+                        : 'Faltan ' + remainingChars(section.key) + ' caracteres'
+                    }}
                     (mínimo {{ minCommentLength }}).
                   } @else {
                     Longitud mínima alcanzada.

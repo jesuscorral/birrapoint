@@ -31,7 +31,7 @@ import type {
   TableClosedEvent,
   TableOrderFixedEvent,
 } from '../../core/realtime/competition-hub.events';
-import { BpPageShellComponent } from '../../shared/components/bp-page-shell/bp-page-shell.component';
+import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-shell.component';
 
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError

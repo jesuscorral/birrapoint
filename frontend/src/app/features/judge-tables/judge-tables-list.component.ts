@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { RouterLink } from '@angular/router';
 
 import { ApiError } from '../../core/api/api-error';
-import { BpPageShellComponent } from '../../shared/components/bp-page-shell/bp-page-shell.component';
+import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-shell.component';
 import { TastingOrderApiService } from './tasting-order-api.service';
 import type { JudgeTableSummary } from './tasting-order-api.service';
 

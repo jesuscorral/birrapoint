@@ -5,7 +5,7 @@ import type { OnDestroy, OnInit } from '@angular/core';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import type { Subscription } from 'rxjs';
-import { filter, forkJoin, merge } from 'rxjs';
+import { catchError, filter, forkJoin, merge, of } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
 import { SyncService } from '../../core/offline/sync.service';
@@ -17,7 +17,7 @@ import type {
   TableClosedEvent,
   TableOrderFixedEvent,
 } from '../../core/realtime/competition-hub.events';
-import { BpPageShellComponent } from '../../shared/components/bp-page-shell/bp-page-shell.component';
+import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-shell.component';
 import { DiscrepancyApiService } from '../discrepancy/discrepancy-api.service';
 import { TastingOrderApiService } from './tasting-order-api.service';
 import type { JudgeSample, JudgeTableMember, JudgeTableSummary } from './tasting-order-api.service';
@@ -84,7 +84,7 @@ function swap<T>(items: T[], a: number, b: number): T[] {
           <section class="table-mates" aria-label="Otros jueces de esta mesa">
             <h2>Otros jueces de esta mesa</h2>
             <ul>
-              @for (member of otherJudges(); track member.displayName) {
+              @for (member of otherJudges(); track $index) {
                 <li>
                   {{ member.displayName }}
                   @if (member.bjcpRank) {
@@ -618,7 +618,9 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
     forkJoin({
       tables: this.api.getMyTables(),
       samples: this.api.getTableSamples(this.tableId),
-      otherJudges: this.api.getTableJudges(this.tableId),
+      // Best-effort: this section is purely informational (Session 2026-09-20), so a failure here
+      // must not blank the whole judging screen — fall back to an empty list instead.
+      otherJudges: this.api.getTableJudges(this.tableId).pipe(catchError(() => of([]))),
       discrepancies: this.discrepancyApi.getDiscrepancies(this.tableId),
     }).subscribe({
       next: ({ tables, samples, otherJudges, discrepancies }) => {
@@ -753,7 +755,9 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
   private handleJudgeRemovedEvent(): void {
     this.api.getTableSamples(this.tableId).subscribe({
       next: () => {
-        // Still a member — the removed judge was someone else at this table. No-op.
+        // Still a member — the removed judge was someone else at this table. Refresh the
+        // informational tablemates list so it drops the judge who just left.
+        this.refreshOtherJudges();
       },
       error: (error: unknown) => {
         if (toGenericApiError(error).status === 404) {
@@ -761,6 +765,13 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
         }
       },
     });
+  }
+
+  private refreshOtherJudges(): void {
+    this.api
+      .getTableJudges(this.tableId)
+      .pipe(catchError(() => of(this.otherJudges())))
+      .subscribe((members) => this.otherJudges.set(members));
   }
 
   private async handleEjected(): Promise<void> {

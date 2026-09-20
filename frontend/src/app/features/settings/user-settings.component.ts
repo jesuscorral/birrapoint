@@ -4,7 +4,7 @@ import Keycloak from 'keycloak-js';
 import type { KeycloakProfile } from 'keycloak-js';
 
 import { ActiveRoleService } from '../../core/auth/active-role.service';
-import { BpTopbarComponent } from '../../shared/components/bp-topbar/bp-topbar.component';
+import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-shell.component';
 
 // The two realm roles BirraPoint assigns meaning to — the same pair core/auth's route guards
 // branch on (role.guard.ts, role-landing.ts). Keycloak also grants every user its own plumbing
@@ -28,17 +28,11 @@ const APP_REALM_ROLES = ['ORGANIZER', 'JUDGE'] as const;
 // always pointing at the organizer dashboard.
 @Component({
   selector: 'app-user-settings',
-  imports: [BpTopbarComponent, RouterLink],
+  imports: [BpPageShellComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="settings-shell">
-      <bp-topbar>
-        <button type="button" class="topbar-action topbar-action--button" (click)="onLogout()">
-          Cerrar sesión
-        </button>
-      </bp-topbar>
-
-      <main class="settings-main">
+    <bp-page-shell [homeLink]="backLink().href">
+      <div class="settings-shell">
         <!-- An anchor, not a button: this is navigation, so it gets open-in-new-tab, the link role
              and Enter-to-follow for free. The wizard's own "back to list" is a button only because
              it has to run the FR-007 unsaved-changes guard first; this screen is read-only. -->
@@ -87,17 +81,11 @@ const APP_REALM_ROLES = ['ORGANIZER', 'JUDGE'] as const;
             }
           </dl>
         }
-      </main>
-    </div>
+      </div>
+    </bp-page-shell>
   `,
   styles: `
-    :host {
-      display: block;
-      min-height: 100vh;
-      background: var(--color-bp-hueso-50);
-    }
-
-    .settings-main {
+    .settings-shell {
       padding: var(--spacing-8) var(--spacing-6);
       max-width: 40rem;
       margin: 0 auto;
@@ -132,36 +120,6 @@ const APP_REALM_ROLES = ['ORGANIZER', 'JUDGE'] as const;
       letter-spacing: -0.02em;
       color: var(--color-bp-text);
       margin: 0 0 var(--spacing-6);
-    }
-
-    .topbar-action {
-      display: inline-flex;
-      align-items: center;
-      min-height: 40px;
-      padding: 0 var(--spacing-4);
-      border-radius: var(--radius-md);
-      font-weight: 600;
-      font-size: 0.875rem;
-      text-decoration: none;
-      cursor: pointer;
-      background: transparent;
-      font-family: inherit;
-    }
-
-    .topbar-action--button {
-      color: var(--color-bp-text-muted);
-      border: 1.5px solid var(--color-bp-border-strong);
-    }
-
-    .topbar-action--button:hover {
-      background: var(--color-bp-hueso-100);
-    }
-
-    .topbar-action:focus-visible {
-      outline: none;
-      box-shadow:
-        0 0 0 3px var(--color-bp-surface),
-        0 0 0 5px var(--color-bp-cobre-500);
     }
 
     .profile-details {
@@ -238,24 +196,24 @@ export class UserSettingsComponent {
   }
 
   // A single-role account always goes back to its one workspace. A dual-role account goes back
-  // to whichever it's currently using (ActiveRoleService) — defaulting to the organizer dashboard
-  // if, somehow, neither has been chosen yet this session.
+  // to whichever it's currently using (ActiveRoleService). A dual-role account that hasn't chosen
+  // yet this session (e.g. it deep-linked straight to /settings) goes back to the role picker
+  // instead of guessing — landing on /organizer/dashboard would just bounce it to /select-role
+  // via organizerGuard anyway.
   protected backLink(): { href: string; label: string } {
     const roles = this.keycloak.tokenParsed?.realm_access?.roles ?? [];
     const hasOrganizer = roles.includes('ORGANIZER');
     const hasJudge = roles.includes('JUDGE');
-    const effectiveJudge =
-      hasJudge && (!hasOrganizer || this.activeRole.getActiveRole() === 'JUDGE');
+    const active = this.activeRole.getActiveRole();
+
+    if (hasOrganizer && hasJudge && active === null) {
+      return { href: '/select-role', label: 'Elegir rol' };
+    }
+
+    const effectiveJudge = hasJudge && (!hasOrganizer || active === 'JUDGE');
 
     return effectiveJudge
       ? { href: '/judge/tables', label: 'Volver a mis mesas' }
       : { href: '/organizer/dashboard', label: 'Volver a competiciones' };
-  }
-
-  protected onLogout(): void {
-    // Don't leak this tab's chosen workspace into whoever logs in next on it — see
-    // OrganizerDashboardComponent.onLogout for the same reasoning.
-    this.activeRole.clearActiveRole();
-    this.keycloak.logout({ redirectUri: window.location.origin + '/' });
   }
 }

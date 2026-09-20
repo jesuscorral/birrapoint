@@ -33,11 +33,15 @@ const FIXTURE_PATH = path.resolve(__dirname, '../fixtures/entries-with-errors.xl
 
 const SECTIONS = [
   { legend: 'Aroma', score: 10, comment: 'Citrus and pine hop aroma, moderate intensity.' },
-  { legend: 'Appearance', score: 2, comment: 'Deep golden, persistent white head, brilliant.' },
-  { legend: 'Flavor', score: 15, comment: 'Balanced malt backbone with resinous hop finish.' },
-  { legend: 'Mouthfeel', score: 4, comment: 'Medium body, lively carbonation, dry finish.' },
+  { legend: 'Apariencia', score: 2, comment: 'Deep golden, persistent white head, brilliant.' },
+  { legend: 'Sabor', score: 15, comment: 'Balanced malt backbone with resinous hop finish.' },
   {
-    legend: 'Overall Impression',
+    legend: 'Sensación en boca',
+    score: 4,
+    comment: 'Medium body, lively carbonation, dry finish.',
+  },
+  {
+    legend: 'Impresión general',
     score: 8,
     comment: 'A clean, well-executed example of the style.',
   },
@@ -203,8 +207,8 @@ function sectionFieldset(page: Page, legend: string): Locator {
 async function fillEvaluationForm(page: Page): Promise<void> {
   for (const section of SECTIONS) {
     const fieldset = sectionFieldset(page, section.legend);
-    await fieldset.getByLabel('Score').fill(String(section.score));
-    await fieldset.getByLabel('Comment').fill(section.comment);
+    await fieldset.getByLabel('Puntuación').fill(String(section.score));
+    await fieldset.getByLabel('Comentario').fill(section.comment);
   }
 }
 
@@ -222,7 +226,7 @@ async function submitEvaluationForNextSample(judgePage: Page): Promise<void> {
         response.request().method() === 'POST' &&
         /\/api\/v1\/me\/tables\/.+\/evaluations$/.test(new URL(response.url()).pathname),
     ),
-    judgePage.getByRole('button', { name: 'Submit evaluation' }).click(),
+    judgePage.getByRole('button', { name: 'Enviar evaluación' }).click(),
   ]);
   expect(submitResponse.status()).toBe(201);
 }
@@ -437,7 +441,7 @@ test.describe('WCAG 2.1 AA sweep — every organizer and judge route', () => {
 
       // --- /judge/tables ---
       const tableLink = judgePage.getByRole('link', { name: new RegExp('Mesa 1') });
-      await expect(tableLink).toContainText('Order not fixed');
+      await expect(tableLink).toContainText('Orden sin fijar');
       await test.step('/judge/tables', async () => {
         await assertNoA11yViolations(judgePage, '/judge/tables');
       });
@@ -450,10 +454,10 @@ test.describe('WCAG 2.1 AA sweep — every organizer and judge route', () => {
         await assertNoA11yViolations(judgePage, '/judge/tables/:tableId (order not fixed)');
       });
 
-      await judgePage.getByRole('button', { name: 'Fix order' }).click();
-      const fixDialog = judgePage.getByRole('alertdialog', { name: 'Confirm fix order' });
+      await judgePage.getByRole('button', { name: 'Fijar orden' }).click();
+      const fixDialog = judgePage.getByRole('alertdialog', { name: 'Confirmar fijar orden' });
       await expect(fixDialog).toBeVisible();
-      await fixDialog.getByRole('button', { name: 'Confirm fix order' }).click();
+      await fixDialog.getByRole('button', { name: 'Confirmar fijar orden' }).click();
       await expect(judgePage.locator('p.order-status--fixed')).toBeVisible();
 
       // --- /judge/tables/:tableId/discrepancies (empty state — no discrepancy needs to exist for
@@ -483,7 +487,7 @@ test.describe('WCAG 2.1 AA sweep — every organizer and judge route', () => {
             response.request().method() === 'POST' &&
             /\/api\/v1\/me\/tables\/.+\/evaluations$/.test(new URL(response.url()).pathname),
         ),
-        judgePage.getByRole('button', { name: 'Submit evaluation' }).click(),
+        judgePage.getByRole('button', { name: 'Enviar evaluación' }).click(),
       ]);
       expect(firstSubmit.status()).toBe(201);
       await judgePage.waitForURL(`**/judge/tables/${mesa1Id}`);
@@ -495,12 +499,12 @@ test.describe('WCAG 2.1 AA sweep — every organizer and judge route', () => {
       await submitEvaluationForNextSample(judgePage);
       await judgePage.waitForURL(`**/judge/tables/${mesa1Id}`);
 
-      const closeButton = judgePage.getByRole('button', { name: 'Close table' });
+      const closeButton = judgePage.getByRole('button', { name: 'Cerrar mesa' });
       await expect(closeButton).toBeVisible();
       await closeButton.click();
-      const closeDialog = judgePage.getByRole('alertdialog', { name: 'Confirm close table' });
+      const closeDialog = judgePage.getByRole('alertdialog', { name: 'Confirmar cierre de mesa' });
       await expect(closeDialog).toBeVisible();
-      await closeDialog.getByRole('button', { name: 'Confirm close table' }).click();
+      await closeDialog.getByRole('button', { name: 'Confirmar cierre de mesa' }).click();
       await expect(judgePage.locator('p.order-status--closed')).toBeVisible();
     } finally {
       await judgeContext.close();

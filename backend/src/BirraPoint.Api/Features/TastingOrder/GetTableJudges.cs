@@ -23,13 +23,14 @@ public sealed class GetTableJudgesQueryHandler(AppDbContext dbContext, ICurrentU
         }
 
         // Informational only (no editing capability hangs off this) — every other actively
-        // assigned judge at the table, excluding the caller themselves. Ordered client-side
-        // (StringComparer.Ordinal isn't SQL-translatable) after materializing the query.
-        var members = await dbContext.TableJudges
+        // assigned judge at the table, excluding the caller themselves. Ordered SQL-side by the
+        // database's own collation, which (unlike StringComparer.Ordinal) sorts accented Spanish
+        // names such as Álvaro/Ñuño correctly.
+        return await dbContext.TableJudges
             .Where(tj => tj.TastingTableId == request.TableId && tj.RemovedAt == null && tj.JudgeId != callerJudgeId)
-            .Join(dbContext.Judges, tj => tj.JudgeId, j => j.Id, (_, j) => new JudgeTableMemberDto(j.DisplayName, j.BjcpRank))
+            .Join(dbContext.Judges, tj => tj.JudgeId, j => j.Id, (_, j) => j)
+            .OrderBy(j => j.DisplayName)
+            .Select(j => new JudgeTableMemberDto(j.DisplayName, j.BjcpRank))
             .ToListAsync(cancellationToken);
-
-        return members.OrderBy(m => m.DisplayName, StringComparer.Ordinal).ToList();
     }
 }

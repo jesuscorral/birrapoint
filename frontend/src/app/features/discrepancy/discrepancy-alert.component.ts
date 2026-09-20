@@ -18,7 +18,7 @@ import type {
   DiscrepancyRaisedEvent,
   DiscrepancyResolvedEvent,
 } from '../../core/realtime/competition-hub.events';
-import { BpPageShellComponent } from '../../shared/components/bp-page-shell/bp-page-shell.component';
+import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-shell.component';
 import { DiscrepancyApiService } from './discrepancy-api.service';
 import type { DiscrepancyView } from './discrepancy-api.service';
 
@@ -57,7 +57,7 @@ const SECTIONS: AdjustSectionConfig[] = [
   },
   {
     key: 'appearance',
-    label: 'Aspecto',
+    label: 'Apariencia',
     max: 3,
     scoreControl: 'appearanceScore',
     commentControl: 'appearanceComment',
@@ -204,11 +204,12 @@ interface AdjustFormState {
                       </label>
                       <p class="comment-hint">
                         @if (remainingChars(alert.alertId, section.key) > 0) {
-                          Faltan {{ remainingChars(alert.alertId, section.key) }}
                           {{
                             remainingChars(alert.alertId, section.key) === 1
-                              ? 'carácter'
-                              : 'caracteres'
+                              ? 'Falta 1 carácter'
+                              : 'Faltan ' +
+                                remainingChars(alert.alertId, section.key) +
+                                ' caracteres'
                           }}
                           (mínimo {{ minCommentLength }}).
                         } @else {

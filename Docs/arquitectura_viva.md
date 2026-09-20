@@ -1051,6 +1051,11 @@ judge already provisioned with a Keycloak account.
     where four of the five judge-facing screens (`JudgeTableOrderComponent`,
     `EvaluationSheetComponent`, `DiscrepancyAlertComponent`, and `JudgeTablesListComponent` before
     this pass) had no way to reach Settings or sign out at all.
+  - **`bp-page-shell` relocated `shared/components/` → `core/layout/` (later still, same Session
+    2026-09-20, ADR-0014)**: injecting `Keycloak`/`ActiveRoleService`/`Router` made it the only
+    file under `shared/` depending on `core/` — an FSD layering inversion (senior-code-reviewer
+    finding A1, PR #44). Moved to `core/layout/bp-page-shell/`, class name/selector/API unchanged;
+    all 12 consumers' import paths updated, `shared/components/index.ts` no longer re-exports it.
   - **`/settings` moved out of `/organizer/**`** to a shared top-level route
     (`settingsGuard`/`isSettingsAllowed`, `role.guard.ts`: `true` for either realm role, bounces
     only an anonymous/no-role caller) — `BpPageShellComponent`'s "Ajustes" link needs one target
@@ -1554,10 +1559,11 @@ judge already provisioned with a Keycloak account.
   **Organizer page shell and read-only wizard (T127, FR-061).** Until T127 the wizard was the only
   organizer screen with a shell: the dashboard, judge management, the standalone `/tables` route,
   the monitor and results dispatch all rendered straight against the viewport edges with no
-  topbar. `shared/components/bp-page-shell/` is now the single organizer shell — `bp-topbar`, one
-  `<main>` landmark and an `88rem` container with the wizard's gutters (`--spacing-8`, widening to
-  `12` at 1280px and `16` at 1800px, `4` on phones) — and all six organizer screens, the wizard
-  included, project their content into it. Each screen keeps its own `<h1>` (E2E-locked strings).
+  topbar. `shared/components/bp-page-shell/` (relocated to `core/layout/bp-page-shell/`, Session
+  2026-09-20, ADR-0014 — see below) is now the single shell for every screen, organizer and judge
+  alike — `bp-topbar`, one `<main>` landmark and an `88rem` container with the wizard's gutters
+  (`--spacing-8`, widening to `12` at 1280px and `16` at 1800px, `4` on phones) — and every screen
+  projects its content into it. Each screen keeps its own `<h1>` (E2E-locked strings).
 
   The wizard now opens in **every** lifecycle state with all six steps reachable. The current step
   is mirrored into the address as `?step=N` via `Location.replaceState` (not `router.navigate` —
@@ -1637,20 +1643,25 @@ judge already provisioned with a Keycloak account.
   wizard; the standalone `/tables` route still exists and is unchanged, just no longer the
   dashboard's destination. `spec.md` US13 Acceptance Scenario 2 and FR-060 were amended in the same
   change (requirement change flows to the spec first, never silently into code).
-  **T126 header**: the dashboard now renders the shared `bp-topbar` (previously used only by the
-  wizard) carrying two projected actions — a "Settings" `routerLink` to `/organizer/settings` and a
-  "Log out" button calling `keycloak.logout({ redirectUri: origin + '/' })`. The page's own padding
-  moved from `:host` onto a `.dashboard-main` wrapper so the bar spans the viewport flush, matching
+  **T126 header**: the dashboard originally rendered the shared `bp-topbar` (previously used only
+  by the wizard) carrying two projected actions — a "Settings" `routerLink` and a "Log out" button.
+  **Superseded, same Session 2026-09-20**: both now come from `BpPageShellComponent` (see above),
+  which every screen wraps in instead of projecting its own copy — `OrganizerDashboardComponent` no
+  longer carries this logic itself. The page's own padding moved from `:host` onto a
+  `.dashboard-main` wrapper so the bar spans the viewport flush, matching
   `competition-wizard.component.ts`'s `.wizard-shell`/`.wizard-main` split.
 
-- **`features/settings/`** (T126): `UserSettingsComponent` — route `/organizer/settings`, under the
-  existing `organizerGuard`. Renders the logged-in user's identity as a `dl`: first name, last name,
-  email (with a "Verified" pill when `emailVerified`), username, realm role(s) and member-since.
-  Purely frontend and backend-free by design: identity is Keycloak-only (Principle VII), so every
-  field comes from `keycloak-js` directly — `loadUserProfile()` for the profile and
-  `tokenParsed.realm_access.roles` for the roles. The realm defines no custom user attributes
-  (`infra/keycloak/birrapoint-realm.json`), so this is the complete set of data the app actually
-  holds about a user, not a partial view. Carries the same `bp-topbar` + "Log out" affordance.
+- **`features/settings/`** (T126; route moved top-level, Session 2026-09-20 — see above):
+  `UserSettingsComponent` — route `/settings`, under `settingsGuard` (either realm role). Renders
+  the logged-in user's identity as a `dl`: first name, last name, email (with a "Verified" pill when
+  `emailVerified`), username, realm role(s) and member-since. Purely frontend and backend-free by
+  design: identity is Keycloak-only (Principle VII), so every field comes from `keycloak-js`
+  directly — `loadUserProfile()` for the profile and `tokenParsed.realm_access.roles` for the
+  roles. The realm defines no custom user attributes (`infra/keycloak/birrapoint-realm.json`), so
+  this is the complete set of data the app actually holds about a user, not a partial view. Wrapped
+  in `<bp-page-shell>` like every other screen (Session 2026-09-20) — no longer carries its own
+  `bp-topbar`/logout logic; its own body only owns the role-aware "back" link (`backLink()`) and the
+  profile `dl`.
   **Bug found and fixed the same day, unrelated to this task's own files**: while visually
   verifying this component in a real browser (not just Jest/jsdom), the routed content rendered
   correctly but was pushed entirely below the fold — `frontend/src/app/app.html` (unchanged since
