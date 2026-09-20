@@ -323,7 +323,7 @@ and the audit drill-down still shows judge A's earlier submitted total.
 | `keycloak` | `quay.io/keycloak/keycloak:26.2` container via `AddContainer` (ADR-0001), waits for `keycloakdb` | http://localhost:8081 | realm `birrapoint` auto-imported from `infra/keycloak/` (roles `ORGANIZER`/`JUDGE`, seeded organizer, PKCE SPA client, admin service-account client with `manage-users`); bootstrap/realm credentials are local-dev placeholders (FR-046). Backed by Postgres (`keycloakdb`), not dev-mode's default embedded H2 — see ADR-0013 and "Local dev troubleshooting" below for why and how to recover from it |
 | `mailpit` | CommunityToolkit MailPit integration | dynamic SMTP · **http://localhost:8025 (T040, pinned)** | local mail sink for invitations/results; UI/API port fixed (`AddMailPit("mailpit", httpPort: 8025)`) so `frontend/e2e/us4-judges.spec.ts` can poll its REST API deterministically — SMTP endpoint stays dynamic, only injected into the API via `Smtp__Host/Port` |
 | `api` | `BirraPoint.Api` project | http://localhost:5121 · https://localhost:7075 (launchSettings) | receives env: `Keycloak__Authority` (realm URL), `Keycloak__AdminClientId/Secret` (dev placeholder), `Smtp__Host/Port` (from the Mailpit endpoint), `Frontend__BaseUrl` (T041, invitation email login link); waits for the database |
-| `frontend` | `npm start` (ng serve) via `AddNpmApp` | http://localhost:4200 (non-proxied) | matches the SPA client redirect URIs; waits for the API |
+| `frontend` | `npm start` (ng serve) via `AddJavaScriptApp` (`Aspire.Hosting.JavaScript`) | http://localhost:4200 (non-proxied) | matches the SPA client redirect URIs; waits for the API |
 
 ### Local dev troubleshooting
 
@@ -2187,7 +2187,6 @@ safety-net poll — no new retry mechanism, just reuse of what T016 already buil
 - Production/`azd` deployment (T096) must set `Keycloak__ApiAudience` consistently with whatever
   audience value the production realm's mapper stamps (ADR-0009).
 - `WaitFor` a *ready* Keycloak once auth is wired (T011; ADR-0001 mitigation).
-- `Aspire.Hosting.NodeJs` is on the old version train (9.5.2); align when a 13.x ships.
 - Add a webkit Playwright project before writing the offline E2E suites (iOS Safari is the
   constrained target for the offline engine, R-08).
 - No `.gitattributes` in the repo: Prettier `endOfLine: "auto"` (T007) keeps `format:check`

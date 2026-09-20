@@ -81,8 +81,10 @@ var api = builder.AddProject<Projects.BirraPoint_Api>("api")
     .WithEnvironment("Frontend__BaseUrl", "http://localhost:4200")
     .WithExternalHttpEndpoints();
 
-// Angular PWA via ng serve (fixed :4200, matching the SPA client redirect URIs).
-builder.AddNodeApp("frontend", "../../../frontend", "start")
+// Angular PWA via ng serve (fixed :4200, matching the SPA client redirect URIs). AddNodeApp's
+// 3rd arg is a *script path* run as `node <path>` — AddJavaScriptApp's is an npm script name
+// ("npm run start"), the actual AddNpmApp-equivalent semantics this resource needs.
+builder.AddJavaScriptApp("frontend", "../../../frontend", "start")
     .WithHttpEndpoint(port: 4200, isProxied: false)
     .WithExternalHttpEndpoints()
     .WaitFor(api);
