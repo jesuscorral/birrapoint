@@ -6,7 +6,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <UserSecretsId>a2ebe169-3993-4c3f-a649-cd18842901bf</UserSecretsId>
-    <AspireUseCliBundle>true</AspireUseCliBundle>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.JavaScript"/>
