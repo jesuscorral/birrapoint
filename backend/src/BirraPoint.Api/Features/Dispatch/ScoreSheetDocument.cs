@@ -109,9 +109,11 @@ public sealed class ScoreSheetDocument(
                 ("Color", appearance.Color == "Other" ? appearance.ColorOther : appearance.Color),
                 ("ColorInappropriate", appearance.ColorInappropriate),
                 ("Clarity", appearance.Clarity),
+                ("ClarityInappropriate", appearance.ClarityInappropriate),
                 ("Foam", appearance.Foam == "Other" ? appearance.FoamOther : appearance.Foam),
                 ("FoamInappropriate", appearance.FoamInappropriate),
                 ("Retention", appearance.Retention),
+                ("RetentionInappropriate", appearance.RetentionInappropriate),
                 ("Texture", appearance.Texture),
                 ("Notes", appearance.Notes));
         }
@@ -122,15 +124,19 @@ public sealed class ScoreSheetDocument(
                 "Aroma descriptors",
                 ("Malt", aroma.Malt), ("MaltInappropriate", aroma.MaltInappropriate),
                 ("Hops", aroma.Hops), ("HopsInappropriate", aroma.HopsInappropriate),
-                ("Fermentation", aroma.Fermentation));
+                ("Fermentation", aroma.Fermentation), ("FermentationInappropriate", aroma.FermentationInappropriate));
         }
 
         if (descriptors.Flavor is { } flavor)
         {
             AddSection(
                 "Flavor descriptors",
-                ("Malt", flavor.Malt), ("Hops", flavor.Hops), ("Bitterness", flavor.Bitterness),
-                ("Fermentation", flavor.Fermentation), ("Balance", flavor.Balance), ("Finish", flavor.Finish));
+                ("Malt", flavor.Malt), ("MaltInappropriate", flavor.MaltInappropriate),
+                ("Hops", flavor.Hops), ("HopsInappropriate", flavor.HopsInappropriate),
+                ("Bitterness", flavor.Bitterness), ("BitternessInappropriate", flavor.BitternessInappropriate),
+                ("Fermentation", flavor.Fermentation), ("FermentationInappropriate", flavor.FermentationInappropriate),
+                ("Balance", flavor.Balance), ("BalanceInappropriate", flavor.BalanceInappropriate),
+                ("Finish", flavor.Finish), ("FinishInappropriate", flavor.FinishInappropriate));
         }
 
         if (descriptors.Mouthfeel is { } mouthfeel)
@@ -138,7 +144,8 @@ public sealed class ScoreSheetDocument(
             AddSection(
                 "Mouthfeel descriptors",
                 ("Body", mouthfeel.Body), ("BodyInappropriate", mouthfeel.BodyInappropriate),
-                ("Carbonation", mouthfeel.Carbonation), ("AlcoholWarmth", mouthfeel.AlcoholWarmth),
+                ("Carbonation", mouthfeel.Carbonation), ("CarbonationInappropriate", mouthfeel.CarbonationInappropriate),
+                ("AlcoholWarmth", mouthfeel.AlcoholWarmth), ("AlcoholWarmthInappropriate", mouthfeel.AlcoholWarmthInappropriate),
                 ("Creaminess", mouthfeel.Creaminess), ("CreaminessInappropriate", mouthfeel.CreaminessInappropriate),
                 ("Astringency", mouthfeel.Astringency), ("AstringencyInappropriate", mouthfeel.AstringencyInappropriate),
                 ("Notes", mouthfeel.Notes));
@@ -148,7 +155,9 @@ public sealed class ScoreSheetDocument(
         {
             AddSection(
                 "Overall descriptors",
-                ("ClassicExample", overall.ClassicExample), ("Defects", overall.Defects), ("Vitality", overall.Vitality));
+                ("ClassicExample", overall.ClassicExample), ("ClassicExampleInappropriate", overall.ClassicExampleInappropriate),
+                ("Defects", overall.Defects), ("DefectsInappropriate", overall.DefectsInappropriate),
+                ("Vitality", overall.Vitality), ("VitalityInappropriate", overall.VitalityInappropriate));
         }
 
         if (descriptors.OffFlavors is { Count: > 0 } offFlavors)

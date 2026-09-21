@@ -3,7 +3,9 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 // Session 2026-09-21 (FR-063): the paper sheet's continuous bipolar sliders — Retención (Baja↔
 // Alta), Equilibrio (Lupulado↔Maltoso), Final/Retrogusto (Seco↔Dulce), and Impresión General's
 // three axes. Same plain signal-based binding convention as BpDiscreteSliderComponent (see its
-// own doc comment) — advisory data, no reactive-forms validity needed.
+// own doc comment) — advisory data, no reactive-forms validity needed. Same compact inline
+// "Inapropiado" toggle too — see BpDiscreteSliderComponent's doc comment for why it lives in the
+// header row instead of a separate line.
 @Component({
   selector: 'bp-bipolar-slider',
   standalone: true,
@@ -14,7 +16,17 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
   host: { '[attr.id]': 'null' },
   template: `
     <div class="bipolar-slider">
-      <span class="bipolar-slider__label">{{ label() }}</span>
+      <div class="bipolar-slider__header">
+        <span class="bipolar-slider__label">{{ label() }}</span>
+        <label class="bipolar-slider__inappropriate">
+          <input
+            type="checkbox"
+            [checked]="inappropriate()"
+            (change)="onInappropriateChange($event)"
+          />
+          Inapropiado
+        </label>
+      </div>
       <div class="bipolar-slider__track">
         <span class="bipolar-slider__pole">{{ startLabel() }}</span>
         <input
@@ -37,12 +49,29 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       margin: var(--spacing-3) 0;
     }
 
+    .bipolar-slider__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--spacing-3);
+      margin-bottom: var(--spacing-2);
+    }
+
     .bipolar-slider__label {
-      display: block;
       font-size: 0.875rem;
       font-weight: 600;
       color: var(--color-bp-text);
-      margin-bottom: var(--spacing-2);
+    }
+
+    .bipolar-slider__inappropriate {
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-1);
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--color-bp-text-muted);
+      white-space: nowrap;
     }
 
     .bipolar-slider__track {
@@ -71,9 +100,15 @@ export class BpBipolarSliderComponent {
   readonly startLabel = input.required<string>();
   readonly endLabel = input.required<string>();
   readonly value = input(50);
+  readonly inappropriate = input(false);
   readonly valueChange = output<number>();
+  readonly inappropriateChange = output<boolean>();
 
   protected onInput(event: Event): void {
     this.valueChange.emit(Number((event.target as HTMLInputElement).value));
+  }
+
+  protected onInappropriateChange(event: Event): void {
+    this.inappropriateChange.emit((event.target as HTMLInputElement).checked);
   }
 }

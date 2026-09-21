@@ -55,44 +55,59 @@ public sealed record EvaluationDescriptorsDto(
 
 /// <summary>Apariencia. Color/Clarity/Foam are closed-list single choices (EvaluationDescriptorCatalog)
 /// plus a free-text "Other" companion, matching the paper sheet's "Otros ____" line next to each.
-/// Retention is a continuous 0–100 slider (Baja↔Alta, no discrete labels on the paper sheet).</summary>
+/// Retention is a continuous 0–100 slider (Baja↔Alta, no discrete labels on the paper sheet).
+/// Session 2026-09-21 (organizer follow-up): every rated attribute carries its own Inappropriate
+/// flag — Texture/Notes are free-text annotations, not ratings, so they don't get one.</summary>
 public sealed record AppearanceDescriptorsDto(
     string? Color,
     string? ColorOther,
     bool ColorInappropriate,
     string? Clarity,
+    bool ClarityInappropriate,
     string? Foam,
     string? FoamOther,
     bool FoamInappropriate,
     int? Retention,
+    bool RetentionInappropriate,
     string? Texture,
     string? Notes);
 
 /// <summary>Aroma. Malt/Hops/Fermentation are discrete 4-stop intensity sliders (Nada/Bajo/Medio/Alto
-/// = 0–3), matching the paper sheet exactly.</summary>
+/// = 0–3), matching the paper sheet exactly. Every attribute carries its own Inappropriate flag.</summary>
 public sealed record AromaDescriptorsDto(
     int? Malt,
     bool MaltInappropriate,
     int? Hops,
     bool HopsInappropriate,
-    int? Fermentation);
+    int? Fermentation,
+    bool FermentationInappropriate);
 
 /// <summary>Sabor. Malt/Hops/Bitterness/Fermentation are the same 0–3 discrete sliders as Aroma;
-/// Balance and Finish are continuous 0–100 bipolar sliders (Lupulado↔Maltoso, Seco↔Dulce).</summary>
+/// Balance and Finish are continuous 0–100 bipolar sliders (Lupulado↔Maltoso, Seco↔Dulce). Every
+/// attribute carries its own Inappropriate flag.</summary>
 public sealed record FlavorDescriptorsDto(
     int? Malt,
+    bool MaltInappropriate,
     int? Hops,
+    bool HopsInappropriate,
     int? Bitterness,
+    bool BitternessInappropriate,
     int? Fermentation,
+    bool FermentationInappropriate,
     int? Balance,
-    int? Finish);
+    bool BalanceInappropriate,
+    int? Finish,
+    bool FinishInappropriate);
 
-/// <summary>Sensación en boca. All five attributes are 0–3 discrete sliders.</summary>
+/// <summary>Sensación en boca. All five attributes are 0–3 discrete sliders, each with its own
+/// Inappropriate flag.</summary>
 public sealed record MouthfeelDescriptorsDto(
     int? Body,
     bool BodyInappropriate,
     int? Carbonation,
+    bool CarbonationInappropriate,
     int? AlcoholWarmth,
+    bool AlcoholWarmthInappropriate,
     int? Creaminess,
     bool CreaminessInappropriate,
     int? Astringency,
@@ -100,11 +115,15 @@ public sealed record MouthfeelDescriptorsDto(
     string? Notes);
 
 /// <summary>Impresión general. Three continuous 0–100 bipolar sliders (Ejemplo clásico↔No acorde al
-/// estilo, Sin defectos↔Defectos significativos, Maravillosa↔Sin vida).</summary>
+/// estilo, Sin defectos↔Defectos significativos, Maravillosa↔Sin vida), each with its own
+/// Inappropriate flag.</summary>
 public sealed record OverallDescriptorsDto(
     int? ClassicExample,
+    bool ClassicExampleInappropriate,
     int? Defects,
-    int? Vitality);
+    bool DefectsInappropriate,
+    int? Vitality,
+    bool VitalityInappropriate);
 
 /// <summary>
 /// Closed lists for every enum-like descriptor field, validated by

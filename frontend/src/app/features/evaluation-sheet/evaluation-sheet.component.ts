@@ -167,6 +167,7 @@ interface AppearanceDescriptorsState {
   colorOther: string;
   colorInappropriate: boolean;
   clarity: string;
+  clarityInappropriate: boolean;
   foam: string;
   foamOther: string;
   foamInappropriate: boolean;
@@ -174,6 +175,7 @@ interface AppearanceDescriptorsState {
   // the template falls back to a display-only default (?? 50/?? 0), but the stored/submitted
   // value stays null — and is therefore omitted from the payload — until touched.
   retention: number | null;
+  retentionInappropriate: boolean;
   texture: string;
   notes: string;
 }
@@ -184,22 +186,31 @@ interface AromaDescriptorsState {
   hops: number | null;
   hopsInappropriate: boolean;
   fermentation: number | null;
+  fermentationInappropriate: boolean;
 }
 
 interface FlavorDescriptorsState {
   malt: number | null;
+  maltInappropriate: boolean;
   hops: number | null;
+  hopsInappropriate: boolean;
   bitterness: number | null;
+  bitternessInappropriate: boolean;
   fermentation: number | null;
+  fermentationInappropriate: boolean;
   balance: number | null;
+  balanceInappropriate: boolean;
   finish: number | null;
+  finishInappropriate: boolean;
 }
 
 interface MouthfeelDescriptorsState {
   body: number | null;
   bodyInappropriate: boolean;
   carbonation: number | null;
+  carbonationInappropriate: boolean;
   alcoholWarmth: number | null;
+  alcoholWarmthInappropriate: boolean;
   creaminess: number | null;
   creaminessInappropriate: boolean;
   astringency: number | null;
@@ -209,8 +220,11 @@ interface MouthfeelDescriptorsState {
 
 interface OverallDescriptorsState {
   classicExample: number | null;
+  classicExampleInappropriate: boolean;
   defects: number | null;
+  defectsInappropriate: boolean;
   vitality: number | null;
+  vitalityInappropriate: boolean;
 }
 
 interface DescriptorsFormState {
@@ -229,10 +243,12 @@ function initialDescriptorsState(): DescriptorsFormState {
       colorOther: '',
       colorInappropriate: false,
       clarity: '',
+      clarityInappropriate: false,
       foam: '',
       foamOther: '',
       foamInappropriate: false,
       retention: null,
+      retentionInappropriate: false,
       texture: '',
       notes: '',
     },
@@ -242,27 +258,43 @@ function initialDescriptorsState(): DescriptorsFormState {
       hops: null,
       hopsInappropriate: false,
       fermentation: null,
+      fermentationInappropriate: false,
     },
     flavor: {
       malt: null,
+      maltInappropriate: false,
       hops: null,
+      hopsInappropriate: false,
       bitterness: null,
+      bitternessInappropriate: false,
       fermentation: null,
+      fermentationInappropriate: false,
       balance: null,
+      balanceInappropriate: false,
       finish: null,
+      finishInappropriate: false,
     },
     mouthfeel: {
       body: null,
       bodyInappropriate: false,
       carbonation: null,
+      carbonationInappropriate: false,
       alcoholWarmth: null,
+      alcoholWarmthInappropriate: false,
       creaminess: null,
       creaminessInappropriate: false,
       astringency: null,
       astringencyInappropriate: false,
       notes: '',
     },
-    overall: { classicExample: null, defects: null, vitality: null },
+    overall: {
+      classicExample: null,
+      classicExampleInappropriate: false,
+      defects: null,
+      defectsInappropriate: false,
+      vitality: null,
+      vitalityInappropriate: false,
+    },
     offFlavors: new Set<string>(),
   };
 }
@@ -282,10 +314,12 @@ function toDescriptorsPayload(state: DescriptorsFormState): EvaluationDescriptor
       colorOther: orUndefined(state.appearance.colorOther),
       colorInappropriate: state.appearance.colorInappropriate,
       clarity: orUndefined(state.appearance.clarity),
+      clarityInappropriate: state.appearance.clarityInappropriate,
       foam: orUndefined(state.appearance.foam),
       foamOther: orUndefined(state.appearance.foamOther),
       foamInappropriate: state.appearance.foamInappropriate,
       retention: state.appearance.retention,
+      retentionInappropriate: state.appearance.retentionInappropriate,
       texture: orUndefined(state.appearance.texture),
       notes: orUndefined(state.appearance.notes),
     },
@@ -317,10 +351,14 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
       colorInappropriate:
         payload.appearance?.colorInappropriate ?? base.appearance.colorInappropriate,
       clarity: payload.appearance?.clarity ?? base.appearance.clarity,
+      clarityInappropriate:
+        payload.appearance?.clarityInappropriate ?? base.appearance.clarityInappropriate,
       foam: payload.appearance?.foam ?? base.appearance.foam,
       foamOther: payload.appearance?.foamOther ?? base.appearance.foamOther,
       foamInappropriate: payload.appearance?.foamInappropriate ?? base.appearance.foamInappropriate,
       retention: payload.appearance?.retention ?? base.appearance.retention,
+      retentionInappropriate:
+        payload.appearance?.retentionInappropriate ?? base.appearance.retentionInappropriate,
       texture: payload.appearance?.texture ?? base.appearance.texture,
       notes: payload.appearance?.notes ?? base.appearance.notes,
     },
@@ -330,20 +368,35 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
       hops: payload.aroma?.hops ?? base.aroma.hops,
       hopsInappropriate: payload.aroma?.hopsInappropriate ?? base.aroma.hopsInappropriate,
       fermentation: payload.aroma?.fermentation ?? base.aroma.fermentation,
+      fermentationInappropriate:
+        payload.aroma?.fermentationInappropriate ?? base.aroma.fermentationInappropriate,
     },
     flavor: {
       malt: payload.flavor?.malt ?? base.flavor.malt,
+      maltInappropriate: payload.flavor?.maltInappropriate ?? base.flavor.maltInappropriate,
       hops: payload.flavor?.hops ?? base.flavor.hops,
+      hopsInappropriate: payload.flavor?.hopsInappropriate ?? base.flavor.hopsInappropriate,
       bitterness: payload.flavor?.bitterness ?? base.flavor.bitterness,
+      bitternessInappropriate:
+        payload.flavor?.bitternessInappropriate ?? base.flavor.bitternessInappropriate,
       fermentation: payload.flavor?.fermentation ?? base.flavor.fermentation,
+      fermentationInappropriate:
+        payload.flavor?.fermentationInappropriate ?? base.flavor.fermentationInappropriate,
       balance: payload.flavor?.balance ?? base.flavor.balance,
+      balanceInappropriate:
+        payload.flavor?.balanceInappropriate ?? base.flavor.balanceInappropriate,
       finish: payload.flavor?.finish ?? base.flavor.finish,
+      finishInappropriate: payload.flavor?.finishInappropriate ?? base.flavor.finishInappropriate,
     },
     mouthfeel: {
       body: payload.mouthfeel?.body ?? base.mouthfeel.body,
       bodyInappropriate: payload.mouthfeel?.bodyInappropriate ?? base.mouthfeel.bodyInappropriate,
       carbonation: payload.mouthfeel?.carbonation ?? base.mouthfeel.carbonation,
+      carbonationInappropriate:
+        payload.mouthfeel?.carbonationInappropriate ?? base.mouthfeel.carbonationInappropriate,
       alcoholWarmth: payload.mouthfeel?.alcoholWarmth ?? base.mouthfeel.alcoholWarmth,
+      alcoholWarmthInappropriate:
+        payload.mouthfeel?.alcoholWarmthInappropriate ?? base.mouthfeel.alcoholWarmthInappropriate,
       creaminess: payload.mouthfeel?.creaminess ?? base.mouthfeel.creaminess,
       creaminessInappropriate:
         payload.mouthfeel?.creaminessInappropriate ?? base.mouthfeel.creaminessInappropriate,
@@ -354,8 +407,14 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
     },
     overall: {
       classicExample: payload.overall?.classicExample ?? base.overall.classicExample,
+      classicExampleInappropriate:
+        payload.overall?.classicExampleInappropriate ?? base.overall.classicExampleInappropriate,
       defects: payload.overall?.defects ?? base.overall.defects,
+      defectsInappropriate:
+        payload.overall?.defectsInappropriate ?? base.overall.defectsInappropriate,
       vitality: payload.overall?.vitality ?? base.overall.vitality,
+      vitalityInappropriate:
+        payload.overall?.vitalityInappropriate ?? base.overall.vitalityInappropriate,
     },
     offFlavors: new Set(payload.offFlavors ?? []),
   };
@@ -454,36 +513,23 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                 <fieldset class="evaluation-section">
                   <legend>{{ section.label }} (0–{{ section.max }})</legend>
 
-                  <bp-input
-                    type="number"
-                    label="Puntuación"
-                    [id]="section.key + '-score'"
-                    [min]="0"
-                    [max]="section.max"
-                    [required]="true"
-                    [formControlName]="section.scoreControl"
-                    [hasError]="hasScoreError(section)"
-                    [errorMessage]="'Indica una puntuación entre 0 y ' + section.max + '.'"
-                  ></bp-input>
-
-                  <bp-textarea
-                    label="Comentario"
-                    [id]="section.key + '-comment'"
-                    [rows]="4"
-                    [required]="true"
-                    [formControlName]="section.commentControl"
-                    [hasError]="hasCommentError(section)"
-                    [errorMessage]="commentErrorMessage(section)"
-                    [hint]="commentHint(section)"
-                  ></bp-textarea>
-
                   <div class="descriptor-group">
-                    <h3 class="descriptor-group__title">Descriptores</h3>
-
                     @switch (section.key) {
                       @case ('appearance') {
                         <div class="descriptor-field">
-                          <label for="appearance-color">Color</label>
+                          <div class="descriptor-field__header">
+                            <label for="appearance-color">Color</label>
+                            <label class="descriptor-field__inappropriate">
+                              <input
+                                type="checkbox"
+                                [checked]="descriptors().appearance.colorInappropriate"
+                                (change)="
+                                  setAppearance('colorInappropriate', checkboxValue($event))
+                                "
+                              />
+                              Inapropiado
+                            </label>
+                          </div>
                           <select
                             id="appearance-color"
                             [value]="descriptors().appearance.color"
@@ -502,18 +548,22 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                               (valueChange)="setAppearance('colorOther', $event)"
                             ></bp-input>
                           }
-                          <label class="descriptor-checkbox">
-                            <input
-                              type="checkbox"
-                              [checked]="descriptors().appearance.colorInappropriate"
-                              (change)="setAppearance('colorInappropriate', checkboxValue($event))"
-                            />
-                            Inapropiado para el estilo
-                          </label>
                         </div>
 
                         <div class="descriptor-field">
-                          <label for="appearance-clarity">Claridad</label>
+                          <div class="descriptor-field__header">
+                            <label for="appearance-clarity">Claridad</label>
+                            <label class="descriptor-field__inappropriate">
+                              <input
+                                type="checkbox"
+                                [checked]="descriptors().appearance.clarityInappropriate"
+                                (change)="
+                                  setAppearance('clarityInappropriate', checkboxValue($event))
+                                "
+                              />
+                              Inapropiado
+                            </label>
+                          </div>
                           <select
                             id="appearance-clarity"
                             [value]="descriptors().appearance.clarity"
@@ -527,7 +577,17 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                         </div>
 
                         <div class="descriptor-field">
-                          <label for="appearance-foam">Espuma</label>
+                          <div class="descriptor-field__header">
+                            <label for="appearance-foam">Espuma</label>
+                            <label class="descriptor-field__inappropriate">
+                              <input
+                                type="checkbox"
+                                [checked]="descriptors().appearance.foamInappropriate"
+                                (change)="setAppearance('foamInappropriate', checkboxValue($event))"
+                              />
+                              Inapropiado
+                            </label>
+                          </div>
                           <select
                             id="appearance-foam"
                             [value]="descriptors().appearance.foam"
@@ -546,14 +606,6 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                               (valueChange)="setAppearance('foamOther', $event)"
                             ></bp-input>
                           }
-                          <label class="descriptor-checkbox">
-                            <input
-                              type="checkbox"
-                              [checked]="descriptors().appearance.foamInappropriate"
-                              (change)="setAppearance('foamInappropriate', checkboxValue($event))"
-                            />
-                            Inapropiada para el estilo
-                          </label>
                         </div>
 
                         <bp-bipolar-slider
@@ -562,7 +614,9 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                           startLabel="Baja"
                           endLabel="Alta"
                           [value]="descriptors().appearance.retention ?? 50"
+                          [inappropriate]="descriptors().appearance.retentionInappropriate"
                           (valueChange)="setAppearance('retention', $event)"
+                          (inappropriateChange)="setAppearance('retentionInappropriate', $event)"
                         ></bp-bipolar-slider>
 
                         <bp-input
@@ -585,37 +639,27 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                           id="aroma-malt"
                           label="Malta"
                           [value]="descriptors().aroma.malt ?? 0"
+                          [inappropriate]="descriptors().aroma.maltInappropriate"
                           (valueChange)="setAroma('malt', $event)"
+                          (inappropriateChange)="setAroma('maltInappropriate', $event)"
                         ></bp-discrete-slider>
-                        <label class="descriptor-checkbox">
-                          <input
-                            type="checkbox"
-                            [checked]="descriptors().aroma.maltInappropriate"
-                            (change)="setAroma('maltInappropriate', checkboxValue($event))"
-                          />
-                          Malta inapropiada para el estilo
-                        </label>
 
                         <bp-discrete-slider
                           id="aroma-hops"
                           label="Lúpulos"
                           [value]="descriptors().aroma.hops ?? 0"
+                          [inappropriate]="descriptors().aroma.hopsInappropriate"
                           (valueChange)="setAroma('hops', $event)"
+                          (inappropriateChange)="setAroma('hopsInappropriate', $event)"
                         ></bp-discrete-slider>
-                        <label class="descriptor-checkbox">
-                          <input
-                            type="checkbox"
-                            [checked]="descriptors().aroma.hopsInappropriate"
-                            (change)="setAroma('hopsInappropriate', checkboxValue($event))"
-                          />
-                          Lúpulos inapropiados para el estilo
-                        </label>
 
                         <bp-discrete-slider
                           id="aroma-fermentation"
                           label="Fermentación"
                           [value]="descriptors().aroma.fermentation ?? 0"
+                          [inappropriate]="descriptors().aroma.fermentationInappropriate"
                           (valueChange)="setAroma('fermentation', $event)"
+                          (inappropriateChange)="setAroma('fermentationInappropriate', $event)"
                         ></bp-discrete-slider>
                       }
                       @case ('flavor') {
@@ -623,25 +667,33 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                           id="flavor-malt"
                           label="Malta"
                           [value]="descriptors().flavor.malt ?? 0"
+                          [inappropriate]="descriptors().flavor.maltInappropriate"
                           (valueChange)="setFlavor('malt', $event)"
+                          (inappropriateChange)="setFlavor('maltInappropriate', $event)"
                         ></bp-discrete-slider>
                         <bp-discrete-slider
                           id="flavor-hops"
                           label="Lúpulos"
                           [value]="descriptors().flavor.hops ?? 0"
+                          [inappropriate]="descriptors().flavor.hopsInappropriate"
                           (valueChange)="setFlavor('hops', $event)"
+                          (inappropriateChange)="setFlavor('hopsInappropriate', $event)"
                         ></bp-discrete-slider>
                         <bp-discrete-slider
                           id="flavor-bitterness"
                           label="Amargor"
                           [value]="descriptors().flavor.bitterness ?? 0"
+                          [inappropriate]="descriptors().flavor.bitternessInappropriate"
                           (valueChange)="setFlavor('bitterness', $event)"
+                          (inappropriateChange)="setFlavor('bitternessInappropriate', $event)"
                         ></bp-discrete-slider>
                         <bp-discrete-slider
                           id="flavor-fermentation"
                           label="Fermentación"
                           [value]="descriptors().flavor.fermentation ?? 0"
+                          [inappropriate]="descriptors().flavor.fermentationInappropriate"
                           (valueChange)="setFlavor('fermentation', $event)"
+                          (inappropriateChange)="setFlavor('fermentationInappropriate', $event)"
                         ></bp-discrete-slider>
                         <bp-bipolar-slider
                           id="flavor-balance"
@@ -649,7 +701,9 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                           startLabel="Lupulado"
                           endLabel="Maltoso"
                           [value]="descriptors().flavor.balance ?? 50"
+                          [inappropriate]="descriptors().flavor.balanceInappropriate"
                           (valueChange)="setFlavor('balance', $event)"
+                          (inappropriateChange)="setFlavor('balanceInappropriate', $event)"
                         ></bp-bipolar-slider>
                         <bp-bipolar-slider
                           id="flavor-finish"
@@ -657,7 +711,9 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                           startLabel="Seco"
                           endLabel="Dulce"
                           [value]="descriptors().flavor.finish ?? 50"
+                          [inappropriate]="descriptors().flavor.finishInappropriate"
                           (valueChange)="setFlavor('finish', $event)"
+                          (inappropriateChange)="setFlavor('finishInappropriate', $event)"
                         ></bp-bipolar-slider>
                       }
                       @case ('mouthfeel') {
@@ -665,63 +721,45 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                           id="mouthfeel-body"
                           label="Cuerpo"
                           [value]="descriptors().mouthfeel.body ?? 0"
+                          [inappropriate]="descriptors().mouthfeel.bodyInappropriate"
                           (valueChange)="setMouthfeel('body', $event)"
+                          (inappropriateChange)="setMouthfeel('bodyInappropriate', $event)"
                         ></bp-discrete-slider>
-                        <label class="descriptor-checkbox">
-                          <input
-                            type="checkbox"
-                            [checked]="descriptors().mouthfeel.bodyInappropriate"
-                            (change)="setMouthfeel('bodyInappropriate', checkboxValue($event))"
-                          />
-                          Cuerpo inapropiado para el estilo
-                        </label>
 
                         <bp-discrete-slider
                           id="mouthfeel-carbonation"
                           label="Carbonatación"
                           [value]="descriptors().mouthfeel.carbonation ?? 0"
+                          [inappropriate]="descriptors().mouthfeel.carbonationInappropriate"
                           (valueChange)="setMouthfeel('carbonation', $event)"
+                          (inappropriateChange)="setMouthfeel('carbonationInappropriate', $event)"
                         ></bp-discrete-slider>
                         <bp-discrete-slider
                           id="mouthfeel-alcohol-warmth"
                           label="Calor alcohólico"
                           [value]="descriptors().mouthfeel.alcoholWarmth ?? 0"
+                          [inappropriate]="descriptors().mouthfeel.alcoholWarmthInappropriate"
                           (valueChange)="setMouthfeel('alcoholWarmth', $event)"
+                          (inappropriateChange)="setMouthfeel('alcoholWarmthInappropriate', $event)"
                         ></bp-discrete-slider>
 
                         <bp-discrete-slider
                           id="mouthfeel-creaminess"
                           label="Cremosidad"
                           [value]="descriptors().mouthfeel.creaminess ?? 0"
+                          [inappropriate]="descriptors().mouthfeel.creaminessInappropriate"
                           (valueChange)="setMouthfeel('creaminess', $event)"
+                          (inappropriateChange)="setMouthfeel('creaminessInappropriate', $event)"
                         ></bp-discrete-slider>
-                        <label class="descriptor-checkbox">
-                          <input
-                            type="checkbox"
-                            [checked]="descriptors().mouthfeel.creaminessInappropriate"
-                            (change)="
-                              setMouthfeel('creaminessInappropriate', checkboxValue($event))
-                            "
-                          />
-                          Cremosidad inapropiada para el estilo
-                        </label>
 
                         <bp-discrete-slider
                           id="mouthfeel-astringency"
                           label="Astringencia"
                           [value]="descriptors().mouthfeel.astringency ?? 0"
+                          [inappropriate]="descriptors().mouthfeel.astringencyInappropriate"
                           (valueChange)="setMouthfeel('astringency', $event)"
+                          (inappropriateChange)="setMouthfeel('astringencyInappropriate', $event)"
                         ></bp-discrete-slider>
-                        <label class="descriptor-checkbox">
-                          <input
-                            type="checkbox"
-                            [checked]="descriptors().mouthfeel.astringencyInappropriate"
-                            (change)="
-                              setMouthfeel('astringencyInappropriate', checkboxValue($event))
-                            "
-                          />
-                          Astringencia inapropiada para el estilo
-                        </label>
 
                         <bp-textarea
                           label="Otros"
@@ -738,7 +776,9 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                           startLabel="Ejemplo clásico"
                           endLabel="No acorde al estilo"
                           [value]="descriptors().overall.classicExample ?? 50"
+                          [inappropriate]="descriptors().overall.classicExampleInappropriate"
                           (valueChange)="setOverall('classicExample', $event)"
+                          (inappropriateChange)="setOverall('classicExampleInappropriate', $event)"
                         ></bp-bipolar-slider>
                         <bp-bipolar-slider
                           id="overall-defects"
@@ -746,7 +786,9 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                           startLabel="Sin defectos"
                           endLabel="Defectos significativos"
                           [value]="descriptors().overall.defects ?? 50"
+                          [inappropriate]="descriptors().overall.defectsInappropriate"
                           (valueChange)="setOverall('defects', $event)"
+                          (inappropriateChange)="setOverall('defectsInappropriate', $event)"
                         ></bp-bipolar-slider>
                         <bp-bipolar-slider
                           id="overall-vitality"
@@ -754,10 +796,37 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                           startLabel="Maravillosa"
                           endLabel="Sin vida"
                           [value]="descriptors().overall.vitality ?? 50"
+                          [inappropriate]="descriptors().overall.vitalityInappropriate"
                           (valueChange)="setOverall('vitality', $event)"
+                          (inappropriateChange)="setOverall('vitalityInappropriate', $event)"
                         ></bp-bipolar-slider>
                       }
                     }
+                  </div>
+
+                  <div class="score-group">
+                    <bp-input
+                      type="number"
+                      label="Puntuación"
+                      [id]="section.key + '-score'"
+                      [min]="0"
+                      [max]="section.max"
+                      [required]="true"
+                      [formControlName]="section.scoreControl"
+                      [hasError]="hasScoreError(section)"
+                      [errorMessage]="'Indica una puntuación entre 0 y ' + section.max + '.'"
+                    ></bp-input>
+
+                    <bp-textarea
+                      label="Comentario"
+                      [id]="section.key + '-comment'"
+                      [rows]="4"
+                      [required]="true"
+                      [formControlName]="section.commentControl"
+                      [hasError]="hasCommentError(section)"
+                      [errorMessage]="commentErrorMessage(section)"
+                      [hint]="commentHint(section)"
+                    ></bp-textarea>
                   </div>
                 </fieldset>
               } @else {
@@ -909,32 +978,39 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
     }
 
     .descriptor-group {
-      margin-top: var(--spacing-6);
-      padding-top: var(--spacing-4);
-      border-top: 1px solid var(--color-bp-border);
-    }
-
-    .descriptor-group__title {
-      font-size: 0.9375rem;
-      font-weight: 700;
-      color: var(--color-bp-text-muted);
-      margin: 0 0 var(--spacing-2);
-      text-transform: uppercase;
-      letter-spacing: 0.02em;
+      display: flex;
+      flex-direction: column;
     }
 
     .descriptor-field {
-      margin: var(--spacing-4) 0;
+      margin: var(--spacing-3) 0;
       display: flex;
       flex-direction: column;
       gap: var(--spacing-2);
     }
 
-    .descriptor-field label:first-child,
-    .descriptor-field > label {
+    .descriptor-field__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--spacing-3);
+    }
+
+    .descriptor-field__header label {
       font-size: 0.875rem;
       font-weight: 600;
       color: var(--color-bp-text);
+    }
+
+    .descriptor-field__inappropriate {
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-1);
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--color-bp-text-muted);
+      white-space: nowrap;
     }
 
     .descriptor-field select {
@@ -948,12 +1024,14 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
       border-radius: var(--radius-md);
     }
 
-    .descriptor-checkbox {
+    /* Score/comment now come after the descriptors (organizer follow-up, Session 2026-09-21) — a
+       visible divider marks where the "official" scored part of the section starts. */
+    .score-group {
+      margin-top: var(--spacing-6);
+      padding-top: var(--spacing-4);
+      border-top: 1px solid var(--color-bp-border);
       display: flex;
-      align-items: center;
-      gap: var(--spacing-2);
-      font-size: 0.875rem;
-      color: var(--color-bp-text-muted);
+      flex-direction: column;
     }
 
     .review-summary {

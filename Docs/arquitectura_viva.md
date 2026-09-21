@@ -802,7 +802,18 @@ judge already provisioned with a Keycloak account.
   yet localized — tracked as follow-up debt) plus the off-flavor list and `Feedback`, all below the
   existing score/comment lines. `AdjustEvaluationCommand` (the judge's own discrepancy-adjustment
   PUT) deliberately does **not** accept descriptors — out of scope for this pass, a candidate
-  follow-up if the organizer wants them on that flow too.
+  follow-up if the organizer wants them on that flow too. **Refinement (Session 2026-09-21,
+  same-day follow-up)**: every rated attribute across all five sections (not just a subset) now
+  carries its own `{Field}Inappropriate` boolean sibling — `AppearanceDescriptorsDto` gained
+  `ClarityInappropriate`/`RetentionInappropriate`, `AromaDescriptorsDto` gained
+  `FermentationInappropriate`, `FlavorDescriptorsDto` gained all six (`Malt`/`Hops`/`Bitterness`/
+  `Fermentation`/`Balance`/`FinishInappropriate` — Flavor previously had none), `MouthfeelDescriptorsDto`
+  gained `CarbonationInappropriate`/`AlcoholWarmthInappropriate`, and `OverallDescriptorsDto` gained
+  all three (`ClassicExample`/`Defects`/`VitalityInappropriate` — Overall previously had none).
+  Free-text fields (`Texture`, `Notes`) were deliberately left without one — "inappropriate" only
+  applies to a rated attribute. `ScoreSheetDocument.FormatDescriptorLines` was updated in lockstep
+  so the PDF's per-section `AddSection(...)` calls emit every new flag alongside its field, same
+  bare-field-name-when-true rendering as before.
 - **`Realtime/`** (T015): `CompetitionHub` (`/hubs/competition`, `[Authorize]`) — server → client
   only, per contracts/signalr-hub.md. `JoinCompetitionAsOrganizer` guards on `ORGANIZER` role +
   `Competition.CreatedByUserId` ownership; `JoinTable` guards on an active (`RemovedAt == null`)
@@ -1815,11 +1826,13 @@ judge already provisioned with a Keycloak account.
   `sync.service.ts`'s `saveDraft`/`submit`/`sendOne` thread them through identically to
   `scores`/`comments`. On the component itself, the five scores/comments stay a validated
   `FormGroup` exactly as before (submit still gates only on those); every descriptor field lives in
-  a separate, deliberately non-validated `descriptors` signal (`DescriptorsFormState` — a concrete
-  default per field: `0` for a discrete slider, `50` for a continuous one, `''`/`false` for
-  text/select/checkbox) — **known, accepted simplification**: there's no separate "touched" flag
-  per slider, so an untouched slider submits at its default position rather than as genuinely
-  absent (acceptable since every descriptor field is advisory, never scored; see ADR-0015).
+  a separate, deliberately non-validated `descriptors` signal (`DescriptorsFormState`). **Fixed
+  after senior-code-reviewer finding B1 (PR #45)**: numeric slider fields in this state stay `null`
+  until the judge actually drags the slider — the earlier "concrete default per field" approach
+  (`0`/`50` baked into the state itself) fabricated a real rating for an untouched slider that then
+  leaked into the PDF/audit view as if the judge had genuinely scored it. The display-only fallback
+  (`?? 0` for discrete, `?? 50` for bipolar) now lives solely in the template, never in state or in
+  `toDescriptorsPayload()`.
   Two new small presentational components, `descriptor-controls/bp-discrete-slider.component.ts`
   (4-stop Nada/Bajo/Medio/Alto, `<input type="range" min=0 max=3>`) and
   `bp-bipolar-slider.component.ts` (continuous 0–100 between two pole labels, e.g.
@@ -1836,6 +1849,21 @@ judge already provisioned with a Keycloak account.
   Spanish display labels, same convention as `EvaluationStatus`) — must stay in sync with backend's
   `EvaluationDescriptorCatalog` (`Features/Evaluations/EvaluationDescriptors.cs`) by hand, no
   shared source of truth across the two stacks for this one.
+  **Refinement (Session 2026-09-21, same-day follow-up to FR-063)**: the organizer flagged two
+  things after using the redesigned sheet — every descriptor needed its own "Inapropiado para el
+  estilo" flag (before, only a subset of fields had one), but repeating a standalone checkbox row
+  per field looked cluttered next to the reference paper sheet's denser layout; and the
+  Puntuación/Comentario box read oddly at the top of each section, ahead of the descriptors it's
+  meant to summarize. Both slider components (`bp-discrete-slider`/`bp-bipolar-slider`) gained an
+  `inappropriate` input + `inappropriateChange` output and now render their own compact inline
+  checkbox in a `.slider__header` row next to the field label, instead of a separate element the
+  template had to place — every rated attribute across all five sections carries one (mirroring the
+  backend DTOs' new per-field `*Inappropriate` booleans, above). The Color/Clarity/Foam `<select>`
+  fields got the same treatment via a `.descriptor-field__header` flex row. All of the sheet's old
+  standalone `descriptor-checkbox` label blocks were removed as redundant. The `<bp-input
+  Puntuación>`/`<bp-textarea Comentario>` pair moved from immediately after each section's
+  `<legend>` to a new `.score-group` block placed after the entire `.descriptor-group`, visually
+  separated by a top border — score/comment now read as the section's conclusion, not its header.
 - **`features/discrepancy/`** (T082, US11): `discrepancy-api.service.ts` wraps `GET
   /me/tables/{tableId}/discrepancies` and `PUT /me/tables/{tableId}/evaluations/{evaluationId}` —
   deliberately not routed through `SyncService`'s Dexie outbox, since the spec frames this repair

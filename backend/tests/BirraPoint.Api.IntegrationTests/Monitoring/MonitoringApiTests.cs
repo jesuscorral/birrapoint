@@ -318,8 +318,15 @@ public sealed class MonitoringApiTests(ApiFactory factory) : IClassFixture<ApiFa
         await SeedTableSampleAsync(tableId, entryId);
 
         var descriptors = new EvaluationDescriptorsDto(
-            new AppearanceDescriptorsDto("Golden", null, false, "Clear", "White", null, false, 60, "Silky", null),
-            new AromaDescriptorsDto(2, false, 3, false, 1),
+            new AppearanceDescriptorsDto(
+                Color: "Golden", ColorOther: null, ColorInappropriate: false,
+                Clarity: "Clear", ClarityInappropriate: false,
+                Foam: "White", FoamOther: null, FoamInappropriate: false,
+                Retention: 60, RetentionInappropriate: false,
+                Texture: "Silky", Notes: null),
+            new AromaDescriptorsDto(
+                Malt: 2, MaltInappropriate: false, Hops: 3, HopsInappropriate: false,
+                Fermentation: 1, FermentationInappropriate: false),
             null, null, null,
             ["Diacetyl", "Oxidized"]);
         await SeedEvaluationAsync(

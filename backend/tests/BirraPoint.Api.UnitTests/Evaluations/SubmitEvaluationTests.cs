@@ -279,7 +279,7 @@ public sealed class SubmitEvaluationTests
     public void Discrete_intensity_slider_accepted_at_its_bounds(int value)
     {
         var descriptors = new EvaluationDescriptorsDto(
-            null, new AromaDescriptorsDto(value, false, null, false, null), null, null, null, null);
+            null, new AromaDescriptorsDto(value, false, null, false, null, false), null, null, null, null);
         Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
     }
 
@@ -289,7 +289,7 @@ public sealed class SubmitEvaluationTests
     public void Discrete_intensity_slider_rejected_outside_0_to_3(int value)
     {
         var descriptors = new EvaluationDescriptorsDto(
-            null, new AromaDescriptorsDto(value, false, null, false, null), null, null, null, null);
+            null, new AromaDescriptorsDto(value, false, null, false, null, false), null, null, null, null);
         var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.PropertyName == "Descriptors.Aroma.Malt");
@@ -301,7 +301,7 @@ public sealed class SubmitEvaluationTests
     public void Bipolar_slider_accepted_at_its_bounds(int value)
     {
         var descriptors = new EvaluationDescriptorsDto(
-            null, null, null, null, new OverallDescriptorsDto(value, null, null), null);
+            null, null, null, null, new OverallDescriptorsDto(value, false, null, false, null, false), null);
         Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
     }
 
@@ -311,7 +311,7 @@ public sealed class SubmitEvaluationTests
     public void Bipolar_slider_rejected_outside_0_to_100(int value)
     {
         var descriptors = new EvaluationDescriptorsDto(
-            null, null, null, null, new OverallDescriptorsDto(value, null, null), null);
+            null, null, null, null, new OverallDescriptorsDto(value, false, null, false, null, false), null);
         var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.PropertyName == "Descriptors.Overall.ClassicExample");
@@ -321,7 +321,7 @@ public sealed class SubmitEvaluationTests
     public void Color_outside_the_closed_list_is_rejected()
     {
         var descriptors = new EvaluationDescriptorsDto(
-            new AppearanceDescriptorsDto("Purple", null, false, null, null, null, false, null, null, null),
+            new AppearanceDescriptorsDto("Purple", null, false, null, false, null, null, false, null, false, null, null),
             null, null, null, null, null);
         var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
         Assert.False(result.IsValid);
@@ -334,7 +334,7 @@ public sealed class SubmitEvaluationTests
     public void Color_in_the_closed_list_is_accepted(string color)
     {
         var descriptors = new EvaluationDescriptorsDto(
-            new AppearanceDescriptorsDto(color, null, false, null, null, null, false, null, null, null),
+            new AppearanceDescriptorsDto(color, null, false, null, false, null, null, false, null, false, null, null),
             null, null, null, null, null);
         Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
     }
@@ -373,7 +373,7 @@ public sealed class SubmitEvaluationTests
         // FoamOther, Notes on both Appearance and Mouthfeel are the others, same 500 cap).
         var tooLong = new string('x', 501);
         var descriptors = new EvaluationDescriptorsDto(
-            new AppearanceDescriptorsDto(null, null, false, null, null, null, false, null, tooLong, null),
+            new AppearanceDescriptorsDto(null, null, false, null, false, null, null, false, null, false, tooLong, null),
             null, null, null, null, null);
         var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
         Assert.False(result.IsValid);
@@ -385,7 +385,7 @@ public sealed class SubmitEvaluationTests
     {
         var atLimit = new string('x', 500);
         var descriptors = new EvaluationDescriptorsDto(
-            new AppearanceDescriptorsDto(null, null, false, null, null, null, false, null, atLimit, null),
+            new AppearanceDescriptorsDto(null, null, false, null, false, null, null, false, null, false, atLimit, null),
             null, null, null, null, null);
         Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
     }

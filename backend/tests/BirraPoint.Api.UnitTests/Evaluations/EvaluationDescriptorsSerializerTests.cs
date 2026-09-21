@@ -37,11 +37,11 @@ public sealed class EvaluationDescriptorsSerializerTests
     public void Serialize_then_deserialize_round_trips_camelCase_correctly()
     {
         var original = new EvaluationDescriptorsDto(
-            new AppearanceDescriptorsDto("Golden", null, false, "Clear", "White", null, false, 60, "Silky", null),
-            new AromaDescriptorsDto(2, false, 3, true, 1),
+            new AppearanceDescriptorsDto("Golden", null, false, "Clear", false, "White", null, false, 60, false, "Silky", null),
+            new AromaDescriptorsDto(2, false, 3, true, 1, false),
             null,
             null,
-            new OverallDescriptorsDto(40, 10, 90),
+            new OverallDescriptorsDto(40, false, 10, false, 90, false),
             ["Diacetyl", "Oxidized"]);
 
         var json = EvaluationDescriptorsSerializer.Serialize(original);

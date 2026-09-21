@@ -809,5 +809,80 @@ describe('EvaluationSheetComponent', () => {
 
       expect(fixture.componentInstance.descriptors().offFlavors.has('Diacetyl')).toBe(true);
     });
+
+    // Organizer follow-up (Session 2026-09-21): every descriptor now has its own "Inapropiado"
+    // flag — not just the handful that had one in the first pass (e.g. Sabor's attributes and
+    // Impresión general's had none at all before).
+    it('every slider on every section carries its own Inapropiado checkbox', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      const expectedSliderIdsBySection: Record<string, string[]> = {
+        Apariencia: ['appearance-retention'],
+        Aroma: ['aroma-malt', 'aroma-hops', 'aroma-fermentation'],
+        Sabor: [
+          'flavor-malt',
+          'flavor-hops',
+          'flavor-bitterness',
+          'flavor-fermentation',
+          'flavor-balance',
+          'flavor-finish',
+        ],
+        'Sensación en boca': [
+          'mouthfeel-body',
+          'mouthfeel-carbonation',
+          'mouthfeel-alcohol-warmth',
+          'mouthfeel-creaminess',
+          'mouthfeel-astringency',
+        ],
+        'Impresión general': ['overall-classic-example', 'overall-defects', 'overall-vitality'],
+      };
+
+      for (const [sectionLabel, sliderIds] of Object.entries(expectedSliderIdsBySection)) {
+        sectionNavButton(fixture.nativeElement, sectionLabel).click();
+        fixture.detectChanges();
+
+        for (const sliderId of sliderIds) {
+          const slider = fixture.nativeElement
+            .querySelector(`#${sliderId}`)
+            ?.closest('bp-discrete-slider, bp-bipolar-slider');
+          expect(slider?.querySelector('input[type="checkbox"]')).not.toBeNull();
+        }
+      }
+    });
+
+    it('the Color/Claridad/Espuma selects on Apariencia each carry their own Inapropiado checkbox', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      const fields = fixture.nativeElement.querySelectorAll('.descriptor-field');
+      expect(fields.length).toBe(3); // Color, Claridad, Espuma
+      for (const field of Array.from(fields)) {
+        expect((field as HTMLElement).querySelector('input[type="checkbox"]')).not.toBeNull();
+        expect((field as HTMLElement).textContent).toContain('Inapropiado');
+      }
+    });
+
+    it('renders Puntuación and Comentario after the descriptors, not before', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      sectionNavButton(fixture.nativeElement, 'Aroma').click();
+      fixture.detectChanges();
+
+      const fieldset = fixture.nativeElement.querySelector('fieldset.evaluation-section');
+      const descriptorGroup = fieldset.querySelector('.descriptor-group');
+      const scoreGroup = fieldset.querySelector('.score-group');
+      expect(descriptorGroup).not.toBeNull();
+      expect(scoreGroup).not.toBeNull();
+
+      const position = descriptorGroup.compareDocumentPosition(scoreGroup);
+      expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(scoreGroup.querySelector('#aroma-score')).not.toBeNull();
+      expect(scoreGroup.querySelector('#aroma-comment')).not.toBeNull();
+    });
   });
 });

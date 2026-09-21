@@ -41,11 +41,13 @@ export interface AppearanceDescriptors {
   colorOther?: string | null;
   colorInappropriate?: boolean;
   clarity?: string | null;
+  clarityInappropriate?: boolean;
   foam?: string | null;
   foamOther?: string | null;
   foamInappropriate?: boolean;
   /** Continuous 0–100 bipolar slider (Baja↔Alta). */
   retention?: number | null;
+  retentionInappropriate?: boolean;
   texture?: string | null;
   notes?: string | null;
 }
@@ -57,24 +59,33 @@ export interface AromaDescriptors {
   hops?: number | null;
   hopsInappropriate?: boolean;
   fermentation?: number | null;
+  fermentationInappropriate?: boolean;
 }
 
 export interface FlavorDescriptors {
   malt?: number | null;
+  maltInappropriate?: boolean;
   hops?: number | null;
+  hopsInappropriate?: boolean;
   bitterness?: number | null;
+  bitternessInappropriate?: boolean;
   fermentation?: number | null;
+  fermentationInappropriate?: boolean;
   /** Continuous 0–100 bipolar slider, Lupulado↔Maltoso. */
   balance?: number | null;
+  balanceInappropriate?: boolean;
   /** Continuous 0–100 bipolar slider, Seco↔Dulce. */
   finish?: number | null;
+  finishInappropriate?: boolean;
 }
 
 export interface MouthfeelDescriptors {
   body?: number | null;
   bodyInappropriate?: boolean;
   carbonation?: number | null;
+  carbonationInappropriate?: boolean;
   alcoholWarmth?: number | null;
+  alcoholWarmthInappropriate?: boolean;
   creaminess?: number | null;
   creaminessInappropriate?: boolean;
   astringency?: number | null;
@@ -85,8 +96,11 @@ export interface MouthfeelDescriptors {
 /** Three continuous 0–100 bipolar sliders. */
 export interface OverallDescriptors {
   classicExample?: number | null;
+  classicExampleInappropriate?: boolean;
   defects?: number | null;
+  defectsInappropriate?: boolean;
   vitality?: number | null;
+  vitalityInappropriate?: boolean;
 }
 
 /**

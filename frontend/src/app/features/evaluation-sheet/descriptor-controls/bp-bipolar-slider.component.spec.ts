@@ -75,4 +75,31 @@ describe('BpBipolarSliderComponent', () => {
 
     expect(emitted).toEqual([30]);
   });
+
+  // Organizer follow-up (Session 2026-09-21): every descriptor needs its own "Inapropiado" flag,
+  // built into the slider itself rather than a separate repeated row per attribute.
+  it('shows an Inapropiado checkbox reflecting the inappropriate input', () => {
+    fixture.componentRef.setInput('inappropriate', true);
+    fixture.detectChanges();
+
+    const checkbox = fixture.nativeElement.querySelector(
+      'input[type="checkbox"]',
+    ) as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Inapropiado');
+  });
+
+  it('emits inappropriateChange as a boolean on toggle', () => {
+    fixture.detectChanges();
+    const emitted: boolean[] = [];
+    fixture.componentInstance.inappropriateChange.subscribe((value) => emitted.push(value));
+
+    const checkbox = fixture.nativeElement.querySelector(
+      'input[type="checkbox"]',
+    ) as HTMLInputElement;
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new Event('change'));
+
+    expect(emitted).toEqual([true]);
+  });
 });
