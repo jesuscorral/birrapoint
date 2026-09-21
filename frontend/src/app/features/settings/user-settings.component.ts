@@ -4,7 +4,7 @@ import Keycloak from 'keycloak-js';
 import type { KeycloakProfile } from 'keycloak-js';
 
 import { ActiveRoleService } from '../../core/auth/active-role.service';
-import { BpTopbarComponent } from '../../shared/components/bp-topbar/bp-topbar.component';
+import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-shell.component';
 
 // The two realm roles BirraPoint assigns meaning to — the same pair core/auth's route guards
 // branch on (role.guard.ts, role-landing.ts). Keycloak also grants every user its own plumbing
@@ -22,27 +22,25 @@ const APP_REALM_ROLES = ['ORGANIZER', 'JUDGE'] as const;
 // tokenParsed.realm_access.roles for the realm role(s). There are no custom Keycloak user
 // attributes configured in this realm (infra/keycloak/birrapoint-realm.json), so this is the
 // complete, honest set of "everything we have" about the user — not a generic attributes dump.
+//
+// Session 2026-09-20: now reachable from both /organizer/** and /judge/** (top-level /settings,
+// settingsGuard) — the "back" link/label adapts to the caller's effective workspace instead of
+// always pointing at the organizer dashboard.
 @Component({
   selector: 'app-user-settings',
-  imports: [BpTopbarComponent, RouterLink],
+  imports: [BpPageShellComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="settings-shell">
-      <bp-topbar>
-        <button type="button" class="topbar-action topbar-action--button" (click)="onLogout()">
-          Log out
-        </button>
-      </bp-topbar>
-
-      <main class="settings-main">
+    <bp-page-shell [homeLink]="backLink().href">
+      <div class="settings-shell">
         <!-- An anchor, not a button: this is navigation, so it gets open-in-new-tab, the link role
              and Enter-to-follow for free. The wizard's own "back to list" is a button only because
              it has to run the FR-007 unsaved-changes guard first; this screen is read-only. -->
-        <a routerLink="/organizer/dashboard" class="back-to-list-link">
-          <span aria-hidden="true">←</span> Back to competitions
+        <a [routerLink]="backLink().href" class="back-to-list-link">
+          <span aria-hidden="true">←</span> {{ backLink().label }}
         </a>
 
-        <h1>Your account</h1>
+        <h1>Tu cuenta</h1>
 
         @if (loadError(); as message) {
           <p role="alert">{{ message }}</p>
@@ -51,49 +49,43 @@ const APP_REALM_ROLES = ['ORGANIZER', 'JUDGE'] as const;
         @if (profile(); as user) {
           <dl class="profile-details">
             <div>
-              <dt>First name</dt>
+              <dt>Nombre</dt>
               <dd>{{ user.firstName || '—' }}</dd>
             </div>
             <div>
-              <dt>Last name</dt>
+              <dt>Apellidos</dt>
               <dd>{{ user.lastName || '—' }}</dd>
             </div>
             <div>
-              <dt>Email</dt>
+              <dt>Correo electrónico</dt>
               <dd>
                 {{ user.email || '—' }}
                 @if (user.emailVerified) {
-                  <span class="verified-badge">Verified</span>
+                  <span class="verified-badge">Verificado</span>
                 }
               </dd>
             </div>
             <div>
-              <dt>Username</dt>
+              <dt>Usuario</dt>
               <dd>{{ user.username || '—' }}</dd>
             </div>
             <div>
-              <dt>Role(s)</dt>
+              <dt>Rol(es)</dt>
               <dd>{{ rolesLabel() }}</dd>
             </div>
             @if (memberSinceLabel(); as since) {
               <div>
-                <dt>Member since</dt>
+                <dt>Miembro desde</dt>
                 <dd>{{ since }}</dd>
               </div>
             }
           </dl>
         }
-      </main>
-    </div>
+      </div>
+    </bp-page-shell>
   `,
   styles: `
-    :host {
-      display: block;
-      min-height: 100vh;
-      background: var(--color-bp-hueso-50);
-    }
-
-    .settings-main {
+    .settings-shell {
       padding: var(--spacing-8) var(--spacing-6);
       max-width: 40rem;
       margin: 0 auto;
@@ -128,36 +120,6 @@ const APP_REALM_ROLES = ['ORGANIZER', 'JUDGE'] as const;
       letter-spacing: -0.02em;
       color: var(--color-bp-text);
       margin: 0 0 var(--spacing-6);
-    }
-
-    .topbar-action {
-      display: inline-flex;
-      align-items: center;
-      min-height: 40px;
-      padding: 0 var(--spacing-4);
-      border-radius: var(--radius-md);
-      font-weight: 600;
-      font-size: 0.875rem;
-      text-decoration: none;
-      cursor: pointer;
-      background: transparent;
-      font-family: inherit;
-    }
-
-    .topbar-action--button {
-      color: var(--color-bp-text-muted);
-      border: 1.5px solid var(--color-bp-border-strong);
-    }
-
-    .topbar-action--button:hover {
-      background: var(--color-bp-hueso-100);
-    }
-
-    .topbar-action:focus-visible {
-      outline: none;
-      box-shadow:
-        0 0 0 3px var(--color-bp-surface),
-        0 0 0 5px var(--color-bp-cobre-500);
     }
 
     .profile-details {
@@ -216,7 +178,9 @@ export class UserSettingsComponent {
       .loadUserProfile()
       .then((profile) => this.profile.set(profile))
       .catch(() =>
-        this.loadError.set('We could not load your account details. Try again shortly.'),
+        this.loadError.set(
+          'No hemos podido cargar los datos de tu cuenta. Vuelve a intentarlo en unos instantes.',
+        ),
       );
   }
 
@@ -231,10 +195,25 @@ export class UserSettingsComponent {
     return timestamp ? new Date(timestamp).toLocaleDateString() : null;
   }
 
-  protected onLogout(): void {
-    // Don't leak this tab's chosen workspace into whoever logs in next on it — see
-    // OrganizerDashboardComponent.onLogout for the same reasoning.
-    this.activeRole.clearActiveRole();
-    this.keycloak.logout({ redirectUri: window.location.origin + '/' });
+  // A single-role account always goes back to its one workspace. A dual-role account goes back
+  // to whichever it's currently using (ActiveRoleService). A dual-role account that hasn't chosen
+  // yet this session (e.g. it deep-linked straight to /settings) goes back to the role picker
+  // instead of guessing — landing on /organizer/dashboard would just bounce it to /select-role
+  // via organizerGuard anyway.
+  protected backLink(): { href: string; label: string } {
+    const roles = this.keycloak.tokenParsed?.realm_access?.roles ?? [];
+    const hasOrganizer = roles.includes('ORGANIZER');
+    const hasJudge = roles.includes('JUDGE');
+    const active = this.activeRole.getActiveRole();
+
+    if (hasOrganizer && hasJudge && active === null) {
+      return { href: '/select-role', label: 'Elegir rol' };
+    }
+
+    const effectiveJudge = hasJudge && (!hasOrganizer || active === 'JUDGE');
+
+    return effectiveJudge
+      ? { href: '/judge/tables', label: 'Volver a mis mesas' }
+      : { href: '/organizer/dashboard', label: 'Volver a competiciones' };
   }
 }

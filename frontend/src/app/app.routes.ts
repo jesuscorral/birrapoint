@@ -1,7 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { homeRedirectGuard } from './core/auth/home-redirect.guard';
-import { judgeGuard, organizerGuard, roleSelectGuard } from './core/auth/role.guard';
+import { judgeGuard, organizerGuard, roleSelectGuard, settingsGuard } from './core/auth/role.guard';
 import { CompetitionMonitorComponent } from './features/dashboard/competition-monitor.component';
 import { CompetitionWizardComponent } from './features/competition-wizard/competition-wizard.component';
 import { DiscrepancyAlertComponent } from './features/discrepancy/discrepancy-alert.component';
@@ -37,6 +37,16 @@ export const routes: Routes = [
     component: RoleSelectComponent,
     data: { label: 'Elegir rol' },
   },
+  // Role-agnostic identity screen (Keycloak profile + realm roles) — reachable from both
+  // /organizer/** and /judge/** shells via BpPageShellComponent's fixed "Ajustes" action, so it
+  // lives at the top level rather than duplicated under each role prefix. settingsGuard allows
+  // either role.
+  {
+    path: 'settings',
+    canActivate: [settingsGuard],
+    component: UserSettingsComponent,
+    data: { label: 'Ajustes' },
+  },
   // Root: public login/register landing (WelcomeComponent) for unauthenticated callers.
   // homeRedirectGuard redirects an authenticated caller to their role-specific workspace when
   // recognized (ORGANIZER -> /organizer/dashboard, JUDGE -> /judge/tables); an authenticated
@@ -53,7 +63,6 @@ export const routes: Routes = [
     canActivate: [organizerGuard],
     children: [
       { path: 'dashboard', component: OrganizerDashboardComponent },
-      { path: 'settings', component: UserSettingsComponent },
       { path: 'competitions/new', component: CompetitionWizardComponent },
       { path: 'competitions/:id', component: CompetitionWizardComponent },
       { path: 'competitions/:id/judges', component: JudgeManagementComponent },

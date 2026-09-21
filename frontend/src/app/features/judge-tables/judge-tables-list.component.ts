@@ -1,9 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
-import Keycloak from 'keycloak-js';
+import { RouterLink } from '@angular/router';
 
 import { ApiError } from '../../core/api/api-error';
-import { ActiveRoleService } from '../../core/auth/active-role.service';
+import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-shell.component';
 import { TastingOrderApiService } from './tasting-order-api.service';
 import type { JudgeTableSummary } from './tasting-order-api.service';
 
@@ -23,7 +22,7 @@ function readEjectionNotice(): { tableName: string | null } | null {
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError
     ? error
-    : new ApiError({ status: 0, title: 'An unexpected error occurred.', urn: null });
+    : new ApiError({ status: 0, title: 'Ha ocurrido un error inesperado.', urn: null });
 }
 
 function errorMessage(error: ApiError): string {
@@ -33,75 +32,53 @@ function errorMessage(error: ApiError): string {
 // T053/US6: post-login JUDGE landing — every table the caller is actively assigned to, across
 // every competition that has left Draft (contracts/rest-api.md GET /me/tables). Selecting a
 // table navigates into its blind sample/order view.
+//
+// Session 2026-09-20: wrapped in bp-page-shell (Ajustes/Cerrar sesión/Cambiar rol now fixed here
+// too, not just on the organizer dashboard) — the standalone "Cambiar rol" button this screen
+// used to carry its own copy of moved into BpPageShellComponent itself.
 @Component({
   selector: 'app-judge-tables-list',
-  imports: [RouterLink],
+  imports: [RouterLink, BpPageShellComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="page-header">
-      <h1>My tables</h1>
-      @if (hasDualRole()) {
-        <button type="button" class="switch-role-action" (click)="onSwitchRole()">
-          Cambiar rol
-        </button>
+    <bp-page-shell homeLink="/judge/tables">
+      <h1>Mis mesas</h1>
+
+      @if (ejectionNotice(); as notice) {
+        <p role="status" class="ejection-banner">
+          El organizador te ha eliminado de {{ notice.tableName ?? 'una mesa' }}.
+          <button type="button" (click)="dismissEjectionNotice()">Descartar</button>
+        </p>
       }
-    </div>
 
-    @if (ejectionNotice(); as notice) {
-      <p role="status" class="ejection-banner">
-        You were removed from {{ notice.tableName ?? 'a table' }} by the organizer.
-        <button type="button" (click)="dismissEjectionNotice()">Dismiss</button>
-      </p>
-    }
-
-    @if (loadError(); as message) {
-      <p role="alert">{{ message }}</p>
-    }
-
-    @if (!loadError() && tables().length === 0) {
-      <p>No tables assigned yet.</p>
-    }
-
-    <ul class="table-list">
-      @for (table of tables(); track table.tableId) {
-        <li>
-          <a [routerLink]="['/judge', 'tables', table.tableId]" class="table-list-item">
-            <span class="table-name">{{ table.name }}</span>
-            <span class="table-state">{{ table.competitionState }} · {{ table.tableState }}</span>
-            @if (table.orderFixed) {
-              <span class="badge badge--fixed">
-                Order fixed{{ table.orderFixedBy ? ' by ' + table.orderFixedBy : '' }}
-              </span>
-            } @else {
-              <span class="badge badge--pending">Order not fixed</span>
-            }
-          </a>
-        </li>
+      @if (loadError(); as message) {
+        <p role="alert">{{ message }}</p>
       }
-    </ul>
+
+      @if (!loadError() && tables().length === 0) {
+        <p>Todavía no tienes mesas asignadas.</p>
+      }
+
+      <ul class="table-list">
+        @for (table of tables(); track table.tableId) {
+          <li>
+            <a [routerLink]="['/judge', 'tables', table.tableId]" class="table-list-item">
+              <span class="table-name">{{ table.name }}</span>
+              <span class="table-state">{{ table.competitionState }} · {{ table.tableState }}</span>
+              @if (table.orderFixed) {
+                <span class="badge badge--fixed">
+                  Orden fijado{{ table.orderFixedBy ? ' por ' + table.orderFixedBy : '' }}
+                </span>
+              } @else {
+                <span class="badge badge--pending">Orden sin fijar</span>
+              }
+            </a>
+          </li>
+        }
+      </ul>
+    </bp-page-shell>
   `,
   styles: `
-    .page-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      flex-wrap: wrap;
-    }
-
-    .switch-role-action {
-      display: inline-flex;
-      align-items: center;
-      min-height: 36px;
-      padding: 0 var(--spacing-4);
-      border-radius: var(--radius-md);
-      border: 1px solid #d1d5db;
-      background: transparent;
-      font-weight: 600;
-      font-size: 0.875rem;
-      cursor: pointer;
-    }
-
     .ejection-banner {
       background: #fef3c7;
       color: #92400e;
@@ -162,9 +139,6 @@ function errorMessage(error: ApiError): string {
 })
 export class JudgeTablesListComponent {
   private readonly api = inject(TastingOrderApiService);
-  private readonly keycloak = inject(Keycloak);
-  private readonly activeRole = inject(ActiveRoleService);
-  private readonly router = inject(Router);
 
   protected readonly tables = signal<JudgeTableSummary[]>([]);
   protected readonly loadError = signal<string | null>(null);
@@ -180,21 +154,6 @@ export class JudgeTablesListComponent {
 
   protected dismissEjectionNotice(): void {
     this.ejectionNotice.set(null);
-  }
-
-  // "Cambiar rol" only makes sense for an account that actually holds both realm roles — same
-  // reasoning and tokenParsed read as OrganizerDashboardComponent.hasDualRole().
-  protected hasDualRole(): boolean {
-    const roles = this.keycloak.tokenParsed?.realm_access?.roles ?? [];
-    return roles.includes('ORGANIZER') && roles.includes('JUDGE');
-  }
-
-  // Clears the session's chosen workspace and sends the caller back to the picker — does not log
-  // them out, and doesn't touch backend authorization (Principle VII), only ActiveRoleService's
-  // frontend-only partition (role-landing.ts).
-  protected onSwitchRole(): void {
-    this.activeRole.clearActiveRole();
-    void this.router.navigateByUrl('/select-role');
   }
 
   private loadTables(): void {

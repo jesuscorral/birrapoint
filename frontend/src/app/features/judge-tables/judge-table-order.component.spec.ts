@@ -1,5 +1,6 @@
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
+import Keycloak from 'keycloak-js';
 import { of, Subject, throwError } from 'rxjs';
 import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 
@@ -17,7 +18,7 @@ import { DiscrepancyApiService } from '../discrepancy/discrepancy-api.service';
 import type { DiscrepancyView } from '../discrepancy/discrepancy-api.service';
 import { JudgeTableOrderComponent } from './judge-table-order.component';
 import { TastingOrderApiService } from './tasting-order-api.service';
-import type { JudgeSample, JudgeTableSummary } from './tasting-order-api.service';
+import type { JudgeSample, JudgeTableMember, JudgeTableSummary } from './tasting-order-api.service';
 
 function tableFixture(overrides: Partial<JudgeTableSummary> = {}): JudgeTableSummary {
   return {
@@ -37,10 +38,15 @@ function sampleFixture(overrides: Partial<JudgeSample> = {}): JudgeSample {
     blindCode: 'AB12',
     styleCode: '4A',
     styleName: 'Munich Helles',
+    abvPercent: 5.2,
     sequenceOrder: null,
     evaluationStatus: 'NotStarted',
     ...overrides,
   };
+}
+
+function judgeMemberFixture(overrides: Partial<JudgeTableMember> = {}): JudgeTableMember {
+  return { displayName: 'Ada Lovelace', bjcpRank: null, ...overrides };
 }
 
 function samplesFixture(): JudgeSample[] {
@@ -105,6 +111,7 @@ describe('JudgeTableOrderComponent', () => {
   let fakeApi: {
     getMyTables: jest.Mock;
     getTableSamples: jest.Mock;
+    getTableJudges: jest.Mock;
     fixOrder: jest.Mock;
     closeTable: jest.Mock;
   };
@@ -132,6 +139,7 @@ describe('JudgeTableOrderComponent', () => {
     fakeApi = {
       getMyTables: jest.fn().mockReturnValue(of([tableFixture()])),
       getTableSamples: jest.fn().mockReturnValue(of(samplesFixture())),
+      getTableJudges: jest.fn().mockReturnValue(of([])),
       fixOrder: jest.fn(),
       closeTable: jest.fn(),
     };
@@ -164,6 +172,10 @@ describe('JudgeTableOrderComponent', () => {
         { provide: DiscrepancyApiService, useValue: fakeDiscrepancyApi },
         { provide: SyncService, useValue: fakeSync },
         { provide: CompetitionHubService, useValue: fakeHub },
+        {
+          provide: Keycloak,
+          useValue: { tokenParsed: { realm_access: { roles: ['JUDGE'] } }, logout: jest.fn() },
+        },
         provideRouter([]),
         {
           provide: ActivatedRoute,
@@ -197,6 +209,58 @@ describe('JudgeTableOrderComponent', () => {
     expect(text).toContain('AB12');
     expect(text).toContain('CD34');
     expect(text).toContain('EF56');
+  });
+
+  it('renders the ABV of each sample (Session 2026-09-20)', async () => {
+    fakeApi.getTableSamples.mockReturnValue(
+      of([sampleFixture({ beerEntryId: 'e1', blindCode: 'AB12', abvPercent: 6.8 })]),
+    );
+    const fixture = createComponent();
+    await flush();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('6.8% ABV');
+  });
+
+  describe('other judges at this table (Session 2026-09-20, informational only)', () => {
+    it('fetches and renders every other judge assigned to the table', async () => {
+      fakeApi.getTableJudges.mockReturnValue(
+        of([judgeMemberFixture({ displayName: 'Grace Hopper', bjcpRank: 'Certificado' })]),
+      );
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      expect(fakeApi.getTableJudges).toHaveBeenCalledWith('t1');
+      const section = fixture.nativeElement.querySelector(
+        '[aria-label="Otros jueces de esta mesa"]',
+      ) as HTMLElement;
+      expect(section).not.toBeNull();
+      expect(section.textContent).toContain('Grace Hopper');
+      expect(section.textContent).toContain('Certificado');
+    });
+
+    it('renders no section when there are no other judges at the table', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      expect(
+        fixture.nativeElement.querySelector('[aria-label="Otros jueces de esta mesa"]'),
+      ).toBeNull();
+    });
+
+    it('never renders an interactive control inside the other-judges section', async () => {
+      fakeApi.getTableJudges.mockReturnValue(of([judgeMemberFixture()]));
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      const section = fixture.nativeElement.querySelector(
+        '[aria-label="Otros jueces de esta mesa"]',
+      ) as HTMLElement;
+      expect(section.querySelector('button, a, input')).toBeNull();
+    });
   });
 
   it('joins the table SignalR group on init and leaves it on destroy', async () => {
@@ -233,7 +297,7 @@ describe('JudgeTableOrderComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    buttonWithLabel(fixture.nativeElement, 'Move AB12 down').click();
+    buttonWithLabel(fixture.nativeElement, 'Bajar AB12').click();
     fixture.detectChanges();
 
     expect(fixture.componentInstance.samples().map((s) => s.beerEntryId)).toEqual([
@@ -248,7 +312,7 @@ describe('JudgeTableOrderComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    buttonWithLabel(fixture.nativeElement, 'Move CD34 up').click();
+    buttonWithLabel(fixture.nativeElement, 'Subir CD34').click();
     fixture.detectChanges();
 
     expect(fixture.componentInstance.samples().map((s) => s.beerEntryId)).toEqual([
@@ -263,8 +327,8 @@ describe('JudgeTableOrderComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    expect(buttonWithLabel(fixture.nativeElement, 'Move AB12 up').disabled).toBe(true);
-    expect(buttonWithLabel(fixture.nativeElement, 'Move EF56 down').disabled).toBe(true);
+    expect(buttonWithLabel(fixture.nativeElement, 'Subir AB12').disabled).toBe(true);
+    expect(buttonWithLabel(fixture.nativeElement, 'Bajar EF56').disabled).toBe(true);
   });
 
   it('fixes the order only after the confirm step, then locks the UI', async () => {
@@ -278,13 +342,13 @@ describe('JudgeTableOrderComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    buttonWithText(fixture.nativeElement, 'Fix order').click();
+    buttonWithText(fixture.nativeElement, 'Fijar orden').click();
     fixture.detectChanges();
 
     expect(fakeApi.fixOrder).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.textContent).toContain('cannot be undone');
+    expect(fixture.nativeElement.textContent).toContain('no se puede deshacer');
 
-    buttonWithText(fixture.nativeElement, 'Confirm fix order').click();
+    buttonWithText(fixture.nativeElement, 'Confirmar fijar orden').click();
     fixture.detectChanges();
     await flush();
     fixture.detectChanges();
@@ -292,7 +356,7 @@ describe('JudgeTableOrderComponent', () => {
     expect(fakeApi.fixOrder).toHaveBeenCalledWith('t1', ['e1', 'e2', 'e3']);
     expect(fixture.componentInstance.orderFixed()).toBe(true);
     expect(fixture.nativeElement.textContent).toContain('Ada Lovelace');
-    expect(fixture.nativeElement.querySelector('button[aria-label="Move AB12 up"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('button[aria-label="Subir AB12"]')).toBeNull();
   });
 
   it('cancelling the confirm step does not call fixOrder', async () => {
@@ -300,13 +364,13 @@ describe('JudgeTableOrderComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    buttonWithText(fixture.nativeElement, 'Fix order').click();
+    buttonWithText(fixture.nativeElement, 'Fijar orden').click();
     fixture.detectChanges();
-    buttonWithText(fixture.nativeElement, 'Cancel').click();
+    buttonWithText(fixture.nativeElement, 'Cancelar').click();
     fixture.detectChanges();
 
     expect(fakeApi.fixOrder).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.textContent).not.toContain('cannot be undone');
+    expect(fixture.nativeElement.textContent).not.toContain('no se puede deshacer');
   });
 
   it('locks the UI on a live TableOrderFixed event without calling fixOrder', async () => {
@@ -370,14 +434,16 @@ describe('JudgeTableOrderComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    buttonWithText(fixture.nativeElement, 'Fix order').click();
+    buttonWithText(fixture.nativeElement, 'Fijar orden').click();
     fixture.detectChanges();
-    buttonWithText(fixture.nativeElement, 'Confirm fix order').click();
+    buttonWithText(fixture.nativeElement, 'Confirmar fijar orden').click();
     fixture.detectChanges();
     await flush();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Order already fixed by Grace Hopper');
+    expect(fixture.nativeElement.textContent).toContain(
+      'El orden ya ha sido fijado por Grace Hopper',
+    );
     expect(fixture.componentInstance.orderFixed()).toBe(true);
   });
 
@@ -396,14 +462,14 @@ describe('JudgeTableOrderComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    buttonWithText(fixture.nativeElement, 'Fix order').click();
+    buttonWithText(fixture.nativeElement, 'Fijar orden').click();
     fixture.detectChanges();
-    buttonWithText(fixture.nativeElement, 'Confirm fix order').click();
+    buttonWithText(fixture.nativeElement, 'Confirmar fijar orden').click();
     fixture.detectChanges();
     await flush();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('not open for ordering yet');
+    expect(fixture.nativeElement.textContent).toContain('no está abierta para fijar el orden');
   });
 
   it('surfaces a generic error message on other fixOrder failures', async () => {
@@ -422,9 +488,9 @@ describe('JudgeTableOrderComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    buttonWithText(fixture.nativeElement, 'Fix order').click();
+    buttonWithText(fixture.nativeElement, 'Fijar orden').click();
     fixture.detectChanges();
-    buttonWithText(fixture.nativeElement, 'Confirm fix order').click();
+    buttonWithText(fixture.nativeElement, 'Confirmar fijar orden').click();
     fixture.detectChanges();
     await flush();
     fixture.detectChanges();
@@ -440,7 +506,7 @@ describe('JudgeTableOrderComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('a[href*="/samples/"]')).toBeNull();
-    expect(fixture.nativeElement.textContent).not.toContain('Evaluate');
+    expect(fixture.nativeElement.textContent).not.toContain('Evaluar');
   });
 
   it('shows an Evaluate link only for the first NotStarted sample once the order is fixed', async () => {
@@ -450,9 +516,9 @@ describe('JudgeTableOrderComponent', () => {
     const fixture = createComponent();
     await flush();
     fixture.detectChanges();
-    buttonWithText(fixture.nativeElement, 'Fix order').click();
+    buttonWithText(fixture.nativeElement, 'Fijar orden').click();
     fixture.detectChanges();
-    buttonWithText(fixture.nativeElement, 'Confirm fix order').click();
+    buttonWithText(fixture.nativeElement, 'Confirmar fijar orden').click();
     fixture.detectChanges();
     await flush();
     fixture.detectChanges();
@@ -461,12 +527,12 @@ describe('JudgeTableOrderComponent', () => {
       'a[href="/judge/tables/t1/samples/e1"]',
     ) as HTMLAnchorElement | null;
     expect(evaluateLink).not.toBeNull();
-    expect(evaluateLink?.textContent).toContain('Evaluate');
+    expect(evaluateLink?.textContent).toContain('Evaluar');
 
     // e2/e3 are NotStarted too but not first in sequence — locked, not linked.
     expect(fixture.nativeElement.querySelector('a[href="/judge/tables/t1/samples/e2"]')).toBeNull();
     expect(fixture.nativeElement.querySelector('a[href="/judge/tables/t1/samples/e3"]')).toBeNull();
-    expect(fixture.nativeElement.textContent).toContain('Locked');
+    expect(fixture.nativeElement.textContent).toContain('Bloqueada');
   });
 
   it('shows a read-only "Submitted" label (no link) for an already-submitted sample', async () => {
@@ -482,15 +548,15 @@ describe('JudgeTableOrderComponent', () => {
     const fixture = createComponent();
     await flush();
     fixture.detectChanges();
-    buttonWithText(fixture.nativeElement, 'Fix order').click();
+    buttonWithText(fixture.nativeElement, 'Fijar orden').click();
     fixture.detectChanges();
-    buttonWithText(fixture.nativeElement, 'Confirm fix order').click();
+    buttonWithText(fixture.nativeElement, 'Confirmar fijar orden').click();
     fixture.detectChanges();
     await flush();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('a[href="/judge/tables/t1/samples/e1"]')).toBeNull();
-    expect(fixture.nativeElement.textContent).toContain('Submitted');
+    expect(fixture.nativeElement.textContent).toContain('Enviada');
     // e2 is now the first NotStarted sample and becomes reachable.
     expect(
       fixture.nativeElement.querySelector('a[href="/judge/tables/t1/samples/e2"]'),
@@ -510,15 +576,15 @@ describe('JudgeTableOrderComponent', () => {
     const fixture = createComponent();
     await flush();
     fixture.detectChanges();
-    buttonWithText(fixture.nativeElement, 'Fix order').click();
+    buttonWithText(fixture.nativeElement, 'Fijar orden').click();
     fixture.detectChanges();
-    buttonWithText(fixture.nativeElement, 'Confirm fix order').click();
+    buttonWithText(fixture.nativeElement, 'Confirmar fijar orden').click();
     fixture.detectChanges();
     await flush();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('a[href="/judge/tables/t1/samples/e1"]')).toBeNull();
-    expect(fixture.nativeElement.textContent).toContain('Pending consensus');
+    expect(fixture.nativeElement.textContent).toContain('Pendiente de consenso');
   });
 
   it('surfaces a load error message when fetching samples fails', async () => {
@@ -544,7 +610,7 @@ describe('JudgeTableOrderComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      expect(buttonWithText(fixture.nativeElement, 'Close table')).not.toBeNull();
+      expect(buttonWithText(fixture.nativeElement, 'Cerrar mesa')).not.toBeNull();
     });
 
     it('hides the Close table button while any sample is still NotStarted', async () => {
@@ -564,7 +630,7 @@ describe('JudgeTableOrderComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      expect(findButtonWithText(fixture.nativeElement, 'Close table')).toBeUndefined();
+      expect(findButtonWithText(fixture.nativeElement, 'Cerrar mesa')).toBeUndefined();
     });
 
     it('hides the Close table button while the order is not fixed yet, even if samples are done', async () => {
@@ -574,7 +640,7 @@ describe('JudgeTableOrderComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      expect(findButtonWithText(fixture.nativeElement, 'Close table')).toBeUndefined();
+      expect(findButtonWithText(fixture.nativeElement, 'Cerrar mesa')).toBeUndefined();
     });
 
     it('closes the table only after the confirm step, then locks the UI', async () => {
@@ -587,20 +653,20 @@ describe('JudgeTableOrderComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      buttonWithText(fixture.nativeElement, 'Close table').click();
+      buttonWithText(fixture.nativeElement, 'Cerrar mesa').click();
       fixture.detectChanges();
 
       expect(fakeApi.closeTable).not.toHaveBeenCalled();
-      expect(fixture.nativeElement.textContent).toContain('cannot be undone');
+      expect(fixture.nativeElement.textContent).toContain('no se puede deshacer');
 
-      buttonWithText(fixture.nativeElement, 'Confirm close table').click();
+      buttonWithText(fixture.nativeElement, 'Confirmar cierre de mesa').click();
       fixture.detectChanges();
       await flush();
       fixture.detectChanges();
 
       expect(fakeApi.closeTable).toHaveBeenCalledWith('t1');
-      expect(fixture.nativeElement.textContent).toContain('Table closed');
-      expect(findButtonWithText(fixture.nativeElement, 'Close table')).toBeUndefined();
+      expect(fixture.nativeElement.textContent).toContain('Mesa cerrada');
+      expect(findButtonWithText(fixture.nativeElement, 'Cerrar mesa')).toBeUndefined();
     });
 
     it('cancelling the confirm step does not call closeTable', async () => {
@@ -612,14 +678,14 @@ describe('JudgeTableOrderComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      buttonWithText(fixture.nativeElement, 'Close table').click();
+      buttonWithText(fixture.nativeElement, 'Cerrar mesa').click();
       fixture.detectChanges();
-      buttonWithText(fixture.nativeElement, 'Cancel').click();
+      buttonWithText(fixture.nativeElement, 'Cancelar').click();
       fixture.detectChanges();
 
       expect(fakeApi.closeTable).not.toHaveBeenCalled();
-      expect(fixture.nativeElement.textContent).not.toContain('cannot be undone');
-      expect(fixture.nativeElement.textContent).not.toContain('Table closed');
+      expect(fixture.nativeElement.textContent).not.toContain('no se puede deshacer');
+      expect(fixture.nativeElement.textContent).not.toContain('Mesa cerrada');
     });
 
     it('shows the missing blind codes on a 409 evaluations-incomplete', async () => {
@@ -642,16 +708,16 @@ describe('JudgeTableOrderComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      buttonWithText(fixture.nativeElement, 'Close table').click();
+      buttonWithText(fixture.nativeElement, 'Cerrar mesa').click();
       fixture.detectChanges();
-      buttonWithText(fixture.nativeElement, 'Confirm close table').click();
+      buttonWithText(fixture.nativeElement, 'Confirmar cierre de mesa').click();
       fixture.detectChanges();
       await flush();
       fixture.detectChanges();
 
       expect(fixture.nativeElement.textContent).toContain('AB12');
       expect(fixture.nativeElement.textContent).toContain('EF56');
-      expect(fixture.nativeElement.textContent).not.toContain('Table closed');
+      expect(fixture.nativeElement.textContent).not.toContain('Mesa cerrada');
     });
 
     it('shows the affected blind codes on a 409 discrepancy-open', async () => {
@@ -674,15 +740,15 @@ describe('JudgeTableOrderComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      buttonWithText(fixture.nativeElement, 'Close table').click();
+      buttonWithText(fixture.nativeElement, 'Cerrar mesa').click();
       fixture.detectChanges();
-      buttonWithText(fixture.nativeElement, 'Confirm close table').click();
+      buttonWithText(fixture.nativeElement, 'Confirmar cierre de mesa').click();
       fixture.detectChanges();
       await flush();
       fixture.detectChanges();
 
       expect(fixture.nativeElement.textContent).toContain('CD34');
-      expect(fixture.nativeElement.textContent).not.toContain('Table closed');
+      expect(fixture.nativeElement.textContent).not.toContain('Mesa cerrada');
     });
 
     it('treats a 409 table-closed race as success: shows the closed banner, no error', async () => {
@@ -704,16 +770,16 @@ describe('JudgeTableOrderComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      buttonWithText(fixture.nativeElement, 'Close table').click();
+      buttonWithText(fixture.nativeElement, 'Cerrar mesa').click();
       fixture.detectChanges();
-      buttonWithText(fixture.nativeElement, 'Confirm close table').click();
+      buttonWithText(fixture.nativeElement, 'Confirmar cierre de mesa').click();
       fixture.detectChanges();
       await flush();
       fixture.detectChanges();
 
-      expect(fixture.nativeElement.textContent).toContain('Table closed');
+      expect(fixture.nativeElement.textContent).toContain('Mesa cerrada');
       expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
-      expect(findButtonWithText(fixture.nativeElement, 'Close table')).toBeUndefined();
+      expect(findButtonWithText(fixture.nativeElement, 'Cerrar mesa')).toBeUndefined();
     });
 
     it('flips to the closed banner on a live TableClosed event without calling the API', async () => {
@@ -729,8 +795,8 @@ describe('JudgeTableOrderComponent', () => {
       fixture.detectChanges();
 
       expect(fakeApi.closeTable).not.toHaveBeenCalled();
-      expect(fixture.nativeElement.textContent).toContain('Table closed');
-      expect(findButtonWithText(fixture.nativeElement, 'Close table')).toBeUndefined();
+      expect(fixture.nativeElement.textContent).toContain('Mesa cerrada');
+      expect(findButtonWithText(fixture.nativeElement, 'Cerrar mesa')).toBeUndefined();
     });
 
     it('ignores a TableClosed event for a different table', async () => {
@@ -745,7 +811,7 @@ describe('JudgeTableOrderComponent', () => {
       tableClosedSubject.next({ tableId: 'other-table' });
       fixture.detectChanges();
 
-      expect(fixture.nativeElement.textContent).not.toContain('Table closed');
+      expect(fixture.nativeElement.textContent).not.toContain('Mesa cerrada');
     });
 
     it('shows the closed banner immediately when loading an already-closed table', async () => {
@@ -763,8 +829,8 @@ describe('JudgeTableOrderComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      expect(fixture.nativeElement.textContent).toContain('Table closed');
-      expect(findButtonWithText(fixture.nativeElement, 'Close table')).toBeUndefined();
+      expect(fixture.nativeElement.textContent).toContain('Mesa cerrada');
+      expect(findButtonWithText(fixture.nativeElement, 'Cerrar mesa')).toBeUndefined();
     });
   });
 
@@ -774,7 +840,7 @@ describe('JudgeTableOrderComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      expect(fixture.nativeElement.textContent).not.toContain('open discrepancy alert');
+      expect(fixture.nativeElement.textContent).not.toContain('discrepancia abierta');
     });
 
     it('shows a banner linking to the discrepancy page when open discrepancies exist', async () => {
@@ -783,9 +849,7 @@ describe('JudgeTableOrderComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      expect(fixture.nativeElement.textContent).toContain(
-        '1 open discrepancy alert on this table.',
-      );
+      expect(fixture.nativeElement.textContent).toContain('1 discrepancia abierta en esta mesa.');
       expect(
         fixture.nativeElement.querySelector('a[href="/judge/tables/t1/discrepancies"]'),
       ).not.toBeNull();
@@ -799,9 +863,7 @@ describe('JudgeTableOrderComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      expect(fixture.nativeElement.textContent).toContain(
-        '2 open discrepancy alerts on this table.',
-      );
+      expect(fixture.nativeElement.textContent).toContain('2 discrepancias abiertas en esta mesa.');
     });
 
     it('re-fetches and updates the banner count on a live DiscrepancyRaised event for this table', async () => {
@@ -819,9 +881,7 @@ describe('JudgeTableOrderComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      expect(fixture.nativeElement.textContent).toContain(
-        '1 open discrepancy alert on this table.',
-      );
+      expect(fixture.nativeElement.textContent).toContain('1 discrepancia abierta en esta mesa.');
     });
 
     it('re-fetches and updates the banner count on a live DiscrepancyResolved event for this table', async () => {
@@ -829,16 +889,14 @@ describe('JudgeTableOrderComponent', () => {
       const fixture = createComponent();
       await flush();
       fixture.detectChanges();
-      expect(fixture.nativeElement.textContent).toContain(
-        '1 open discrepancy alert on this table.',
-      );
+      expect(fixture.nativeElement.textContent).toContain('1 discrepancia abierta en esta mesa.');
 
       fakeDiscrepancyApi.getDiscrepancies.mockReturnValue(of([]));
       discrepancyResolvedSubject.next({ alertId: 'a1', tableId: 't1', blindCode: 'AB12' });
       await flush();
       fixture.detectChanges();
 
-      expect(fixture.nativeElement.textContent).not.toContain('open discrepancy alert');
+      expect(fixture.nativeElement.textContent).not.toContain('discrepancia abierta');
     });
 
     it('ignores a DiscrepancyRaised event for a different table', async () => {
@@ -856,7 +914,7 @@ describe('JudgeTableOrderComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      expect(fixture.nativeElement.textContent).not.toContain('open discrepancy alert');
+      expect(fixture.nativeElement.textContent).not.toContain('discrepancia abierta');
     });
 
     it('shows a link to resolve discrepancies on a 409 discrepancy-open close error', async () => {
@@ -879,9 +937,9 @@ describe('JudgeTableOrderComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      buttonWithText(fixture.nativeElement, 'Close table').click();
+      buttonWithText(fixture.nativeElement, 'Cerrar mesa').click();
       fixture.detectChanges();
-      buttonWithText(fixture.nativeElement, 'Confirm close table').click();
+      buttonWithText(fixture.nativeElement, 'Confirmar cierre de mesa').click();
       fixture.detectChanges();
       await flush();
       fixture.detectChanges();

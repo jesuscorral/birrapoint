@@ -79,22 +79,22 @@ function buildSections(scores: ScoreSet, tag: string): SectionInput[] {
       comment: `${tag} aroma note, long enough to satisfy the minimum comment length rule.`,
     },
     {
-      legend: 'Appearance',
+      legend: 'Apariencia',
       score: scores.appearance,
       comment: `${tag} appearance note, long enough to satisfy the minimum length rule.`,
     },
     {
-      legend: 'Flavor',
+      legend: 'Sabor',
       score: scores.flavor,
       comment: `${tag} flavor note, long enough to satisfy the minimum comment length rule.`,
     },
     {
-      legend: 'Mouthfeel',
+      legend: 'Sensación en boca',
       score: scores.mouthfeel,
       comment: `${tag} mouthfeel note, long enough to satisfy the minimum length rule.`,
     },
     {
-      legend: 'Overall Impression',
+      legend: 'Impresión general',
       score: scores.overall,
       comment: `${tag} overall note, long enough to satisfy the minimum length rule.`,
     },
@@ -315,8 +315,8 @@ function sectionFieldset(page: Page, legend: string): Locator {
 async function fillEvaluationForm(page: Page, sections: SectionInput[]): Promise<void> {
   for (const section of sections) {
     const fieldset = sectionFieldset(page, section.legend);
-    await fieldset.getByLabel('Score').fill(String(section.score));
-    await fieldset.getByLabel('Comment').fill(section.comment);
+    await fieldset.getByLabel('Puntuación').fill(String(section.score));
+    await fieldset.getByLabel('Comentario').fill(section.comment);
   }
 }
 
@@ -451,7 +451,7 @@ test.describe('US11 — discrepancy consensus', () => {
       await loginAsJudge(pageA, judgeA.email, judgeATempPassword);
 
       const tableLinkA = pageA.getByRole('link', { name: new RegExp('Mesa 1') });
-      await expect(tableLinkA).toContainText('Order not fixed');
+      await expect(tableLinkA).toContainText('Orden sin fijar');
       await tableLinkA.click();
       await pageA.waitForURL(`**/judge/tables/${mesa1Id}`);
 
@@ -459,10 +459,10 @@ test.describe('US11 — discrepancy consensus', () => {
 
       // Fixing the order itself isn't what this scenario is testing (covered by us6-order.spec.ts)
       // -- a single-sample table still requires the fix-order step (FR-022 precondition).
-      await pageA.getByRole('button', { name: 'Fix order' }).click();
-      const fixDialog = pageA.getByRole('alertdialog', { name: 'Confirm fix order' });
+      await pageA.getByRole('button', { name: 'Fijar orden' }).click();
+      const fixDialog = pageA.getByRole('alertdialog', { name: 'Confirmar fijar orden' });
       await expect(fixDialog).toBeVisible();
-      await fixDialog.getByRole('button', { name: 'Confirm fix order' }).click();
+      await fixDialog.getByRole('button', { name: 'Confirmar fijar orden' }).click();
       await expect(pageA.locator('p.order-status--fixed')).toBeVisible();
 
       // --- Judge A submits first: nothing to compare against yet -> Confirmed, discrepancy null ---
@@ -481,7 +481,7 @@ test.describe('US11 — discrepancy consensus', () => {
             response.request().method() === 'POST' &&
             /\/api\/v1\/me\/tables\/.+\/evaluations$/.test(new URL(response.url()).pathname),
         ),
-        pageA.getByRole('button', { name: 'Submit evaluation' }).click(),
+        pageA.getByRole('button', { name: 'Enviar evaluación' }).click(),
       ]);
       expect(submitResponseA.status()).toBe(201);
       const submitBodyA = (await submitResponseA.json()) as SubmitEvaluationResponseBody;
@@ -502,7 +502,7 @@ test.describe('US11 — discrepancy consensus', () => {
 
       await expect(pageB.locator('p.order-status--fixed')).toBeVisible();
       await expect(pageB.locator('.drag-handle')).toHaveCount(0);
-      await expect(pageB.getByRole('button', { name: 'Fix order' })).toHaveCount(0);
+      await expect(pageB.getByRole('button', { name: 'Fijar orden' })).toHaveCount(0);
 
       const evaluateLinkB = pageB.locator('a.evaluate-action');
       await expect(evaluateLinkB).toHaveCount(1);
@@ -520,7 +520,7 @@ test.describe('US11 — discrepancy consensus', () => {
             response.request().method() === 'POST' &&
             /\/api\/v1\/me\/tables\/.+\/evaluations$/.test(new URL(response.url()).pathname),
         ),
-        pageB.getByRole('button', { name: 'Submit evaluation' }).click(),
+        pageB.getByRole('button', { name: 'Enviar evaluación' }).click(),
       ]);
       expect(submitResponseB.status()).toBe(201);
       const submitBodyB = (await submitResponseB.json()) as SubmitEvaluationResponseBody;
@@ -568,11 +568,11 @@ test.describe('US11 — discrepancy consensus', () => {
       // --- Attempt to close the table (from judge A): blocked with 409 discrepancy-open, UI
       // surfaces the blind code and a link to resolve ---
       await pageA.goto(`/judge/tables/${mesa1Id}`);
-      const closeButtonA = pageA.getByRole('button', { name: 'Close table' });
+      const closeButtonA = pageA.getByRole('button', { name: 'Cerrar mesa' });
       await expect(closeButtonA).toBeVisible();
       await closeButtonA.click();
 
-      const closeDialogA = pageA.getByRole('alertdialog', { name: 'Confirm close table' });
+      const closeDialogA = pageA.getByRole('alertdialog', { name: 'Confirmar cierre de mesa' });
       await expect(closeDialogA).toBeVisible();
 
       const [blockedCloseResponse] = await Promise.all([
@@ -581,7 +581,7 @@ test.describe('US11 — discrepancy consensus', () => {
             response.request().method() === 'POST' &&
             /\/api\/v1\/me\/tables\/.+\/close$/.test(new URL(response.url()).pathname),
         ),
-        closeDialogA.getByRole('button', { name: 'Confirm close table' }).click(),
+        closeDialogA.getByRole('button', { name: 'Confirmar cierre de mesa' }).click(),
       ]);
       expect(blockedCloseResponse.status()).toBe(409);
       const blockedCloseProblem = (await blockedCloseResponse.json()) as ProblemDetailsBody;
@@ -598,11 +598,11 @@ test.describe('US11 — discrepancy consensus', () => {
       const openAlertCardsB = pageB.locator('div.alert-card:not(.alert-card--resolved)');
       await expect(openAlertCardsB).toHaveCount(1);
 
-      await openAlertCardsB.getByRole('button', { name: 'Adjust my evaluation' }).click();
+      await openAlertCardsB.getByRole('button', { name: 'Ajustar mi evaluación' }).click();
       await fillEvaluationForm(pageB, buildSections(JUDGE_B_ADJUSTED_SCORES, 'Judge B adjusted'));
 
       const submitAdjustmentButtonB = openAlertCardsB.getByRole('button', {
-        name: 'Submit adjustment',
+        name: 'Enviar ajuste',
       });
       await expect(submitAdjustmentButtonB).toBeEnabled();
 
@@ -633,11 +633,11 @@ test.describe('US11 — discrepancy consensus', () => {
       await expect(discrepancyBannerA).toHaveCount(0, { timeout: 1000 });
 
       // --- Close the table again: now succeeds ---
-      const closeButtonA2 = pageA.getByRole('button', { name: 'Close table' });
+      const closeButtonA2 = pageA.getByRole('button', { name: 'Cerrar mesa' });
       await expect(closeButtonA2).toBeVisible();
       await closeButtonA2.click();
 
-      const closeDialogA2 = pageA.getByRole('alertdialog', { name: 'Confirm close table' });
+      const closeDialogA2 = pageA.getByRole('alertdialog', { name: 'Confirmar cierre de mesa' });
       await expect(closeDialogA2).toBeVisible();
 
       const [finalCloseResponse] = await Promise.all([
@@ -646,15 +646,15 @@ test.describe('US11 — discrepancy consensus', () => {
             response.request().method() === 'POST' &&
             /\/api\/v1\/me\/tables\/.+\/close$/.test(new URL(response.url()).pathname),
         ),
-        closeDialogA2.getByRole('button', { name: 'Confirm close table' }).click(),
+        closeDialogA2.getByRole('button', { name: 'Confirmar cierre de mesa' }).click(),
       ]);
       expect(finalCloseResponse.status()).toBe(200);
 
       await expect(pageA.locator('[role="alert"]')).toHaveCount(0);
       const closedBannerA = pageA.locator('p.order-status--closed');
       await expect(closedBannerA).toBeVisible();
-      await expect(closedBannerA).toContainText('Table closed');
-      await expect(pageA.getByRole('button', { name: 'Close table' })).toHaveCount(0);
+      await expect(closedBannerA).toContainText('Mesa cerrada');
+      await expect(pageA.getByRole('button', { name: 'Cerrar mesa' })).toHaveCount(0);
 
       // Discrepancy alert id observed throughout the scenario stays a single, consistent alert.
       expect(alertId).toBeTruthy();

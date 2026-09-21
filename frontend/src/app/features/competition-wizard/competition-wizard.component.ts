@@ -14,7 +14,7 @@ import { CompetitionsApiService } from '../../core/api/competitions-api.service'
 import type { CompetitionDetail } from '../../core/api/competitions-api.service';
 import { BpAlertComponent } from '../../shared/components/bp-alert/bp-alert.component';
 import { BpButtonComponent } from '../../shared/components/bp-button/bp-button.component';
-import { BpPageShellComponent } from '../../shared/components/bp-page-shell/bp-page-shell.component';
+import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-shell.component';
 import { BasicsStepComponent } from './steps/basics-step.component';
 import { CategoriesStepComponent } from './steps/categories-step.component';
 import { DetailsStepComponent } from './steps/details-step.component';

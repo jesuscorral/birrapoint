@@ -3,7 +3,7 @@ import { ActivatedRoute } from '@angular/router';
 
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
 import type { CompetitionState } from '../../core/api/competitions-api.service';
-import { BpPageShellComponent } from '../../shared/components/bp-page-shell/bp-page-shell.component';
+import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-shell.component';
 import { TableBoardComponent } from './table-board.component';
 
 // FR-061 / Session 2026-09-19 clarification: the wizard/standalone table-management route is

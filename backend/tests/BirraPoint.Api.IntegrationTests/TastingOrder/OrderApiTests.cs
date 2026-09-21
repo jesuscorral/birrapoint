@@ -73,7 +73,8 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     }
 
     private async Task<Guid> SeedBeerEntryAsync(
-        Guid competitionId, Guid participantId, string beerName, string styleCode = StyleCodeApa, string? entryInstructions = null)
+        Guid competitionId, Guid participantId, string beerName, string styleCode = StyleCodeApa,
+        string? entryInstructions = null, decimal abvPercent = 5.5m)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -85,6 +86,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
             StyleCode = styleCode,
             BlindCode = NewBlindCode(),
             EntryInstructions = entryInstructions,
+            AbvPercent = abvPercent,
         };
         db.BeerEntries.Add(entry);
         await db.SaveChangesAsync();
@@ -311,6 +313,97 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var sample = Assert.Single(document.RootElement.EnumerateArray());
         Assert.Equal("Serve at cellar temperature.", sample.GetProperty("entryInstructions").GetString());
+    }
+
+    /// <summary>AbvPercent is the beer's own attribute, not an entrant field — safe alongside
+    /// BlindCode/StyleCode (same value the organizer sees via TableSampleDto).</summary>
+    [Fact]
+    public async Task GetTableSamples_includes_the_real_AbvPercent_of_each_entry()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+        await TransitionStateAsync(organizer, competitionId, "Active");
+        var tableId = await SeedTableAsync(competitionId, $"Table {Guid.NewGuid():N}");
+
+        var judgeSub = $"judge-{Guid.NewGuid():N}";
+        var judgeId = await SeedJudgeAsync(competitionId, $"{judgeSub}@brew.example", judgeSub);
+        await SeedTableJudgeAsync(tableId, judgeId);
+
+        var participantId = await SeedParticipantAsync(competitionId, "Brewer", $"brewer-{Guid.NewGuid():N}@brew.example");
+        var entryId = await SeedBeerEntryAsync(competitionId, participantId, "Secret Beer", abvPercent: 6.8m);
+        await SeedTableSampleAsync(tableId, entryId);
+
+        using var judge = JudgeClient(judgeSub);
+        var response = await GetTableSamplesAsync(judge, tableId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        var sample = Assert.Single(document.RootElement.EnumerateArray());
+        Assert.Equal(6.8m, sample.GetProperty("abvPercent").GetDecimal());
+    }
+
+    // ---- GET /me/tables/{tableId}/judges -----------------------------------------------------------
+
+    private static Task<HttpResponseMessage> GetTableJudgesAsync(HttpClient client, Guid tableId) =>
+        client.GetAsync($"/api/v1/me/tables/{tableId}/judges");
+
+    [Fact]
+    public async Task GetTableJudges_for_a_table_the_judge_is_not_assigned_to_returns_404()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var (_, tableId, _, _, _) = await SeedActiveTableWithSamplesAsync(organizer);
+
+        using var otherJudge = JudgeClient($"outsider-{Guid.NewGuid():N}");
+        var response = await GetTableJudgesAsync(otherJudge, tableId);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetTableJudges_returns_other_active_judges_excluding_the_caller_and_anyone_removed()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var (competitionId, tableId, _, callerSub, _) = await SeedActiveTableWithSamplesAsync(organizer);
+
+        var otherSub = $"judge-{Guid.NewGuid():N}";
+        var otherId = await SeedJudgeAsync(competitionId, $"{otherSub}@brew.example", otherSub);
+        await SeedTableJudgeAsync(tableId, otherId);
+
+        var removedSub = $"judge-{Guid.NewGuid():N}";
+        var removedId = await SeedJudgeAsync(competitionId, $"{removedSub}@brew.example", removedSub);
+        await SeedTableJudgeAsync(tableId, removedId, removedAt: DateTimeOffset.UtcNow);
+
+        using var caller = JudgeClient(callerSub);
+        var response = await GetTableJudgesAsync(caller, tableId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        var members = document.RootElement.EnumerateArray().ToList();
+        var member = Assert.Single(members);
+        Assert.Equal($"{otherSub}@brew.example".Split('@')[0], member.GetProperty("displayName").GetString());
+    }
+
+    /// <summary>Same BR-01/FR-019 structural check as GetTableSamples — this endpoint never
+    /// carries entrant data either, only judge display info.</summary>
+    [Fact]
+    public async Task GetTableJudges_payload_never_contains_entrant_fields()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var (competitionId, tableId, _, callerSub, _) = await SeedActiveTableWithSamplesAsync(organizer);
+        var otherSub = $"judge-{Guid.NewGuid():N}";
+        var otherId = await SeedJudgeAsync(competitionId, $"{otherSub}@brew.example", otherSub);
+        await SeedTableJudgeAsync(tableId, otherId);
+
+        using var caller = JudgeClient(callerSub);
+        var response = await GetTableJudgesAsync(caller, tableId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var raw = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var lowered = raw.ToLowerInvariant();
+        foreach (var forbidden in new[] { "beername", "participant", "brewery", "origin", "collaborator", "email" })
+        {
+            Assert.DoesNotContain(forbidden, lowered);
+        }
     }
 
     // ---- POST /me/tables/{tableId}/order -----------------------------------------------------------

@@ -17,7 +17,7 @@ import { BpButtonComponent } from '../../../shared/components/bp-button/bp-butto
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="role-select">
-      <h1>¿Cómo querés entrar?</h1>
+      <h1>¿Cómo quieres entrar?</h1>
       <p class="role-select__lead">
         Tu cuenta tiene acceso como organizador y como juez. Puedes cambiar de vista más adelante.
       </p>

@@ -15,12 +15,20 @@ public sealed record JudgeTableSummaryDto(
     bool OrderFixed,
     string? OrderFixedBy);
 
-/// <summary>data-model.md §Anonymity boundary — the canonical judge-facing sample projection.</summary>
+/// <summary>data-model.md §Anonymity boundary — the canonical judge-facing sample projection.
+/// AbvPercent is the beer's own physical attribute (already exposed to the organizer via
+/// TableSampleDto) — not an entrant field, so it's safe alongside BlindCode/StyleCode.</summary>
 public sealed record JudgeSampleDto(
     Guid BeerEntryId,
     string BlindCode,
     string StyleCode,
     string StyleName,
+    decimal AbvPercent,
     int? SequenceOrder,
     string EvaluationStatus,
     string? EntryInstructions);
+
+/// <summary>GET /me/tables/{tableId}/judges — the table's other active judges, informational only
+/// (no editing capability hangs off this). BjcpRank is free text from the judge-roster import
+/// (US14/FR-057), null for a judge created via the plain email-list flow.</summary>
+public sealed record JudgeTableMemberDto(string DisplayName, string? BjcpRank);

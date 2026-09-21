@@ -68,7 +68,7 @@ describe('UserSettingsComponent', () => {
 
     const badge = fixture.nativeElement.querySelector('.verified-badge');
     expect(badge).not.toBeNull();
-    expect(badge.textContent).toContain('Verified');
+    expect(badge.textContent).toContain('Verificado');
   });
 
   it('does not show the verified badge when the email is not verified', async () => {
@@ -88,7 +88,7 @@ describe('UserSettingsComponent', () => {
 
     const alert = fixture.nativeElement.querySelector('[role="alert"]');
     expect(alert).not.toBeNull();
-    expect(alert.textContent).toContain('could not load');
+    expect(alert.textContent).toContain('No hemos podido cargar');
   });
 
   // Keycloak grants its own plumbing roles to every user alongside the app's. Verified against a
@@ -121,19 +121,67 @@ describe('UserSettingsComponent', () => {
 
   // An anchor rather than a button, deliberately: it navigates, so it must behave like a link
   // (open-in-new-tab, link role) instead of firing a click handler.
-  it('offers a link back to the competitions list', async () => {
-    fixture = createComponent();
-    await fixture.whenStable();
-    fixture.detectChanges();
+  describe('back link (role-aware, Session 2026-09-20)', () => {
+    it('points an ORGANIZER-only account back to the competitions dashboard', async () => {
+      fixture = createComponent();
+      await fixture.whenStable();
+      fixture.detectChanges();
 
-    const backLink = fixture.nativeElement.querySelector(
-      'a[href="/organizer/dashboard"].back-to-list-link',
-    ) as HTMLAnchorElement | null;
-    expect(backLink).not.toBeNull();
-    expect(backLink?.textContent).toContain('Back to competitions');
+      const backLink = fixture.nativeElement.querySelector(
+        'a[href="/organizer/dashboard"].back-to-list-link',
+      ) as HTMLAnchorElement | null;
+      expect(backLink).not.toBeNull();
+      expect(backLink?.textContent).toContain('Volver a competiciones');
+    });
+
+    it('points a JUDGE-only account back to their tables', async () => {
+      keycloak.tokenParsed = { realm_access: { roles: ['JUDGE'] } };
+      fixture = createComponent();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const backLink = fixture.nativeElement.querySelector(
+        'a[href="/judge/tables"].back-to-list-link',
+      ) as HTMLAnchorElement | null;
+      expect(backLink).not.toBeNull();
+      expect(backLink?.textContent).toContain('Volver a mis mesas');
+    });
+
+    it("follows the dual-role account's active choice (JUDGE)", async () => {
+      keycloak.tokenParsed = { realm_access: { roles: ['ORGANIZER', 'JUDGE'] } };
+      TestBed.inject(ActiveRoleService).setActiveRole('JUDGE');
+      fixture = createComponent();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const backLink = fixture.nativeElement.querySelector('a.back-to-list-link');
+      expect(backLink?.getAttribute('href')).toBe('/judge/tables');
+    });
+
+    it("follows the dual-role account's active choice (ORGANIZER)", async () => {
+      keycloak.tokenParsed = { realm_access: { roles: ['ORGANIZER', 'JUDGE'] } };
+      TestBed.inject(ActiveRoleService).setActiveRole('ORGANIZER');
+      fixture = createComponent();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const backLink = fixture.nativeElement.querySelector('a.back-to-list-link');
+      expect(backLink?.getAttribute('href')).toBe('/organizer/dashboard');
+    });
+
+    it('sends a dual-role account with no active choice yet to the role picker', async () => {
+      keycloak.tokenParsed = { realm_access: { roles: ['ORGANIZER', 'JUDGE'] } };
+      fixture = createComponent();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const backLink = fixture.nativeElement.querySelector('a.back-to-list-link');
+      expect(backLink?.getAttribute('href')).toBe('/select-role');
+      expect(backLink?.textContent).toContain('Elegir rol');
+    });
   });
 
-  it('calls keycloak.logout with the app-root redirect when "Log out" is clicked', async () => {
+  it('calls keycloak.logout with the app-root redirect when "Cerrar sesión" is clicked', async () => {
     fixture = createComponent();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -141,7 +189,7 @@ describe('UserSettingsComponent', () => {
     const buttons = Array.from(
       fixture.nativeElement.querySelectorAll('button'),
     ) as HTMLButtonElement[];
-    const logoutButton = buttons.find((button) => button.textContent?.trim() === 'Log out');
+    const logoutButton = buttons.find((button) => button.textContent?.trim() === 'Cerrar sesión');
     expect(logoutButton).toBeDefined();
     logoutButton?.click();
 
@@ -159,7 +207,7 @@ describe('UserSettingsComponent', () => {
     const buttons = Array.from(
       fixture.nativeElement.querySelectorAll('button'),
     ) as HTMLButtonElement[];
-    buttons.find((button) => button.textContent?.trim() === 'Log out')?.click();
+    buttons.find((button) => button.textContent?.trim() === 'Cerrar sesión')?.click();
 
     expect(TestBed.inject(ActiveRoleService).getActiveRole()).toBeNull();
   });

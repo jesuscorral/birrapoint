@@ -17,6 +17,7 @@ import type { EvaluationComments, EvaluationScores } from '../../core/offline/db
 import { SyncService } from '../../core/offline/sync.service';
 import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
 import type { JudgeRemovedEvent } from '../../core/realtime/competition-hub.events';
+import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-shell.component';
 import { StyleReferencePanelComponent } from './style-reference/style-reference-panel.component';
 import { TastingOrderApiService } from '../judge-tables/tasting-order-api.service';
 import type { JudgeSample, JudgeTableSummary } from '../judge-tables/tasting-order-api.service';
@@ -24,7 +25,7 @@ import type { JudgeSample, JudgeTableSummary } from '../judge-tables/tasting-ord
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError
     ? error
-    : new ApiError({ status: 0, title: 'An unexpected error occurred.', urn: null });
+    : new ApiError({ status: 0, title: 'Ha ocurrido un error inesperado.', urn: null });
 }
 
 function errorMessage(error: ApiError): string {
@@ -82,28 +83,28 @@ const SECTIONS: EvaluationSectionConfig[] = [
   },
   {
     key: 'appearance',
-    label: 'Appearance',
+    label: 'Apariencia',
     max: 3,
     scoreControl: 'appearanceScore',
     commentControl: 'appearanceComment',
   },
   {
     key: 'flavor',
-    label: 'Flavor',
+    label: 'Sabor',
     max: 20,
     scoreControl: 'flavorScore',
     commentControl: 'flavorComment',
   },
   {
     key: 'mouthfeel',
-    label: 'Mouthfeel',
+    label: 'Sensación en boca',
     max: 5,
     scoreControl: 'mouthfeelScore',
     commentControl: 'mouthfeelComment',
   },
   {
     key: 'overall',
-    label: 'Overall Impression',
+    label: 'Impresión general',
     max: 10,
     scoreControl: 'overallScore',
     commentControl: 'overallComment',
@@ -130,82 +131,91 @@ function buildForm(): FormGroup {
 // component never touches Dexie or the network directly.
 @Component({
   selector: 'app-evaluation-sheet',
-  imports: [ReactiveFormsModule, RouterLink, StyleReferencePanelComponent],
+  imports: [ReactiveFormsModule, RouterLink, StyleReferencePanelComponent, BpPageShellComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <p><a [routerLink]="['/judge', 'tables', tableId]">&larr; Back to table</a></p>
+    <bp-page-shell homeLink="/judge/tables">
+      <p><a [routerLink]="['/judge', 'tables', tableId]">&larr; Volver a la mesa</a></p>
 
-    @if (isOffline()) {
-      <p role="status" class="offline-badge">Offline mode — data protected locally</p>
-    }
-
-    @if (loadError(); as message) {
-      <p role="alert">{{ message }}</p>
-    }
-
-    @if (!loadError() && sample(); as currentSample) {
-      <h1>{{ currentSample.blindCode }}</h1>
-      <p class="sample-style">{{ currentSample.styleName }} ({{ currentSample.styleCode }})</p>
-
-      <app-style-reference-panel
-        [styleCode]="currentSample.styleCode"
-        [styleName]="currentSample.styleName"
-      />
-
-      @if (currentSample.evaluationStatus === 'PendingConsensus') {
-        <p role="status">
-          There is a scoring discrepancy on this sample.
-          <a [routerLink]="['/judge', 'tables', tableId, 'discrepancies']">
-            Resolve the discrepancy
-          </a>
-        </p>
-      } @else if (currentSample.evaluationStatus !== 'NotStarted') {
-        <p role="status">This sample has already been evaluated.</p>
-      } @else {
-        <form [formGroup]="form" (ngSubmit)="onSubmit()">
-          @for (section of sections; track section.key) {
-            <fieldset class="evaluation-section">
-              <legend>{{ section.label }} (0–{{ section.max }})</legend>
-
-              <label>
-                Score
-                <input
-                  type="number"
-                  [min]="0"
-                  [max]="section.max"
-                  [formControlName]="section.scoreControl"
-                />
-              </label>
-
-              <label>
-                Comment
-                <textarea [formControlName]="section.commentControl" rows="3"></textarea>
-              </label>
-              <p class="comment-hint">
-                @if (remainingChars(section.key) > 0) {
-                  {{ remainingChars(section.key) }} more character{{
-                    remainingChars(section.key) === 1 ? '' : 's'
-                  }}
-                  needed (minimum {{ minCommentLength }}).
-                } @else {
-                  Minimum length met.
-                }
-              </p>
-            </fieldset>
-          }
-
-          <p class="total-display">
-            Total (read-only, computed by the server on submit): {{ total() }}
-          </p>
-
-          @if (submitError(); as message) {
-            <p role="alert">{{ message }}</p>
-          }
-
-          <button type="submit" [disabled]="form.invalid || submitting()">Submit evaluation</button>
-        </form>
+      @if (isOffline()) {
+        <p role="status" class="offline-badge">Modo sin conexión — datos protegidos localmente</p>
       }
-    }
+
+      @if (loadError(); as message) {
+        <p role="alert">{{ message }}</p>
+      }
+
+      @if (!loadError() && sample(); as currentSample) {
+        <h1>{{ currentSample.blindCode }}</h1>
+        <p class="sample-style">
+          {{ currentSample.styleName }} ({{ currentSample.styleCode }}) ·
+          {{ currentSample.abvPercent }}% ABV
+        </p>
+
+        <app-style-reference-panel
+          [styleCode]="currentSample.styleCode"
+          [styleName]="currentSample.styleName"
+        />
+
+        @if (currentSample.evaluationStatus === 'PendingConsensus') {
+          <p role="status">
+            Hay una discrepancia de puntuación en esta muestra.
+            <a [routerLink]="['/judge', 'tables', tableId, 'discrepancies']">
+              Resolver discrepancia
+            </a>
+          </p>
+        } @else if (currentSample.evaluationStatus !== 'NotStarted') {
+          <p role="status">Esta muestra ya ha sido evaluada.</p>
+        } @else {
+          <form [formGroup]="form" (ngSubmit)="onSubmit()">
+            @for (section of sections; track section.key) {
+              <fieldset class="evaluation-section">
+                <legend>{{ section.label }} (0–{{ section.max }})</legend>
+
+                <label>
+                  Puntuación
+                  <input
+                    type="number"
+                    [min]="0"
+                    [max]="section.max"
+                    [formControlName]="section.scoreControl"
+                  />
+                </label>
+
+                <label>
+                  Comentario
+                  <textarea [formControlName]="section.commentControl" rows="3"></textarea>
+                </label>
+                <p class="comment-hint">
+                  @if (remainingChars(section.key) > 0) {
+                    {{
+                      remainingChars(section.key) === 1
+                        ? 'Falta 1 carácter'
+                        : 'Faltan ' + remainingChars(section.key) + ' caracteres'
+                    }}
+                    (mínimo {{ minCommentLength }}).
+                  } @else {
+                    Longitud mínima alcanzada.
+                  }
+                </p>
+              </fieldset>
+            }
+
+            <p class="total-display">
+              Total (de solo lectura, calculado por el servidor al enviar): {{ total() }}
+            </p>
+
+            @if (submitError(); as message) {
+              <p role="alert">{{ message }}</p>
+            }
+
+            <button type="submit" [disabled]="form.invalid || submitting()">
+              Enviar evaluación
+            </button>
+          </form>
+        }
+      }
+    </bp-page-shell>
   `,
   styles: `
     .offline-badge {
@@ -268,7 +278,7 @@ export class EvaluationSheetComponent implements OnInit, OnDestroy {
   // judge-table-order.component.ts's own tableName fallback exactly, for ejection-notice parity
   // between the two judge-facing screens a JudgeRemoved event can strike.
   protected readonly tableSummary = signal<JudgeTableSummary | null>(null);
-  protected readonly tableName = computed(() => this.tableSummary()?.name ?? 'Table');
+  protected readonly tableName = computed(() => this.tableSummary()?.name ?? 'Mesa');
 
   private readonly onlineListener = () => this.isOffline.set(false);
   private readonly offlineListener = () => this.isOffline.set(true);
@@ -378,18 +388,18 @@ export class EvaluationSheetComponent implements OnInit, OnDestroy {
       // SyncService's submit() only rejects with a non-ApiError when the durable outbox write
       // itself failed (storage unavailable) — the spec edge case that the judge must be warned
       // immediately rather than silently losing offline protection.
-      return "This evaluation couldn't be saved locally (your device's storage may be full or restricted). Try again, or use a different device/browser.";
+      return 'No hemos podido guardar esta evaluación localmente (el almacenamiento de tu dispositivo puede estar lleno o restringido). Vuelve a intentarlo, o usa otro dispositivo o navegador.';
     }
 
     switch (error.urn) {
       case 'urn:birrapoint:order-not-fixed':
-        return 'The tasting order for this table has not been fixed yet.';
+        return 'El orden de cata de esta mesa todavía no ha sido fijado.';
       case 'urn:birrapoint:out-of-sequence':
-        return 'This sample is not the next one in your tasting order. Go back and refresh the table.';
+        return 'Esta muestra no es la siguiente en tu orden de cata. Vuelve atrás y actualiza la mesa.';
       case 'urn:birrapoint:table-closed':
-        return 'This table has been closed; no further evaluations can be submitted.';
+        return 'Esta mesa ha sido cerrada; ya no se pueden enviar más evaluaciones.';
       case 'urn:birrapoint:invalid-state-transition':
-        return 'This competition is not currently open for evaluation.';
+        return 'Esta competición no está actualmente abierta para evaluación.';
       default:
         return errorMessage(error);
     }
@@ -436,7 +446,7 @@ export class EvaluationSheetComponent implements OnInit, OnDestroy {
       next: (samples) => {
         const match = samples.find((s) => s.beerEntryId === this.beerEntryId) ?? null;
         if (!match) {
-          this.loadError.set('This sample was not found for this table.');
+          this.loadError.set('No se ha encontrado esta muestra en esta mesa.');
           return;
         }
         this.sample.set(match);

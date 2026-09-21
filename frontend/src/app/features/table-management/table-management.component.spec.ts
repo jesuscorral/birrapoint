@@ -1,3 +1,4 @@
+import Keycloak from 'keycloak-js';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
@@ -36,6 +37,10 @@ describe('TableManagementComponent', () => {
   function createComponent(id = 'c1') {
     TestBed.configureTestingModule({
       providers: [
+        {
+          provide: Keycloak,
+          useValue: { tokenParsed: { realm_access: { roles: ['ORGANIZER'] } }, logout: jest.fn() },
+        },
         {
           provide: TableManagementApiService,
           useValue: {

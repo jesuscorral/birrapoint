@@ -1,3 +1,4 @@
+import Keycloak from 'keycloak-js';
 import { Location } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
@@ -100,6 +101,10 @@ describe('CompetitionWizardComponent', () => {
     fakeJudgeManagementApi = { getJudges: jest.fn().mockReturnValue(of([])) };
     TestBed.configureTestingModule({
       providers: [
+        {
+          provide: Keycloak,
+          useValue: { tokenParsed: { realm_access: { roles: ['ORGANIZER'] } }, logout: jest.fn() },
+        },
         { provide: CompetitionsApiService, useValue: fakeApi },
         { provide: CatalogApiService, useValue: fakeCatalogApi },
         { provide: ImportApiService, useValue: fakeImportApi },

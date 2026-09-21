@@ -32,15 +32,15 @@ const JUDGE_DISPLAY_NAME = 'Test Judge';
 
 const SECTIONS = [
   { legend: 'Aroma', score: 9, comment: 'Light citrus hop aroma with a faint malt sweetness.' },
-  { legend: 'Appearance', score: 3, comment: 'Pale straw color, tight white head, good clarity.' },
-  { legend: 'Flavor', score: 16, comment: 'Crisp bitterness balanced by a clean malt finish.' },
+  { legend: 'Apariencia', score: 3, comment: 'Pale straw color, tight white head, good clarity.' },
+  { legend: 'Sabor', score: 16, comment: 'Crisp bitterness balanced by a clean malt finish.' },
   {
-    legend: 'Mouthfeel',
+    legend: 'Sensación en boca',
     score: 4,
     comment: 'Light-medium body with brisk carbonation throughout.',
   },
   {
-    legend: 'Overall Impression',
+    legend: 'Impresión general',
     score: 7,
     comment: 'Solid, sessionable example of the style overall.',
   },
@@ -234,8 +234,8 @@ function sectionFieldset(page: Page, legend: string): Locator {
 async function fillEvaluationForm(page: Page): Promise<void> {
   for (const section of SECTIONS) {
     const fieldset = sectionFieldset(page, section.legend);
-    await fieldset.getByLabel('Score').fill(String(section.score));
-    await fieldset.getByLabel('Comment').fill(section.comment);
+    await fieldset.getByLabel('Puntuación').fill(String(section.score));
+    await fieldset.getByLabel('Comentario').fill(section.comment);
   }
 }
 
@@ -355,7 +355,7 @@ test.describe('US9 — live organizer monitoring dashboard', () => {
       await loginAsJudge(judgePage, judge.email, judgeTempPassword);
 
       const tableLink = judgePage.getByRole('link', { name: new RegExp('Mesa 1') });
-      await expect(tableLink).toContainText('Order not fixed');
+      await expect(tableLink).toContainText('Orden sin fijar');
       await tableLink.click();
       await judgePage.waitForURL(`**/judge/tables/${mesa1Id}`);
       await expect(judgePage.locator('li.sample-row')).toHaveCount(2);
@@ -374,10 +374,10 @@ test.describe('US9 — live organizer monitoring dashboard', () => {
       await expect(tableRow.locator('.order-fixed-note')).toHaveCount(0);
 
       // --- Judge fixes the order with the organizer's monitor page already open ---
-      await judgePage.getByRole('button', { name: 'Fix order' }).click();
-      const fixDialog = judgePage.getByRole('alertdialog', { name: 'Confirm fix order' });
+      await judgePage.getByRole('button', { name: 'Fijar orden' }).click();
+      const fixDialog = judgePage.getByRole('alertdialog', { name: 'Confirmar fijar orden' });
       await expect(fixDialog).toBeVisible();
-      await fixDialog.getByRole('button', { name: 'Confirm fix order' }).click();
+      await fixDialog.getByRole('button', { name: 'Confirmar fijar orden' }).click();
       await expect(judgePage.locator('p.order-status--fixed')).toBeVisible();
 
       // Live TableOrderFixed propagation on the already-open, non-reloaded organizer page —
@@ -385,7 +385,7 @@ test.describe('US9 — live organizer monitoring dashboard', () => {
       // us6-order.spec.ts uses for the judge-to-judge propagation case).
       const orderFixedNote = tableRow.locator('.order-fixed-note');
       await expect(orderFixedNote).toBeVisible({ timeout: 1000 });
-      await expect(orderFixedNote).toHaveText(`Order fixed by ${JUDGE_DISPLAY_NAME}.`);
+      await expect(orderFixedNote).toHaveText(`Orden fijado por ${JUDGE_DISPLAY_NAME}.`);
 
       // --- Judge evaluates the first sample in fixed order and submits ---
       const evaluateLink = judgePage.locator('a.evaluate-action');
@@ -404,7 +404,7 @@ test.describe('US9 — live organizer monitoring dashboard', () => {
             response.request().method() === 'POST' &&
             /\/api\/v1\/me\/tables\/.+\/evaluations$/.test(new URL(response.url()).pathname),
         ),
-        judgePage.getByRole('button', { name: 'Submit evaluation' }).click(),
+        judgePage.getByRole('button', { name: 'Enviar evaluación' }).click(),
       ]);
       expect(submitResponse.status()).toBe(201);
       const submitBody = (await submitResponse.json()) as { evaluationId: string; total: number };

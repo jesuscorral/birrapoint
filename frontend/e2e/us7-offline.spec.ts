@@ -60,11 +60,15 @@ const STYLE_CODE_B = '20C';
 
 const EVALUATION_SECTIONS = [
   { legend: 'Aroma', score: 10, comment: 'Citrus and pine hop aroma, moderate intensity.' },
-  { legend: 'Appearance', score: 2, comment: 'Deep golden, persistent white head, brilliant.' },
-  { legend: 'Flavor', score: 15, comment: 'Balanced malt backbone with resinous hop finish.' },
-  { legend: 'Mouthfeel', score: 4, comment: 'Medium body, lively carbonation, dry finish.' },
+  { legend: 'Apariencia', score: 2, comment: 'Deep golden, persistent white head, brilliant.' },
+  { legend: 'Sabor', score: 15, comment: 'Balanced malt backbone with resinous hop finish.' },
   {
-    legend: 'Overall Impression',
+    legend: 'Sensación en boca',
+    score: 4,
+    comment: 'Medium body, lively carbonation, dry finish.',
+  },
+  {
+    legend: 'Impresión general',
     score: 8,
     comment: 'A clean, well-executed example of the style.',
   },
@@ -257,16 +261,16 @@ function sectionFieldset(page: Page, legend: string): Locator {
 async function fillEvaluationForm(page: Page): Promise<void> {
   for (const section of EVALUATION_SECTIONS) {
     const fieldset = sectionFieldset(page, section.legend);
-    await fieldset.getByLabel('Score').fill(String(section.score));
-    await fieldset.getByLabel('Comment').fill(section.comment);
+    await fieldset.getByLabel('Puntuación').fill(String(section.score));
+    await fieldset.getByLabel('Comentario').fill(section.comment);
   }
 }
 
 async function expectEvaluationFormIntact(page: Page): Promise<void> {
   for (const section of EVALUATION_SECTIONS) {
     const fieldset = sectionFieldset(page, section.legend);
-    await expect(fieldset.getByLabel('Score')).toHaveValue(String(section.score));
-    await expect(fieldset.getByLabel('Comment')).toHaveValue(section.comment);
+    await expect(fieldset.getByLabel('Puntuación')).toHaveValue(String(section.score));
+    await expect(fieldset.getByLabel('Comentario')).toHaveValue(section.comment);
   }
 }
 
@@ -383,7 +387,7 @@ test.describe('US7 — offline-first validated evaluation sheet', () => {
       await loginAsJudge(judgePage, judge.email, judgeTempPassword);
 
       const tableLink = judgePage.getByRole('link', { name: new RegExp('Mesa 1') });
-      await expect(tableLink).toContainText('Order not fixed');
+      await expect(tableLink).toContainText('Orden sin fijar');
       await tableLink.click();
       await judgePage.waitForURL(`**/judge/tables/${mesa1Id}`);
 
@@ -391,10 +395,10 @@ test.describe('US7 — offline-first validated evaluation sheet', () => {
 
       // Fixing the order itself (drag vs. keyboard, which sample ends up first) isn't what this
       // scenario is testing — reordering is already covered by us6-order.spec.ts. Fix as-is.
-      await judgePage.getByRole('button', { name: 'Fix order' }).click();
-      const confirmDialog = judgePage.getByRole('alertdialog', { name: 'Confirm fix order' });
+      await judgePage.getByRole('button', { name: 'Fijar orden' }).click();
+      const confirmDialog = judgePage.getByRole('alertdialog', { name: 'Confirmar fijar orden' });
       await expect(confirmDialog).toBeVisible();
-      await confirmDialog.getByRole('button', { name: 'Confirm fix order' }).click();
+      await confirmDialog.getByRole('button', { name: 'Confirmar fijar orden' }).click();
       await expect(judgePage.locator('p.order-status--fixed')).toBeVisible();
 
       // Exactly one sample is reachable once the order is fixed (FR-022 strict sequencing) — the
@@ -415,7 +419,7 @@ test.describe('US7 — offline-first validated evaluation sheet', () => {
 
       const offlineBadge = judgePage.locator('p.offline-badge');
       await expect(offlineBadge).toBeVisible();
-      await expect(offlineBadge).toContainText('Offline mode');
+      await expect(offlineBadge).toContainText('Modo sin conexión');
 
       await fillEvaluationForm(judgePage);
       await expectEvaluationFormIntact(judgePage);
@@ -448,7 +452,7 @@ test.describe('US7 — offline-first validated evaluation sheet', () => {
         }
       });
 
-      await judgePage.getByRole('button', { name: 'Submit evaluation' }).click();
+      await judgePage.getByRole('button', { name: 'Enviar evaluación' }).click();
       await judgePage.waitForURL(`**/judge/tables/${mesa1Id}`, { timeout: 10_000 });
       expect(evaluationPostResponses).toEqual([]); // offline: no network attempt at all yet
 
@@ -477,7 +481,7 @@ test.describe('US7 — offline-first validated evaluation sheet', () => {
       const evaluatedRow = judgePage
         .locator('li.sample-row')
         .filter({ hasText: evaluatedBlindCode });
-      await expect(evaluatedRow.locator('.badge--done')).toHaveText('Submitted');
+      await expect(evaluatedRow.locator('.badge--done')).toHaveText('Enviada');
 
       // The other sample is now the next reachable one (FR-022 sequential progression).
       await expect(judgePage.locator('a.evaluate-action')).toHaveCount(1);

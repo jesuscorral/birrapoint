@@ -1,10 +1,9 @@
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import Keycloak from 'keycloak-js';
 import { of, throwError } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
-import { ActiveRoleService } from '../../core/auth/active-role.service';
 import { JudgeTablesListComponent } from './judge-tables-list.component';
 import { TastingOrderApiService } from './tasting-order-api.service';
 import type { JudgeTableSummary } from './tasting-order-api.service';
@@ -21,24 +20,16 @@ function tableFixture(overrides: Partial<JudgeTableSummary> = {}): JudgeTableSum
   };
 }
 
-function buttonWithText(root: Element, text: string): HTMLButtonElement | undefined {
-  return ([...root.querySelectorAll('button')] as HTMLButtonElement[]).find(
-    (button) => button.textContent?.trim() === text,
-  );
-}
-
 describe('JudgeTablesListComponent', () => {
   let fakeApi: { getMyTables: jest.Mock };
-  let fakeKeycloak: { tokenParsed?: { realm_access?: { roles: string[] } } };
 
   beforeEach(() => {
     sessionStorage.clear();
     fakeApi = { getMyTables: jest.fn().mockReturnValue(of([tableFixture()])) };
-    fakeKeycloak = { tokenParsed: { realm_access: { roles: ['JUDGE'] } } };
     TestBed.configureTestingModule({
       providers: [
         { provide: TastingOrderApiService, useValue: fakeApi },
-        { provide: Keycloak, useValue: fakeKeycloak },
+        { provide: Keycloak, useValue: { tokenParsed: { realm_access: { roles: ['JUDGE'] } } } },
         provideRouter([]),
       ],
     });
@@ -49,6 +40,13 @@ describe('JudgeTablesListComponent', () => {
     fixture.detectChanges();
     return fixture;
   }
+
+  it('renders inside the shared page shell (bp-page-shell — Ajustes/Cerrar sesión fixed here too)', () => {
+    const fixture = createComponent();
+
+    expect(fixture.nativeElement.querySelector('header')).not.toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('main').length).toBe(1);
+  });
 
   it('loads and renders the assigned tables', () => {
     const fixture = createComponent();
@@ -63,7 +61,7 @@ describe('JudgeTablesListComponent', () => {
   it('shows an order-not-fixed badge when the table order is not fixed', () => {
     const fixture = createComponent();
 
-    expect(fixture.nativeElement.textContent).toContain('Order not fixed');
+    expect(fixture.nativeElement.textContent).toContain('Orden sin fijar');
   });
 
   it('shows the fixer name when the table order is already fixed', () => {
@@ -86,18 +84,18 @@ describe('JudgeTablesListComponent', () => {
     fakeApi.getMyTables.mockReturnValue(of([]));
     const fixture = createComponent();
 
-    expect(fixture.nativeElement.textContent).toContain('No tables assigned yet');
+    expect(fixture.nativeElement.textContent).toContain('Todavía no tienes mesas asignadas.');
   });
 
   it('surfaces an error message when loading tables fails', () => {
     fakeApi.getMyTables.mockReturnValue(
       throwError(
-        () => new ApiError({ status: 500, title: 'An unexpected error occurred.', urn: null }),
+        () => new ApiError({ status: 500, title: 'Ha ocurrido un error inesperado.', urn: null }),
       ),
     );
     const fixture = createComponent();
 
-    expect(fixture.nativeElement.textContent).toContain('An unexpected error occurred.');
+    expect(fixture.nativeElement.textContent).toContain('Ha ocurrido un error inesperado.');
   });
 
   describe('ejection banner (T087/US12)', () => {
@@ -116,7 +114,7 @@ describe('JudgeTablesListComponent', () => {
       const fixture = createComponent();
 
       const banner = fixture.nativeElement.querySelector('[role="status"]');
-      expect(banner?.textContent).toContain('You were removed from Table 1 by the organizer.');
+      expect(banner?.textContent).toContain('El organizador te ha eliminado de Table 1.');
     });
 
     it('falls back to generic wording when no table name was passed', () => {
@@ -124,38 +122,18 @@ describe('JudgeTablesListComponent', () => {
       const fixture = createComponent();
 
       const banner = fixture.nativeElement.querySelector('[role="status"]');
-      expect(banner?.textContent).toContain('You were removed from a table by the organizer.');
+      expect(banner?.textContent).toContain('El organizador te ha eliminado de una mesa.');
     });
 
     it('dismisses the banner on click', () => {
       history.replaceState({ ejected: true, tableName: 'Table 1' }, '');
       const fixture = createComponent();
 
-      ([...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[])[0].click();
+      const banner = fixture.nativeElement.querySelector('[role="status"]') as Element;
+      (banner.querySelector('button') as HTMLButtonElement).click();
       fixture.detectChanges();
 
       expect(fixture.nativeElement.querySelector('[role="status"]')).toBeNull();
-    });
-  });
-
-  describe('"Cambiar rol" (dual-role accounts only)', () => {
-    it('does not render for a JUDGE-only account', () => {
-      const fixture = createComponent();
-
-      expect(buttonWithText(fixture.nativeElement, 'Cambiar rol')).toBeUndefined();
-    });
-
-    it('clears the active role and navigates to /select-role for a dual-role account', () => {
-      fakeKeycloak.tokenParsed = { realm_access: { roles: ['ORGANIZER', 'JUDGE'] } };
-      TestBed.inject(ActiveRoleService).setActiveRole('JUDGE');
-      const fixture = createComponent();
-      const router = TestBed.inject(Router);
-      const navigateSpy = jest.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
-
-      buttonWithText(fixture.nativeElement, 'Cambiar rol')!.click();
-
-      expect(TestBed.inject(ActiveRoleService).getActiveRole()).toBeNull();
-      expect(navigateSpy).toHaveBeenCalledWith('/select-role');
     });
   });
 });

@@ -1,3 +1,4 @@
+import Keycloak from 'keycloak-js';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { signal } from '@angular/core';
 import type { WritableSignal } from '@angular/core';
@@ -205,6 +206,10 @@ describe('CompetitionMonitorComponent', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        {
+          provide: Keycloak,
+          useValue: { tokenParsed: { realm_access: { roles: ['ORGANIZER'] } }, logout: jest.fn() },
+        },
         { provide: CompetitionsApiService, useValue: fakeCompetitionsApi },
         { provide: MonitoringApiService, useValue: fakeMonitoringApi },
         { provide: EntriesApiService, useValue: fakeEntriesApi },

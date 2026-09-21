@@ -4,7 +4,12 @@ import type { ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/route
 import type { AuthGuardData } from 'keycloak-angular';
 
 import { ActiveRoleService } from './active-role.service';
-import { isJudgeAllowed, isOrganizerAllowed, isRoleSelectAllowed } from './role.guard';
+import {
+  isJudgeAllowed,
+  isOrganizerAllowed,
+  isRoleSelectAllowed,
+  isSettingsAllowed,
+} from './role.guard';
 
 function authData(realmRoles: string[]): AuthGuardData {
   return {
@@ -193,6 +198,52 @@ describe('role guards', () => {
     it('bounces an anonymous/no-role caller to the public landing (e.g. browser Back after logout)', async () => {
       const result = await TestBed.runInInjectionContext(() =>
         isRoleSelectAllowed({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot, authData([])),
+      );
+
+      expect(result).toEqual(router.parseUrl('/'));
+    });
+  });
+
+  describe('isSettingsAllowed (/settings)', () => {
+    it('allows an ORGANIZER-only caller', async () => {
+      const result = await TestBed.runInInjectionContext(() =>
+        isSettingsAllowed(
+          {} as ActivatedRouteSnapshot,
+          {} as RouterStateSnapshot,
+          authData(['ORGANIZER']),
+        ),
+      );
+
+      expect(result).toBe(true);
+    });
+
+    it('allows a JUDGE-only caller', async () => {
+      const result = await TestBed.runInInjectionContext(() =>
+        isSettingsAllowed(
+          {} as ActivatedRouteSnapshot,
+          {} as RouterStateSnapshot,
+          authData(['JUDGE']),
+        ),
+      );
+
+      expect(result).toBe(true);
+    });
+
+    it('allows a dual-role caller regardless of which role is active', async () => {
+      const result = await TestBed.runInInjectionContext(() =>
+        isSettingsAllowed(
+          {} as ActivatedRouteSnapshot,
+          {} as RouterStateSnapshot,
+          authData(['ORGANIZER', 'JUDGE']),
+        ),
+      );
+
+      expect(result).toBe(true);
+    });
+
+    it('bounces an anonymous/no-role caller to the public landing', async () => {
+      const result = await TestBed.runInInjectionContext(() =>
+        isSettingsAllowed({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot, authData([])),
       );
 
       expect(result).toEqual(router.parseUrl('/'));

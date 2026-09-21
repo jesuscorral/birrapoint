@@ -1,3 +1,4 @@
+import Keycloak from 'keycloak-js';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
 import type { WritableSignal } from '@angular/core';
@@ -82,6 +83,10 @@ describe('ResultsDispatchComponent', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        {
+          provide: Keycloak,
+          useValue: { tokenParsed: { realm_access: { roles: ['ORGANIZER'] } }, logout: jest.fn() },
+        },
         { provide: DispatchApiService, useValue: fakeDispatchApi },
         { provide: CompetitionHubService, useValue: fakeHub },
         provideRouter([]),

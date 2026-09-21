@@ -709,6 +709,17 @@ judge already provisioned with a Keycloak account.
   `table:{tableId}` group**; contracts/signalr-hub.md also lists this event under the organizer
   group, not yet wired (Phase 11/US9's monitoring dashboard is the natural owner — see Recorded debt
   below).
+  **Session 2026-09-20 (FR-062)**: `JudgeSampleDto` gained `AbvPercent` (`JudgeSampleProjector`
+  now selects `BeerEntry.AbvPercent` alongside `BlindCode`/`StyleCode`) — like `EntryInstructions`,
+  a deliberate, narrow addition rather than a relaxation of the anonymity boundary: it's the beer's
+  own physical attribute, already exposed to the organizer via `TableSampleDto.AbvPercent`, not an
+  entrant field. New sibling endpoint `GET /me/tables/{tableId}/judges`
+  (`GetTableJudgesQuery`/`GetTableJudgesQueryHandler`, additive — doesn't touch the existing
+  `/samples` response shape) returns `JudgeTableMemberDto(DisplayName, BjcpRank)` for every other
+  `TableJudge` actively assigned to the table (`RemovedAt == null`, caller's own Judge id excluded,
+  ordered client-side by `DisplayName` since `StringComparer.Ordinal` isn't SQL-translatable) —
+  informational only, same `JudgeTableAccess.FindActiveMembershipAsync` 404-scoping as every other
+  handler in this slice.
 - **`Features/Evaluations/`** (T055–T058, US7): the first slice that mutates domain state from a
   judge-facing endpoint, `POST /me/tables/{tableId}/evaluations`. `SubmitEvaluationRules` (pure,
   unit-tested without Postgres, same split as `TastingOrderRules`) encodes `IsNextInSequence`
@@ -995,10 +1006,12 @@ judge already provisioned with a Keycloak account.
     dual-role caller bounced between `/select-role` and the guards forever, reaching neither
     workspace. The in-memory signal fixes this: a storage failure only costs surviving a reload,
     never the current tab's navigation.
-  - Both `OrganizerDashboardComponent.onLogout` and `UserSettingsComponent.onLogout` call
-    `ActiveRoleService.clearActiveRole()` before `keycloak.logout(...)` (fixed post-review, PR #43
-    M3) — otherwise a stale choice from the account that just logged out would silently carry into
-    whichever account logs into that same tab next, skipping the picker FR-002 requires.
+  - Both `BpPageShellComponent.onLogout` (see below — every organizer/judge screen now goes
+    through it) and `UserSettingsComponent.onLogout` call `ActiveRoleService.clearActiveRole()`
+    before `keycloak.logout(...)` (fixed post-review, PR #43 M3; centralized into the shell later
+    the same session) — otherwise a stale choice from the account that just logged out would
+    silently carry into whichever account logs into that same tab next, skipping the picker FR-002
+    requires.
   - `role-landing.ts` (T024; dual-role handling added Session 2026-09-20):
     `resolveRoleLandingUrlTree(authData): UrlTree | null` — single-role ORGANIZER →
     `/organizer/dashboard`, single-role JUDGE → `/judge/tables`, shared by `role.guard.ts`'s
@@ -1025,12 +1038,31 @@ judge already provisioned with a Keycloak account.
     press away from `/select-role` if that was the previous page). No redirect loop is possible:
     `resolveRoleLandingUrlTree` only ever returns `/select-role` from its own dual-role branch,
     which this guard already returns `true` for before ever reaching that call.
-  - "Switch role" (Session 2026-09-20): a button visible only when the caller's own Keycloak token
-    carries both realm roles (`hasDualRole()`, same `keycloak.tokenParsed?.realm_access?.roles`
-    read as `UserSettingsComponent.rolesLabel()`) — in `OrganizerDashboardComponent`'s
-    `bpTopbarActions` slot, and inline in `JudgeTablesListComponent`'s own header (that screen has
-    no shared topbar yet). Both call `ActiveRoleService.clearActiveRole()` then navigate to
-    `/select-role`; neither logs the caller out.
+  - **`bp-page-shell.component.ts` centralized (later, same Session 2026-09-20)**: originally
+    "Cambiar rol"/Settings/Log out were each screen's own `bpTopbarActions` projection —
+    `OrganizerDashboardComponent` and `JudgeTablesListComponent` each carried a byte-for-byte
+    duplicate of the `hasDualRole()`/`onSwitchRole()` logic (independently flagged by
+    senior-code-reviewer on PR #43 as a de-duplication opportunity, M2). Folded into
+    `BpPageShellComponent` itself instead: it now injects `Keycloak`/`ActiveRoleService`/`Router`
+    directly and always renders, fixed, after any screen-specific `[bpTopbarActions]` content —
+    "Cambiar rol" (`hasDualRole()`, only when the token carries both realm roles), "Ajustes" (→
+    `/settings`), and "Cerrar sesión" (`onLogout`: `clearActiveRole()` then `keycloak.logout(...)`).
+    Every screen wrapped in `<bp-page-shell>` gets all three for free — this closed a real gap
+    where four of the five judge-facing screens (`JudgeTableOrderComponent`,
+    `EvaluationSheetComponent`, `DiscrepancyAlertComponent`, and `JudgeTablesListComponent` before
+    this pass) had no way to reach Settings or sign out at all.
+  - **`bp-page-shell` relocated `shared/components/` → `core/layout/` (later still, same Session
+    2026-09-20, ADR-0014)**: injecting `Keycloak`/`ActiveRoleService`/`Router` made it the only
+    file under `shared/` depending on `core/` — an FSD layering inversion (senior-code-reviewer
+    finding A1, PR #44). Moved to `core/layout/bp-page-shell/`, class name/selector/API unchanged;
+    all 12 consumers' import paths updated, `shared/components/index.ts` no longer re-exports it.
+  - **`/settings` moved out of `/organizer/**`** to a shared top-level route
+    (`settingsGuard`/`isSettingsAllowed`, `role.guard.ts`: `true` for either realm role, bounces
+    only an anonymous/no-role caller) — `BpPageShellComponent`'s "Ajustes" link needs one target
+    that works from both `/organizer/**` and `/judge/**`. `UserSettingsComponent`'s own "back" link
+    is now role-aware (`backLink()`: effectively-JUDGE — single-role JUDGE, or dual-role with
+    `ActiveRoleService.getActiveRole() === 'JUDGE'` — goes to `/judge/tables`, everyone else to
+    `/organizer/dashboard`) instead of always pointing at the organizer dashboard.
   - `auth-placeholder.component.ts`: **T024** repurposed this from "temporary render target for
     all three routes" (T019) to the `''`-only fallback for a caller recognized by Keycloak but
     holding neither `ORGANIZER` nor `JUDGE` (shouldn't happen given the backend's deny-by-default
@@ -1527,10 +1559,11 @@ judge already provisioned with a Keycloak account.
   **Organizer page shell and read-only wizard (T127, FR-061).** Until T127 the wizard was the only
   organizer screen with a shell: the dashboard, judge management, the standalone `/tables` route,
   the monitor and results dispatch all rendered straight against the viewport edges with no
-  topbar. `shared/components/bp-page-shell/` is now the single organizer shell — `bp-topbar`, one
-  `<main>` landmark and an `88rem` container with the wizard's gutters (`--spacing-8`, widening to
-  `12` at 1280px and `16` at 1800px, `4` on phones) — and all six organizer screens, the wizard
-  included, project their content into it. Each screen keeps its own `<h1>` (E2E-locked strings).
+  topbar. `shared/components/bp-page-shell/` (relocated to `core/layout/bp-page-shell/`, Session
+  2026-09-20, ADR-0014 — see below) is now the single shell for every screen, organizer and judge
+  alike — `bp-topbar`, one `<main>` landmark and an `88rem` container with the wizard's gutters
+  (`--spacing-8`, widening to `12` at 1280px and `16` at 1800px, `4` on phones) — and every screen
+  projects its content into it. Each screen keeps its own `<h1>` (E2E-locked strings).
 
   The wizard now opens in **every** lifecycle state with all six steps reachable. The current step
   is mirrored into the address as `?step=N` via `Location.replaceState` (not `router.navigate` —
@@ -1610,20 +1643,25 @@ judge already provisioned with a Keycloak account.
   wizard; the standalone `/tables` route still exists and is unchanged, just no longer the
   dashboard's destination. `spec.md` US13 Acceptance Scenario 2 and FR-060 were amended in the same
   change (requirement change flows to the spec first, never silently into code).
-  **T126 header**: the dashboard now renders the shared `bp-topbar` (previously used only by the
-  wizard) carrying two projected actions — a "Settings" `routerLink` to `/organizer/settings` and a
-  "Log out" button calling `keycloak.logout({ redirectUri: origin + '/' })`. The page's own padding
-  moved from `:host` onto a `.dashboard-main` wrapper so the bar spans the viewport flush, matching
+  **T126 header**: the dashboard originally rendered the shared `bp-topbar` (previously used only
+  by the wizard) carrying two projected actions — a "Settings" `routerLink` and a "Log out" button.
+  **Superseded, same Session 2026-09-20**: both now come from `BpPageShellComponent` (see above),
+  which every screen wraps in instead of projecting its own copy — `OrganizerDashboardComponent` no
+  longer carries this logic itself. The page's own padding moved from `:host` onto a
+  `.dashboard-main` wrapper so the bar spans the viewport flush, matching
   `competition-wizard.component.ts`'s `.wizard-shell`/`.wizard-main` split.
 
-- **`features/settings/`** (T126): `UserSettingsComponent` — route `/organizer/settings`, under the
-  existing `organizerGuard`. Renders the logged-in user's identity as a `dl`: first name, last name,
-  email (with a "Verified" pill when `emailVerified`), username, realm role(s) and member-since.
-  Purely frontend and backend-free by design: identity is Keycloak-only (Principle VII), so every
-  field comes from `keycloak-js` directly — `loadUserProfile()` for the profile and
-  `tokenParsed.realm_access.roles` for the roles. The realm defines no custom user attributes
-  (`infra/keycloak/birrapoint-realm.json`), so this is the complete set of data the app actually
-  holds about a user, not a partial view. Carries the same `bp-topbar` + "Log out" affordance.
+- **`features/settings/`** (T126; route moved top-level, Session 2026-09-20 — see above):
+  `UserSettingsComponent` — route `/settings`, under `settingsGuard` (either realm role). Renders
+  the logged-in user's identity as a `dl`: first name, last name, email (with a "Verified" pill when
+  `emailVerified`), username, realm role(s) and member-since. Purely frontend and backend-free by
+  design: identity is Keycloak-only (Principle VII), so every field comes from `keycloak-js`
+  directly — `loadUserProfile()` for the profile and `tokenParsed.realm_access.roles` for the
+  roles. The realm defines no custom user attributes (`infra/keycloak/birrapoint-realm.json`), so
+  this is the complete set of data the app actually holds about a user, not a partial view. Wrapped
+  in `<bp-page-shell>` like every other screen (Session 2026-09-20) — no longer carries its own
+  `bp-topbar`/logout logic; its own body only owns the role-aware "back" link (`backLink()`) and the
+  profile `dl`.
   **Bug found and fixed the same day, unrelated to this task's own files**: while visually
   verifying this component in a real browser (not just Jest/jsdom), the routed content rendered
   correctly but was pushed entirely below the fold — `frontend/src/app/app.html` (unchanged since
@@ -2200,6 +2238,16 @@ safety-net poll — no new retry mechanism, just reuse of what T016 already buil
   the E2E suite's broader known fragility post-redesign (see the "E2E suite broken post-redesign"
   entry this doc's history already tracks) — adding one more route to a suite already due for a
   wider fix isn't the right place to do it piecemeal. Worth picking up together with that fix.
+- **New (Session 2026-09-20)**: all five judge-facing screens
+  (`judge-tables-list`/`judge-table-order`/`evaluation-sheet`/`discrepancy-alert`/`user-settings`)
+  plus the shared `bp-page-shell`/`role-select` chrome were translated to Spain Spanish (organizer
+  request: judge-facing text must read as Spain Spanish, not Rioplatense/Argentine — a `querés`
+  voseo slip in `role-select.component.ts`'s first draft is what surfaced this). The rest of the
+  app — `organizer-dashboard`, `table-management`, `judge-management`, `results-dispatch`,
+  `competition-monitor` — is still English, a pre-existing inconsistency this pass deliberately
+  left alone (explicitly scoped out by the organizer) rather than silently expanding into a
+  whole-app i18n sweep. `competition-wizard` and its steps were already Spanish (tú form) before
+  this session. Worth a deliberate full pass later rather than continuing piecemeal.
 - **Resolved 2026-07-28 (T089)**: `frontend/e2e/smoke.spec.ts` and `frontend/e2e/a11y/
   home.a11y.spec.ts` (both dating to T004, before Keycloak's `login-required` existed) — removed
   rather than fixed. `us1-auth.spec.ts` already asserts the Keycloak redirect `smoke.spec.ts` was

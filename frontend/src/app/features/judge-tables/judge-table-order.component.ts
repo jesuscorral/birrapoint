@@ -5,7 +5,7 @@ import type { OnDestroy, OnInit } from '@angular/core';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import type { Subscription } from 'rxjs';
-import { filter, forkJoin, merge } from 'rxjs';
+import { catchError, filter, forkJoin, merge, of } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
 import { SyncService } from '../../core/offline/sync.service';
@@ -17,14 +17,15 @@ import type {
   TableClosedEvent,
   TableOrderFixedEvent,
 } from '../../core/realtime/competition-hub.events';
+import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-shell.component';
 import { DiscrepancyApiService } from '../discrepancy/discrepancy-api.service';
 import { TastingOrderApiService } from './tasting-order-api.service';
-import type { JudgeSample, JudgeTableSummary } from './tasting-order-api.service';
+import type { JudgeSample, JudgeTableMember, JudgeTableSummary } from './tasting-order-api.service';
 
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError
     ? error
-    : new ApiError({ status: 0, title: 'An unexpected error occurred.', urn: null });
+    : new ApiError({ status: 0, title: 'Ha ocurrido un error inesperado.', urn: null });
 }
 
 function errorMessage(error: ApiError): string {
@@ -38,7 +39,10 @@ function swap<T>(items: T[], a: number, b: number): T[] {
 }
 
 // T053/US6: blind per-table sample/tasting-order view. Only ever renders blindCode/styleCode/
-// styleName from JudgeSample — the BR-01/FR-019 anonymity boundary — never any entrant field.
+// styleName/abvPercent from JudgeSample — the BR-01/FR-019 anonymity boundary — never any entrant
+// field. Session 2026-09-20: added abvPercent per sample, and a read-only "other judges at this
+// table" section (GET /me/tables/{tableId}/judges) — purely informational, no editing capability
+// hangs off either judge's own row here.
 //
 // Reordering: while the order isn't fixed, samples can be reordered via CDK drag-and-drop
 // (`cdkDragHandle`-restricted, not the whole row) or the Move up/down buttons — FR-020's
@@ -54,188 +58,210 @@ function swap<T>(items: T[], a: number, b: number): T[] {
 // open), the list becomes read-only and shows who fixed it.
 @Component({
   selector: 'app-judge-table-order',
-  imports: [RouterLink, CdkTrapFocus, CdkDropList, CdkDrag, CdkDragHandle],
+  imports: [RouterLink, CdkTrapFocus, CdkDropList, CdkDrag, CdkDragHandle, BpPageShellComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <p><a routerLink="/judge/tables">&larr; My tables</a></p>
-    <h1>{{ tableName() }}</h1>
+    <bp-page-shell homeLink="/judge/tables">
+      <p><a routerLink="/judge/tables">&larr; Mis mesas</a></p>
+      <h1>{{ tableName() }}</h1>
 
-    @if (loadError(); as message) {
-      <p role="alert">{{ message }}</p>
-    }
-
-    @if (!loadError()) {
-      @if (openDiscrepancyCount() > 0) {
-        <p role="status" class="discrepancy-banner">
-          {{ openDiscrepancyCount() }} open discrepancy alert{{
-            openDiscrepancyCount() === 1 ? '' : 's'
-          }}
-          on this table.
-          <a [routerLink]="['/judge', 'tables', tableId, 'discrepancies']">Resolve now</a>
-        </p>
-      }
-
-      @if (tableClosed()) {
-        <p role="status" class="order-status order-status--closed">
-          Table closed. Scores are now permanently locked.
-        </p>
-      } @else if (orderFixed()) {
-        <p role="status" class="order-status order-status--fixed">
-          Order fixed{{ fixedByDisplayName() ? ' by ' + fixedByDisplayName() : '' }}.
-        </p>
-      } @else if (samples().length > 0) {
-        <p class="order-status">
-          Drag to reorder, or use the Move up/down buttons. Fixing the order is permanent.
-        </p>
-      }
-
-      @if (fixError(); as message) {
+      @if (loadError(); as message) {
         <p role="alert">{{ message }}</p>
       }
 
-      @if (closeError(); as message) {
-        <p role="alert">
-          {{ message }}
-          @if (closeErrorDiscrepancy()) {
-            <a [routerLink]="['/judge', 'tables', tableId, 'discrepancies']">
-              Resolve discrepancies
-            </a>
-          }
-        </p>
-      }
+      @if (!loadError()) {
+        @if (openDiscrepancyCount() > 0) {
+          <p role="status" class="discrepancy-banner">
+            {{ openDiscrepancyCount() }} discrepancia{{
+              openDiscrepancyCount() === 1 ? '' : 's'
+            }}
+            abierta{{ openDiscrepancyCount() === 1 ? '' : 's' }} en esta mesa.
+            <a [routerLink]="['/judge', 'tables', tableId, 'discrepancies']">Resolver ahora</a>
+          </p>
+        }
 
-      @if (samples().length === 0) {
-        <p>No samples assigned to this table yet.</p>
-      } @else {
-        <ol
-          class="sample-order-list"
-          aria-label="Tasting order"
-          cdkDropList
-          [cdkDropListDisabled]="orderFixed()"
-          (cdkDropListDropped)="onDrop($event)"
-        >
-          @for (sample of samples(); track sample.beerEntryId; let i = $index) {
-            <li class="sample-row" cdkDrag [cdkDragDisabled]="orderFixed()">
-              @if (!orderFixed()) {
-                <span class="drag-handle" cdkDragHandle aria-hidden="true">&#10021;</span>
+        @if (otherJudges().length > 0) {
+          <section class="table-mates" aria-label="Otros jueces de esta mesa">
+            <h2>Otros jueces de esta mesa</h2>
+            <ul>
+              @for (member of otherJudges(); track $index) {
+                <li>
+                  {{ member.displayName }}
+                  @if (member.bjcpRank) {
+                    <span class="table-mate-rank">({{ member.bjcpRank }})</span>
+                  }
+                </li>
               }
-              <span class="sample-position">{{ i + 1 }}</span>
-              <span class="sample-blind-code">{{ sample.blindCode }}</span>
-              <span class="sample-style">{{ sample.styleName }} ({{ sample.styleCode }})</span>
+            </ul>
+          </section>
+        }
 
-              @if (orderFixed()) {
-                <span class="sample-evaluation-status">
-                  @switch (sample.evaluationStatus) {
-                    @case ('Submitted') {
-                      <span class="badge badge--done">Submitted</span>
-                    }
-                    @case ('PendingConsensus') {
-                      <span class="badge badge--pending-consensus">Pending consensus</span>
-                    }
-                    @default {
-                      @if (sample.beerEntryId === firstReachableEntryId()) {
-                        <a
-                          [routerLink]="[
-                            '/judge',
-                            'tables',
-                            tableId,
-                            'samples',
-                            sample.beerEntryId,
-                          ]"
-                          class="evaluate-action"
-                        >
-                          Evaluate
-                        </a>
-                      } @else {
-                        <span class="badge badge--locked">Locked</span>
+        @if (tableClosed()) {
+          <p role="status" class="order-status order-status--closed">
+            Mesa cerrada. Las puntuaciones han quedado bloqueadas de forma permanente.
+          </p>
+        } @else if (orderFixed()) {
+          <p role="status" class="order-status order-status--fixed">
+            Orden fijado{{ fixedByDisplayName() ? ' por ' + fixedByDisplayName() : '' }}.
+          </p>
+        } @else if (samples().length > 0) {
+          <p class="order-status">
+            Arrastra para reordenar, o usa los botones de subir/bajar. Fijar el orden es permanente.
+          </p>
+        }
+
+        @if (fixError(); as message) {
+          <p role="alert">{{ message }}</p>
+        }
+
+        @if (closeError(); as message) {
+          <p role="alert">
+            {{ message }}
+            @if (closeErrorDiscrepancy()) {
+              <a [routerLink]="['/judge', 'tables', tableId, 'discrepancies']">
+                Resolver discrepancias
+              </a>
+            }
+          </p>
+        }
+
+        @if (samples().length === 0) {
+          <p>Todavía no hay cervezas asignadas a esta mesa.</p>
+        } @else {
+          <ol
+            class="sample-order-list"
+            aria-label="Orden de cata"
+            cdkDropList
+            [cdkDropListDisabled]="orderFixed()"
+            (cdkDropListDropped)="onDrop($event)"
+          >
+            @for (sample of samples(); track sample.beerEntryId; let i = $index) {
+              <li class="sample-row" cdkDrag [cdkDragDisabled]="orderFixed()">
+                @if (!orderFixed()) {
+                  <span class="drag-handle" cdkDragHandle aria-hidden="true">&#10021;</span>
+                }
+                <span class="sample-position">{{ i + 1 }}</span>
+                <span class="sample-blind-code">{{ sample.blindCode }}</span>
+                <span class="sample-style">{{ sample.styleName }} ({{ sample.styleCode }})</span>
+                <span class="sample-abv">{{ sample.abvPercent }}% ABV</span>
+
+                @if (orderFixed()) {
+                  <span class="sample-evaluation-status">
+                    @switch (sample.evaluationStatus) {
+                      @case ('Submitted') {
+                        <span class="badge badge--done">Enviada</span>
+                      }
+                      @case ('PendingConsensus') {
+                        <span class="badge badge--pending-consensus">Pendiente de consenso</span>
+                      }
+                      @default {
+                        @if (sample.beerEntryId === firstReachableEntryId()) {
+                          <a
+                            [routerLink]="[
+                              '/judge',
+                              'tables',
+                              tableId,
+                              'samples',
+                              sample.beerEntryId,
+                            ]"
+                            class="evaluate-action"
+                          >
+                            Evaluar
+                          </a>
+                        } @else {
+                          <span class="badge badge--locked">Bloqueada</span>
+                        }
                       }
                     }
-                  }
-                </span>
-              }
+                  </span>
+                }
 
-              @if (!orderFixed()) {
-                <span class="sample-move-controls">
-                  <button
-                    type="button"
-                    [attr.aria-label]="'Move ' + sample.blindCode + ' up'"
-                    [disabled]="!canMoveUp(i)"
-                    (click)="onMoveUp(i)"
-                  >
-                    &uarr;
-                  </button>
-                  <button
-                    type="button"
-                    [attr.aria-label]="'Move ' + sample.blindCode + ' down'"
-                    [disabled]="!canMoveDown(i)"
-                    (click)="onMoveDown(i)"
-                  >
-                    &darr;
-                  </button>
-                </span>
-              }
-            </li>
+                @if (!orderFixed()) {
+                  <span class="sample-move-controls">
+                    <button
+                      type="button"
+                      [attr.aria-label]="'Subir ' + sample.blindCode"
+                      [disabled]="!canMoveUp(i)"
+                      (click)="onMoveUp(i)"
+                    >
+                      &uarr;
+                    </button>
+                    <button
+                      type="button"
+                      [attr.aria-label]="'Bajar ' + sample.blindCode"
+                      [disabled]="!canMoveDown(i)"
+                      (click)="onMoveDown(i)"
+                    >
+                      &darr;
+                    </button>
+                  </span>
+                }
+              </li>
+            }
+          </ol>
+
+          @if (!orderFixed()) {
+            <button type="button" [disabled]="fixing()" (click)="onRequestFix()">
+              Fijar orden
+            </button>
+          } @else if (canCloseTable()) {
+            <button type="button" [disabled]="closing()" (click)="onRequestClose()">
+              Cerrar mesa
+            </button>
           }
-        </ol>
-
-        @if (!orderFixed()) {
-          <button type="button" [disabled]="fixing()" (click)="onRequestFix()">Fix order</button>
-        } @else if (canCloseTable()) {
-          <button type="button" [disabled]="closing()" (click)="onRequestClose()">
-            Close table
-          </button>
         }
       }
-    }
 
-    @if (confirmingFix()) {
-      <div class="modal-backdrop" role="presentation" (click)="onCancelFixConfirm()">
-        <div
-          role="alertdialog"
-          aria-modal="true"
-          aria-label="Confirm fix order"
-          class="modal-panel"
-          cdkTrapFocus
-          cdkTrapFocusAutoCapture
-          (click)="$event.stopPropagation()"
-          (keydown.escape)="onCancelFixConfirm()"
-        >
-          <h2>Fix tasting order</h2>
-          <p>
-            This locks the tasting order for everyone at this table and cannot be undone. Continue?
-          </p>
-          <button type="button" [disabled]="fixing()" (click)="onConfirmFix()">
-            Confirm fix order
-          </button>
-          <button type="button" (click)="onCancelFixConfirm()">Cancel</button>
+      @if (confirmingFix()) {
+        <div class="modal-backdrop" role="presentation" (click)="onCancelFixConfirm()">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="Confirmar fijar orden"
+            class="modal-panel"
+            cdkTrapFocus
+            cdkTrapFocusAutoCapture
+            (click)="$event.stopPropagation()"
+            (keydown.escape)="onCancelFixConfirm()"
+          >
+            <h2>Fijar orden de cata</h2>
+            <p>
+              Esto bloquea el orden de cata para todos los jueces de esta mesa y no se puede
+              deshacer. ¿Continuar?
+            </p>
+            <button type="button" [disabled]="fixing()" (click)="onConfirmFix()">
+              Confirmar fijar orden
+            </button>
+            <button type="button" (click)="onCancelFixConfirm()">Cancelar</button>
+          </div>
         </div>
-      </div>
-    }
+      }
 
-    @if (confirmingClose()) {
-      <div class="modal-backdrop" role="presentation" (click)="onCancelCloseConfirm()">
-        <div
-          role="alertdialog"
-          aria-modal="true"
-          aria-label="Confirm close table"
-          class="modal-panel"
-          cdkTrapFocus
-          cdkTrapFocusAutoCapture
-          (click)="$event.stopPropagation()"
-          (keydown.escape)="onCancelCloseConfirm()"
-        >
-          <h2>Close table</h2>
-          <p>
-            This permanently locks the table and its scores for everyone here and cannot be undone.
-            Continue?
-          </p>
-          <button type="button" [disabled]="closing()" (click)="onConfirmClose()">
-            Confirm close table
-          </button>
-          <button type="button" (click)="onCancelCloseConfirm()">Cancel</button>
+      @if (confirmingClose()) {
+        <div class="modal-backdrop" role="presentation" (click)="onCancelCloseConfirm()">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="Confirmar cierre de mesa"
+            class="modal-panel"
+            cdkTrapFocus
+            cdkTrapFocusAutoCapture
+            (click)="$event.stopPropagation()"
+            (keydown.escape)="onCancelCloseConfirm()"
+          >
+            <h2>Cerrar mesa</h2>
+            <p>
+              Esto bloquea la mesa y sus puntuaciones de forma permanente para todos los jueces y no
+              se puede deshacer. ¿Continuar?
+            </p>
+            <button type="button" [disabled]="closing()" (click)="onConfirmClose()">
+              Confirmar cierre de mesa
+            </button>
+            <button type="button" (click)="onCancelCloseConfirm()">Cancelar</button>
+          </div>
         </div>
-      </div>
-    }
+      }
+    </bp-page-shell>
   `,
   styles: `
     .discrepancy-banner {
@@ -244,6 +270,34 @@ function swap<T>(items: T[], a: number, b: number): T[] {
       padding: 0.5rem 0.75rem;
       border-radius: 0.5rem;
       font-weight: 600;
+    }
+
+    .table-mates {
+      margin: 1rem 0;
+      padding: 0.75rem 1rem;
+      border: 1px solid #d1d5db;
+      border-radius: 0.5rem;
+      background: #f9fafb;
+    }
+
+    .table-mates h2 {
+      margin: 0 0 0.5rem;
+      font-size: 0.9375rem;
+      font-weight: 700;
+    }
+
+    .table-mates ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .table-mate-rank {
+      color: #6b7280;
+      font-size: 0.875rem;
     }
 
     .order-status {
@@ -287,6 +341,11 @@ function swap<T>(items: T[], a: number, b: number): T[] {
     .sample-position {
       font-weight: 700;
       min-width: 1.5rem;
+    }
+
+    .sample-abv {
+      color: #6b7280;
+      font-size: 0.875rem;
     }
 
     .sample-move-controls {
@@ -365,6 +424,7 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
 
   protected readonly tableSummary = signal<JudgeTableSummary | null>(null);
   protected readonly samples = signal<JudgeSample[]>([]);
+  protected readonly otherJudges = signal<JudgeTableMember[]>([]);
   protected readonly orderFixed = signal(false);
   protected readonly fixedByDisplayName = signal<string | null>(null);
   protected readonly loadError = signal<string | null>(null);
@@ -384,7 +444,7 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
   protected readonly closeError = signal<string | null>(null);
   protected readonly closeErrorDiscrepancy = signal(false);
 
-  protected readonly tableName = computed(() => this.tableSummary()?.name ?? 'Table');
+  protected readonly tableName = computed(() => this.tableSummary()?.name ?? 'Mesa');
 
   // FR-033 close precondition, mirrored client-side purely to gate the button's visibility — the
   // backend re-validates all of this authoritatively (409 evaluations-incomplete/discrepancy-open)
@@ -558,12 +618,16 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
     forkJoin({
       tables: this.api.getMyTables(),
       samples: this.api.getTableSamples(this.tableId),
+      // Best-effort: this section is purely informational (Session 2026-09-20), so a failure here
+      // must not blank the whole judging screen — fall back to an empty list instead.
+      otherJudges: this.api.getTableJudges(this.tableId).pipe(catchError(() => of([]))),
       discrepancies: this.discrepancyApi.getDiscrepancies(this.tableId),
     }).subscribe({
-      next: ({ tables, samples, discrepancies }) => {
+      next: ({ tables, samples, otherJudges, discrepancies }) => {
         const summary = tables.find((table) => table.tableId === this.tableId) ?? null;
         this.tableSummary.set(summary);
         this.samples.set(samples);
+        this.otherJudges.set(otherJudges);
         this.orderFixed.set(summary?.orderFixed ?? false);
         this.fixedByDisplayName.set(summary?.orderFixedBy ?? null);
         this.tableClosed.set(summary?.tableState === 'Closed');
@@ -630,7 +694,9 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
 
     if (apiError.urn === 'urn:birrapoint:order-already-fixed') {
       const fixedBy = (apiError.extensions['fixedBy'] as string | null | undefined) ?? null;
-      this.fixError.set(fixedBy ? `Order already fixed by ${fixedBy}.` : 'Order already fixed.');
+      this.fixError.set(
+        fixedBy ? `El orden ya ha sido fijado por ${fixedBy}.` : 'El orden ya ha sido fijado.',
+      );
       this.orderFixed.set(true);
       this.fixedByDisplayName.set(fixedBy);
       // We lost the race: reconcile the local order against whatever was actually fixed rather
@@ -646,7 +712,7 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
     }
 
     if (apiError.urn === 'urn:birrapoint:invalid-state-transition') {
-      this.fixError.set('This table is not open for ordering yet.');
+      this.fixError.set('Esta mesa todavía no está abierta para fijar el orden.');
       return;
     }
 
@@ -666,13 +732,13 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
 
     if (apiError.urn === 'urn:birrapoint:evaluations-incomplete') {
       const missing = (apiError.extensions['missing'] as string[] | undefined) ?? [];
-      this.closeError.set(`Still needs evaluating: ${missing.join(', ')}.`);
+      this.closeError.set(`Todavía queda por evaluar: ${missing.join(', ')}.`);
       return;
     }
 
     if (apiError.urn === 'urn:birrapoint:discrepancy-open') {
       const blindCodes = (apiError.extensions['blindCodes'] as string[] | undefined) ?? [];
-      this.closeError.set(`Unresolved discrepancies on: ${blindCodes.join(', ')}.`);
+      this.closeError.set(`Discrepancias sin resolver en: ${blindCodes.join(', ')}.`);
       this.closeErrorDiscrepancy.set(true);
       return;
     }
@@ -689,7 +755,9 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
   private handleJudgeRemovedEvent(): void {
     this.api.getTableSamples(this.tableId).subscribe({
       next: () => {
-        // Still a member — the removed judge was someone else at this table. No-op.
+        // Still a member — the removed judge was someone else at this table. Refresh the
+        // informational tablemates list so it drops the judge who just left.
+        this.refreshOtherJudges();
       },
       error: (error: unknown) => {
         if (toGenericApiError(error).status === 404) {
@@ -699,9 +767,16 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
     });
   }
 
+  private refreshOtherJudges(): void {
+    this.api
+      .getTableJudges(this.tableId)
+      .pipe(catchError(() => of(this.otherJudges())))
+      .subscribe((members) => this.otherJudges.set(members));
+  }
+
   private async handleEjected(): Promise<void> {
     // Fire-and-forget the purge from this judge's own perspective: navigation away must not wait
-    // on it, and a failure here only leaves the stale rows for the next lazy-discovery 404 purge
+    // on it, and a failure here only leaves the stale row for the next lazy-discovery 404 purge
     // in SyncService's background replay to clean up instead.
     void this.syncService.rejectOutboxForTable(this.tableId).catch(() => {
       // Best-effort: see comment above.
