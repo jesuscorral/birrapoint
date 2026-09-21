@@ -31,6 +31,7 @@ import { INTENSITY_LABELS } from '../evaluation-descriptor-catalog';
           <input
             type="checkbox"
             [checked]="inappropriate()"
+            [attr.aria-label]="label() + ': inapropiado para el estilo'"
             (change)="onInappropriateChange($event)"
           />
           Inapropiado

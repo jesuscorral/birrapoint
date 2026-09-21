@@ -364,11 +364,11 @@ none of it feeds `Total` or the FR-023 caps.
 
 | Section | Fields |
 |---------|--------|
-| `appearance` | `color` (closed list: Yellow/Golden/Amber/Copper/Brown/Black/Other) + `colorOther` (free text) + `colorInappropriate` (bool); `clarity` (Clear/Hazy/Opaque); `foam` (White/Ivory/Beige/Tan/Brown/Other) + `foamOther` + `foamInappropriate`; `retention` (int 0–100, continuous); `texture` (free text); `notes` (free text) |
-| `aroma` | `malt`/`hops`/`fermentation` (int 0–3, discrete 4-stop intensity — Nada/Bajo/Medio/Alto) + `maltInappropriate`/`hopsInappropriate` (bool) |
-| `flavor` | `malt`/`hops`/`bitterness`/`fermentation` (int 0–3); `balance` (int 0–100, continuous, Lupulado↔Maltoso); `finish` (int 0–100, continuous, Seco↔Dulce) |
-| `mouthfeel` | `body`/`carbonation`/`alcoholWarmth`/`creaminess`/`astringency` (int 0–3) + `bodyInappropriate`/`creaminessInappropriate`/`astringencyInappropriate` (bool); `notes` (free text) |
-| `overall` | `classicExample`/`defects`/`vitality` (int 0–100, continuous — Ejemplo clásico↔No acorde al estilo / Sin defectos↔Defectos significativos / Maravillosa↔Sin vida) |
+| `appearance` | `color` (closed list: Yellow/Golden/Amber/Copper/Brown/Black/Other) + `colorOther` (free text) + `colorInappropriate` (bool); `clarity` (Clear/Hazy/Opaque) + `clarityInappropriate`; `foam` (White/Ivory/Beige/Tan/Brown/Other) + `foamOther` + `foamInappropriate`; `retention` (int 0–100, continuous) + `retentionInappropriate`; `texture` (free text); `notes` (free text) |
+| `aroma` | `malt`/`hops`/`fermentation` (int 0–3, discrete 4-stop intensity — Nada/Bajo/Medio/Alto) + `maltInappropriate`/`hopsInappropriate`/`fermentationInappropriate` (bool) |
+| `flavor` | `malt`/`hops`/`bitterness`/`fermentation` (int 0–3) + `maltInappropriate`/`hopsInappropriate`/`bitternessInappropriate`/`fermentationInappropriate`; `balance` (int 0–100, continuous, Lupulado↔Maltoso) + `balanceInappropriate`; `finish` (int 0–100, continuous, Seco↔Dulce) + `finishInappropriate` |
+| `mouthfeel` | `body`/`carbonation`/`alcoholWarmth`/`creaminess`/`astringency` (int 0–3) + `bodyInappropriate`/`carbonationInappropriate`/`alcoholWarmthInappropriate`/`creaminessInappropriate`/`astringencyInappropriate` (bool); `notes` (free text) |
+| `overall` | `classicExample`/`defects`/`vitality` (int 0–100, continuous — Ejemplo clásico↔No acorde al estilo / Sin defectos↔Defectos significativos / Maravillosa↔Sin vida) + `classicExampleInappropriate`/`defectsInappropriate`/`vitalityInappropriate` (bool) |
 | `offFlavors` | string list, each a member of a fixed 20-term closed list (`EvaluationDescriptorCatalog.OffFlavorTerms`) |
 
 Every closed-list field (`color`, `clarity`, `foam`, each `offFlavors` entry) is validated against

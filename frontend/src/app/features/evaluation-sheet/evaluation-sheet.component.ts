@@ -523,6 +523,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                               <input
                                 type="checkbox"
                                 [checked]="descriptors().appearance.colorInappropriate"
+                                aria-label="Color: inapropiado para el estilo"
                                 (change)="
                                   setAppearance('colorInappropriate', checkboxValue($event))
                                 "
@@ -557,6 +558,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                               <input
                                 type="checkbox"
                                 [checked]="descriptors().appearance.clarityInappropriate"
+                                aria-label="Claridad: inapropiado para el estilo"
                                 (change)="
                                   setAppearance('clarityInappropriate', checkboxValue($event))
                                 "
@@ -583,6 +585,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                               <input
                                 type="checkbox"
                                 [checked]="descriptors().appearance.foamInappropriate"
+                                aria-label="Espuma: inapropiado para el estilo"
                                 (change)="setAppearance('foamInappropriate', checkboxValue($event))"
                               />
                               Inapropiado
@@ -996,7 +999,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
       gap: var(--spacing-3);
     }
 
-    .descriptor-field__header label {
+    .descriptor-field__header > label[for] {
       font-size: 0.875rem;
       font-weight: 600;
       color: var(--color-bp-text);

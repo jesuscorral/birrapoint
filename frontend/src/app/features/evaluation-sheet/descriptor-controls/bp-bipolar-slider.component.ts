@@ -22,6 +22,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
           <input
             type="checkbox"
             [checked]="inappropriate()"
+            [attr.aria-label]="label() + ': inapropiado para el estilo'"
             (change)="onInappropriateChange($event)"
           />
           Inapropiado
