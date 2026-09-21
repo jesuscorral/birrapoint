@@ -52,9 +52,10 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 
     .bipolar-slider__header {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: var(--spacing-3);
+      gap: var(--spacing-2) var(--spacing-3);
       margin-bottom: var(--spacing-2);
     }
 
@@ -75,21 +76,45 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       white-space: nowrap;
     }
 
+    /* Grid, not flex: on a narrow viewport the two pole labels plus a range input never share one
+       row without forcing horizontal overflow (a range input's intrinsic min-content width can
+       exceed a flex item's default min-width: auto). Below 480px the labels sit on their own row
+       and the slider takes the full width beneath them; from 480px up it collapses back to a
+       single inline row (auto | 1fr | auto). */
     .bipolar-slider__track {
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-areas: 'start end' 'range range';
+      gap: var(--spacing-2) var(--spacing-3);
       align-items: center;
-      gap: var(--spacing-3);
+    }
+
+    @media (min-width: 480px) {
+      .bipolar-slider__track {
+        grid-template-columns: auto 1fr auto;
+        grid-template-areas: 'start range end';
+      }
     }
 
     .bipolar-slider__pole {
-      flex: none;
+      min-width: 0;
       font-size: 0.75rem;
       color: var(--color-bp-text-muted);
-      max-width: 6rem;
+    }
+
+    .bipolar-slider__pole:first-of-type {
+      grid-area: start;
+    }
+
+    .bipolar-slider__pole:last-of-type {
+      grid-area: end;
+      text-align: right;
     }
 
     input[type='range'] {
-      flex: 1;
+      grid-area: range;
+      min-width: 0;
+      width: 100%;
       accent-color: var(--color-bp-cobre-500);
       min-height: 44px;
     }

@@ -908,10 +908,17 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
       margin-top: -0.5rem;
     }
 
+    /* Organizer follow-up (Session 2026-09-21): the sheet used to inherit bp-page-shell's full
+       88rem page-container width unconditionally, which read as too wide/empty on a desktop
+       screen. Capping it here (not in the shared shell, which other screens still rely on at full
+       width) keeps this one judge-facing form centered and book-like instead of stretched. */
     .evaluation-sheet-form {
       display: flex;
       flex-direction: column;
       gap: var(--spacing-3);
+      max-width: 56rem;
+      margin: 0 auto;
+      width: 100%;
     }
 
     .section-nav {
@@ -985,6 +992,25 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
       flex-direction: column;
     }
 
+    /* Desktop only: two fields side by side instead of one long single-column list — the sheet
+       is capped well under the viewport width above (.evaluation-sheet-form), so this is what
+       actually puts the freed-up horizontal space to use rather than leaving it as dead margin.
+       Free-text fields (Textura, Otros/Notas) stay full-width — a two-column textarea reads
+       worse, not better. */
+    @media (min-width: 720px) {
+      .descriptor-group {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: var(--spacing-6);
+        align-items: start;
+      }
+
+      .descriptor-group > bp-input,
+      .descriptor-group > bp-textarea {
+        grid-column: 1 / -1;
+      }
+    }
+
     .descriptor-field {
       margin: var(--spacing-3) 0;
       display: flex;
@@ -994,9 +1020,10 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
 
     .descriptor-field__header {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: var(--spacing-3);
+      gap: var(--spacing-2) var(--spacing-3);
     }
 
     .descriptor-field__header > label[for] {

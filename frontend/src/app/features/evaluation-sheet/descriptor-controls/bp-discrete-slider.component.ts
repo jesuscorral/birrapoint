@@ -62,9 +62,10 @@ import { INTENSITY_LABELS } from '../evaluation-descriptor-catalog';
 
     .discrete-slider__header {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: var(--spacing-3);
+      gap: var(--spacing-2) var(--spacing-3);
       margin-bottom: var(--spacing-2);
     }
 

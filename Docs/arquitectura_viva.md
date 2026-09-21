@@ -1856,14 +1856,36 @@ judge already provisioned with a Keycloak account.
   Puntuación/Comentario box read oddly at the top of each section, ahead of the descriptors it's
   meant to summarize. Both slider components (`bp-discrete-slider`/`bp-bipolar-slider`) gained an
   `inappropriate` input + `inappropriateChange` output and now render their own compact inline
-  checkbox in a `.slider__header` row next to the field label, instead of a separate element the
-  template had to place — every rated attribute across all five sections carries one (mirroring the
-  backend DTOs' new per-field `*Inappropriate` booleans, above). The Color/Clarity/Foam `<select>`
-  fields got the same treatment via a `.descriptor-field__header` flex row. All of the sheet's old
-  standalone `descriptor-checkbox` label blocks were removed as redundant. The `<bp-input
-  Puntuación>`/`<bp-textarea Comentario>` pair moved from immediately after each section's
-  `<legend>` to a new `.score-group` block placed after the entire `.descriptor-group`, visually
-  separated by a top border — score/comment now read as the section's conclusion, not its header.
+  checkbox in a `.discrete-slider__header`/`.bipolar-slider__header` row next to the field label,
+  instead of a separate element the template had to place — every rated attribute across all five
+  sections carries one (mirroring the backend DTOs' new per-field `*Inappropriate` booleans,
+  above). The Color/Clarity/Foam `<select>` fields got the same treatment via a
+  `.descriptor-field__header` flex row. All of the sheet's old standalone `descriptor-checkbox`
+  label blocks were removed as redundant. The `<bp-input Puntuación>`/`<bp-textarea Comentario>`
+  pair moved from immediately after each section's `<legend>` to a new `.score-group` block placed
+  after the entire `.descriptor-group`, visually separated by a top border — score/comment now read
+  as the section's conclusion, not its header.
+  **Second follow-up (same session, responsive/desktop pass)**: the organizer asked for two more
+  things after using the redesigned sheet: (1) on mobile, no field should ever need lateral
+  scrolling to reach; (2) on desktop, the sheet shouldn't stretch to the page shell's full 88rem
+  width, and the freed-up space should be put to use rather than left as dead margin. For (1), the
+  one real overflow risk was `bp-bipolar-slider`'s track — two pole labels plus a range input
+  sharing one flex row can exceed a narrow viewport's width because a range input's intrinsic
+  min-content size doesn't shrink under `flex: 1` without an explicit `min-width: 0`. Rewritten as
+  a CSS grid (`grid-template-areas`) that stacks the pole labels above a full-width slider below
+  480px and collapses to the single inline row (`auto 1fr auto`) from 480px up — structurally
+  cannot overflow at any width. `.discrete-slider__header`/`.bipolar-slider__header`/
+  `.descriptor-field__header` all gained `flex-wrap: wrap` as a second line of defense (a long
+  label plus the "Inapropiado" checkbox wraps to two lines instead of forcing scroll). For (2),
+  `.evaluation-sheet-form` (not `bp-page-shell` itself, which every other screen still relies on at
+  full width) got its own `max-width: 56rem; margin: 0 auto`, and `.descriptor-group` becomes a
+  2-column CSS grid from 720px up (`.evaluation-sheet.component.ts`'s own breakpoint, independent
+  of the shared shell's) — every discrete/bipolar slider and closed-list `<select>` field sits two
+  to a row; the free-text fields (`bp-input`/`bp-textarea` — Textura, Otros/Notas) are forced back
+  to `grid-column: 1 / -1` since a two-column textarea reads worse, not better. An odd field count
+  in a section (e.g. Appearance's 3 selects, Aroma's 3 sliders) leaves one empty cell rather than
+  balancing rows — accepted as a minor visual asymmetry, not worth the complexity of a
+  per-section-aware span rule for what's otherwise a cosmetic density improvement.
 - **`features/discrepancy/`** (T082, US11): `discrepancy-api.service.ts` wraps `GET
   /me/tables/{tableId}/discrepancies` and `PUT /me/tables/{tableId}/evaluations/{evaluationId}` —
   deliberately not routed through `SyncService`'s Dexie outbox, since the spec frames this repair
