@@ -775,6 +775,34 @@ judge already provisioned with a Keycloak account.
   same ordering as `ChangeState.cs`). FR-034 (immutability) needed no new guard: `SubmitEvaluation`'s
   existing `table.State != Open` check (Phase 9) already rejects post-close mutations including late
   offline syncs — `CloseTable`'s only job is to be what actually flips that flag.
+- **`Features/Evaluations/EvaluationDescriptors.cs`** (Session 2026-09-21, FR-063, ADR-0015):
+  structured tasting-sheet descriptors, additive alongside `SubmitEvaluation`'s five scores/
+  comments — never feed `Total`/the FR-023 caps. `Evaluation` gained two columns:
+  `DescriptorsJson` (`jsonb`, a `System.Text.Json`-serialized `EvaluationDescriptorsDto`,
+  `JsonSerializerDefaults.Web` so the same DTO shape round-trips the wire and storage with no
+  re-shaping step) and `FeedbackComment` (`character varying(4000)`, plain column like the five
+  section comments — small enough, always read/written whole). Followed this codebase's existing
+  `AuditLog.DataJson`/`DispatchJob.PayloadJson` jsonb-as-string convention rather than adding
+  ~25-30 relational columns (no EF Core owned-type/`OwnsOne().ToJson()` mapping used anywhere in
+  this codebase) — see ADR-0015 for the full reasoning, including why this is the first validator
+  in the Evaluations slice that's shared (`EvaluationDescriptorsDtoValidator`, via FluentValidation
+  `SetValidator(...)`) rather than duplicated per command like
+  `EvaluationScoresDto`/`EvaluationCommentsDto`'s rules are. Every descriptor field is optional,
+  both at the top level and within each of the five nested section objects
+  (`AppearanceDescriptorsDto`/`AromaDescriptorsDto`/`FlavorDescriptorsDto`/
+  `MouthfeelDescriptorsDto`/`OverallDescriptorsDto`) — a judge fills as many or as few as they
+  like, same as the paper sheet. Closed-list fields (Color/Clarity/Foam, the 20-term off-flavor
+  checklist) validate against `EvaluationDescriptorCatalog`'s fixed English token lists (same
+  "backend enum stays English, frontend maps to Spanish for display" convention as
+  `EvaluationStatus`). `SubmitEvaluation`/`CorrectEvaluation` both accept the same optional
+  `descriptors`/`feedback` request fields; `GetEntryEvaluationsQueryHandler` (Monitoring) and
+  `GeneratePdfsHandler`/`ScoreSheetDocument` (Dispatch) both deserialize `DescriptorsJson` back
+  into the DTO to project it into the organizer drill-down and the results PDF respectively — the
+  PDF renders a compact "Field: value" line per section (omitting null fields, English tokens, not
+  yet localized — tracked as follow-up debt) plus the off-flavor list and `Feedback`, all below the
+  existing score/comment lines. `AdjustEvaluationCommand` (the judge's own discrepancy-adjustment
+  PUT) deliberately does **not** accept descriptors — out of scope for this pass, a candidate
+  follow-up if the organizer wants them on that flow too.
 - **`Realtime/`** (T015): `CompetitionHub` (`/hubs/competition`, `[Authorize]`) — server → client
   only, per contracts/signalr-hub.md. `JoinCompetitionAsOrganizer` guards on `ORGANIZER` role +
   `Competition.CreatedByUserId` ownership; `JoinTable` guards on an active (`RemovedAt == null`)
@@ -1752,6 +1780,62 @@ judge already provisioned with a Keycloak account.
   merged `DiscrepancyRaised`/`DiscrepancyResolved`, filtered to this table, re-fetching the count
   rather than deriving it from the event payload) and a link out to the discrepancy page from the
   `discrepancy-open` branch above.
+  **Session 2026-09-21 (first pass, superseded below the same day)**: initially redesigned as a
+  gated linear one-section-per-step wizard (`BpStepActionsComponent` Atrás/Siguiente, "Siguiente"
+  disabled until the current section validated). The organizer clarified this wasn't the intended
+  design — corrected same-day, see below. **Bug fixed in this pass, still true**:
+  `BpInputComponent`'s `ControlValueAccessor.onChange` always passed the native `<input>`'s
+  `.value` straight through, which the DOM exposes as a string even for `type="number"` — a
+  `FormControl<number>` bound via `formControlName` (already the case elsewhere, e.g.
+  `details-step.component.ts`'s `entryLimit`) would silently hold a numeric-looking string instead
+  of a number after user input. Fixed in `shared/components/bp-input/bp-input.component.ts`:
+  `onChange` now receives a parsed `number | null` whenever `type() === 'number'` — a
+  shared-component fix, not scoped to this screen. `style-reference/style-reference-panel.component
+  .ts` was also translated to Spain Spanish in this pass (it stayed English through the Session
+  2026-09-20 i18n pass since it's visible only once expanded).
+  **Session 2026-09-21 (corrected design, FR-063)**: the organizer supplied a reference paper
+  BJCP-style score sheet (VIII Concurso Homebrewer Córdoba) and asked for two things the first pass
+  got wrong: (1) **free navigation** between sections instead of a gated wizard — a judge must be
+  able to jump back to an earlier section to revise it at any point, not just move forward once
+  validated; (2) **structured tasting descriptors** per section, matching the paper sheet's own
+  controls, persisted as real data (confirmed via an explicit clarifying question — the
+  alternative, a frontend-only composition aid with nothing stored, was declined).
+  `BpStepActionsComponent`/`currentStep` were removed entirely in favor of a `section-nav` — a
+  `<nav>` of plain `<button>`s (`activeTab` signal, `SectionKey | 'summary'`), each
+  `[attr.aria-current]="'step'"` when active, freely clickable in any order, marked with a ✓ once
+  that section's score+comment are valid (informational only, never blocks navigation). `Resumen`
+  is the sixth nav item — same role as the old review step (every section's score/comment + total
+  + the actual submit action), plus the two things that don't belong to any one BJCP section: the
+  fixed 20-term off-flavor checklist and a holistic `feedback` `FormControl` (both new, FR-063).
+  `SECTIONS`' order changed to match the reference sheet — Apariencia, Aroma, Sabor, Sensación en
+  boca, Impresión general — not the classic BJCP form order (Aroma first) the first pass used.
+  New `EvaluationDescriptors`/nested section interfaces (`core/offline/db.ts`) mirror backend's
+  `EvaluationDescriptorsDto` (below) field-for-field, camelCase both ways; `DraftRow`/`OutboxRow`
+  carry `descriptors`/`feedback` as new non-indexed properties — no Dexie version bump needed.
+  `sync.service.ts`'s `saveDraft`/`submit`/`sendOne` thread them through identically to
+  `scores`/`comments`. On the component itself, the five scores/comments stay a validated
+  `FormGroup` exactly as before (submit still gates only on those); every descriptor field lives in
+  a separate, deliberately non-validated `descriptors` signal (`DescriptorsFormState` — a concrete
+  default per field: `0` for a discrete slider, `50` for a continuous one, `''`/`false` for
+  text/select/checkbox) — **known, accepted simplification**: there's no separate "touched" flag
+  per slider, so an untouched slider submits at its default position rather than as genuinely
+  absent (acceptable since every descriptor field is advisory, never scored; see ADR-0015).
+  Two new small presentational components, `descriptor-controls/bp-discrete-slider.component.ts`
+  (4-stop Nada/Bajo/Medio/Alto, `<input type="range" min=0 max=3>`) and
+  `bp-bipolar-slider.component.ts` (continuous 0–100 between two pole labels, e.g.
+  Lupulado↔Maltoso) — plain `[value]`/`(valueChange)` signal binding, not
+  `ControlValueAccessor`/`formControlName` (these fields don't need reactive-forms' validity
+  machinery). Both needed the same `host: { '[attr.id]': 'null' }` fix `BpInputComponent` already
+  carries — a static `id="x"` on the custom element is otherwise ALSO reflected onto the host,
+  duplicating the id the inner `<input>` needs to be uniquely addressable; missing it silently
+  broke `document.querySelector('#aroma-malt')` in tests until caught. Color/Clarity/Foam use
+  plain native `<select>` with manual `(change)`/`[value]` bindings (not `formControlName`),
+  matching this codebase's own established pattern (`categories-step.component.ts`'s bulk-assign
+  selects) rather than fighting Angular's `SelectControlValueAccessor` over a null-vs-empty-string
+  default. `evaluation-descriptor-catalog.ts` holds the closed-list options (English wire tokens +
+  Spanish display labels, same convention as `EvaluationStatus`) — must stay in sync with backend's
+  `EvaluationDescriptorCatalog` (`Features/Evaluations/EvaluationDescriptors.cs`) by hand, no
+  shared source of truth across the two stacks for this one.
 - **`features/discrepancy/`** (T082, US11): `discrepancy-api.service.ts` wraps `GET
   /me/tables/{tableId}/discrepancies` and `PUT /me/tables/{tableId}/evaluations/{evaluationId}` —
   deliberately not routed through `SyncService`'s Dexie outbox, since the spec frames this repair

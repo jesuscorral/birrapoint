@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.Features.Evaluations;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -125,7 +126,8 @@ public sealed class MonitoringApiTests(ApiFactory factory) : IClassFixture<ApiFa
     /// so exercising the submit flow itself is out of scope here (covered by
     /// SubmitEvaluationApiTests/CloseTableApiTests).</summary>
     private async Task<Guid> SeedEvaluationAsync(
-        Guid tableId, Guid judgeId, Guid beerEntryId, int aroma = 10, int appearance = 2, int flavor = 15, int mouthfeel = 4, int overall = 8)
+        Guid tableId, Guid judgeId, Guid beerEntryId, int aroma = 10, int appearance = 2, int flavor = 15, int mouthfeel = 4, int overall = 8,
+        string? descriptorsJson = null, string? feedback = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -144,6 +146,8 @@ public sealed class MonitoringApiTests(ApiFactory factory) : IClassFixture<ApiFa
             FlavorComment = LongComment,
             MouthfeelComment = LongComment,
             OverallComment = LongComment,
+            DescriptorsJson = descriptorsJson,
+            FeedbackComment = feedback,
             Status = EvaluationStatus.Confirmed,
             SubmittedAt = DateTimeOffset.UtcNow,
         };
@@ -293,6 +297,57 @@ public sealed class MonitoringApiTests(ApiFactory factory) : IClassFixture<ApiFa
         Assert.Equal(50, judge2Item.GetProperty("total").GetInt32());
 
         Assert.Equal(JsonValueKind.Null, root.GetProperty("consolidatedMean").ValueKind);
+    }
+
+    [Fact]
+    public async Task Get_entry_evaluations_round_trips_descriptors_and_feedback_when_present()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+        var tableId = await SeedTableAsync(competitionId, "Table A");
+
+        var judge1Sub = $"judge-{Guid.NewGuid():N}";
+        var judge1Id = await SeedJudgeAsync(competitionId, $"{judge1Sub}@brew.example", judge1Sub);
+        await SeedTableJudgeAsync(tableId, judge1Id);
+        var judge2Sub = $"judge-{Guid.NewGuid():N}";
+        var judge2Id = await SeedJudgeAsync(competitionId, $"{judge2Sub}@brew.example", judge2Sub);
+        await SeedTableJudgeAsync(tableId, judge2Id);
+
+        var participantId = await SeedParticipantAsync(competitionId, "Brewer", $"brewer-{Guid.NewGuid():N}@brew.example");
+        var entryId = await SeedBeerEntryAsync(competitionId, participantId, "Secret Beer");
+        await SeedTableSampleAsync(tableId, entryId);
+
+        var descriptors = new EvaluationDescriptorsDto(
+            new AppearanceDescriptorsDto("Golden", null, false, "Clear", "White", null, false, 60, "Silky", null),
+            new AromaDescriptorsDto(2, false, 3, false, 1),
+            null, null, null,
+            ["Diacetyl", "Oxidized"]);
+        await SeedEvaluationAsync(
+            tableId, judge1Id, entryId,
+            descriptorsJson: EvaluationDescriptorsSerializer.Serialize(descriptors),
+            feedback: "Great balance, try dry-hopping a bit lighter next time.");
+        // No descriptors/feedback for judge 2 — the null case must round-trip as null too, not an error.
+        await SeedEvaluationAsync(tableId, judge2Id, entryId);
+
+        var response = await GetEntryEvaluationsAsync(organizer, competitionId, entryId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        var evaluations = document.RootElement.GetProperty("evaluations").EnumerateArray().ToList();
+
+        var judge1Item = evaluations.Single(e => e.GetProperty("judgeDisplayName").GetString() == judge1Sub);
+        Assert.Equal("Great balance, try dry-hopping a bit lighter next time.", judge1Item.GetProperty("feedback").GetString());
+        var judge1Descriptors = judge1Item.GetProperty("descriptors");
+        Assert.Equal("Golden", judge1Descriptors.GetProperty("appearance").GetProperty("color").GetString());
+        Assert.Equal(60, judge1Descriptors.GetProperty("appearance").GetProperty("retention").GetInt32());
+        Assert.Equal(2, judge1Descriptors.GetProperty("aroma").GetProperty("malt").GetInt32());
+        var offFlavors = judge1Descriptors.GetProperty("offFlavors").EnumerateArray().Select(e => e.GetString()).ToList();
+        Assert.Contains("Diacetyl", offFlavors);
+        Assert.Contains("Oxidized", offFlavors);
+
+        var judge2Item = evaluations.Single(e => e.GetProperty("judgeDisplayName").GetString() == judge2Sub);
+        Assert.Equal(JsonValueKind.Null, judge2Item.GetProperty("feedback").ValueKind);
+        Assert.Equal(JsonValueKind.Null, judge2Item.GetProperty("descriptors").ValueKind);
     }
 
     [Fact]

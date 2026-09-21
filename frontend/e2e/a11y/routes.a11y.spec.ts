@@ -204,12 +204,17 @@ function sectionFieldset(page: Page, legend: string): Locator {
     .filter({ has: page.locator('legend', { hasText: legend }) });
 }
 
+// Session 2026-09-21: the sheet is no longer a gated linear wizard — each section is reached by
+// clicking its own name in the free-navigation nav bar, in any order, then Resumen to reach the
+// submit action (mirrors judge behaviour after the redesign).
 async function fillEvaluationForm(page: Page): Promise<void> {
   for (const section of SECTIONS) {
+    await page.getByRole('button', { name: section.legend }).click();
     const fieldset = sectionFieldset(page, section.legend);
     await fieldset.getByLabel('Puntuación').fill(String(section.score));
     await fieldset.getByLabel('Comentario').fill(section.comment);
   }
+  await page.getByRole('button', { name: 'Resumen' }).click();
 }
 
 async function submitEvaluationForNextSample(judgePage: Page): Promise<void> {
@@ -461,9 +466,12 @@ test.describe('WCAG 2.1 AA sweep — every organizer and judge route', () => {
       await expect(judgePage.locator('p.order-status--fixed')).toBeVisible();
 
       // --- /judge/tables/:tableId/discrepancies (empty state — no discrepancy needs to exist for
-      // this route to render; DiscrepancyAlertComponent shows a "No open discrepancies" message) ---
+      // this route to render; DiscrepancyAlertComponent shows a "No hay discrepancias abiertas"
+      // message) ---
       await judgePage.goto(`/judge/tables/${mesa1Id}/discrepancies`);
-      await expect(judgePage.getByRole('heading', { name: 'Discrepancy alerts' })).toBeVisible();
+      await expect(
+        judgePage.getByRole('heading', { name: 'Alertas de discrepancia' }),
+      ).toBeVisible();
       await test.step('/judge/tables/:tableId/discrepancies (empty)', async () => {
         await assertNoA11yViolations(judgePage, '/judge/tables/:tableId/discrepancies (empty)');
       });

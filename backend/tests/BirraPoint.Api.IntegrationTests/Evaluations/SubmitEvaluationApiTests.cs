@@ -166,6 +166,14 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         return await db.Evaluations.CountAsync(e => e.JudgeId == judgeId && e.BeerEntryId == beerEntryId);
     }
 
+    private async Task<(string? DescriptorsJson, string? Feedback)> GetStoredDescriptorsAsync(Guid judgeId, Guid beerEntryId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var evaluation = await db.Evaluations.SingleAsync(e => e.JudgeId == judgeId && e.BeerEntryId == beerEntryId);
+        return (evaluation.DescriptorsJson, evaluation.FeedbackComment);
+    }
+
     /// <summary>Seeds a competition, one table with <paramref name="sampleCount"/> samples, and one
     /// actively-assigned judge — the common fixture below. Competition state and order-fixed-ness
     /// are left to the caller so every precondition combination can be exercised.</summary>
@@ -217,11 +225,19 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
     };
 
     private static Task<HttpResponseMessage> SubmitAsync(
-        HttpClient client, Guid tableId, Guid beerEntryId, object? scores = null, object? comments = null, string? idempotencyKey = null)
+        HttpClient client, Guid tableId, Guid beerEntryId, object? scores = null, object? comments = null,
+        string? idempotencyKey = null, object? descriptors = null, string? feedback = null)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/me/tables/{tableId}/evaluations")
         {
-            Content = JsonContent.Create(new { beerEntryId, scores = scores ?? ValidScores(), comments = comments ?? ValidComments() }),
+            Content = JsonContent.Create(new
+            {
+                beerEntryId,
+                scores = scores ?? ValidScores(),
+                comments = comments ?? ValidComments(),
+                descriptors,
+                feedback,
+            }),
         };
         if (idempotencyKey is not "OMIT")
         {
@@ -350,6 +366,34 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    // ---- Descriptors (Session 2026-09-21) — optional, only range/catalog-checked when present ----
+
+    [Fact]
+    public async Task Submit_with_an_out_of_range_descriptor_value_returns_400()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer);
+
+        using var judge = JudgeClient(fixture.JudgeSub);
+        var descriptors = new { aroma = new { malt = 5 } }; // discrete intensity is 0-3
+        var response = await SubmitAsync(judge, fixture.TableId, fixture.EntryIds[0], descriptors: descriptors);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Submit_with_a_color_outside_the_closed_list_returns_400()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer);
+
+        using var judge = JudgeClient(fixture.JudgeSub);
+        var descriptors = new { appearance = new { color = "Purple" } };
+        var response = await SubmitAsync(judge, fixture.TableId, fixture.EntryIds[0], descriptors: descriptors);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     // ---- Happy path -------------------------------------------------------------------------------
 
     [Fact]
@@ -368,6 +412,49 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         Assert.Equal(JsonValueKind.String, root.GetProperty("evaluationId").ValueKind);
         Assert.Equal("Confirmed", root.GetProperty("status").GetString());
         Assert.Equal(10 + 2 + 15 + 4 + 8, root.GetProperty("total").GetInt32());
+    }
+
+    [Fact]
+    public async Task Submit_with_descriptors_and_feedback_persists_them_and_never_affects_the_total()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer);
+
+        using var judge = JudgeClient(fixture.JudgeSub);
+        var descriptors = new
+        {
+            appearance = new { color = "Golden", clarity = "Clear", retention = 60 },
+            aroma = new { malt = 2, hops = 3, fermentation = 1 },
+            offFlavors = new[] { "Diacetyl", "Oxidized" },
+        };
+        var response = await SubmitAsync(
+            judge, fixture.TableId, fixture.EntryIds[0], descriptors: descriptors, feedback: "Nice balance overall.");
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        // Descriptors are advisory-only (never fed into the score) — total is still exactly the sum
+        // of the five section scores, same as every other happy-path assertion in this file.
+        Assert.Equal(10 + 2 + 15 + 4 + 8, document.RootElement.GetProperty("total").GetInt32());
+
+        var (descriptorsJson, feedback) = await GetStoredDescriptorsAsync(fixture.JudgeId, fixture.EntryIds[0]);
+        Assert.NotNull(descriptorsJson);
+        Assert.Contains("Golden", descriptorsJson);
+        Assert.Equal("Nice balance overall.", feedback);
+    }
+
+    [Fact]
+    public async Task Submit_without_descriptors_or_feedback_stores_them_as_null()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer);
+
+        using var judge = JudgeClient(fixture.JudgeSub);
+        var response = await SubmitAsync(judge, fixture.TableId, fixture.EntryIds[0]);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var (descriptorsJson, feedback) = await GetStoredDescriptorsAsync(fixture.JudgeId, fixture.EntryIds[0]);
+        Assert.Null(descriptorsJson);
+        Assert.Null(feedback);
     }
 
     // ---- Idempotent replay (FR-029/R-07) -----------------------------------------------------------

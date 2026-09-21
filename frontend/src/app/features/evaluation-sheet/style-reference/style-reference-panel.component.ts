@@ -7,7 +7,7 @@ import type { StyleDetail } from '../../../core/api/catalog-api.service';
 function toGenericApiError(error: unknown): ApiError {
   return error instanceof ApiError
     ? error
-    : new ApiError({ status: 0, title: 'An unexpected error occurred.', urn: null });
+    : new ApiError({ status: 0, title: 'Ha ocurrido un error inesperado.', urn: null });
 }
 
 function errorMessage(error: ApiError): string {
@@ -36,13 +36,13 @@ function errorMessage(error: ApiError): string {
         aria-controls="style-reference-content"
         (click)="toggle()"
       >
-        {{ expanded() ? 'Hide' : 'Show' }} style guide: {{ styleName() }} ({{ styleCode() }})
+        {{ expanded() ? 'Ocultar' : 'Ver' }} guía de estilo: {{ styleName() }} ({{ styleCode() }})
       </button>
 
       @if (expanded()) {
         <div id="style-reference-content" class="style-reference-content">
           @if (loading()) {
-            <p>Loading style guide…</p>
+            <p role="status">Cargando guía de estilo…</p>
           }
           @if (loadError(); as message) {
             <p role="alert">{{ message }}</p>
@@ -61,30 +61,30 @@ function errorMessage(error: ApiError): string {
               <dd>{{ style.vitalStatistics.abvLow }}% – {{ style.vitalStatistics.abvHigh }}%</dd>
             </dl>
 
-            <h3>Overall Impression</h3>
+            <h3>Impresión general</h3>
             <p>{{ style.description.overallImpression }}</p>
             <h3>Aroma</h3>
             <p>{{ style.description.aroma }}</p>
-            <h3>Appearance</h3>
+            <h3>Apariencia</h3>
             <p>{{ style.description.appearance }}</p>
-            <h3>Flavor</h3>
+            <h3>Sabor</h3>
             <p>{{ style.description.flavor }}</p>
-            <h3>Mouthfeel</h3>
+            <h3>Sensación en boca</h3>
             <p>{{ style.description.mouthfeel }}</p>
-            <h3>Comments</h3>
+            <h3>Comentarios</h3>
             <p>{{ style.description.comments }}</p>
-            <h3>History</h3>
+            <h3>Historia</h3>
             <p>{{ style.description.history }}</p>
-            <h3>Characteristic Ingredients</h3>
+            <h3>Ingredientes característicos</h3>
             <p>{{ style.description.characteristicIngredients }}</p>
-            <h3>Style Comparison</h3>
+            <h3>Comparación con otros estilos</h3>
             <p>{{ style.description.styleComparison }}</p>
             @if (style.description.entryInstructions) {
-              <h3>Entry Instructions</h3>
+              <h3>Instrucciones de inscripción</h3>
               <p>{{ style.description.entryInstructions }}</p>
             }
             @if (style.description.commercialExamples.length > 0) {
-              <h3>Commercial Examples</h3>
+              <h3>Ejemplos comerciales</h3>
               <ul>
                 @for (example of style.description.commercialExamples; track example) {
                   <li>{{ example }}</li>
@@ -92,7 +92,7 @@ function errorMessage(error: ApiError): string {
               </ul>
             }
             @if (style.description.tags.length > 0) {
-              <p class="style-tags">Tags: {{ style.description.tags.join(', ') }}</p>
+              <p class="style-tags">Etiquetas: {{ style.description.tags.join(', ') }}</p>
             }
           }
         </div>

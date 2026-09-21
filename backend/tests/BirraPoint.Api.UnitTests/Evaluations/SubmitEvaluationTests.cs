@@ -102,7 +102,9 @@ public sealed class SubmitEvaluationTests
         BeerEntryId: Guid.NewGuid(),
         Scores: new EvaluationScoresDto(Aroma: 10, Appearance: 2, Flavor: 15, Mouthfeel: 4, Overall: 8),
         Comments: new EvaluationCommentsDto(
-            Aroma: LongComment, Appearance: LongComment, Flavor: LongComment, Mouthfeel: LongComment, Overall: LongComment));
+            Aroma: LongComment, Appearance: LongComment, Flavor: LongComment, Mouthfeel: LongComment, Overall: LongComment),
+        Descriptors: null,
+        Feedback: null);
 
     [Fact]
     public void Command_with_valid_scores_and_comments_is_valid()
@@ -253,5 +255,102 @@ public sealed class SubmitEvaluationTests
         var result = Validator.Validate(ValidCommand() with { Comments = comments });
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.PropertyName == $"Comments.{section}");
+    }
+
+    // ---- SubmitEvaluationCommandValidator: descriptors (Session 2026-09-21) — every field is
+    // optional; these only assert that a SUPPLIED value is range/catalog-checked. -----------------
+
+    [Fact]
+    public void Absent_descriptors_are_valid()
+    {
+        Assert.True(Validator.Validate(ValidCommand() with { Descriptors = null }).IsValid);
+    }
+
+    [Fact]
+    public void Empty_descriptors_object_is_valid()
+    {
+        var descriptors = new EvaluationDescriptorsDto(null, null, null, null, null, null);
+        Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    public void Discrete_intensity_slider_accepted_at_its_bounds(int value)
+    {
+        var descriptors = new EvaluationDescriptorsDto(
+            null, new AromaDescriptorsDto(value, false, null, false, null), null, null, null, null);
+        Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(4)]
+    public void Discrete_intensity_slider_rejected_outside_0_to_3(int value)
+    {
+        var descriptors = new EvaluationDescriptorsDto(
+            null, new AromaDescriptorsDto(value, false, null, false, null), null, null, null, null);
+        var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Descriptors.Aroma.Malt");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(100)]
+    public void Bipolar_slider_accepted_at_its_bounds(int value)
+    {
+        var descriptors = new EvaluationDescriptorsDto(
+            null, null, null, null, new OverallDescriptorsDto(value, null, null), null);
+        Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(101)]
+    public void Bipolar_slider_rejected_outside_0_to_100(int value)
+    {
+        var descriptors = new EvaluationDescriptorsDto(
+            null, null, null, null, new OverallDescriptorsDto(value, null, null), null);
+        var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Descriptors.Overall.ClassicExample");
+    }
+
+    [Fact]
+    public void Color_outside_the_closed_list_is_rejected()
+    {
+        var descriptors = new EvaluationDescriptorsDto(
+            new AppearanceDescriptorsDto("Purple", null, false, null, null, null, false, null, null, null),
+            null, null, null, null, null);
+        var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Descriptors.Appearance.Color");
+    }
+
+    [Theory]
+    [InlineData("Yellow")]
+    [InlineData("Other")]
+    public void Color_in_the_closed_list_is_accepted(string color)
+    {
+        var descriptors = new EvaluationDescriptorsDto(
+            new AppearanceDescriptorsDto(color, null, false, null, null, null, false, null, null, null),
+            null, null, null, null, null);
+        Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
+    }
+
+    [Fact]
+    public void Off_flavor_term_outside_the_closed_list_is_rejected()
+    {
+        var descriptors = new EvaluationDescriptorsDto(null, null, null, null, null, ["NotARealDescriptor"]);
+        var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void Off_flavor_terms_from_the_closed_list_are_accepted()
+    {
+        var descriptors = new EvaluationDescriptorsDto(null, null, null, null, null, ["Diacetyl", "Oxidized"]);
+        Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
     }
 }

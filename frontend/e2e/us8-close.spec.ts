@@ -266,12 +266,17 @@ function sectionFieldset(page: Page, legend: string): Locator {
     .filter({ has: page.locator('legend', { hasText: legend }) });
 }
 
+// Session 2026-09-21: the sheet is no longer a gated linear wizard — each section is reached by
+// clicking its own name in the free-navigation nav bar, in any order, then Resumen to reach the
+// submit action (mirrors judge behaviour after the redesign).
 async function fillEvaluationForm(page: Page): Promise<void> {
   for (const section of ORIGINAL_SECTIONS) {
+    await page.getByRole('button', { name: section.legend }).click();
     const fieldset = sectionFieldset(page, section.legend);
     await fieldset.getByLabel('Puntuación').fill(String(section.score));
     await fieldset.getByLabel('Comentario').fill(section.comment);
   }
+  await page.getByRole('button', { name: 'Resumen' }).click();
 }
 
 // Captures the Authorization header of the next request `page` makes to the backend API,

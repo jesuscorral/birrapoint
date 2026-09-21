@@ -312,7 +312,26 @@ function sectionFieldset(page: Page, legend: string): Locator {
     .filter({ has: page.locator('legend', { hasText: legend }) });
 }
 
+// evaluation-sheet.component.ts's initial submit sheet only (Session 2026-09-21): one
+// fieldset visible per step, so each section's fields are filled and then "Siguiente" carries
+// the wizard on to the next one -- landing on the review step, ready for "Enviar evaluación".
+// Session 2026-09-21: the sheet is no longer a gated linear wizard — each section is reached by
+// clicking its own name in the free-navigation nav bar, in any order, then Resumen to reach the
+// submit action (mirrors judge behaviour after the redesign).
 async function fillEvaluationForm(page: Page, sections: SectionInput[]): Promise<void> {
+  for (const section of sections) {
+    await page.getByRole('button', { name: section.legend }).click();
+    const fieldset = sectionFieldset(page, section.legend);
+    await fieldset.getByLabel('Puntuación').fill(String(section.score));
+    await fieldset.getByLabel('Comentario').fill(section.comment);
+  }
+  await page.getByRole('button', { name: 'Resumen' }).click();
+}
+
+// discrepancy-alert.component.ts's adjustment form only: unlike the sheet above, this one was
+// not redesigned into a wizard -- all five fieldsets are still visible on one page at once, no
+// "Siguiente" between them.
+async function fillAdjustmentForm(page: Page, sections: SectionInput[]): Promise<void> {
   for (const section of sections) {
     const fieldset = sectionFieldset(page, section.legend);
     await fieldset.getByLabel('Puntuación').fill(String(section.score));
@@ -599,7 +618,7 @@ test.describe('US11 — discrepancy consensus', () => {
       await expect(openAlertCardsB).toHaveCount(1);
 
       await openAlertCardsB.getByRole('button', { name: 'Ajustar mi evaluación' }).click();
-      await fillEvaluationForm(pageB, buildSections(JUDGE_B_ADJUSTED_SCORES, 'Judge B adjusted'));
+      await fillAdjustmentForm(pageB, buildSections(JUDGE_B_ADJUSTED_SCORES, 'Judge B adjusted'));
 
       const submitAdjustmentButtonB = openAlertCardsB.getByRole('button', {
         name: 'Enviar ajuste',

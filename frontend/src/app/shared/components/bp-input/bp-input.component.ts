@@ -241,14 +241,27 @@ export class BpInputComponent implements ControlValueAccessor {
 
   showPassword = false;
 
-  private onChange: (value: string) => void = () => {};
+  private onChange: (value: string | number | null) => void = () => {};
   private onTouched: () => void = () => {};
 
   onInput(event: Event): void {
     const target = event.target as HTMLInputElement;
     this.value = target.value;
     this.valueChange.emit(this.value);
-    this.onChange(this.value);
+    // The DOM's own `.value` is always a string, even for type="number" (browsers never expose a
+    // numeric type there) — a FormControl<number> bound via formControlName would otherwise
+    // silently receive a numeric-looking string instead of a number on every keystroke, which
+    // Validators.min/max tolerate (they parseFloat internally) but a JSON API payload built from
+    // the raw form value would not: it'd send "10" where the contract expects 10.
+    this.onChange(this.type() === 'number' ? this.parseNumericInput(target.value) : this.value);
+  }
+
+  private parseNumericInput(raw: string): number | null {
+    if (raw === '') {
+      return null;
+    }
+    const parsed = Number(raw);
+    return Number.isNaN(parsed) ? null : parsed;
   }
 
   onBlur(): void {
@@ -282,7 +295,7 @@ export class BpInputComponent implements ControlValueAccessor {
     this.cdr.markForCheck();
   }
 
-  registerOnChange(fn: (value: string) => void): void {
+  registerOnChange(fn: (value: string | number | null) => void): void {
     this.onChange = fn;
   }
 

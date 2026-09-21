@@ -22,7 +22,8 @@ public sealed record EvaluationCommentsDto(string Aroma, string Appearance, stri
 /// FR-022/FR-023/FR-025/FR-029). Returns null when the caller is not an active member of this table
 /// — the endpoint maps that to a plain 404, same convention as FixOrderCommand/GetTableSamplesQuery.</summary>
 public sealed record SubmitEvaluationCommand(
-    Guid TableId, Guid BeerEntryId, EvaluationScoresDto Scores, EvaluationCommentsDto Comments)
+    Guid TableId, Guid BeerEntryId, EvaluationScoresDto Scores, EvaluationCommentsDto Comments,
+    EvaluationDescriptorsDto? Descriptors, string? Feedback)
     : IRequest<SubmitEvaluationResult?>;
 
 /// <summary>contracts/rest-api.md §Judge workspace success shape: `{ evaluationId, status, total,
@@ -67,6 +68,11 @@ public sealed class SubmitEvaluationCommandValidator : AbstractValidator<SubmitE
             RuleFor(c => c.Comments.Mouthfeel).NotEmpty().MinimumLength(SubmitEvaluationRules.MinCommentLength);
             RuleFor(c => c.Comments.Overall).NotEmpty().MinimumLength(SubmitEvaluationRules.MinCommentLength);
         });
+
+        // Session 2026-09-21: Descriptors is optional (EvaluationDescriptorsDto's own doc comment) —
+        // only validated, never required, when present.
+        RuleFor(c => c.Descriptors!).SetValidator(new EvaluationDescriptorsDtoValidator()).When(c => c.Descriptors is not null);
+        RuleFor(c => c.Feedback).MaximumLength(4000);
     }
 }
 
@@ -170,6 +176,8 @@ public sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurr
             FlavorComment = request.Comments.Flavor,
             MouthfeelComment = request.Comments.Mouthfeel,
             OverallComment = request.Comments.Overall,
+            DescriptorsJson = request.Descriptors is null ? null : EvaluationDescriptorsSerializer.Serialize(request.Descriptors),
+            FeedbackComment = request.Feedback,
             // Discrepancy detection (>7-point spread → PendingConsensus + DiscrepancyAlert)
             // activates in US11 — every submission today is simply Confirmed.
             Status = EvaluationStatus.Confirmed,

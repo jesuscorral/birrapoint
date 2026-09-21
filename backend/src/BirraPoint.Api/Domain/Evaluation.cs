@@ -38,6 +38,18 @@ public class Evaluation : Entity
 
     public required string OverallComment { get; set; }
 
+    /// <summary>Session 2026-09-21: structured tasting-sheet descriptors (jsonb, camelCase
+    /// System.Text.Json-serialized EvaluationDescriptorsDto) — additive support data alongside the
+    /// five scores/comments above, never fed into <see cref="Total"/>. Null means none were filled;
+    /// every field within the serialized shape is itself optional too (see EvaluationDescriptorsDto's
+    /// own doc comment).</summary>
+    public string? DescriptorsJson { get; set; }
+
+    /// <summary>Session 2026-09-21: holistic free-text feedback (the paper sheet's bottom "Feedback"
+    /// box) — distinct from the five per-section comments above, and unlike them, optional with no
+    /// minimum length.</summary>
+    public string? FeedbackComment { get; set; }
+
     /// <summary>DB-computed (stored generated column) = sum of the five scores; never client-supplied (FR-024).</summary>
     public int Total { get; private set; }
 

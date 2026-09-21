@@ -121,6 +121,32 @@ describe('EvaluationSheetComponent', () => {
     await Promise.resolve();
   }
 
+  // The submit action (and submitError()) only render on the Resumen tab (Session 2026-09-21) —
+  // tests that set the whole form programmatically and then need the submit button/error visible
+  // must jump there first, same as a judge who filled every section then opened Resumen.
+  function goToReviewStep(fixture: ReturnType<typeof createComponent>): void {
+    fixture.componentInstance.activeTab.set('summary');
+    fixture.detectChanges();
+  }
+
+  function fillField(root: Element, id: string, value: string): void {
+    const field = root.querySelector(`#${id}`) as HTMLInputElement | HTMLTextAreaElement;
+    field.value = value;
+    field.dispatchEvent(new Event('input'));
+  }
+
+  // Unlike buttonWithText's exact match, a nav-bar item's own text grows a trailing "✓" once its
+  // section becomes valid (see the component's [sectionValid] check) — match by prefix so the
+  // same lookup keeps working before and after that happens.
+  function sectionNavButton(root: Element, label: string): HTMLButtonElement {
+    const buttons = [...root.querySelectorAll('.section-nav__item')] as HTMLButtonElement[];
+    const match = buttons.find((button) => button.textContent?.trim().startsWith(label));
+    if (!match) {
+      throw new Error(`No section-nav button starting with "${label}" found`);
+    }
+    return match;
+  }
+
   it('loads the sample and shows its blind code and style', async () => {
     const fixture = createComponent();
     await flush();
@@ -274,11 +300,6 @@ describe('EvaluationSheetComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    const submitButton = fixture.nativeElement.querySelector(
-      'button[type="submit"]',
-    ) as HTMLButtonElement;
-    expect(submitButton.disabled).toBe(true);
-
     fixture.componentInstance.form.setValue({
       aromaScore: 13, // exceeds the 12 cap
       aromaComment: validComments().aroma,
@@ -290,8 +311,13 @@ describe('EvaluationSheetComponent', () => {
       mouthfeelComment: validComments().mouthfeel,
       overallScore: validScores().overall,
       overallComment: validComments().overall,
+      feedback: '',
     });
-    fixture.detectChanges();
+    goToReviewStep(fixture);
+
+    const submitButton = fixture.nativeElement.querySelector(
+      'button[type="submit"]',
+    ) as HTMLButtonElement;
     expect(submitButton.disabled).toBe(true);
   });
 
@@ -311,8 +337,9 @@ describe('EvaluationSheetComponent', () => {
       mouthfeelComment: validComments().mouthfeel,
       overallScore: validScores().overall,
       overallComment: validComments().overall,
+      feedback: '',
     });
-    fixture.detectChanges();
+    goToReviewStep(fixture);
 
     const submitButton = fixture.nativeElement.querySelector(
       'button[type="submit"]',
@@ -332,6 +359,8 @@ describe('EvaluationSheetComponent', () => {
       't1',
       expect.objectContaining({ aroma: 5 }),
       expect.any(Object),
+      expect.any(Object),
+      expect.any(String),
     );
   });
 
@@ -350,6 +379,7 @@ describe('EvaluationSheetComponent', () => {
       mouthfeelComment: validComments().mouthfeel,
       overallScore: validScores().overall,
       overallComment: validComments().overall,
+      feedback: '',
     });
 
     await fixture.componentInstance.onSubmit();
@@ -360,6 +390,8 @@ describe('EvaluationSheetComponent', () => {
       'e1',
       validScores(),
       validComments(),
+      expect.any(Object),
+      '',
     );
     expect(navigateSpy).toHaveBeenCalledWith(['/judge', 'tables', 't1']);
   });
@@ -380,6 +412,7 @@ describe('EvaluationSheetComponent', () => {
       mouthfeelComment: validComments().mouthfeel,
       overallScore: validScores().overall,
       overallComment: validComments().overall,
+      feedback: '',
     });
 
     await fixture.componentInstance.onSubmit();
@@ -409,10 +442,11 @@ describe('EvaluationSheetComponent', () => {
       mouthfeelComment: validComments().mouthfeel,
       overallScore: validScores().overall,
       overallComment: validComments().overall,
+      feedback: '',
     });
 
     await fixture.componentInstance.onSubmit();
-    fixture.detectChanges();
+    goToReviewStep(fixture);
 
     expect(navigateSpy).not.toHaveBeenCalled();
     expect(fixture.nativeElement.textContent).toContain('no es la siguiente');
@@ -434,6 +468,7 @@ describe('EvaluationSheetComponent', () => {
       mouthfeelComment: validComments().mouthfeel,
       overallScore: validScores().overall,
       overallComment: validComments().overall,
+      feedback: '',
     });
 
     await fixture.componentInstance.onSubmit();
@@ -460,10 +495,11 @@ describe('EvaluationSheetComponent', () => {
       mouthfeelComment: validComments().mouthfeel,
       overallScore: validScores().overall,
       overallComment: validComments().overall,
+      feedback: '',
     });
 
     await fixture.componentInstance.onSubmit();
-    fixture.detectChanges();
+    goToReviewStep(fixture);
 
     expect(navigateSpy).not.toHaveBeenCalled();
     expect(fixture.nativeElement.textContent).toContain(
@@ -573,6 +609,137 @@ describe('EvaluationSheetComponent', () => {
 
       expect(fakeSync.rejectOutboxForTable).not.toHaveBeenCalled();
       expect(navigateSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('free-navigation section sheet (Session 2026-09-21)', () => {
+    it('starts on the Apariencia section, with every section freely reachable via the nav bar', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Apariencia');
+      expect(fixture.nativeElement.querySelector('#appearance-score')).not.toBeNull();
+
+      sectionNavButton(fixture.nativeElement, 'Aroma').click();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('#aroma-score')).not.toBeNull();
+
+      sectionNavButton(fixture.nativeElement, 'Sabor').click();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('#flavor-score')).not.toBeNull();
+    });
+
+    it('jumping to an incomplete section is never blocked, unlike the old gated wizard', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      // Never touched Apariencia's own fields — jumping straight to Resumen must still work.
+      sectionNavButton(fixture.nativeElement, 'Resumen').click();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Revisa tu evaluación');
+    });
+
+    it('navigating away and back to a section preserves whatever was typed', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      fillField(fixture.nativeElement, 'appearance-score', String(validScores().appearance));
+      fillField(fixture.nativeElement, 'appearance-comment', validComments().appearance);
+      fixture.detectChanges();
+
+      sectionNavButton(fixture.nativeElement, 'Aroma').click();
+      fixture.detectChanges();
+      sectionNavButton(fixture.nativeElement, 'Apariencia').click();
+      fixture.detectChanges();
+
+      const appearanceScoreInput = fixture.nativeElement.querySelector(
+        '#appearance-score',
+      ) as HTMLInputElement;
+      expect(appearanceScoreInput.value).toBe(String(validScores().appearance));
+    });
+
+    it('the nav bar marks a section done once its score and comment are both valid', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      expect(sectionNavButton(fixture.nativeElement, 'Apariencia').textContent).not.toContain('✓');
+
+      fillField(fixture.nativeElement, 'appearance-score', String(validScores().appearance));
+      fillField(fixture.nativeElement, 'appearance-comment', validComments().appearance);
+      fixture.detectChanges();
+
+      expect(sectionNavButton(fixture.nativeElement, 'Apariencia').textContent).toContain('✓');
+    });
+
+    it('reaches Resumen showing every score, comment and the total, submit button included', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      fixture.componentInstance.form.setValue({
+        aromaScore: validScores().aroma,
+        aromaComment: validComments().aroma,
+        appearanceScore: validScores().appearance,
+        appearanceComment: validComments().appearance,
+        flavorScore: validScores().flavor,
+        flavorComment: validComments().flavor,
+        mouthfeelScore: validScores().mouthfeel,
+        mouthfeelComment: validComments().mouthfeel,
+        overallScore: validScores().overall,
+        overallComment: validComments().overall,
+        feedback: '',
+      });
+      fixture.detectChanges();
+      sectionNavButton(fixture.nativeElement, 'Resumen').click();
+      fixture.detectChanges();
+
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('Revisa tu evaluación');
+      expect(text).toContain(`${validScores().aroma} / 12`);
+      expect(text).toContain(validComments().flavor);
+      expect(text).toContain('Total');
+      expect(text).toContain('Descriptores de defecto detectados');
+      expect(fixture.nativeElement.querySelector('button[type="submit"]')).not.toBeNull();
+    });
+
+    it('setting a discrete intensity descriptor persists it into the submit payload', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      sectionNavButton(fixture.nativeElement, 'Aroma').click();
+      fixture.detectChanges();
+      const maltSlider = fixture.nativeElement.querySelector('#aroma-malt') as HTMLInputElement;
+      maltSlider.value = '3';
+      maltSlider.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.descriptors().aroma.malt).toBe(3);
+    });
+
+    it('toggling an off-flavor descriptor on the Resumen tab tracks it', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      sectionNavButton(fixture.nativeElement, 'Resumen').click();
+      fixture.detectChanges();
+
+      const diacetylCheckbox = Array.from(
+        fixture.nativeElement.querySelectorAll('.off-flavor-option'),
+      )
+        .find((label) => (label as HTMLElement).textContent?.includes('Diacetil'))
+        ?.querySelector('input') as HTMLInputElement;
+      diacetylCheckbox.click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.descriptors().offFlavors.has('Diacetyl')).toBe(true);
     });
   });
 });

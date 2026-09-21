@@ -15,6 +15,10 @@ public sealed class EvaluationConfiguration : IEntityTypeConfiguration<Evaluatio
         builder.Property(e => e.OverallComment).HasMaxLength(2000);
         builder.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
 
+        // Session 2026-09-21: same jsonb-as-string convention as AuditLog.DataJson/DispatchJob.PayloadJson.
+        builder.Property(e => e.DescriptorsJson).HasColumnType("jsonb");
+        builder.Property(e => e.FeedbackComment).HasMaxLength(4000);
+
         // FR-024: the total is computed by the database, never client-supplied.
         builder.Property(e => e.Total)
             .HasComputedColumnSql(
