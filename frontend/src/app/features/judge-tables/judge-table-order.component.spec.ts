@@ -211,6 +211,25 @@ describe('JudgeTableOrderComponent', () => {
     expect(text).toContain('EF56');
   });
 
+  it('shows a loading state instead of the empty-state message while the API call is in flight', async () => {
+    const samples$ = new Subject<JudgeSample[]>();
+    fakeApi.getTableSamples.mockReturnValue(samples$);
+    const fixture = createComponent();
+
+    let text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Cargando');
+    expect(text).not.toContain('Todavía no hay cervezas asignadas a esta mesa.');
+
+    samples$.next([]);
+    samples$.complete();
+    await flush();
+    fixture.detectChanges();
+
+    text = fixture.nativeElement.textContent as string;
+    expect(text).not.toContain('Cargando');
+    expect(text).toContain('Todavía no hay cervezas asignadas a esta mesa.');
+  });
+
   it('renders the ABV of each sample (Session 2026-09-20)', async () => {
     fakeApi.getTableSamples.mockReturnValue(
       of([sampleFixture({ beerEntryId: 'e1', blindCode: 'AB12', abvPercent: 6.8 })]),

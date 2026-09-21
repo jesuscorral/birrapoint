@@ -55,7 +55,9 @@ function errorMessage(error: ApiError): string {
         <p role="alert">{{ message }}</p>
       }
 
-      @if (!loadError() && tables().length === 0) {
+      @if (loading()) {
+        <p role="status">Cargando…</p>
+      } @else if (!loadError() && tables().length === 0) {
         <p>Todavía no tienes mesas asignadas.</p>
       }
 
@@ -142,6 +144,7 @@ export class JudgeTablesListComponent {
 
   protected readonly tables = signal<JudgeTableSummary[]>([]);
   protected readonly loadError = signal<string | null>(null);
+  protected readonly loading = signal(true);
 
   // T087/US12: a one-time notice read off `history.state`, set by a component that redirected
   // here after this judge was live-removed from a table (judge-table-order.component.ts,
@@ -158,9 +161,16 @@ export class JudgeTablesListComponent {
 
   private loadTables(): void {
     this.loadError.set(null);
+    this.loading.set(true);
     this.api.getMyTables().subscribe({
-      next: (tables) => this.tables.set(tables),
-      error: (error: unknown) => this.loadError.set(errorMessage(toGenericApiError(error))),
+      next: (tables) => {
+        this.tables.set(tables);
+        this.loading.set(false);
+      },
+      error: (error: unknown) => {
+        this.loadError.set(errorMessage(toGenericApiError(error)));
+        this.loading.set(false);
+      },
     });
   }
 }

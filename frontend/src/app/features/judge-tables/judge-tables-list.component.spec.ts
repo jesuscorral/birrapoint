@@ -1,7 +1,7 @@
 import { provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import Keycloak from 'keycloak-js';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
 import { JudgeTablesListComponent } from './judge-tables-list.component';
@@ -85,6 +85,23 @@ describe('JudgeTablesListComponent', () => {
     const fixture = createComponent();
 
     expect(fixture.nativeElement.textContent).toContain('Todavía no tienes mesas asignadas.');
+  });
+
+  it('shows a loading state instead of the empty-state message while the API call is in flight', () => {
+    const tables$ = new Subject<JudgeTableSummary[]>();
+    fakeApi.getMyTables.mockReturnValue(tables$);
+    const fixture = createComponent();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Cargando');
+    expect(text).not.toContain('Todavía no tienes mesas asignadas.');
+
+    tables$.next([]);
+    fixture.detectChanges();
+
+    const textAfter = fixture.nativeElement.textContent as string;
+    expect(textAfter).not.toContain('Cargando');
+    expect(textAfter).toContain('Todavía no tienes mesas asignadas.');
   });
 
   it('surfaces an error message when loading tables fails', () => {

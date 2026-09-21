@@ -125,7 +125,9 @@ function swap<T>(items: T[], a: number, b: number): T[] {
           </p>
         }
 
-        @if (samples().length === 0) {
+        @if (loading()) {
+          <p role="status">Cargando…</p>
+        } @else if (samples().length === 0) {
           <p>Todavía no hay cervezas asignadas a esta mesa.</p>
         } @else {
           <ol
@@ -428,6 +430,7 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
   protected readonly orderFixed = signal(false);
   protected readonly fixedByDisplayName = signal<string | null>(null);
   protected readonly loadError = signal<string | null>(null);
+  protected readonly loading = signal(true);
   protected readonly openDiscrepancyCount = signal(0);
 
   protected readonly confirmingFix = signal(false);
@@ -615,6 +618,7 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
 
   private loadAll(): void {
     this.loadError.set(null);
+    this.loading.set(true);
     forkJoin({
       tables: this.api.getMyTables(),
       samples: this.api.getTableSamples(this.tableId),
@@ -632,8 +636,12 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
         this.fixedByDisplayName.set(summary?.orderFixedBy ?? null);
         this.tableClosed.set(summary?.tableState === 'Closed');
         this.openDiscrepancyCount.set(discrepancies.length);
+        this.loading.set(false);
       },
-      error: (error: unknown) => this.loadError.set(errorMessage(toGenericApiError(error))),
+      error: (error: unknown) => {
+        this.loadError.set(errorMessage(toGenericApiError(error)));
+        this.loading.set(false);
+      },
     });
   }
 
