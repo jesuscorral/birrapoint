@@ -353,4 +353,48 @@ public sealed class SubmitEvaluationTests
         var descriptors = new EvaluationDescriptorsDto(null, null, null, null, null, ["Diacetyl", "Oxidized"]);
         Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
     }
+
+    [Fact]
+    public void Off_flavor_list_longer_than_the_closed_list_itself_is_rejected()
+    {
+        // Every entry is individually valid (a repeated real term) — this exercises the *count*
+        // cap, not the closed-list membership check (senior-review B2).
+        var tooMany = Enumerable.Repeat("Diacetyl", EvaluationDescriptorCatalog.OffFlavorTerms.Count + 1).ToList();
+        var descriptors = new EvaluationDescriptorsDto(null, null, null, null, null, tooMany);
+        var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void Free_text_descriptor_field_over_500_characters_is_rejected()
+    {
+        // senior-review B2: unbounded free text was the one input path that escaped both EF and
+        // FluentValidation length checks — Texture is one of five such fields (ColorOther,
+        // FoamOther, Notes on both Appearance and Mouthfeel are the others, same 500 cap).
+        var tooLong = new string('x', 501);
+        var descriptors = new EvaluationDescriptorsDto(
+            new AppearanceDescriptorsDto(null, null, false, null, null, null, false, null, tooLong, null),
+            null, null, null, null, null);
+        var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Descriptors.Appearance.Texture");
+    }
+
+    [Fact]
+    public void Free_text_descriptor_field_at_exactly_500_characters_is_accepted()
+    {
+        var atLimit = new string('x', 500);
+        var descriptors = new EvaluationDescriptorsDto(
+            new AppearanceDescriptorsDto(null, null, false, null, null, null, false, null, atLimit, null),
+            null, null, null, null, null);
+        Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
+    }
+
+    [Fact]
+    public void Feedback_over_4000_characters_is_rejected()
+    {
+        var command = ValidCommand() with { Feedback = new string('x', 4001) };
+
+        Assert.False(Validator.Validate(command).IsValid);
+    }
 }

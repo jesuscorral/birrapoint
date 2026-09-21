@@ -708,7 +708,7 @@ describe('EvaluationSheetComponent', () => {
       expect(fixture.nativeElement.querySelector('button[type="submit"]')).not.toBeNull();
     });
 
-    it('setting a discrete intensity descriptor persists it into the submit payload', async () => {
+    it('setting a discrete intensity descriptor updates component state', async () => {
       const fixture = createComponent();
       await flush();
       fixture.detectChanges();
@@ -721,6 +721,74 @@ describe('EvaluationSheetComponent', () => {
       fixture.detectChanges();
 
       expect(fixture.componentInstance.descriptors().aroma.malt).toBe(3);
+    });
+
+    // senior-review B1: an earlier version of this component defaulted every slider's *state*
+    // field to a concrete number (0/50), so an untouched slider silently submitted a fabricated
+    // rating — indistinguishable from a judge who deliberately rated it "Nada"/neutral. Fixed by
+    // keeping the state `null` until the judge actually drags the slider; the template alone
+    // supplies a display-only fallback for where the handle sits. These two tests prove that fix
+    // holds all the way out to what SyncService actually receives, not just component state.
+    it('an untouched slider reaches submit() as null, not a fabricated default', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      // Touch only Aroma's malt slider — every other slider (appearance.retention,
+      // aroma.hops/fermentation, flavor.*, mouthfeel.*, overall.*) is left completely untouched.
+      sectionNavButton(fixture.nativeElement, 'Aroma').click();
+      fixture.detectChanges();
+      const maltSlider = fixture.nativeElement.querySelector('#aroma-malt') as HTMLInputElement;
+      maltSlider.value = '3';
+      maltSlider.dispatchEvent(new Event('input'));
+
+      fixture.componentInstance.form.setValue({
+        aromaScore: validScores().aroma,
+        aromaComment: validComments().aroma,
+        appearanceScore: validScores().appearance,
+        appearanceComment: validComments().appearance,
+        flavorScore: validScores().flavor,
+        flavorComment: validComments().flavor,
+        mouthfeelScore: validScores().mouthfeel,
+        mouthfeelComment: validComments().mouthfeel,
+        overallScore: validScores().overall,
+        overallComment: validComments().overall,
+        feedback: '',
+      });
+
+      await fixture.componentInstance.onSubmit();
+
+      const [, , , , , descriptorsArg] = fakeSync.submit.mock.calls[0] as [
+        string,
+        string,
+        string,
+        unknown,
+        unknown,
+        {
+          aroma: { malt: number | null; hops: number | null; fermentation: number | null };
+          appearance: { retention: number | null };
+          overall: { classicExample: number | null };
+        },
+      ];
+      expect(descriptorsArg.aroma.malt).toBe(3);
+      expect(descriptorsArg.aroma.hops).toBeNull();
+      expect(descriptorsArg.aroma.fermentation).toBeNull();
+      expect(descriptorsArg.appearance.retention).toBeNull();
+      expect(descriptorsArg.overall.classicExample).toBeNull();
+    });
+
+    it('an untouched slider still shows its neutral display position, without that reaching submit', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      sectionNavButton(fixture.nativeElement, 'Aroma').click();
+      fixture.detectChanges();
+      const maltSlider = fixture.nativeElement.querySelector('#aroma-malt') as HTMLInputElement;
+      // Never touched — the rendered handle position is a display-only fallback (Nada = 0),
+      // never written into component state (verified above) or, therefore, ever submitted.
+      expect(maltSlider.value).toBe('0');
+      expect(fixture.componentInstance.descriptors().aroma.malt).toBeNull();
     });
 
     it('toggling an off-flavor descriptor on the Resumen tab tracks it', async () => {

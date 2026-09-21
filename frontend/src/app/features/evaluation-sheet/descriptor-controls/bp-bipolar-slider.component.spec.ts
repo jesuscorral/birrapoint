@@ -50,6 +50,20 @@ describe('BpBipolarSliderComponent', () => {
     expect(defaultInput.value).toBe('80');
   });
 
+  // senior-review M3: the discrete slider already announced its intensity label via
+  // aria-valuetext; the bipolar one didn't, so a screen reader announced a bare "50" on an axis
+  // like Lupulado↔Maltoso with no indication of direction.
+  it('announces the value with both pole labels via aria-valuetext', () => {
+    fixture.componentRef.setInput('value', 30);
+    fixture.detectChanges();
+
+    const input = fixture.nativeElement.querySelector('input[type="range"]') as HTMLInputElement;
+    const valueText = input.getAttribute('aria-valuetext');
+    expect(valueText).toContain('30');
+    expect(valueText).toContain('Lupulado');
+    expect(valueText).toContain('Maltoso');
+  });
+
   it('emits valueChange as a number on input', () => {
     fixture.detectChanges();
     const emitted: number[] = [];

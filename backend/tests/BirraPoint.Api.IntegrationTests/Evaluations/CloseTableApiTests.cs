@@ -185,11 +185,17 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
     };
 
     private static Task<HttpResponseMessage> SubmitAsync(
-        HttpClient client, Guid tableId, Guid beerEntryId, object? scores = null, object? comments = null)
+        HttpClient client, Guid tableId, Guid beerEntryId, object? scores = null, object? comments = null, object? descriptors = null)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/me/tables/{tableId}/evaluations")
         {
-            Content = JsonContent.Create(new { beerEntryId, scores = scores ?? ValidScores(), comments = comments ?? ValidComments() }),
+            Content = JsonContent.Create(new
+            {
+                beerEntryId,
+                scores = scores ?? ValidScores(),
+                comments = comments ?? ValidComments(),
+                descriptors,
+            }),
         };
         request.Headers.Add("X-Idempotency-Key", $"comp:{tableId}:judge:{beerEntryId}");
         return client.SendAsync(request);
@@ -203,6 +209,14 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
         client.PutAsJsonAsync(
             $"/api/v1/competitions/{competitionId}/evaluations/{evaluationId}",
             new { scores = scores ?? ValidScores(), comments = comments ?? ValidComments() });
+
+    private async Task<string?> GetDescriptorsJsonAsync(Guid evaluationId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var evaluation = await db.Evaluations.AsNoTracking().SingleAsync(e => e.Id == evaluationId);
+        return evaluation.DescriptorsJson;
+    }
 
     /// <summary>Seeds a competition, one table with <paramref name="sampleCount"/> samples, and
     /// <paramref name="judgeCount"/> actively-assigned judges. Competition state and order-fixed-ness
@@ -389,6 +403,36 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
         using var data = JsonDocument.Parse(auditLog.DataJson);
         Assert.Equal(8, data.RootElement.GetProperty("before").GetProperty("OverallScore").GetInt32());
         Assert.Equal(10, data.RootElement.GetProperty("after").GetProperty("OverallScore").GetInt32());
+    }
+
+    [Fact]
+    public async Task Correcting_only_the_scores_preserves_the_judges_existing_descriptors()
+    {
+        // senior-review M1: descriptors/feedback are optional on the correction request — an
+        // organizer correcting just the five scores (the contract's own documented minimal body)
+        // must not silently wipe the judge's tasting descriptors by omitting fields the request
+        // never required.
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer);
+        using var judgeClient = JudgeClient(fixture.Judges[0].JudgeSub);
+
+        var descriptors = new { appearance = new { color = "Golden", retention = 60 } };
+        var submit = await SubmitAsync(judgeClient, fixture.TableId, fixture.EntryIds[0], descriptors: descriptors);
+        Assert.Equal(HttpStatusCode.Created, submit.StatusCode);
+        var evaluationId = (await submit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("evaluationId").GetGuid();
+        Assert.Equal(HttpStatusCode.OK, (await CloseAsync(judgeClient, fixture.TableId)).StatusCode);
+
+        var descriptorsBeforeCorrection = await GetDescriptorsJsonAsync(evaluationId);
+        Assert.NotNull(descriptorsBeforeCorrection);
+        Assert.Contains("Golden", descriptorsBeforeCorrection);
+
+        // The correction body omits `descriptors` entirely — exactly what CorrectAsync's own
+        // default (scores/comments only) sends.
+        var correctionResponse = await CorrectAsync(organizer, fixture.CompetitionId, evaluationId);
+        Assert.Equal(HttpStatusCode.OK, correctionResponse.StatusCode);
+
+        var descriptorsAfterCorrection = await GetDescriptorsJsonAsync(evaluationId);
+        Assert.Equal(descriptorsBeforeCorrection, descriptorsAfterCorrection);
     }
 
     [Fact]

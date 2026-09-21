@@ -13,8 +13,27 @@ public static class EvaluationDescriptorsSerializer
     public static string Serialize(EvaluationDescriptorsDto descriptors) =>
         JsonSerializer.Serialize(descriptors, Options);
 
-    public static EvaluationDescriptorsDto? Deserialize(string? descriptorsJson) =>
-        descriptorsJson is null ? null : JsonSerializer.Deserialize<EvaluationDescriptorsDto>(descriptorsJson, Options);
+    /// <summary>Never throws (senior-review M2): a row whose stored blob doesn't match the current
+    /// DTO shape — a future field rename, a hand-edited row — must not 500 the organizer's audit
+    /// drill-down or fail the whole competition's GeneratePdfsHandler job (runs inside the
+    /// DispatchJob BackgroundService and would otherwise retry the same poisoned row forever).
+    /// Falls back to "no descriptors recorded" instead, same as a genuinely null column.</summary>
+    public static EvaluationDescriptorsDto? Deserialize(string? descriptorsJson)
+    {
+        if (descriptorsJson is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<EvaluationDescriptorsDto>(descriptorsJson, Options);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 }
 
 /// <summary>
@@ -136,6 +155,14 @@ public sealed class EvaluationDescriptorsDtoValidator : AbstractValidator<Evalua
             .Must(term => EvaluationDescriptorCatalog.OffFlavorTerms.Contains(term))
             .WithMessage("'{PropertyValue}' is not a recognized off-flavor descriptor.")
             .When(d => d.OffFlavors is not null);
+
+        // senior-review B2: the closed-list check above rejects an unrecognized TERM, but says
+        // nothing about how many entries the list itself may hold — without this, an authenticated
+        // judge could submit the same (or distinct) valid term thousands of times.
+        RuleFor(d => d.OffFlavors!)
+            .Must(list => list.Count <= EvaluationDescriptorCatalog.OffFlavorTerms.Count)
+            .WithMessage("Too many off-flavor descriptors.")
+            .When(d => d.OffFlavors is not null);
     }
 }
 
@@ -152,12 +179,23 @@ file static class DescriptorValidatorRules
 
 file sealed class AppearanceDescriptorsDtoValidator : AbstractValidator<AppearanceDescriptorsDto>
 {
+    // senior-review B2: every other free-text column in this codebase has an explicit max length
+    // (2000 for the five section comments, 4000 for FeedbackComment) — these "Otros"/notes fields
+    // are advisory annotations, not another comment box, so a shorter cap is appropriate; jsonb
+    // itself has no length limit, so without this an authenticated judge could otherwise persist
+    // an arbitrarily large string per field.
+    private const int FreeTextMaxLength = 500;
+
     public AppearanceDescriptorsDtoValidator()
     {
         RuleFor(d => d.Color).Must(v => EvaluationDescriptorCatalog.ColorOptions.Contains(v!)).When(d => d.Color is not null);
+        RuleFor(d => d.ColorOther).MaximumLength(FreeTextMaxLength);
         RuleFor(d => d.Clarity).Must(v => EvaluationDescriptorCatalog.ClarityOptions.Contains(v!)).When(d => d.Clarity is not null);
         RuleFor(d => d.Foam).Must(v => EvaluationDescriptorCatalog.FoamOptions.Contains(v!)).When(d => d.Foam is not null);
+        RuleFor(d => d.FoamOther).MaximumLength(FreeTextMaxLength);
         RuleFor(d => d.Retention).BipolarSlider();
+        RuleFor(d => d.Texture).MaximumLength(FreeTextMaxLength);
+        RuleFor(d => d.Notes).MaximumLength(FreeTextMaxLength);
     }
 }
 
@@ -193,6 +231,7 @@ file sealed class MouthfeelDescriptorsDtoValidator : AbstractValidator<Mouthfeel
         RuleFor(d => d.AlcoholWarmth).DiscreteIntensity();
         RuleFor(d => d.Creaminess).DiscreteIntensity();
         RuleFor(d => d.Astringency).DiscreteIntensity();
+        RuleFor(d => d.Notes).MaximumLength(500);
     }
 }
 

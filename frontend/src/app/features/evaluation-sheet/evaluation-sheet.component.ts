@@ -152,11 +152,16 @@ function buildForm(): FormGroup {
 
 // Session 2026-09-21 (FR-063): the structured tasting-sheet descriptor working state. Plain
 // signal, not part of the reactive FormGroup above — every field here is optional/advisory (never
-// gates submit), so it doesn't need Validators/FormControl machinery; a concrete default (0 for a
-// discrete slider, 50 for a continuous one, '' for text/select, false for checkboxes) stands in
-// for "not yet touched" rather than tracking a separate touched flag per field — a known,
-// accepted simplification (see this file's PR/ADR-0015): an untouched slider submits at its
-// default position rather than as absent. Acceptable since every field here is advisory only.
+// gates submit), so it doesn't need Validators/FormControl machinery. Text/select/checkbox fields
+// default to '' / false, which already mean "not filled" unambiguously. Slider fields are the one
+// case that needs care: a slider has no natural "empty" position, so its state field defaults to
+// `null` — genuinely untouched — and the *template* alone supplies a display-only fallback
+// (`?? 0` / `?? 50`) for where the handle sits before the judge ever drags it. `null` is what
+// actually reaches the submit payload and Dexie draft (senior-review B1: an earlier version of
+// this file defaulted the state fields themselves to 0/50, so an untouched slider silently
+// persisted a fabricated rating — visible in the organizer's audit view and the participant-facing
+// results PDF as if the judge had deliberately rated it "Nada"/neutral. Fixed by moving the
+// default out of the state and into the template's own display binding.)
 interface AppearanceDescriptorsState {
   color: string;
   colorOther: string;
@@ -165,44 +170,47 @@ interface AppearanceDescriptorsState {
   foam: string;
   foamOther: string;
   foamInappropriate: boolean;
-  retention: number;
+  // null until the judge actually drags the slider (see toDescriptorsPayload/senior-review B1):
+  // the template falls back to a display-only default (?? 50/?? 0), but the stored/submitted
+  // value stays null — and is therefore omitted from the payload — until touched.
+  retention: number | null;
   texture: string;
   notes: string;
 }
 
 interface AromaDescriptorsState {
-  malt: number;
+  malt: number | null;
   maltInappropriate: boolean;
-  hops: number;
+  hops: number | null;
   hopsInappropriate: boolean;
-  fermentation: number;
+  fermentation: number | null;
 }
 
 interface FlavorDescriptorsState {
-  malt: number;
-  hops: number;
-  bitterness: number;
-  fermentation: number;
-  balance: number;
-  finish: number;
+  malt: number | null;
+  hops: number | null;
+  bitterness: number | null;
+  fermentation: number | null;
+  balance: number | null;
+  finish: number | null;
 }
 
 interface MouthfeelDescriptorsState {
-  body: number;
+  body: number | null;
   bodyInappropriate: boolean;
-  carbonation: number;
-  alcoholWarmth: number;
-  creaminess: number;
+  carbonation: number | null;
+  alcoholWarmth: number | null;
+  creaminess: number | null;
   creaminessInappropriate: boolean;
-  astringency: number;
+  astringency: number | null;
   astringencyInappropriate: boolean;
   notes: string;
 }
 
 interface OverallDescriptorsState {
-  classicExample: number;
-  defects: number;
-  vitality: number;
+  classicExample: number | null;
+  defects: number | null;
+  vitality: number | null;
 }
 
 interface DescriptorsFormState {
@@ -224,37 +232,48 @@ function initialDescriptorsState(): DescriptorsFormState {
       foam: '',
       foamOther: '',
       foamInappropriate: false,
-      retention: 50,
+      retention: null,
       texture: '',
       notes: '',
     },
     aroma: {
-      malt: 0,
+      malt: null,
       maltInappropriate: false,
-      hops: 0,
+      hops: null,
       hopsInappropriate: false,
-      fermentation: 0,
+      fermentation: null,
     },
-    flavor: { malt: 0, hops: 0, bitterness: 0, fermentation: 0, balance: 50, finish: 50 },
+    flavor: {
+      malt: null,
+      hops: null,
+      bitterness: null,
+      fermentation: null,
+      balance: null,
+      finish: null,
+    },
     mouthfeel: {
-      body: 0,
+      body: null,
       bodyInappropriate: false,
-      carbonation: 0,
-      alcoholWarmth: 0,
-      creaminess: 0,
+      carbonation: null,
+      alcoholWarmth: null,
+      creaminess: null,
       creaminessInappropriate: false,
-      astringency: 0,
+      astringency: null,
       astringencyInappropriate: false,
       notes: '',
     },
-    overall: { classicExample: 50, defects: 50, vitality: 50 },
+    overall: { classicExample: null, defects: null, vitality: null },
     offFlavors: new Set<string>(),
   };
 }
 
 // Converts the working state above into the wire/Dexie shape (EvaluationDescriptors) — empty
 // strings become undefined so an untouched select/text field reads as genuinely absent rather
-// than an empty-string value the backend's closed-list validator would reject.
+// than an empty-string value the backend's closed-list validator would reject. Numeric slider
+// fields need no such conversion: they're already `null` in the state until the judge actually
+// touches the control (senior-review B1 fix — a judge who never drags a slider must not have a
+// fabricated "Nada"/midpoint rating land in the organizer's audit view and the participant-facing
+// results PDF as if they'd deliberately rated it).
 function toDescriptorsPayload(state: DescriptorsFormState): EvaluationDescriptors {
   const orUndefined = (value: string): string | undefined => (value === '' ? undefined : value);
   return {
@@ -432,7 +451,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
 
             <div class="evaluation-card">
               @if (activeSection(); as section) {
-                <fieldset class="evaluation-section" [attr.aria-label]="section.label">
+                <fieldset class="evaluation-section">
                   <legend>{{ section.label }} (0–{{ section.max }})</legend>
 
                   <bp-input
@@ -542,7 +561,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                           label="Retención"
                           startLabel="Baja"
                           endLabel="Alta"
-                          [value]="descriptors().appearance.retention"
+                          [value]="descriptors().appearance.retention ?? 50"
                           (valueChange)="setAppearance('retention', $event)"
                         ></bp-bipolar-slider>
 
@@ -565,7 +584,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                         <bp-discrete-slider
                           id="aroma-malt"
                           label="Malta"
-                          [value]="descriptors().aroma.malt"
+                          [value]="descriptors().aroma.malt ?? 0"
                           (valueChange)="setAroma('malt', $event)"
                         ></bp-discrete-slider>
                         <label class="descriptor-checkbox">
@@ -580,7 +599,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                         <bp-discrete-slider
                           id="aroma-hops"
                           label="Lúpulos"
-                          [value]="descriptors().aroma.hops"
+                          [value]="descriptors().aroma.hops ?? 0"
                           (valueChange)="setAroma('hops', $event)"
                         ></bp-discrete-slider>
                         <label class="descriptor-checkbox">
@@ -595,7 +614,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                         <bp-discrete-slider
                           id="aroma-fermentation"
                           label="Fermentación"
-                          [value]="descriptors().aroma.fermentation"
+                          [value]="descriptors().aroma.fermentation ?? 0"
                           (valueChange)="setAroma('fermentation', $event)"
                         ></bp-discrete-slider>
                       }
@@ -603,25 +622,25 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                         <bp-discrete-slider
                           id="flavor-malt"
                           label="Malta"
-                          [value]="descriptors().flavor.malt"
+                          [value]="descriptors().flavor.malt ?? 0"
                           (valueChange)="setFlavor('malt', $event)"
                         ></bp-discrete-slider>
                         <bp-discrete-slider
                           id="flavor-hops"
                           label="Lúpulos"
-                          [value]="descriptors().flavor.hops"
+                          [value]="descriptors().flavor.hops ?? 0"
                           (valueChange)="setFlavor('hops', $event)"
                         ></bp-discrete-slider>
                         <bp-discrete-slider
                           id="flavor-bitterness"
                           label="Amargor"
-                          [value]="descriptors().flavor.bitterness"
+                          [value]="descriptors().flavor.bitterness ?? 0"
                           (valueChange)="setFlavor('bitterness', $event)"
                         ></bp-discrete-slider>
                         <bp-discrete-slider
                           id="flavor-fermentation"
                           label="Fermentación"
-                          [value]="descriptors().flavor.fermentation"
+                          [value]="descriptors().flavor.fermentation ?? 0"
                           (valueChange)="setFlavor('fermentation', $event)"
                         ></bp-discrete-slider>
                         <bp-bipolar-slider
@@ -629,7 +648,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                           label="Equilibrio"
                           startLabel="Lupulado"
                           endLabel="Maltoso"
-                          [value]="descriptors().flavor.balance"
+                          [value]="descriptors().flavor.balance ?? 50"
                           (valueChange)="setFlavor('balance', $event)"
                         ></bp-bipolar-slider>
                         <bp-bipolar-slider
@@ -637,7 +656,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                           label="Final / Retrogusto"
                           startLabel="Seco"
                           endLabel="Dulce"
-                          [value]="descriptors().flavor.finish"
+                          [value]="descriptors().flavor.finish ?? 50"
                           (valueChange)="setFlavor('finish', $event)"
                         ></bp-bipolar-slider>
                       }
@@ -645,7 +664,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                         <bp-discrete-slider
                           id="mouthfeel-body"
                           label="Cuerpo"
-                          [value]="descriptors().mouthfeel.body"
+                          [value]="descriptors().mouthfeel.body ?? 0"
                           (valueChange)="setMouthfeel('body', $event)"
                         ></bp-discrete-slider>
                         <label class="descriptor-checkbox">
@@ -660,20 +679,20 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                         <bp-discrete-slider
                           id="mouthfeel-carbonation"
                           label="Carbonatación"
-                          [value]="descriptors().mouthfeel.carbonation"
+                          [value]="descriptors().mouthfeel.carbonation ?? 0"
                           (valueChange)="setMouthfeel('carbonation', $event)"
                         ></bp-discrete-slider>
                         <bp-discrete-slider
                           id="mouthfeel-alcohol-warmth"
                           label="Calor alcohólico"
-                          [value]="descriptors().mouthfeel.alcoholWarmth"
+                          [value]="descriptors().mouthfeel.alcoholWarmth ?? 0"
                           (valueChange)="setMouthfeel('alcoholWarmth', $event)"
                         ></bp-discrete-slider>
 
                         <bp-discrete-slider
                           id="mouthfeel-creaminess"
                           label="Cremosidad"
-                          [value]="descriptors().mouthfeel.creaminess"
+                          [value]="descriptors().mouthfeel.creaminess ?? 0"
                           (valueChange)="setMouthfeel('creaminess', $event)"
                         ></bp-discrete-slider>
                         <label class="descriptor-checkbox">
@@ -690,7 +709,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                         <bp-discrete-slider
                           id="mouthfeel-astringency"
                           label="Astringencia"
-                          [value]="descriptors().mouthfeel.astringency"
+                          [value]="descriptors().mouthfeel.astringency ?? 0"
                           (valueChange)="setMouthfeel('astringency', $event)"
                         ></bp-discrete-slider>
                         <label class="descriptor-checkbox">
@@ -718,7 +737,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                           label="Fidelidad al estilo"
                           startLabel="Ejemplo clásico"
                           endLabel="No acorde al estilo"
-                          [value]="descriptors().overall.classicExample"
+                          [value]="descriptors().overall.classicExample ?? 50"
                           (valueChange)="setOverall('classicExample', $event)"
                         ></bp-bipolar-slider>
                         <bp-bipolar-slider
@@ -726,7 +745,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                           label="Defectos"
                           startLabel="Sin defectos"
                           endLabel="Defectos significativos"
-                          [value]="descriptors().overall.defects"
+                          [value]="descriptors().overall.defects ?? 50"
                           (valueChange)="setOverall('defects', $event)"
                         ></bp-bipolar-slider>
                         <bp-bipolar-slider
@@ -734,7 +753,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                           label="Vitalidad"
                           startLabel="Maravillosa"
                           endLabel="Sin vida"
-                          [value]="descriptors().overall.vitality"
+                          [value]="descriptors().overall.vitality ?? 50"
                           (valueChange)="setOverall('vitality', $event)"
                         ></bp-bipolar-slider>
                       }

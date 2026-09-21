@@ -85,3 +85,37 @@ organizer wants them there too.
   to keep `jsonb` with an expression index, move to `OwnsOne().ToJson()` (EF Core's native JSON
   column mapping, unused anywhere in this codebase today), or normalize the highest-value fields
   into real columns.
+
+## Amendments (senior-code-reviewer, PR #45)
+
+Four gaps found in review, fixed in the same PR, recorded here since they change how this ADR's
+own design should be read:
+
+- **Unbounded free text**: the first pass validated closed-list membership and numeric ranges but
+  never a string length — `ColorOther`/`FoamOther`/`Texture`/`Notes` were the one input path in
+  this codebase that escaped both EF (`jsonb` has no length limit) and FluentValidation, and
+  `OffFlavors` had no count cap either. Fixed: 500-char `MaximumLength` on every free-text
+  descriptor field (same reasoning as the five section comments' 2000 and `FeedbackComment`'s
+  4000 — a cap proportionate to what the field is for), and a count cap on `OffFlavors` (≤ the
+  catalog's own 20 terms).
+- **`Deserialize` could throw**: a row whose blob doesn't match the current DTO shape (a future
+  field rename, a hand-edited row) would 500 the organizer's audit drill-down and poison
+  `GeneratePdfsHandler`'s `DispatchJob` retry loop — one bad row failing a whole competition's PDF
+  generation, forever. Fixed: `Deserialize` catches `JsonException` and returns `null` ("no
+  descriptors recorded") instead of throwing — the same everything-explodes-vs-degrade-gracefully
+  choice `EvaluationDescriptorsDto`'s optionality already makes at every other level.
+- **`CorrectEvaluation` silently wiped descriptors/feedback**: the request's `Descriptors`/
+  `Feedback` default to `null` when omitted, and the handler was unconditionally overwriting the
+  columns with whatever the request carried — so an organizer correction posting only `scores`/
+  `comments` (the endpoint's own previously-documented minimal body) would null out the judge's
+  tasting descriptors as a side effect. Fixed: **preserve-when-absent** — the handler now only
+  overwrites `DescriptorsJson`/`FeedbackComment` when the request actually supplies them.
+- **Frontend defaulted slider *state* to a concrete value (0/50), not just their display
+  position**: this meant every submission — including one where the judge touched zero sliders —
+  persisted a full set of fabricated ratings, visible in the organizer's audit view and the
+  participant-facing results PDF as if deliberately rated. This is a frontend bug, not a backend
+  one, but it directly undermined this ADR's "every descriptor field being independently optional
+  falls out for free" claim in practice — the backend accepted `null` correctly the whole time,
+  the frontend simply never sent it. Fixed in `evaluation-sheet.component.ts`: slider *state*
+  fields stay `null` until touched; the template supplies a separate, display-only fallback for
+  where the handle renders before that.

@@ -53,7 +53,7 @@ import { INTENSITY_LABELS } from '../evaluation-descriptor-catalog';
     input[type='range'] {
       width: 100%;
       accent-color: var(--color-bp-cobre-500);
-      min-height: 24px;
+      min-height: 44px;
     }
 
     .discrete-slider__ticks {

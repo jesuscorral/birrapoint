@@ -24,6 +24,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
           step="1"
           [id]="id()"
           [attr.aria-label]="label()"
+          [attr.aria-valuetext]="value() + ' de 100, entre ' + startLabel() + ' y ' + endLabel()"
           [value]="value()"
           (input)="onInput($event)"
         />
@@ -60,7 +61,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
     input[type='range'] {
       flex: 1;
       accent-color: var(--color-bp-cobre-500);
-      min-height: 24px;
+      min-height: 44px;
     }
   `,
 })
