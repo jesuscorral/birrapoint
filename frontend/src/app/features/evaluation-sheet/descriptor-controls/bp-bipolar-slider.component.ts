@@ -29,7 +29,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
         </label>
       </div>
       <div class="bipolar-slider__track">
-        <span class="bipolar-slider__pole">{{ startLabel() }}</span>
+        <span class="bipolar-slider__pole bipolar-slider__pole--start">{{ startLabel() }}</span>
         <input
           type="range"
           min="0"
@@ -41,12 +41,14 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
           [value]="value()"
           (input)="onInput($event)"
         />
-        <span class="bipolar-slider__pole">{{ endLabel() }}</span>
+        <span class="bipolar-slider__pole bipolar-slider__pole--end">{{ endLabel() }}</span>
       </div>
     </div>
   `,
   styles: `
     .bipolar-slider {
+      container-type: inline-size;
+      container-name: bipolar-slider;
       margin: var(--spacing-3) 0;
     }
 
@@ -76,11 +78,15 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       white-space: nowrap;
     }
 
-    /* Grid, not flex: on a narrow viewport the two pole labels plus a range input never share one
-       row without forcing horizontal overflow (a range input's intrinsic min-content width can
-       exceed a flex item's default min-width: auto). Below 480px the labels sit on their own row
-       and the slider takes the full width beneath them; from 480px up it collapses back to a
-       single inline row (auto | 1fr | auto). */
+    /* Grid, not flex: two pole labels plus a range input never share one row without forcing
+       horizontal overflow (a range input's intrinsic min-content width can exceed a flex item's
+       default min-width: auto). The row/stacked switch is a container query against .bipolar-
+       slider's own inline size — not the viewport — because this component sits in a 2-column
+       desktop grid (see evaluation-sheet.component.ts's .descriptor-group): a wide viewport does
+       not mean a wide column, and a viewport media query here previously assumed it did, leaving
+       ~80px for the track at common tablet widths. Below the threshold the labels sit on their
+       own row and the slider takes the full width beneath them; above it, a single inline row
+       (capped pole | flexible range | capped pole), so long pole labels can't eat the track. */
     .bipolar-slider__track {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -89,9 +95,9 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       align-items: center;
     }
 
-    @media (min-width: 480px) {
+    @container bipolar-slider (min-width: 480px) {
       .bipolar-slider__track {
-        grid-template-columns: auto 1fr auto;
+        grid-template-columns: minmax(0, 6rem) minmax(8rem, 1fr) minmax(0, 6rem);
         grid-template-areas: 'start range end';
       }
     }
@@ -102,11 +108,11 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       color: var(--color-bp-text-muted);
     }
 
-    .bipolar-slider__pole:first-of-type {
+    .bipolar-slider__pole--start {
       grid-area: start;
     }
 
-    .bipolar-slider__pole:last-of-type {
+    .bipolar-slider__pole--end {
       grid-area: end;
       text-align: right;
     }

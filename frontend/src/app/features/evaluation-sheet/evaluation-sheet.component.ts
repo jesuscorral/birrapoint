@@ -460,16 +460,18 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
       }
 
       @if (!loadError() && sample(); as currentSample) {
-        <h1>{{ currentSample.blindCode }}</h1>
-        <p class="sample-style">
-          {{ currentSample.styleName }} ({{ currentSample.styleCode }}) ·
-          {{ currentSample.abvPercent }}% ABV
-        </p>
+        <div class="evaluation-sheet-header">
+          <h1>{{ currentSample.blindCode }}</h1>
+          <p class="sample-style">
+            {{ currentSample.styleName }} ({{ currentSample.styleCode }}) ·
+            {{ currentSample.abvPercent }}% ABV
+          </p>
 
-        <app-style-reference-panel
-          [styleCode]="currentSample.styleCode"
-          [styleName]="currentSample.styleName"
-        />
+          <app-style-reference-panel
+            [styleCode]="currentSample.styleCode"
+            [styleName]="currentSample.styleName"
+          />
+        </div>
 
         @if (currentSample.evaluationStatus === 'PendingConsensus') {
           <p role="status">
@@ -905,20 +907,36 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
 
     .sample-style {
       color: #4b5563;
-      margin-top: -0.5rem;
     }
 
     /* Organizer follow-up (Session 2026-09-21): the sheet used to inherit bp-page-shell's full
        88rem page-container width unconditionally, which read as too wide/empty on a desktop
        screen. Capping it here (not in the shared shell, which other screens still rely on at full
-       width) keeps this one judge-facing form centered and book-like instead of stretched. */
+       width) keeps this one judge-facing form centered and book-like instead of stretched. Same
+       cap on .evaluation-sheet-header (blind code, style line, style reference panel) so that
+       header stays aligned with the form beneath it instead of sitting at the shell's full width. */
+    .evaluation-sheet-header,
+    .evaluation-sheet-form {
+      max-width: 56rem;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .evaluation-sheet-header {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-1);
+    }
+
+    .evaluation-sheet-header > h1,
+    .evaluation-sheet-header > .sample-style {
+      margin: 0;
+    }
+
     .evaluation-sheet-form {
       display: flex;
       flex-direction: column;
       gap: var(--spacing-3);
-      max-width: 56rem;
-      margin: 0 auto;
-      width: 100%;
     }
 
     .section-nav {
