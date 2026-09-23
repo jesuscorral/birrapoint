@@ -13,11 +13,16 @@ later — the ZIP endpoint can be called well after generation finishes, and `Se
 runs as a separate, later `DispatchJob` than `GeneratePdfsHandler`.
 
 Neither `plan.md` nor `data-model.md` ever specified where these bytes should live. `plan.md`'s
-Storage section lists only PostgreSQL (server of record) and IndexedDB (client-side offline cache);
-`infra/bicep/`'s "persistent storage" note is scoped to the PostgreSQL container itself. There is no
-blob storage service anywhere in the approved stack (no Azure Blob Storage, no Azure Files mount
-for the API), and adding one would be a new external dependency needing its own justification
-(Principle V) purely to hold a few megabytes of PDFs per competition.
+Storage section lists only PostgreSQL (server of record) and IndexedDB (client-side offline cache).
+There is no blob storage service anywhere in the approved stack (no Azure Blob Storage, no Azure
+Files mount for the API), and adding one would be a new external dependency needing its own
+justification (Principle V) purely to hold a few megabytes of PDFs per competition.
+
+*(2026-09-23 note: this ADR originally reasoned from `infra/bicep/`'s "persistent storage" note,
+scoped to an in-environment PostgreSQL container. Constitution v1.3.0 moved production PostgreSQL
+to Neon and the deployment tool to Terraform — the decision below is unaffected, since it never
+depended on which Postgres hosting model was in play, only on "no blob store in the approved
+stack.")*
 
 ## Decision
 

@@ -179,39 +179,60 @@ Alternatives considered.
   every .NET service. One command starts everything (FR-044); the Aspire dashboard provides
   logs/traces/health (FR-048).
 - **Rationale**: Constitution v1.2.0 (amendment sourced from spec Clarifications 2026-07-07 Q1)
-  replaced Docker Compose: one orchestrator, dev/prod topology parity, and the same AppHost model
-  drives azd deployment generation.
+  replaced Docker Compose: one orchestrator, dev/prod topology parity. (The AppHost model no
+  longer drives generated deployment manifests as of the R-17 update below — Terraform is
+  hand-authored — but local topology parity is unaffected.)
 - **Alternatives considered**: Docker Compose (superseded by amendment — second topology
   definition would drift); Tilt/Skaffold (Kubernetes-shaped, wrong target).
 
-## R-17: Deployment — Bicep via Azure Developer CLI to Azure Container Apps *(added 2026-07-07)*
+## R-17: Deployment — Terraform to Azure Container Apps *(added 2026-07-07, superseded 2026-09-23)*
 
-- **Decision**: `azure.yaml` + `infra/bicep/` (generated/extended from the AppHost model) so that
-  a single `azd up` builds the multi-stage images, pushes to Azure Container Registry, provisions
-  the ACA environment, and deploys frontend (public ingress), backend, and Keycloak (FR-045/046).
-- **Rationale**: Constitution v1.2.0 fixes the target; azd's Aspire integration is the shortest
-  path to the single-command requirement (SC-011) with zero manual configuration.
-- **Alternatives considered**: Terraform (constitution chose Bicep); hand-rolled GitHub Actions
-  pipeline first (post-MVP concern — azd works locally and from CI later).
+- **Decision**: `infra/terraform/` provisions ACR, the ACA environment, and container apps for
+  frontend (public ingress), backend, and Keycloak. A build/push step (CI, or `az acr build`)
+  publishes images to ACR ahead of `terraform apply`, since Terraform — unlike `azd up` — does not
+  build images itself. Remote state lives in Azure Storage (FR-045/046).
+- **Rationale**: Constitution v1.3.0 fixes the target (user decision 2026-09-23, superseding the
+  original Bicep/azd choice below) — Terraform's broader provider ecosystem lets the same tool
+  also provision the Neon database (R-18), rather than splitting IaC across two tools.
+- **Alternatives considered**: Bicep + azd (the original v1.2.0 decision — single-command
+  `azd up` was simpler but coupled deployment to Aspire's manifest generation and couldn't reach
+  Neon); hand-rolled GitHub Actions pipeline first (post-MVP concern — Terraform works from a
+  workstation and from CI equally).
+- **Superseded decision (v1.2.0, kept for audit trail)**: `azure.yaml` + `infra/bicep/`
+  (generated/extended from the AppHost model) so that a single `azd up` built the multi-stage
+  images, pushed to Azure Container Registry, provisioned the ACA environment, and deployed
+  frontend, backend, and Keycloak.
 
-## R-18: Production PostgreSQL — in-environment container + scheduled backups *(added 2026-07-07)*
+## R-18: Production PostgreSQL — Neon (managed Postgres-as-a-service) *(added 2026-07-07, superseded 2026-09-23)*
 
-- **Decision**: PostgreSQL runs as a container app in the ACA environment with persistent volume
-  storage (Azure Files); a scheduled ACA job runs `pg_dump` exports to Azure Blob Storage, and the
-  restore procedure is documented in `infra/backup/` (FR-047).
-- **Rationale**: User decision (spec Clarifications 2026-07-07 Q2) — lowest cost, single-command
-  topology. The managed-service trade-off (automated backups/PITR/HA) is explicitly compensated by
-  the mandatory backup job; results data loss is the top operational risk otherwise.
-- **Alternatives considered**: Azure PostgreSQL Flexible Server (recommended for durability,
-  declined for MVP cost); Neon/Supabase (splits topology across providers, weakens `azd up`).
+- **Decision**: Production PostgreSQL is a Neon project/branch, reached over its pooled connection
+  string, injected into the backend Container App as a secret (FR-047). No in-environment
+  container, no self-managed backup job — Neon's own point-in-time recovery is the restore path,
+  documented in `infra/terraform/README.md` (or equivalent) in place of the old
+  `infra/backup/RESTORE.md`.
+- **Rationale**: User decision 2026-09-23, superseding the original v1.2.0 choice below —
+  offloads backup/PITR/HA to a managed service instead of a hand-rolled `pg_dump` job, at the cost
+  of a second provider in the topology (mitigated by Terraform, R-17, provisioning both).
+- **Alternatives considered**: Azure PostgreSQL Flexible Server (closer to a single-vendor
+  topology, but the user specifically chose Neon); keeping the original in-environment container
+  (rejected — the whole point of this amendment was to stop maintaining a bespoke backup/restore
+  procedure).
+- **Superseded decision (v1.2.0, kept for audit trail)**: PostgreSQL ran as a container app in the
+  ACA environment with persistent volume storage (Azure Files); a scheduled ACA job ran `pg_dump`
+  exports to Azure Blob Storage, with the restore procedure documented in `infra/backup/`. Chosen
+  then for lowest cost and single-command (`azd up`) topology; Neon/Supabase were explicitly
+  declined at the time as splitting the topology across providers.
 
-## R-19: Production Keycloak — container app in the same ACA environment *(added 2026-07-07)*
+## R-19: Production Keycloak — container app in the same ACA environment, database on Neon *(added 2026-07-07, updated 2026-09-23)*
 
 - **Decision**: Keycloak as a container app beside backend/frontend, realm imported at startup
   from `infra/keycloak/birrapoint-realm.json`, persistence in a dedicated database on the same
-  PostgreSQL container; public ingress for login flows.
-- **Rationale**: User decision (Clarifications 2026-07-07 Q3) — keeps one `azd up`, identical
-  OIDC configuration shape between local Aspire and production.
+  Neon project used by the backend (a second Neon database/branch, not the same schema);
+  public ingress for login flows.
+- **Rationale**: User decision (Clarifications 2026-07-07 Q3) — keeps deployment single-command
+  and OIDC configuration shape identical between local Aspire and production. Updated 2026-09-23:
+  Keycloak's database moves from the (now-removed) in-environment PostgreSQL container to Neon,
+  following R-18 — no other change to this decision.
 - **Alternatives considered**: External managed Keycloak (extra vendor, breaks single-command
   provisioning); Microsoft Entra External ID (re-plan of US1/US4 and a constitution rewrite).
 
@@ -290,5 +311,5 @@ Alternatives considered.
 | jest-preset-angular, Playwright, @axe-core/playwright | Tests | Deprecated Karma replacement; offline + a11y E2E |
 
 Everything else (`MediatR`, `FluentValidation`, EF Core/Npgsql, SignalR, Tailwind, CDK,
-`@angular/pwa`, .NET Aspire AppHost/ServiceDefaults, Docker, Bicep/azd) is already mandated by the
-constitution's Technology Constraints (v1.2.0).
+`@angular/pwa`, .NET Aspire AppHost/ServiceDefaults, Docker, Terraform, Neon) is already mandated
+by the constitution's Technology Constraints (v1.3.0).

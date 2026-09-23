@@ -1,30 +1,40 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.1.0 → 1.2.0 (MINOR — local orchestration and deployment stack amended)
+Version change: 1.2.0 → 1.3.0 (MINOR — cloud deployment tooling and database hosting amended)
 Modified principles: none
 Modified sections:
   - Technology & Architecture Constraints:
-    * Local orchestration: Docker Compose → .NET Aspire (AppHost + ServiceDefaults with
-      OpenTelemetry, health checks, resilience defaults). Source: spec 001 Clarifications
-      Session 2026-07-07 (Q1) and FR-044/FR-048.
-    * Added Containerization constraint (multi-stage Docker images, no baked secrets) per FR-043.
-    * Added Deployment constraint: Bicep + Azure Developer CLI (azd up) → Azure Container Apps;
-      ACR; frontend Nginx image; Keycloak as container app in the same environment; PostgreSQL
-      as in-environment container with persistent storage + scheduled backup/export per
-      FR-045–FR-047 and Clarifications Q2/Q3.
+    * Deployment: Bicep + Azure Developer CLI (`azd up`) → Terraform (HCL). Terraform provisions
+      Azure Container Registry and two Azure Container Apps (frontend, backend) plus Keycloak as
+      a third in-environment container app; image build/push remains a prerequisite step
+      (CI or `docker build`/`az acr login` + `docker push`) ahead of `terraform apply`, since
+      Terraform does not build images the way `azd up` did.
+    * Persistence (production): PostgreSQL as an in-environment ACA container → Neon (managed
+      Postgres-as-a-service), reached over its pooled connection string injected as an Azure
+      Container Apps secret. Self-managed backup/export + restore procedure requirement dropped
+      for production (Neon's own point-in-time recovery covers it); local development is
+      unaffected — .NET Aspire still orchestrates a local containerized PostgreSQL.
 Added sections: none
 Removed sections: none
 Templates:
-  - .specify/templates/plan-template.md ✅ compatible (no orchestration references)
+  - .specify/templates/plan-template.md ✅ compatible (no deployment-tool references)
   - .specify/templates/spec-template.md ✅ compatible
   - .specify/templates/tasks-template.md ✅ compatible
   - Docs/01-Definicion-Tecnologica.md ✅ updated (§5 Infraestructura rewritten to match)
-  - CLAUDE.md ✅ compatible (no orchestration references)
-  - specs/001-birrapoint-mvp/plan.md, research.md, tasks.md, quickstart.md ✅ updated 2026-07-07
-    (plan structure/context, research R-16–R-19, tasks T005 + new Phase 16 T095–T099,
-    quickstart Aspire/azd commands).
+  - CLAUDE.md ✅ updated (azd/Bicep commands and repository layout references)
+  - specs/001-birrapoint-mvp/plan.md ✅ updated (Technical Context, Constitution Check re-check,
+    Project Structure tree)
+  - specs/001-birrapoint-mvp/research.md ✅ updated (R-16 note, R-17/R-18 superseded + rewritten,
+    R-19 database-on-Neon update, dependency justification summary)
+  - specs/001-birrapoint-mvp/tasks.md ✅ updated (Phase 16 header + T096/T097/T099)
+  - specs/001-birrapoint-mvp/quickstart.md ✅ updated (prerequisites, cloud deployment commands,
+    quality gates)
+  - Docs/adrs/0010-*.md ✅ updated (stale `infra/bicep/` reference annotated; decision unaffected)
 Follow-up TODOs: none
+Previous report (v1.2.0, 2026-07-07): local orchestration Docker Compose → .NET Aspire; added
+Containerization constraint; added original Deployment constraint (Bicep + azd + in-environment
+PostgreSQL).
 Previous report (v1.1.0, 2026-07-06): backend stack .NET 8/9 → .NET 10 (LTS).
 Previous report (v1.0.0, 2026-07-06): initial ratification of Core Principles I–X,
 Technology & Architecture Constraints, Development Workflow & Quality Gates, Governance;
@@ -166,18 +176,24 @@ The approved stack is defined in `Docs/01-Definicion-Tecnologica.md` and is bind
   FluentValidation in the MediatR pipeline, SignalR (`CompetitionHub`) for real-time updates.
 - **Identity**: Keycloak — OIDC Authorization Code + PKCE; backend verifies JWTs and authorizes
   via claims. Roles: `ORGANIZER`, `JUDGE`.
-- **Persistence**: PostgreSQL via EF Core (Npgsql), code-first migrations.
+- **Persistence**: PostgreSQL via EF Core (Npgsql), code-first migrations. Local development uses
+  a containerized PostgreSQL orchestrated by Aspire; production uses Neon (managed
+  Postgres-as-a-service) — see Deployment below.
 - **Local orchestration**: .NET Aspire — a single AppHost project orchestrates PostgreSQL,
   Keycloak, the backend API, the frontend, and the mail sink with one command; a ServiceDefaults
   project injects OpenTelemetry, health checks, and resilience defaults into every service.
 - **Containerization**: every runtime component ships as a multi-stage Docker image (backend:
   .NET SDK build → ASP.NET runtime; frontend: Node build → Nginx Alpine serving static files);
   images MUST NOT contain secrets or environment-specific configuration.
-- **Deployment**: Azure Container Apps, provisioned declaratively with Bicep through the Azure
-  Developer CLI — `azd up` builds images, pushes to Azure Container Registry, and deploys in a
-  single command. Production topology: one ACA environment hosting the frontend (public
-  ingress), the backend API, Keycloak, and PostgreSQL as an in-environment container with
-  persistent storage, scheduled backup/export, and a documented restore procedure.
+- **Deployment**: Azure Container Apps, provisioned declaratively with Terraform (HCL). A build
+  step (CI, or `az acr build`/`docker push`) publishes images to Azure Container Registry ahead of
+  `terraform apply`, which then provisions ACR (if not already present), the ACA environment, and
+  the app resources. Production topology: one ACA environment hosting the frontend (public
+  ingress) and the backend API as two separate Container Apps, Keycloak as a third in-environment
+  Container App, and PostgreSQL hosted externally on Neon — its pooled connection string injected
+  into the backend Container App as a secret, never baked into an image or committed to the repo.
+  Terraform state MUST live in a remote backend (e.g. an Azure Storage container), never
+  committed to the repo.
 
 Deviations from this stack require a constitution amendment, not a per-feature decision.
 Offline-first is an architectural property, not a feature: judge-facing evaluation flows MUST
@@ -210,4 +226,4 @@ be updated.
   Definition of Done above. Runtime development guidance for agents lives in `CLAUDE.md` and must
   stay consistent with this document.
 
-**Version**: 1.2.0 | **Ratified**: 2026-07-06 | **Last Amended**: 2026-07-07
+**Version**: 1.3.0 | **Ratified**: 2026-07-06 | **Last Amended**: 2026-09-23

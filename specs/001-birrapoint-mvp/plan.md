@@ -21,8 +21,8 @@ identity delegated to Keycloak (OIDC Authorization Code + PKCE, roles `ORGANIZER
 Background dispatch (QuestPDF PDFs, ZIP bundling, invitation/result emails) runs in-process via a
 hosted worker over a DB-persisted job queue. Local development is orchestrated by .NET Aspire
 (AppHost + ServiceDefaults); every component ships as a multi-stage Docker image and deploys to
-Azure Container Apps via Bicep/`azd up` (constitution v1.2.0, FR-043–FR-048). Full details in
-[research.md](./research.md).
+Azure Container Apps via Terraform, with the production PostgreSQL database hosted on Neon
+(constitution v1.3.0, FR-043–FR-048). Full details in [research.md](./research.md).
 
 ## Technical Context
 
@@ -46,8 +46,9 @@ Dexie.js on judge devices (drafts + offline outbox only, never the source of tru
 including offline simulation and `axe-core` accessibility checks).
 
 **Target Platform**: Backend: Linux containers — orchestrated locally by .NET Aspire, deployed to
-Azure Container Apps (ACR + Bicep via `azd up`; Keycloak and PostgreSQL run as containers in the
-same ACA environment, per Clarifications 2026-07-07). Frontend: multi-stage Node→Nginx image;
+Azure Container Apps (ACR + Terraform; Keycloak runs as a container in the same ACA environment,
+per Clarifications 2026-07-07; PostgreSQL is hosted externally on Neon, constitution v1.3.0).
+Frontend: multi-stage Node→Nginx image;
 evergreen mobile/desktop browsers as an installable PWA; judge flow designed for mid-range
 Android/iOS devices on flaky venue networks.
 
@@ -118,6 +119,13 @@ gains a `Judge Roster Import` section and two new `Judges` endpoints, no new err
 (reuses `invalid-import-file`/`unresolved-import-rows`, Principle VI). No BR-01/FR-019 concerns —
 judge roster data is organizer-only, structurally unrelated to the anonymity boundary.
 
+**Post-amendment re-check (2026-09-23, constitution v1.3.0)**: ✅ PASS — Phase 16 deployment
+tooling swapped from Bicep/`azd up` to Terraform, and production PostgreSQL from an
+in-environment ACA container to Neon (managed Postgres-as-a-service); see research.md R-17/R-18
+(superseded decisions kept for audit trail) and R-19 (Keycloak's database moves to Neon). No
+change to any other principle or slice; Phase 16 (T095–T099) not yet started, so no code exists
+that needs migrating — only spec/plan/research/tasks artifacts, updated in this same change.
+
 ## Project Structure
 
 ### Documentation (this feature)
@@ -143,7 +151,7 @@ specs/001-birrapoint-mvp/
 backend/
 ├── src/
 │   ├── BirraPoint.AppHost/             # .NET Aspire orchestration: PostgreSQL, Keycloak (realm
-│   │                                   #   import), Mailpit, API, frontend; azd deployment model
+│   │                                   #   import), Mailpit, API, frontend
 │   ├── BirraPoint.ServiceDefaults/     # OpenTelemetry, health checks, resilience defaults
 │   └── BirraPoint.Api/                 # Single deployable modular monolith
 │       ├── Program.cs                  # Minimal API bootstrap, auth, SignalR, OpenAPI
@@ -192,12 +200,12 @@ frontend/
 │       └── shared/                     # UI primitives, pipes, a11y helpers
 └── tests/                              # Jest unit; e2e/ Playwright suites
 
-azure.yaml                              # azd project definition (build → ACR → ACA, single azd up)
 infra/
-├── bicep/                              # ACA environment, ACR, container apps: frontend (public
-│                                       #   ingress), backend, Keycloak; PostgreSQL container
-│                                       #   with persistent storage
-├── backup/                             # Scheduled pg_dump export job + documented restore
+├── terraform/                          # ACA environment, ACR, container apps: frontend (public
+│                                       #   ingress), backend, Keycloak; Neon PostgreSQL project
+│                                       #   provisioned alongside (or documented as a manual
+│                                       #   prerequisite — see plan's Terraform decision); remote
+│                                       #   state in Azure Storage
 └── keycloak/birrapoint-realm.json      # Realm import (roles, clients, seeded organizer)
 ```
 
@@ -206,8 +214,8 @@ constitution's modular-monolith + FSD mandate). Backend slices live under
 `backend/src/BirraPoint.Api/Features/`, one directory per business capability, with `Domain/` and
 `Common/` as the deliberately small shared kernel. Frontend mirrors the same capabilities under
 `frontend/src/app/features/` with shared infrastructure in `core/`. Local orchestration lives in
-the Aspire `BirraPoint.AppHost` project; the cloud topology in `azure.yaml` + `infra/bicep/`
-(deployed with `azd up`).
+the Aspire `BirraPoint.AppHost` project; the cloud topology in `infra/terraform/` (production
+PostgreSQL on Neon, everything else in Azure Container Apps).
 
 **User Story 14 file locations** (the diagram above predates the ACCE-import wizard fold, ADR-0011,
 and is stale on where entry-import UI actually lives — this note is authoritative for the new work,

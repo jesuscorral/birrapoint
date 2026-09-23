@@ -346,13 +346,13 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 ## Phase 16: Deployment & Operations (FR-043–FR-048)
 
-**Purpose**: Containerization, IaC, and single-command cloud deployment (spec Operations & Deployment group; constitution v1.2.0; research R-16–R-19)
+**Purpose**: Containerization, IaC, and single-command cloud deployment (spec Operations & Deployment group; constitution v1.3.0; research R-16–R-19, superseded by the Terraform/Neon amendment)
 
 - [ ] T095 [P] Backend multi-stage Dockerfile (.NET SDK build → ASP.NET runtime) in `backend/src/BirraPoint.Api/Dockerfile` and frontend multi-stage Dockerfile (Node build → Nginx Alpine) in `frontend/Dockerfile` + `frontend/nginx.conf`; verify no secrets or environment-specific config are baked into either image (FR-043)
-- [ ] T096 azd deployment model: `azure.yaml` + `infra/bicep/` provisioning ACR, the ACA environment, container apps for frontend (external ingress), backend, and Keycloak (realm import), plus the PostgreSQL container with persistent volume; all configuration/secrets injected via env vars/secrets (FR-045/FR-046)
-- [ ] T097 Scheduled PostgreSQL backup: ACA job running `pg_dump` export to Azure Blob Storage + documented restore procedure in `infra/backup/RESTORE.md` (FR-047)
+- [ ] T096 Terraform deployment model: `infra/terraform/` (remote state in Azure Storage) provisioning ACR, the ACA environment, container apps for frontend (external ingress), backend, and Keycloak (realm import); a build/push step (CI or `az acr build`) publishes images to ACR ahead of `terraform apply`; all configuration/secrets injected via env vars/secrets, including the Neon connection string (FR-045/FR-046)
+- [ ] T097 Neon PostgreSQL provisioning: project/branch created (via Terraform's Neon provider or a documented manual step, per the plan's decision), pooled connection string wired into the backend Container App as a secret; document Neon's own point-in-time recovery in place of a self-managed backup/restore procedure (FR-047)
 - [ ] T098 Operations verification: health endpoints + OpenTelemetry traces/metrics/logs visible for every service locally (Aspire dashboard) and in ACA; health/telemetry assertions in `backend/tests/BirraPoint.Api.IntegrationTests/Operations/HealthTelemetryTests.cs` (FR-048)
-- [ ] T099 SC-011 validation: fresh `azd up` into a clean resource group completes with zero manual steps; record the validated procedure in `specs/001-birrapoint-mvp/quickstart.md`
+- [ ] T099 SC-011 validation: fresh `terraform apply` into a clean resource group + Neon project completes with zero manual steps beyond documented prerequisites; record the validated procedure in `specs/001-birrapoint-mvp/quickstart.md`
 
 ---
 

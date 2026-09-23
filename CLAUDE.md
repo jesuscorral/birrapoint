@@ -17,7 +17,8 @@ independently functional**, including US13 (organizer competition selection, P2,
 of Phase 16 per its own dependency note — it only needed `GET /competitions` from US2). Phase 15
 (Polish & Cross-Cutting Concerns, T089–T094 — accessibility sweep, performance budgets, bundle
 budget enforcement, full quickstart validation, this file, security pass) is in progress. Phase 16
-(Deployment & Operations — Dockerfiles, Bicep/`azd`, backups, ops verification) has not started.
+(Deployment & Operations — Dockerfiles, Terraform, Neon provisioning, ops verification) has not
+started.
 `Docs/arquitectura_viva.md` tracks the actual current system state in detail. `Docs/` holds the
 original product definition (in Spanish); the English spec supersedes it.
 
@@ -137,13 +138,14 @@ k6 run infra/perf/api-budgets.js       # API p95 budgets (reads <200ms, writes <
                                        #   get one (neither Keycloak client here supports
                                        #   non-interactive token grants)
 
-azd up   # cloud deploy — NOT yet real: azure.yaml + infra/bicep/ land in Phase 16
+terraform -chdir=infra/terraform apply   # cloud deploy — NOT yet real: infra/terraform/ lands in
+                                          #   Phase 16
 ```
 
 ## Repository layout (per plan.md — binding)
 
 ```text
-backend/src/BirraPoint.AppHost/         # Aspire orchestration (local topology + azd model)
+backend/src/BirraPoint.AppHost/         # Aspire orchestration (local topology)
 backend/src/BirraPoint.ServiceDefaults/ # OpenTelemetry, health checks, resilience
 backend/src/BirraPoint.Api/             # single deployable modular monolith
 ├── Domain/        # shared kernel: entities, enums, invariants (see data-model.md)
@@ -155,9 +157,9 @@ backend/tests/     # BirraPoint.Api.UnitTests + BirraPoint.Api.IntegrationTests
 frontend/src/app/  # Feature-Sliced Design: core/ (auth, api, realtime, offline), features/, shared/
 frontend/e2e/      # Playwright suites, incl. e2e/a11y/ (axe-core WCAG gate)
 frontend/scripts/  # build-time checks (bundle gzip budget) not owned by any one feature
-infra/             # bicep/, backup/ (pg_dump job + RESTORE.md), keycloak/birrapoint-realm.json,
+infra/             # terraform/ (ACR, ACA environment + apps, Keycloak container app; remote
+                   #   state in Azure Storage), keycloak/birrapoint-realm.json,
                    #   perf/ (k6 API-budget scripts)
-azure.yaml         # azd project definition
 ```
 
 Organize by business capability, never by technical layer (no `controllers/`, `services/`,
@@ -237,7 +239,8 @@ Organize by business capability, never by technical layer (no `controllers/`, `s
 - **Testing**: xUnit; `WebApplicationFactory` + Testcontainers (real PostgreSQL — no EF InMemory);
   Jest via `jest-preset-angular` (not Karma); Playwright + `@axe-core/playwright`.
 - **Identity/Infra**: Keycloak 25+ (OIDC, roles `ORGANIZER`/`JUDGE`); multi-stage Docker images
-  (no baked secrets); Bicep + `azd` → Azure Container Apps; Mailpit locally.
+  (no baked secrets); Terraform → Azure Container Apps; PostgreSQL production database on Neon;
+  Mailpit locally.
 
 Any dependency beyond this list must be justified in the plan (Principle V); micro-dependencies
 are rejected.

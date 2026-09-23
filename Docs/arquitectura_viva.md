@@ -993,7 +993,7 @@ judge already provisioned with a Keycloak account.
   'birrapoint', clientId: 'birrapoint-spa' }` (matches `infra/keycloak/birrapoint-realm.json`)
   and `apiBaseUrl`, both the fixed Aspire local ports (CLAUDE.md §Commands). No dev/prod split or
   build `fileReplacements` yet — real per-environment values and any build-time swap arrive with
-  Phase 16 (Bicep/nginx).
+  Phase 16 (Terraform/nginx).
 - **`core/auth/`** (T019): the Keycloak auth core, built on the modern `keycloak-angular` v19+
   API (`provideKeycloak`/`createAuthGuard`/`includeBearerTokenInterceptor`) — the older
   `KeycloakService`/class-guard/`KeycloakBearerInterceptor` APIs are deprecated and unused.

@@ -11,7 +11,9 @@ This is the end-to-end validation guide for the feature. Commands mirror `CLAUDE
 - Docker Desktop (container runtime for the Aspire-managed PostgreSQL 16, Keycloak 25+, Mailpit)
 - .NET 10 SDK
 - Node.js 24+ / npm 10+ (Jest loads `jest.config.ts` via Node's native TS type stripping — no ts-node)
-- Azure Developer CLI (`azd`) — cloud deployment only
+- Terraform CLI — cloud deployment only
+- A Neon account/project (or `NEON_API_KEY` if provisioned via Terraform's Neon provider) — cloud
+  deployment only
 
 ## Environment up
 
@@ -32,15 +34,22 @@ cd frontend && npm ci && npm start
 
 Configuration is environment-variable driven (no secrets in the repo): `ConnectionStrings__Db`,
 `Keycloak__Authority`, `Keycloak__AdminClientId/Secret`, `Smtp__Host/Port` — supplied locally by
-the AppHost, in the cloud by Bicep-provisioned env vars/secrets.
+the AppHost, in the cloud by Terraform-provisioned Container Apps secrets (`ConnectionStrings__Db`
+pointing at the Neon pooled connection string).
 
 ## Cloud deployment (SC-011)
 
 ```bash
-azd auth login
-azd up   # builds the Docker images, pushes to ACR, provisions the ACA environment via Bicep
-         # (frontend public ingress, backend, Keycloak, PostgreSQL container + backup job),
-         # and deploys — zero manual configuration steps
+az acr build --registry <acr-name> --image birrapoint-api:latest backend/src/BirraPoint.Api
+az acr build --registry <acr-name> --image birrapoint-web:latest frontend
+# (or an equivalent CI build/push step — Terraform, unlike azd, does not build images itself)
+
+cd infra/terraform
+terraform init    # remote state in Azure Storage
+terraform apply   # provisions ACR (if not already present), the ACA environment, container apps
+                   # for frontend (public ingress), backend, and Keycloak, and the Neon database
+                   # (Neon provider, or wires up a pre-created Neon project — see the Terraform
+                   # module's own README for which) — zero manual configuration steps thereafter
 ```
 
 ## Test commands
@@ -101,5 +110,7 @@ Each scenario maps to a spec user story (US) and must pass before that story is 
   p95 budgets verified with `k6 run infra/perf/api-budgets.js`; initial bundle gzip size gated by
   `npm run build:budget` (500 KB, Principle IX).
 - Operations: health endpoints + OpenTelemetry visible for every service in the Aspire dashboard
-  and in ACA (FR-048); a fresh `azd up` into a clean resource group completes with zero manual
-  steps (SC-011); backup/restore procedure exercised once per `infra/backup/RESTORE.md` (FR-047).
+  and in ACA (FR-048); a fresh `terraform apply` into a clean resource group + Neon project
+  completes with zero manual steps beyond the documented prerequisites (SC-011); Neon's
+  point-in-time recovery documented as the restore path in place of a self-managed backup job
+  (FR-047).
