@@ -258,20 +258,41 @@ function sectionFieldset(page: Page, legend: string): Locator {
     .filter({ has: page.locator('legend', { hasText: legend }) });
 }
 
+// Session 2026-09-21: the sheet is no longer a gated linear wizard — each section is reached by
+// clicking its own name in the free-navigation nav bar, in any order, then Resumen to reach the
+// submit action (mirrors judge behaviour after the redesign).
 async function fillEvaluationForm(page: Page): Promise<void> {
   for (const section of EVALUATION_SECTIONS) {
+    await page.getByRole('button', { name: section.legend }).click();
     const fieldset = sectionFieldset(page, section.legend);
     await fieldset.getByLabel('Puntuación').fill(String(section.score));
     await fieldset.getByLabel('Comentario').fill(section.comment);
   }
+  await page.getByRole('button', { name: 'Resumen' }).click();
 }
 
+// Right after fillEvaluationForm(), the wizard has already landed on the review step (no
+// fieldsets/inputs left in the DOM) -- verify the read-only summary shows exactly what was typed.
+async function expectReviewStepMatches(page: Page): Promise<void> {
+  for (const section of EVALUATION_SECTIONS) {
+    const row = page.locator('.review-row').filter({ hasText: section.legend });
+    await expect(row).toContainText(`${section.score} /`);
+    await expect(row).toContainText(section.comment);
+  }
+}
+
+// After the "restart" below, the component remounts fresh and the section nav bar resets to its
+// first section (Apariencia) -- visit each section in turn (same shape as fillEvaluationForm) to
+// prove the Dexie-backed draft repopulated every one of them, ending on Resumen so the caller's
+// next "Enviar evaluación" click has something to click.
 async function expectEvaluationFormIntact(page: Page): Promise<void> {
   for (const section of EVALUATION_SECTIONS) {
+    await page.getByRole('button', { name: section.legend }).click();
     const fieldset = sectionFieldset(page, section.legend);
     await expect(fieldset.getByLabel('Puntuación')).toHaveValue(String(section.score));
     await expect(fieldset.getByLabel('Comentario')).toHaveValue(section.comment);
   }
+  await page.getByRole('button', { name: 'Resumen' }).click();
 }
 
 test.describe('US7 — offline-first validated evaluation sheet', () => {
@@ -422,7 +443,7 @@ test.describe('US7 — offline-first validated evaluation sheet', () => {
       await expect(offlineBadge).toContainText('Modo sin conexión');
 
       await fillEvaluationForm(judgePage);
-      await expectEvaluationFormIntact(judgePage);
+      await expectReviewStepMatches(judgePage);
 
       // Past the 300ms debounce (SC-003/FR-026) — a short, deterministic wait, not an arbitrary
       // long one — so the final consolidated draft (all 5 sections) has actually reached Dexie

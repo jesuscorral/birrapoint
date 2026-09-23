@@ -102,7 +102,9 @@ public sealed class SubmitEvaluationTests
         BeerEntryId: Guid.NewGuid(),
         Scores: new EvaluationScoresDto(Aroma: 10, Appearance: 2, Flavor: 15, Mouthfeel: 4, Overall: 8),
         Comments: new EvaluationCommentsDto(
-            Aroma: LongComment, Appearance: LongComment, Flavor: LongComment, Mouthfeel: LongComment, Overall: LongComment));
+            Aroma: LongComment, Appearance: LongComment, Flavor: LongComment, Mouthfeel: LongComment, Overall: LongComment),
+        Descriptors: null,
+        Feedback: null);
 
     [Fact]
     public void Command_with_valid_scores_and_comments_is_valid()
@@ -253,5 +255,146 @@ public sealed class SubmitEvaluationTests
         var result = Validator.Validate(ValidCommand() with { Comments = comments });
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.PropertyName == $"Comments.{section}");
+    }
+
+    // ---- SubmitEvaluationCommandValidator: descriptors (Session 2026-09-21) — every field is
+    // optional; these only assert that a SUPPLIED value is range/catalog-checked. -----------------
+
+    [Fact]
+    public void Absent_descriptors_are_valid()
+    {
+        Assert.True(Validator.Validate(ValidCommand() with { Descriptors = null }).IsValid);
+    }
+
+    [Fact]
+    public void Empty_descriptors_object_is_valid()
+    {
+        var descriptors = new EvaluationDescriptorsDto(null, null, null, null, null, null);
+        Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    public void Discrete_intensity_slider_accepted_at_its_bounds(int value)
+    {
+        var descriptors = new EvaluationDescriptorsDto(
+            null, new AromaDescriptorsDto(value, false, null, false, null, false), null, null, null, null);
+        Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(4)]
+    public void Discrete_intensity_slider_rejected_outside_0_to_3(int value)
+    {
+        var descriptors = new EvaluationDescriptorsDto(
+            null, new AromaDescriptorsDto(value, false, null, false, null, false), null, null, null, null);
+        var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Descriptors.Aroma.Malt");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(100)]
+    public void Bipolar_slider_accepted_at_its_bounds(int value)
+    {
+        var descriptors = new EvaluationDescriptorsDto(
+            null, null, null, null, new OverallDescriptorsDto(value, false, null, false, null, false), null);
+        Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(101)]
+    public void Bipolar_slider_rejected_outside_0_to_100(int value)
+    {
+        var descriptors = new EvaluationDescriptorsDto(
+            null, null, null, null, new OverallDescriptorsDto(value, false, null, false, null, false), null);
+        var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Descriptors.Overall.ClassicExample");
+    }
+
+    [Fact]
+    public void Color_outside_the_closed_list_is_rejected()
+    {
+        var descriptors = new EvaluationDescriptorsDto(
+            new AppearanceDescriptorsDto("Purple", null, false, null, false, null, null, false, null, false, null, null),
+            null, null, null, null, null);
+        var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Descriptors.Appearance.Color");
+    }
+
+    [Theory]
+    [InlineData("Yellow")]
+    [InlineData("Other")]
+    public void Color_in_the_closed_list_is_accepted(string color)
+    {
+        var descriptors = new EvaluationDescriptorsDto(
+            new AppearanceDescriptorsDto(color, null, false, null, false, null, null, false, null, false, null, null),
+            null, null, null, null, null);
+        Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
+    }
+
+    [Fact]
+    public void Off_flavor_term_outside_the_closed_list_is_rejected()
+    {
+        var descriptors = new EvaluationDescriptorsDto(null, null, null, null, null, ["NotARealDescriptor"]);
+        var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void Off_flavor_terms_from_the_closed_list_are_accepted()
+    {
+        var descriptors = new EvaluationDescriptorsDto(null, null, null, null, null, ["Diacetyl", "Oxidized"]);
+        Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
+    }
+
+    [Fact]
+    public void Off_flavor_list_longer_than_the_closed_list_itself_is_rejected()
+    {
+        // Every entry is individually valid (a repeated real term) — this exercises the *count*
+        // cap, not the closed-list membership check (senior-review B2).
+        var tooMany = Enumerable.Repeat("Diacetyl", EvaluationDescriptorCatalog.OffFlavorTerms.Count + 1).ToList();
+        var descriptors = new EvaluationDescriptorsDto(null, null, null, null, null, tooMany);
+        var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void Free_text_descriptor_field_over_500_characters_is_rejected()
+    {
+        // senior-review B2: unbounded free text was the one input path that escaped both EF and
+        // FluentValidation length checks — Texture is one of five such fields (ColorOther,
+        // FoamOther, Notes on both Appearance and Mouthfeel are the others, same 500 cap).
+        var tooLong = new string('x', 501);
+        var descriptors = new EvaluationDescriptorsDto(
+            new AppearanceDescriptorsDto(null, null, false, null, false, null, null, false, null, false, tooLong, null),
+            null, null, null, null, null);
+        var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Descriptors.Appearance.Texture");
+    }
+
+    [Fact]
+    public void Free_text_descriptor_field_at_exactly_500_characters_is_accepted()
+    {
+        var atLimit = new string('x', 500);
+        var descriptors = new EvaluationDescriptorsDto(
+            new AppearanceDescriptorsDto(null, null, false, null, false, null, null, false, null, false, atLimit, null),
+            null, null, null, null, null);
+        Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
+    }
+
+    [Fact]
+    public void Feedback_over_4000_characters_is_rejected()
+    {
+        var command = ValidCommand() with { Feedback = new string('x', 4001) };
+
+        Assert.False(Validator.Validate(command).IsValid);
     }
 }

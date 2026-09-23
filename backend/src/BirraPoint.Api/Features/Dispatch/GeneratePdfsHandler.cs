@@ -1,6 +1,7 @@
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.Features.Evaluations;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
 
@@ -43,7 +44,9 @@ public sealed class GeneratePdfsHandler(AppDbContext dbContext, IDispatchJobQueu
                     x.Evaluation.FlavorScore, x.Evaluation.FlavorComment,
                     x.Evaluation.MouthfeelScore, x.Evaluation.MouthfeelComment,
                     x.Evaluation.OverallScore, x.Evaluation.OverallComment,
-                    x.Evaluation.Total))
+                    x.Evaluation.Total,
+                    EvaluationDescriptorsSerializer.Deserialize(x.Evaluation.DescriptorsJson),
+                    x.Evaluation.FeedbackComment))
                 .ToList();
 
             // Null (not 0) when nobody has evaluated this entry — 0 would read as a real score of

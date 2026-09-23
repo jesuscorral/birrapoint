@@ -15,9 +15,11 @@ namespace BirraPoint.Api.Features.Monitoring;
 public sealed record GetEntryEvaluationsQuery(Guid CompetitionId, Guid EntryId) : IRequest<EntryEvaluationsResult?>;
 
 /// <summary>Reuses EvaluationScoresDto/EvaluationCommentsDto from Features/Evaluations — same wire
-/// shape, no need to redefine.</summary>
+/// shape, no need to redefine. Descriptors/Feedback (Session 2026-09-21) are the organizer's
+/// read-only view of the same structured tasting-sheet data the judge filled in.</summary>
 public sealed record EvaluationAuditItemDto(
-    string JudgeDisplayName, EvaluationScoresDto Scores, EvaluationCommentsDto Comments, int Total, string Status);
+    string JudgeDisplayName, EvaluationScoresDto Scores, EvaluationCommentsDto Comments, int Total, string Status,
+    EvaluationDescriptorsDto? Descriptors, string? Feedback);
 
 public sealed record EntryEvaluationsResult(string BlindCode, IReadOnlyList<EvaluationAuditItemDto> Evaluations, decimal? ConsolidatedMean);
 
@@ -69,7 +71,9 @@ public sealed class GetEntryEvaluationsQueryHandler(AppDbContext dbContext, ICur
                     x.Evaluation.AromaComment, x.Evaluation.AppearanceComment, x.Evaluation.FlavorComment,
                     x.Evaluation.MouthfeelComment, x.Evaluation.OverallComment),
                 x.Evaluation.Total,
-                x.Evaluation.Status.ToString()))
+                x.Evaluation.Status.ToString(),
+                EvaluationDescriptorsSerializer.Deserialize(x.Evaluation.DescriptorsJson),
+                x.Evaluation.FeedbackComment))
             .ToList();
 
         // Mirrors CloseTableRules.ComputeMean's rounding convention without importing across feature

@@ -351,9 +351,30 @@ collaborator of any `TableSample` entry at this table — checked transactionall
 | MouthfeelScore | int | 0–5 |
 | OverallScore | int | 0–10 |
 | AromaComment … OverallComment | string(2000) ×5 | each required, min length 20 (FR-025) |
+| DescriptorsJson | string? (`jsonb`) | Session 2026-09-21, FR-063 — optional, serialized `EvaluationDescriptorsDto` (see below); never feeds Total/caps |
+| FeedbackComment | string?(4000) | Session 2026-09-21, FR-063 — optional holistic free-text, distinct from the five section comments |
 | Total | int | **computed column** = sum of the five scores (never client-supplied, FR-024) |
 | Status | enum `EvaluationStatus` | `Confirmed` \| `PendingConsensus` |
 | SubmittedAt | DateTimeOffset | required |
+
+**DescriptorsJson shape (FR-063, ADR-0015)** — `EvaluationDescriptorsDto`
+(`backend/src/BirraPoint.Api/Features/Evaluations/EvaluationDescriptors.cs`), camelCase on the
+wire and in storage (`JsonSerializerDefaults.Web`). Every field below is independently optional;
+none of it feeds `Total` or the FR-023 caps.
+
+| Section | Fields |
+|---------|--------|
+| `appearance` | `color` (closed list: Yellow/Golden/Amber/Copper/Brown/Black/Other) + `colorOther` (free text) + `colorInappropriate` (bool); `clarity` (Clear/Hazy/Opaque) + `clarityInappropriate`; `foam` (White/Ivory/Beige/Tan/Brown/Other) + `foamOther` + `foamInappropriate`; `retention` (int 0–100, continuous) + `retentionInappropriate`; `texture` (free text); `notes` (free text) |
+| `aroma` | `malt`/`hops`/`fermentation` (int 0–3, discrete 4-stop intensity — Nada/Bajo/Medio/Alto) + `maltInappropriate`/`hopsInappropriate`/`fermentationInappropriate` (bool) |
+| `flavor` | `malt`/`hops`/`bitterness`/`fermentation` (int 0–3) + `maltInappropriate`/`hopsInappropriate`/`bitternessInappropriate`/`fermentationInappropriate`; `balance` (int 0–100, continuous, Lupulado↔Maltoso) + `balanceInappropriate`; `finish` (int 0–100, continuous, Seco↔Dulce) + `finishInappropriate` |
+| `mouthfeel` | `body`/`carbonation`/`alcoholWarmth`/`creaminess`/`astringency` (int 0–3) + `bodyInappropriate`/`carbonationInappropriate`/`alcoholWarmthInappropriate`/`creaminessInappropriate`/`astringencyInappropriate` (bool); `notes` (free text) |
+| `overall` | `classicExample`/`defects`/`vitality` (int 0–100, continuous — Ejemplo clásico↔No acorde al estilo / Sin defectos↔Defectos significativos / Maravillosa↔Sin vida) + `classicExampleInappropriate`/`defectsInappropriate`/`vitalityInappropriate` (bool) |
+| `offFlavors` | string list, each a member of a fixed 20-term closed list (`EvaluationDescriptorCatalog.OffFlavorTerms`) |
+
+Every closed-list field (`color`, `clarity`, `foam`, each `offFlavors` entry) is validated against
+its catalog by `EvaluationDescriptorsDtoValidator`, shared (not duplicated) by
+`SubmitEvaluationCommandValidator`/`CorrectEvaluationCommandValidator` — see ADR-0015 for why this
+one departs from this codebase's usual per-command validation-rule duplication.
 
 **Lifecycle (Clarifications Q2 + FR-030/FR-031/FR-034):**
 

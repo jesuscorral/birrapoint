@@ -4,7 +4,13 @@ import { firstValueFrom, timeout } from 'rxjs';
 import { ApiClient } from '../api/api-client.service';
 import { ApiError } from '../api/api-error';
 import { db } from './db';
-import type { DraftRow, EvaluationComments, EvaluationScores, OutboxRow } from './db';
+import type {
+  DraftRow,
+  EvaluationComments,
+  EvaluationDescriptors,
+  EvaluationScores,
+  OutboxRow,
+} from './db';
 
 // SC-003/FR-026: a draft must be durable within 300ms of the judge's last change, but rapid
 // keystrokes must coalesce into a single Dexie write rather than one per keystroke — a debounce
@@ -94,6 +100,8 @@ export class SyncService {
     tastingTableId: string,
     scores: EvaluationScores,
     comments: EvaluationComments,
+    descriptors?: EvaluationDescriptors,
+    feedback?: string,
   ): Promise<void> {
     const existingTimer = this.draftTimers.get(beerEntryId);
     if (existingTimer) {
@@ -115,6 +123,8 @@ export class SyncService {
           tastingTableId,
           scores,
           comments,
+          descriptors,
+          feedback,
           updatedAt: new Date().toISOString(),
         };
 
@@ -183,6 +193,8 @@ export class SyncService {
     beerEntryId: string,
     scores: EvaluationScores,
     comments: EvaluationComments,
+    descriptors?: EvaluationDescriptors,
+    feedback?: string,
   ): Promise<{ status: 'confirmed' | 'enqueued' }> {
     const row: OutboxRow = {
       idempotencyKey,
@@ -190,6 +202,8 @@ export class SyncService {
       beerEntryId,
       scores,
       comments,
+      descriptors,
+      feedback,
       attempts: 0,
     };
     await db.outbox.put(row);
@@ -298,7 +312,13 @@ export class SyncService {
       this.apiClient
         .post<SubmitEvaluationResult>(
           `/me/tables/${row.tastingTableId}/evaluations`,
-          { beerEntryId: row.beerEntryId, scores: row.scores, comments: row.comments },
+          {
+            beerEntryId: row.beerEntryId,
+            scores: row.scores,
+            comments: row.comments,
+            descriptors: row.descriptors,
+            feedback: row.feedback,
+          },
           { headers: { 'X-Idempotency-Key': row.idempotencyKey } },
         )
         .pipe(timeout(SUBMIT_TIMEOUT_MS)),

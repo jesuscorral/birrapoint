@@ -3,11 +3,17 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace BirraPoint.Api.Features.Evaluations;
 
-public sealed record SubmitEvaluationRequest(Guid BeerEntryId, EvaluationScoresDto Scores, EvaluationCommentsDto Comments);
+/// <summary>Descriptors/Feedback (Session 2026-09-21) are optional — a request body that omits them
+/// entirely still binds fine (both default to null).</summary>
+public sealed record SubmitEvaluationRequest(
+    Guid BeerEntryId, EvaluationScoresDto Scores, EvaluationCommentsDto Comments,
+    EvaluationDescriptorsDto? Descriptors = null, string? Feedback = null);
 
 public sealed record AdjustEvaluationRequest(EvaluationScoresDto Scores, EvaluationCommentsDto Comments);
 
-public sealed record CorrectEvaluationRequest(EvaluationScoresDto Scores, EvaluationCommentsDto Comments);
+public sealed record CorrectEvaluationRequest(
+    EvaluationScoresDto Scores, EvaluationCommentsDto Comments,
+    EvaluationDescriptorsDto? Descriptors = null, string? Feedback = null);
 
 /// <summary>Maps POST /me/tables/{tableId}/evaluations (contracts/rest-api.md §Judge workspace,
 /// T055-T058), PUT /me/tables/{tableId}/evaluations/{evaluationId} and
@@ -38,7 +44,8 @@ public static class EvaluationsEndpoints
                 return Results.BadRequest();
             }
 
-            var command = new SubmitEvaluationCommand(tableId, request.BeerEntryId, request.Scores, request.Comments);
+            var command = new SubmitEvaluationCommand(
+                tableId, request.BeerEntryId, request.Scores, request.Comments, request.Descriptors, request.Feedback);
             var result = await sender.Send(command, cancellationToken);
 
             return result switch
@@ -109,7 +116,8 @@ public static class EvaluationsEndpoints
         correctionGroup.MapPut("/{evaluationId:guid}", async (
             Guid id, Guid evaluationId, CorrectEvaluationRequest request, ISender sender, CancellationToken cancellationToken) =>
         {
-            var command = new CorrectEvaluationCommand(id, evaluationId, request.Scores, request.Comments);
+            var command = new CorrectEvaluationCommand(
+                id, evaluationId, request.Scores, request.Comments, request.Descriptors, request.Feedback);
             var result = await sender.Send(command, cancellationToken);
             return result is null ? Results.NotFound() : Results.Ok(result);
         })

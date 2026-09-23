@@ -14,7 +14,8 @@ namespace BirraPoint.Api.Features.Evaluations;
 /// existence. Allowed regardless of table state (the whole point is correcting a closed table's
 /// evaluation) — organizer-only, no table-state gate here.</summary>
 public sealed record CorrectEvaluationCommand(
-    Guid CompetitionId, Guid EvaluationId, EvaluationScoresDto Scores, EvaluationCommentsDto Comments)
+    Guid CompetitionId, Guid EvaluationId, EvaluationScoresDto Scores, EvaluationCommentsDto Comments,
+    EvaluationDescriptorsDto? Descriptors, string? Feedback)
     : IRequest<CorrectEvaluationResult?>;
 
 public sealed record CorrectEvaluationResult(Guid EvaluationId, int Total, decimal ConsolidatedMean);
@@ -49,6 +50,9 @@ public sealed class CorrectEvaluationCommandValidator : AbstractValidator<Correc
             RuleFor(c => c.Comments.Mouthfeel).NotEmpty().MinimumLength(SubmitEvaluationRules.MinCommentLength);
             RuleFor(c => c.Comments.Overall).NotEmpty().MinimumLength(SubmitEvaluationRules.MinCommentLength);
         });
+
+        RuleFor(c => c.Descriptors!).SetValidator(new EvaluationDescriptorsDtoValidator()).When(c => c.Descriptors is not null);
+        RuleFor(c => c.Feedback).MaximumLength(4000);
     }
 }
 
@@ -91,6 +95,8 @@ public sealed class CorrectEvaluationCommandHandler(AppDbContext dbContext, ICur
             evaluation.FlavorComment,
             evaluation.MouthfeelComment,
             evaluation.OverallComment,
+            evaluation.DescriptorsJson,
+            evaluation.FeedbackComment,
         };
 
         evaluation.AromaScore = request.Scores.Aroma;
@@ -103,6 +109,19 @@ public sealed class CorrectEvaluationCommandHandler(AppDbContext dbContext, ICur
         evaluation.FlavorComment = request.Comments.Flavor;
         evaluation.MouthfeelComment = request.Comments.Mouthfeel;
         evaluation.OverallComment = request.Comments.Overall;
+        // senior-review M1: unlike Scores/Comments (required on every correction), Descriptors/
+        // Feedback are optional on this request — an organizer correcting just the five scores
+        // must not silently wipe the judge's tasting descriptors/feedback by omitting fields the
+        // contract never required them to resend. Only overwrite when the caller actually sent
+        // something; `null` on the request means "not part of this correction", not "clear it".
+        if (request.Descriptors is not null)
+        {
+            evaluation.DescriptorsJson = EvaluationDescriptorsSerializer.Serialize(request.Descriptors);
+        }
+        if (request.Feedback is not null)
+        {
+            evaluation.FeedbackComment = request.Feedback;
+        }
 
         var after = new
         {
@@ -116,6 +135,8 @@ public sealed class CorrectEvaluationCommandHandler(AppDbContext dbContext, ICur
             evaluation.FlavorComment,
             evaluation.MouthfeelComment,
             evaluation.OverallComment,
+            evaluation.DescriptorsJson,
+            evaluation.FeedbackComment,
         };
 
         // Audit stages via the change tracker (does not call SaveChanges) — must run before our own
