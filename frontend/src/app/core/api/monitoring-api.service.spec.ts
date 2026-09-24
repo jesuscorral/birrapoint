@@ -3,7 +3,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 
-import { environment } from '../../../environments/environment';
+import { APP_CONFIG } from '../config/app-config.model';
+import { TEST_APP_CONFIG } from '../config/app-config.testing';
 import { MonitoringApiService } from './monitoring-api.service';
 import type { EntryEvaluationsResult, TableProgressSummary } from './monitoring-api.service';
 
@@ -13,7 +14,11 @@ describe('MonitoringApiService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: APP_CONFIG, useValue: TEST_APP_CONFIG },
+      ],
     });
     service = TestBed.inject(MonitoringApiService);
     httpMock = TestBed.inject(HttpTestingController);
@@ -27,7 +32,7 @@ describe('MonitoringApiService', () => {
     ];
     const result = firstValueFrom(service.getProgress('c1'));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1/progress`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/progress`);
     expect(req.request.method).toBe('GET');
     req.flush(progress);
 
@@ -57,7 +62,7 @@ describe('MonitoringApiService', () => {
     const result = firstValueFrom(service.getEntryEvaluations('c1', 'e1'));
 
     const req = httpMock.expectOne(
-      `${environment.apiBaseUrl}/api/v1/competitions/c1/entries/e1/evaluations`,
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/entries/e1/evaluations`,
     );
     expect(req.request.method).toBe('GET');
     req.flush(evaluations);

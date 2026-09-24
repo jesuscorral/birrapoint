@@ -4,12 +4,13 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
-import { environment } from '../../../environments/environment';
+import { APP_CONFIG } from '../config/app-config.model';
+import { TEST_APP_CONFIG } from '../config/app-config.testing';
 import { db } from './db';
 import type { EvaluationComments, EvaluationScores, OutboxRow } from './db';
 import { SyncService } from './sync.service';
 
-const API_URL = `${environment.apiBaseUrl}/api/v1`;
+const API_URL = `${TEST_APP_CONFIG.apiBaseUrl}/api/v1`;
 
 function scoresFixture(overrides: Partial<EvaluationScores> = {}): EvaluationScores {
   return { aroma: 10, appearance: 2, flavor: 15, mouthfeel: 4, overall: 8, ...overrides };
@@ -65,7 +66,11 @@ describe('SyncService', () => {
     Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
 
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: APP_CONFIG, useValue: TEST_APP_CONFIG },
+      ],
     });
     httpMock = TestBed.inject(HttpTestingController);
   });

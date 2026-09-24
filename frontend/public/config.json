@@ -1,0 +1,8 @@
+{
+  "keycloak": {
+    "url": "http://localhost:8081",
+    "realm": "birrapoint",
+    "clientId": "birrapoint-spa"
+  },
+  "apiBaseUrl": "http://localhost:5121"
+}
