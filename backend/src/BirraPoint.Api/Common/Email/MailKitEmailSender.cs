@@ -6,21 +6,19 @@ namespace BirraPoint.Api.Common.Email;
 
 public sealed class MailKitEmailSender(IConfiguration configuration) : IEmailSender
 {
-    private const string FromAddress = "BirraPoint <no-reply@birrapoint.local>";
-
     public Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken cancellationToken) =>
-        SendMessageAsync(BuildMessage(toEmail, subject, htmlBody, attachments: null), cancellationToken);
+        SendMessageAsync(toEmail, subject, htmlBody, attachments: null, cancellationToken);
 
     public Task SendWithAttachmentsAsync(
         string toEmail, string subject, string htmlBody,
         IReadOnlyList<EmailAttachment> attachments, CancellationToken cancellationToken) =>
-        SendMessageAsync(BuildMessage(toEmail, subject, htmlBody, attachments), cancellationToken);
+        SendMessageAsync(toEmail, subject, htmlBody, attachments, cancellationToken);
 
     private static MimeMessage BuildMessage(
-        string toEmail, string subject, string htmlBody, IReadOnlyList<EmailAttachment>? attachments)
+        string fromAddress, string toEmail, string subject, string htmlBody, IReadOnlyList<EmailAttachment>? attachments)
     {
         var message = new MimeMessage();
-        message.From.Add(MailboxAddress.Parse(FromAddress));
+        message.From.Add(MailboxAddress.Parse(fromAddress));
         message.To.Add(MailboxAddress.Parse(toEmail));
         message.Subject = subject;
 
@@ -34,14 +32,22 @@ public sealed class MailKitEmailSender(IConfiguration configuration) : IEmailSen
         return message;
     }
 
-    private async Task SendMessageAsync(MimeMessage message, CancellationToken cancellationToken)
+    private async Task SendMessageAsync(
+        string toEmail, string subject, string htmlBody, IReadOnlyList<EmailAttachment>? attachments, CancellationToken cancellationToken)
     {
-        var host = configuration["Smtp:Host"] ?? throw new InvalidOperationException("Smtp:Host is not configured.");
-        var port = int.Parse(configuration["Smtp:Port"] ?? throw new InvalidOperationException("Smtp:Port is not configured."));
+        var settings = SmtpSettings.Resolve(configuration);
+        var message = BuildMessage(settings.From, toEmail, subject, htmlBody, attachments);
 
         using var client = new SmtpClient();
-        // Mailpit locally needs no TLS/auth; production SMTP relay is a Phase 16 deployment decision.
-        await client.ConnectAsync(host, port, SecureSocketOptions.None, cancellationToken);
+        // Mailpit locally needs no TLS/auth (SmtpSettings resolves that shape unchanged); a
+        // production relay additionally supplies UseStartTls + Username/Password.
+        await client.ConnectAsync(settings.Host, settings.Port, settings.SecureSocketOptions, cancellationToken);
+        if (settings.RequiresAuthentication)
+        {
+            // RequiresAuthentication guarantees both are non-null (SmtpSettings.Resolve). Never log settings.Password.
+            await client.AuthenticateAsync(settings.Username!, settings.Password!, cancellationToken);
+        }
+
         await client.SendAsync(message, cancellationToken);
         await client.DisconnectAsync(true, cancellationToken);
     }

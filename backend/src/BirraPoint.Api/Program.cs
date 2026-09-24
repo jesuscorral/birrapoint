@@ -19,6 +19,7 @@ using BirraPoint.Api.Features.Tables;
 using BirraPoint.Api.Features.TastingOrder;
 using BirraPoint.Api.Realtime;
 using BirraPoint.ServiceDefaults;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 
 // Community license (T074) — required before the first document generation or QuestPDF throws.
@@ -112,10 +113,25 @@ builder.Services.AddHsts(options =>
 
 var app = builder.Build();
 
+// Production topology (T095-T097): the API runs behind an nginx reverse proxy inside the ACA
+// environment (internal-only ingress; TLS terminates at ACA ingress, nginx talks to the API over
+// plain HTTP forwarding X-Forwarded-For/Proto/Host). Runs first, before any other middleware that
+// reads Request.Scheme/Host. KnownNetworks/KnownProxies are cleared because ACA's internal network
+// ranges aren't a stable, publishable value — acceptable here because the API itself has
+// internal-only ingress, so only same-environment traffic (i.e. the nginx sidecar app) can reach
+// it in the first place. No UseHttpsRedirection: that would redirect nginx's internal plain-HTTP
+// calls; ACA ingress is what terminates and enforces HTTPS for external clients.
 if (!app.Environment.IsDevelopment())
 {
+    var forwardedHeadersOptions = new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
+    };
+    forwardedHeadersOptions.KnownIPNetworks.Clear();
+    forwardedHeadersOptions.KnownProxies.Clear();
+    app.UseForwardedHeaders(forwardedHeadersOptions);
+
     app.UseHsts();
-    app.UseHttpsRedirection();
 }
 
 // Must run first so it wraps every downstream middleware/endpoint.
@@ -176,11 +192,17 @@ app.MapMonitoringEndpoints();
 // Results archive download, per-participant email status, manual retry (T072-T076).
 app.MapDispatchEndpoints();
 
-// EF migrations apply on startup in Development only (T009); production migrates at deploy time.
-if (app.Environment.IsDevelopment())
+// EF migrations apply on startup in Development (T009); outside Development, only when
+// Database:MigrateOnStartup=true (T095-T097 — the ACA one-off migration run). The BJCP seed
+// ships as part of the migrations, so this covers it too. Migrates over the non-pooled
+// ConnectionStrings:dbDirect when configured (Neon's pooled ConnectionStrings:db breaks EF's
+// session-scoped migration advisory lock under pgbouncer transaction pooling).
+if (StartupMigrations.ShouldMigrate(app.Environment.IsDevelopment(), app.Configuration))
 {
     using var scope = app.Services.CreateScope();
-    await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    context.Database.SetConnectionString(StartupMigrations.ResolveMigrationConnectionString(app.Configuration));
+    await context.Database.MigrateAsync();
 }
 
 await app.RunAsync();
