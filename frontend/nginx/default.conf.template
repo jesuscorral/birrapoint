@@ -17,11 +17,17 @@ map $http_upgrade $connection_upgrade {
     ''      close;
 }
 
+# Access log WITHOUT the query string: SignalR sends the bearer token as ?access_token= on
+# WebSocket/SSE requests, and stdout ships to Log Analytics (Principle VII — never log tokens).
+log_format birrapoint_noquery '$remote_addr - [$time_local] "$request_method $uri $server_protocol" '
+                              '$status $body_bytes_sent "$http_user_agent" $request_time';
+
 server {
     listen 8080;
     server_name _;
     root /usr/share/nginx/html;
     server_tokens off;
+    access_log /dev/stdout birrapoint_noquery;
 
     # Resolve API_UPSTREAM per request (valid=30s) instead of once at startup, so the web
     # container starts even while the API app is still being provisioned or restarted.
@@ -55,7 +61,7 @@ server {
     location = /manifest.webmanifest { expires -1; }
 
     # REST API → backend (internal ingress only; never exposed publicly).
-    location /api/ {
+    location ^~ /api/ {
         proxy_pass $api_upstream;
         proxy_http_version 1.1;
         proxy_ssl_server_name on;
@@ -72,7 +78,11 @@ server {
     }
 
     # SignalR hub → backend, with WebSocket upgrade.
-    location /hubs/ {
+    location ^~ /hubs/ {
+        # nginx's error log prints the full request line (query string included) on upstream
+        # failures; for hub traffic that would leak ?access_token=. Upstream errors here are
+        # visible in the API's own logs instead.
+        error_log /dev/stderr crit;
         proxy_pass $api_upstream;
         proxy_http_version 1.1;
         proxy_ssl_server_name on;

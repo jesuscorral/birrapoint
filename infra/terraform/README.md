@@ -26,7 +26,7 @@ Constitution v1.3.1, research R-17/R-18/R-19, ADR-0016/ADR-0017, FR-043–FR-047
 - **Images** come from Docker Hub (`<namespace>/birrapoint-api|web|keycloak:<tag>`); none
   contains secrets or environment-specific configuration (FR-043). The web image renders
   `/config.json` and its nginx upstream from env vars at start; the Keycloak realm resolves its
-  `${env.*}` placeholders at import; the API reads everything from env vars.
+  `${VAR:default}` placeholders at import; the API reads everything from env vars.
 - **The API is not publicly reachable.** Browsers only talk to the web app (same origin, no
   CORS) and to Keycloak.
 - **The API runs exactly one replica**: SignalR has no backplane and the `DispatchJob` worker is a
@@ -100,6 +100,21 @@ account (`rg-birrapoint-tfstate`) is left in place.
 ## Known limitations
 
 - Default `*.azurecontainerapps.io` host names; no custom domain yet.
+- **Realm changes after the first start are not applied.** `--import-realm` skips a realm that
+  already exists, so rotating `random_password.api_admin_client_secret` or changing the web URL
+  (e.g. a custom domain) does not reach Keycloak — update the client in the admin console too,
+  or judge provisioning / login redirects break.
+- **Revision rollout overlap.** Even in `Single` revision mode ACA briefly runs the old and the
+  new API revision together, and the DispatchJob worker has no atomic job claim yet, so a job in
+  flight during a deploy can run twice (duplicate result email). Avoid deploying while results
+  are being dispatched until T129 lands.
+- **Keycloak hardening** (brute-force detection, password policy, admin console exposure) is
+  T130. Until then, change the `admin` password after the first login and keep it strong.
+- **Docker Hub rate limits.** Anonymous pulls from ACA's shared outbound IPs can be throttled;
+  setting `dockerhub_username` + a read-only `dockerhub_token` avoids it even for public
+  repositories (T131).
+- **Neon compute.** The API's job-queue poll and Keycloak's pool keep the Neon compute awake
+  around the clock, which can exceed the free plan's monthly compute allowance (T132).
 - OpenTelemetry export to Azure and health probes for the API arrive with T098; until then the
   API uses ACA's default TCP probe and logs go to Log Analytics via console output.
 - Keycloak's JDBC connection uses `sslmode=require` (encrypted, server certificate not

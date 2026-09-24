@@ -64,6 +64,9 @@ has no backplane, and Neon's pooled endpoint is PgBouncer in transaction mode.
   teardown, but it is not a backup.
 - Two external providers (Docker Hub, Neon) sit outside the Azure boundary. Their credentials are
   the only secrets the operator supplies, besides SMTP.
+- "One replica" is not absolute: ACA overlaps the old and new revision during a rollout, so
+  until the DispatchJob worker claims jobs atomically (T129) a job in flight during a deploy can
+  run twice.
 - Scaling the API beyond one replica now needs a SignalR backplane, a DispatchJob claim/lease
   model, and moving migrations to a dedicated job. This is recorded as a known limitation, not
   a bug.

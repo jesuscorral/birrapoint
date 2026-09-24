@@ -269,7 +269,7 @@ resource "azurerm_container_app" "keycloak" {
         name        = "KC_BOOTSTRAP_ADMIN_PASSWORD"
         secret_name = "bootstrap-admin-password"
       }
-      # ${env.*} placeholders in the imported realm (infra/keycloak/birrapoint-realm.json).
+      # ${VAR:default} placeholders in the imported realm (infra/keycloak/birrapoint-realm.json).
       env {
         name  = "SPA_URL"
         value = local.web_url

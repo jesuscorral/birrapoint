@@ -2471,6 +2471,11 @@ safety-net poll — no new retry mechanism, just reuse of what T016 already buil
   `* text=auto eol=lf` + Prettier `endOfLine: "lf"` as its own follow-up task (PR #3 review).
 - `/health`//`/alive` exposure strategy for ACA probes — still Development-only; T098. Until then
   the API Container App uses ACA's default TCP probe.
+- **New (T095–T097, PR #46 review)**: follow-ups T129 (atomic DispatchJob claim — ACA revision
+  rollouts overlap two API replicas), T130 (production Keycloak hardening), T131 (Docker Hub
+  pull authentication), T132 (Neon compute budget) added to Phase 16. The web container's access
+  log omits query strings (SignalR's `?access_token=`), and `/api/` + `/hubs/` are `^~` prefix
+  locations so the static-asset regex can never shadow them.
 - **New (T095–T097)**: the API is pinned to one replica (SignalR without backplane, single
   DispatchJob consumer, startup migrations). Scaling out needs a backplane, a job lease model and
   a dedicated migration job (ADR-0016).

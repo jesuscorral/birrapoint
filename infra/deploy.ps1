@@ -72,7 +72,17 @@ if (-not (Test-Path $VarFile)) {
     throw "Variables file '$VarFile' not found. Copy infra/terraform/terraform.tfvars.example and fill it in."
 }
 
-$account = az account show --output json 2>$null | ConvertFrom-Json
+# Windows PowerShell 5.1 turns a native command's redirected stderr into terminating errors
+# under ErrorActionPreference=Stop, so probes whose failure is an expected answer run with
+# 'Continue' locally.
+function Invoke-Probe([scriptblock] $Command) {
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $Command 2>$null } finally { $ErrorActionPreference = $previous }
+}
+
+$accountJson = (Invoke-Probe { az account show --output json }) -join "`n"
+$account = if ($accountJson) { $accountJson | ConvertFrom-Json } else { $null }
 if (-not $account) { throw 'Not logged in to Azure. Run `az login` first.' }
 $subscriptionId = $account.id
 Write-Host "Azure subscription: $($account.name) ($subscriptionId)"
@@ -98,7 +108,10 @@ Invoke-Native "Ensure state resource group '$StateResourceGroup'" {
     az group create --name $StateResourceGroup --location $Location --output none
 }
 
-$existing = az storage account show --name $StateStorageAccount --resource-group $StateResourceGroup --query name --output tsv 2>$null
+# `list` + filter instead of `show`: a missing account is an empty result, not an error.
+$existing = az storage account list --resource-group $StateResourceGroup `
+    --query "[?name=='$StateStorageAccount'].name" --output tsv
+if ($LASTEXITCODE -ne 0) { throw 'Listing state storage accounts failed.' }
 if (-not $existing) {
     Invoke-Native "Create state storage account '$StateStorageAccount'" {
         az storage account create --name $StateStorageAccount --resource-group $StateResourceGroup `
