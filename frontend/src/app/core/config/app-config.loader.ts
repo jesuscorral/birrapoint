@@ -1,5 +1,54 @@
 import type { AppConfig } from './app-config.model';
 
+// Minimal Storage subset the loader needs — lets tests inject a fake without depending on
+// jsdom's localStorage, and lets the default resolve to `undefined` (rather than throwing) in
+// environments where `localStorage` itself is unavailable (e.g. some sandboxed/private contexts).
+export interface AppConfigStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+}
+
+export const APP_CONFIG_STORAGE_KEY = 'birrapoint.appConfig';
+
+function defaultStorage(): AppConfigStorage | null {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Best-effort read of the last-known-good config (R-08 offline fallback). Any failure — no
+// storage, nothing cached yet, corrupted JSON, a cached payload that no longer validates — is
+// treated as "no fallback available", never as a hard error; the caller decides what to do next.
+function readCachedConfig(storage: AppConfigStorage | null): AppConfig | null {
+  if (!storage) {
+    return null;
+  }
+  try {
+    const raw = storage.getItem(APP_CONFIG_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    return validate(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+// Best-effort write. Storage can be unavailable or full (private browsing, quota) — that must
+// never fail the load of a config that was just successfully fetched and validated.
+function writeCachedConfig(storage: AppConfigStorage | null, config: AppConfig): void {
+  if (!storage) {
+    return;
+  }
+  try {
+    storage.setItem(APP_CONFIG_STORAGE_KEY, JSON.stringify(config));
+  } catch {
+    // Ignored — see comment above.
+  }
+}
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
 }
@@ -45,16 +94,41 @@ function validate(raw: unknown): AppConfig {
  * browser HTTP cache hit, so a container redeploy with new env vars takes effect on next load
  * (this is separate from — and layered under — the service worker's own dataGroups freshness
  * strategy for /config.json, which covers the fully-offline case).
+ *
+ * Last-known-good fallback (R-08): if the request itself fails (offline) or comes back non-OK, a
+ * previously validated config persisted to `storage` is used instead — otherwise a judge opening
+ * the installed PWA offline the next day would hit the fatal error screen just because the first
+ * network hop for /config.json didn't complete before the service worker could serve its own
+ * cached copy. A 200 response that fails validation is a real server misconfiguration, not an
+ * offline scenario, and always throws — it never falls back to a stale cache.
  */
-export async function loadAppConfig(fetchFn: typeof fetch = fetch): Promise<AppConfig> {
-  const response = await fetchFn('/config.json', { cache: 'no-cache' });
+export async function loadAppConfig(
+  fetchFn: typeof fetch = fetch,
+  storage: AppConfigStorage | null = defaultStorage(),
+): Promise<AppConfig> {
+  let response: Response;
+  try {
+    response = await fetchFn('/config.json', { cache: 'no-cache' });
+  } catch (error) {
+    const cached = readCachedConfig(storage);
+    if (cached) {
+      return cached;
+    }
+    throw error;
+  }
 
   if (!response.ok) {
+    const cached = readCachedConfig(storage);
+    if (cached) {
+      return cached;
+    }
     throw new Error(
       `Failed to load runtime configuration from /config.json: HTTP ${response.status}`,
     );
   }
 
   const raw: unknown = await response.json();
-  return validate(raw);
+  const config = validate(raw);
+  writeCachedConfig(storage, config);
+  return config;
 }

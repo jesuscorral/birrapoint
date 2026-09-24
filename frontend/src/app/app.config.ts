@@ -10,7 +10,7 @@ import { routes } from './app.routes';
 import { provideServiceWorker } from '@angular/service-worker';
 import { provideAuthBearerInterceptor } from './core/auth/auth-interceptor.providers';
 import { provideAppKeycloak } from './core/auth/keycloak.providers';
-import type { AppConfig } from './core/config/app-config.model';
+import { provideAppConfig, type AppConfig } from './core/config/app-config.model';
 
 // Factory rather than a module-level constant: the app's providers depend on the runtime AppConfig
 // (FR-043), which is only known after main.ts awaits loadAppConfig() — there is no build-time
@@ -18,6 +18,7 @@ import type { AppConfig } from './core/config/app-config.model';
 export function buildAppConfig(config: AppConfig): ApplicationConfig {
   return {
     providers: [
+      provideAppConfig(config),
       provideBrowserGlobalErrorListeners(),
       provideZoneChangeDetection({ eventCoalescing: true }),
       provideRouter(routes),
