@@ -193,8 +193,9 @@ app.MapMonitoringEndpoints();
 app.MapDispatchEndpoints();
 
 // EF migrations apply on startup in Development (T009); outside Development, only when
-// Database:MigrateOnStartup=true (T095-T097 — the ACA one-off migration run). The BJCP seed
-// ships as part of the migrations, so this covers it too. Migrates over the non-pooled
+// Database:MigrateOnStartup=true (T095-T097 — Terraform sets this on the single long-running API
+// replica, so every start of that replica migrates over Neon before serving traffic). The BJCP
+// seed ships as part of the migrations, so this covers it too. Migrates over the non-pooled
 // ConnectionStrings:dbDirect when configured (Neon's pooled ConnectionStrings:db breaks EF's
 // session-scoped migration advisory lock under pgbouncer transaction pooling).
 if (StartupMigrations.ShouldMigrate(app.Environment.IsDevelopment(), app.Configuration))

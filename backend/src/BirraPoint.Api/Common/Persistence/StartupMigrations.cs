@@ -3,10 +3,11 @@ namespace BirraPoint.Api.Common.Persistence;
 /// <summary>
 /// T095-T097: whether/how to apply EF Core migrations at API startup. Migrations always run in
 /// Development (T009); outside Development they only run when Database:MigrateOnStartup=true —
-/// the one-off ACA migration run sets it, a normal running revision leaves it unset/false so every
-/// warm start doesn't re-acquire the migration advisory lock. The connection string used for
-/// migrating is Neon's non-pooled ConnectionStrings:dbDirect when configured (EF/Npgsql's migration
-/// advisory lock is session-scoped and breaks under pgbouncer transaction pooling), falling back to
+/// Terraform sets it on the single long-running API replica, so every start of that replica
+/// migrates (idempotently; EF's migration history table plus its session-scoped advisory lock
+/// make repeat/concurrent runs safe). The connection string used for migrating is Neon's
+/// non-pooled ConnectionStrings:dbDirect when configured (EF/Npgsql's migration advisory lock is
+/// session-scoped and breaks under pgbouncer transaction pooling), falling back to
 /// ConnectionStrings:db (e.g. local AppHost/Testcontainers Postgres, which isn't pooled at all).
 /// </summary>
 public static class StartupMigrations
