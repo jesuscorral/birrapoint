@@ -187,9 +187,10 @@ Alternatives considered.
 
 ## R-17: Deployment — Terraform to Azure Container Apps *(added 2026-07-07, superseded 2026-09-23)*
 
-- **Decision**: `infra/terraform/` provisions ACR, the ACA environment, and container apps for
-  frontend (public ingress), backend, and Keycloak. A build/push step (CI, or `az acr build`)
-  publishes images to ACR ahead of `terraform apply`, since Terraform — unlike `azd up` — does not
+- **Decision**: `infra/terraform/` provisions the ACA environment and container apps for
+  frontend (public ingress), backend, and Keycloak. A build/push step (CI, or `docker push`,
+  wrapped by `infra/deploy.ps1`) publishes images to Docker Hub ahead of `terraform apply` — no
+  registry is provisioned (user decision 2026-09-24, constitution v1.3.1) — since Terraform — unlike `azd up` — does not
   build images itself. Remote state lives in Azure Storage (FR-045/046).
 - **Rationale**: Constitution v1.3.0 fixes the target (user decision 2026-09-23, superseding the
   original Bicep/azd choice below) — Terraform's broader provider ecosystem lets the same tool

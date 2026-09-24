@@ -36,9 +36,9 @@ tags: [birrapoint, arquitectura, .NET, angular, keycloak]
 ## 5. Infraestructura y Despliegue
 * **Contenerización:** Imágenes Docker multi-stage para todos los componentes (backend: imagen SDK de .NET para build/publish → runtime ASP.NET; frontend: build con Node.js → Nginx Alpine sirviendo los estáticos compilados). Las imágenes nunca contienen secretos ni configuración de entorno.
 * **Orquestación Local:** **.NET Aspire** — proyecto `AppHost` centralizado que levanta PostgreSQL, Keycloak, el backend y el frontend con un solo comando, y proyecto `ServiceDefaults` que inyecta OpenTelemetry, health checks y resiliencia estándar.
-* **Infraestructura en la Nube (IaC):** **Terraform** (HCL). Un paso previo de build/push de imágenes (CI, o `az acr build`/`docker push`) las publica en el registro; `terraform apply` provisiona después el registro (si no existe), el entorno ACA y los recursos de aplicación. El *state* de Terraform vive en un backend remoto (Azure Storage), nunca en el repositorio.
+* **Infraestructura en la Nube (IaC):** **Terraform** (HCL). Un paso previo de build/push de imágenes (CI, o `docker build`/`docker push`) las publica en Docker Hub; `terraform apply` provisiona después el entorno ACA y los recursos de aplicación. El *state* de Terraform vive en un backend remoto (Azure Storage), nunca en el repositorio.
 * **Hosting (Azure Container Apps):**
-    * *Registro:* Azure Container Registry (ACR).
+    * *Registro:* Docker Hub (repositorios privados con token de acceso inyectado como secreto de registro del Container App).
     * *Frontend:* Container App (imagen Angular/Nginx) con ingress público.
     * *Backend:* Container App (imagen .NET) con ingress.
     * *Identidad:* Keycloak como Container App en el mismo entorno ACA.

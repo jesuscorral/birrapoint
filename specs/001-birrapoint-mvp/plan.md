@@ -46,7 +46,7 @@ Dexie.js on judge devices (drafts + offline outbox only, never the source of tru
 including offline simulation and `axe-core` accessibility checks).
 
 **Target Platform**: Backend: Linux containers — orchestrated locally by .NET Aspire, deployed to
-Azure Container Apps (ACR + Terraform; Keycloak runs as a container in the same ACA environment,
+Azure Container Apps (images on Docker Hub + Terraform; Keycloak runs as a container in the same ACA environment,
 per Clarifications 2026-07-07; PostgreSQL is hosted externally on Neon, constitution v1.3.0).
 Frontend: multi-stage Node→Nginx image;
 evergreen mobile/desktop browsers as an installable PWA; judge flow designed for mid-range
@@ -201,11 +201,12 @@ frontend/
 └── tests/                              # Jest unit; e2e/ Playwright suites
 
 infra/
-├── terraform/                          # ACA environment, ACR, container apps: frontend (public
-│                                       #   ingress), backend, Keycloak; Neon PostgreSQL project
-│                                       #   provisioned alongside (or documented as a manual
-│                                       #   prerequisite — see plan's Terraform decision); remote
-│                                       #   state in Azure Storage
+├── deploy.ps1                          # single-command deploy: state bootstrap → docker push to
+│                                       #   Docker Hub → terraform apply (FR-045/SC-011)
+├── terraform/                          # ACA environment + container apps: frontend (public
+│                                       #   ingress), backend (internal ingress), Keycloak; Neon
+│                                       #   project + databases via the Neon provider; images
+│                                       #   pulled from Docker Hub; remote state in Azure Storage
 └── keycloak/birrapoint-realm.json      # Realm import (roles, clients, seeded organizer)
 ```
 

@@ -67,6 +67,10 @@
 
 - Q: The organizer supplied a reference paper BJCP-style score sheet (per-attribute descriptor sliders — discrete intensity ratings for things like Malt/Hops/Fermentation, continuous bipolar ratings for Balance/Finish and Overall Impression's three axes, closed-choice Color/Clarity/Foam with a free-text "Otros", a fixed 20-term off-flavor checklist, a holistic Feedback box) and asked the judge-facing evaluation sheet to mirror it. Should these descriptors be persisted as real structured data, or only a frontend composition aid? → A: Persisted as real structured data — added as FR-063. Every descriptor field is optional and none of it feeds FR-024's computed total or FR-023's caps (those five section scores/caps are unchanged); this is additive support data, readable by the organizer's audit drill-down and included in the results PDF. Not a reopening of the BJCP-only/fixed-caps decision from 2026-07-21. The evaluation sheet's UI also changed from a single long scrolling form to a per-section step layout (one BJCP section visible at a time) with free navigation between sections — a judge can jump back to an earlier section to revise it at any point before submitting, not just move forward.
 
+### Session 2026-09-24
+
+- Q: Constitution v1.3.0 (2026-09-23) moved the production database to Neon (managed Postgres) and the IaC tool to Terraform, but FR-043/FR-047 still required an in-environment database container with a self-managed backup/restore procedure. Which wins? → A: The constitution — FR-043 now scopes "container" to the application components (the database is containerized only locally), and FR-047 is rewritten for a managed external database whose provider-side point-in-time recovery is the documented restore path. Also: container images are published to Docker Hub rather than an Azure Container Registry (user decision; constitution v1.3.1) — the registry is not a spec concern, noted here only for traceability.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Secure Access with Role-Based Entry (Priority: P1)
@@ -505,11 +509,11 @@ the duplicate reported.
 
 **Operations & Deployment** *(added 2026-07-07)*
 
-- **FR-043**: Every runtime component (frontend, backend, identity provider, database) MUST run as an isolated container built reproducibly from source; images MUST NOT contain secrets or environment-specific configuration.
+- **FR-043**: Every application runtime component (frontend, backend, identity provider) MUST run as an isolated container built reproducibly from source — as does the database in the local environment; images MUST NOT contain secrets or environment-specific configuration.
 - **FR-044**: A developer MUST be able to start the complete system locally — database, identity provider, backend, frontend, and mail sink — with a single command, through a single orchestrator whose topology mirrors production.
 - **FR-045**: All cloud infrastructure MUST be defined declaratively (infrastructure as code); a fresh environment MUST be provisionable and the full system deployable end to end with a single command and zero manual configuration steps.
 - **FR-046**: The production environment MUST host the frontend (publicly reachable), the backend API, and the identity provider (reachable for login flows) as separately deployable containers inside one secured environment boundary; all configuration and secrets are injected at deploy time (environment variables / secret store).
-- **FR-047**: The production database MUST run as a container inside the same environment boundary, with persistent storage that survives container restarts and redeployments, a scheduled automated backup/export, and a documented restore procedure.
+- **FR-047**: The production database MUST be a managed PostgreSQL service outside the container environment, provisioned by the same infrastructure-as-code as the rest of the system; its connection strings are injected into consuming containers as secrets at deploy time, and the provider's point-in-time recovery MUST be documented as the restore procedure (no self-managed backup job).
 - **FR-048**: Every service MUST expose health-check endpoints and emit standardized telemetry (logs, metrics, traces) in both local and cloud environments.
 
 **Style Reference (US7)**
@@ -561,7 +565,7 @@ the duplicate reported.
 - Authentication, credential lifecycle, and forced password change are delegated to the platform's central identity provider as fixed by the project's approved technology definition.
 - A transactional email delivery service is available for invitations and result dispatch (external dependency); in production it is configured via environment variables.
 - The concrete containerization, local orchestration, IaC tooling, and cloud target for FR-043–FR-048 are fixed by the project's approved technology definition (constitution, Technology & Architecture Constraints — amended for this feature) rather than restated here.
-- Because the production database runs in-environment (FR-047) instead of on a managed database service, backup/export scheduling and restore verification are an explicit operational responsibility of the deployment, not the platform.
+- Because the production database is a managed service (FR-047), backup retention and point-in-time recovery are the provider's responsibility; the deployment only documents how to use them. The provider's retention window depends on its plan and is an operational choice, not a spec requirement.
 - Excluding a row during import correction removes it from the import only; it is reported in the import summary.
 - An organizer may own multiple competitions simultaneously (the platform already scopes every competition to its creating organizer); User Story 13 exposes that existing scoping in the UI rather than introducing new multi-tenancy behavior.
 - The existing single-email judge registration (User Story 4) remains available alongside the spreadsheet import (User Story 14) for ad-hoc additions after the wizard; the spreadsheet import is the primary path for provisioning the full panel up front, not a replacement for the other.

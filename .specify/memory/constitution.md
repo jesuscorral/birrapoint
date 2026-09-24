@@ -1,6 +1,22 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 1.3.0 → 1.3.1 (PATCH — container registry swapped; no principle or topology change)
+Modified principles: none
+Modified sections:
+  - Technology & Architecture Constraints / Deployment: container images are published to Docker
+    Hub (user decision 2026-09-24) instead of Azure Container Registry; Terraform no longer
+    provisions a registry. Private repositories are pulled with a Docker Hub access token injected
+    as a Container Apps registry secret. Everything else in the v1.3.0 amendment below stands.
+Added sections: none
+Removed sections: none
+Templates:
+  - Docs/01-Definicion-Tecnologica.md ✅ updated (§5 registry)
+  - CLAUDE.md ✅ updated (repository layout)
+  - specs/001-birrapoint-mvp/plan.md, research.md (R-17), tasks.md (T096), quickstart.md ✅ updated
+Follow-up TODOs: none
+
+Previous report (v1.3.0, 2026-09-23):
 Version change: 1.2.0 → 1.3.0 (MINOR — cloud deployment tooling and database hosting amended)
 Modified principles: none
 Modified sections:
@@ -186,9 +202,10 @@ The approved stack is defined in `Docs/01-Definicion-Tecnologica.md` and is bind
   .NET SDK build → ASP.NET runtime; frontend: Node build → Nginx Alpine serving static files);
   images MUST NOT contain secrets or environment-specific configuration.
 - **Deployment**: Azure Container Apps, provisioned declaratively with Terraform (HCL). A build
-  step (CI, or `az acr build`/`docker push`) publishes images to Azure Container Registry ahead of
-  `terraform apply`, which then provisions ACR (if not already present), the ACA environment, and
-  the app resources. Production topology: one ACA environment hosting the frontend (public
+  step (CI, or `docker build`/`docker push`) publishes images to Docker Hub ahead of
+  `terraform apply`, which then provisions the ACA environment and the app resources (no
+  registry is provisioned; private repositories are pulled with an access token injected as a
+  registry secret). Production topology: one ACA environment hosting the frontend (public
   ingress) and the backend API as two separate Container Apps, Keycloak as a third in-environment
   Container App, and PostgreSQL hosted externally on Neon — its pooled connection string injected
   into the backend Container App as a secret, never baked into an image or committed to the repo.
@@ -226,4 +243,4 @@ be updated.
   Definition of Done above. Runtime development guidance for agents lives in `CLAUDE.md` and must
   stay consistent with this document.
 
-**Version**: 1.3.0 | **Ratified**: 2026-07-06 | **Last Amended**: 2026-09-23
+**Version**: 1.3.1 | **Ratified**: 2026-07-06 | **Last Amended**: 2026-09-24

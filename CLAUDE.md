@@ -24,7 +24,7 @@ original product definition (in Spanish); the English spec supersedes it.
 
 ## Source of truth (in priority order)
 
-1. `.specify/memory/constitution.md` — v1.2.0, ten principles. Supersedes everything, including
+1. `.specify/memory/constitution.md` — v1.3.1, ten principles. Supersedes everything, including
    this file. Stack deviations require a constitution amendment, not a per-feature choice.
 2. `specs/001-birrapoint-mvp/spec.md` — user stories US1–US13, FR-001–FR-051, clarifications,
    edge cases, success criteria SC-001–SC-011.
@@ -157,7 +157,7 @@ backend/tests/     # BirraPoint.Api.UnitTests + BirraPoint.Api.IntegrationTests
 frontend/src/app/  # Feature-Sliced Design: core/ (auth, api, realtime, offline), features/, shared/
 frontend/e2e/      # Playwright suites, incl. e2e/a11y/ (axe-core WCAG gate)
 frontend/scripts/  # build-time checks (bundle gzip budget) not owned by any one feature
-infra/             # terraform/ (ACR, ACA environment + apps, Keycloak container app; remote
+infra/             # terraform/ (ACA environment + apps, images from Docker Hub, Keycloak container app; remote
                    #   state in Azure Storage), keycloak/birrapoint-realm.json,
                    #   perf/ (k6 API-budget scripts)
 ```
