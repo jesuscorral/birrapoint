@@ -5,8 +5,9 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-07-28 · after T089–T091, T094 — **Phase 15 (Polish & Cross-Cutting Concerns)
-in progress**
+**Last updated:** 2026-09-24 · after T095–T097 — **Phase 16 (Deployment & Operations) in progress**
+(images, Terraform + Neon, `infra/deploy.ps1` done; T098 telemetry/probes and T099 validated cloud
+deploy pending — see "Cloud topology")
 
 ## Global status
 
@@ -343,6 +344,31 @@ one, or that data becomes invisible to its owner despite being fully intact:
 `Organizers.KeycloakUserId`, `Competitions.CreatedByUserId`, and `Judges.KeycloakUserId` for any
 judge already provisioned with a Keycloak account.
 
+## Cloud topology (Phase 16 — Terraform → Azure Container Apps + Neon; T095–T097)
+
+Single command: `./infra/deploy.ps1 -ImageNamespace <dockerhub-ns>` (ADR-0016). It bootstraps the
+Terraform remote state (`rg-birrapoint-tfstate`, storage account + `tfstate` container, created
+idempotently with `az`), builds and pushes the three images to Docker Hub tagged with the commit
+SHA, then runs `terraform init` + `apply` on the single root module `infra/terraform/`.
+Prerequisites and the Neon PITR restore procedure (FR-047) are in `infra/terraform/README.md`.
+**Not yet applied to a real subscription** — that is T099.
+
+| Resource | Implementation | Ingress | Notes |
+|---|---|---|---|
+| `rg-<prefix>`, `log-<prefix>`, `cae-<prefix>` | resource group, Log Analytics (30 d), ACA environment | — | console logs of every app go to Log Analytics; OpenTelemetry export is T098 |
+| `<prefix>-web` | `birrapoint-web` image: Node build → `nginxinc/nginx-unprivileged` (`frontend/Dockerfile`) | external | serves the PWA; `nginx/40-runtime-config.sh` writes `/config.json` from `KEYCLOAK_URL` (+ realm/client/`API_BASE_URL` defaults) at start; reverse-proxies `/api/` + `/hubs/` (WebSocket) to `API_UPSTREAM` (ADR-0017); security headers, `expires -1` on shell/ngsw files, 1-year cache on hashed assets |
+| `<prefix>-api` | `birrapoint-api` image: SDK → `aspnet:10.0`, non-root (`backend/src/BirraPoint.Api/Dockerfile`, context `backend/`) | **internal only** | exactly 1 replica (SignalR without backplane, single DispatchJob consumer); `ASPNETCORE_ENVIRONMENT=Production`; `ConnectionStrings__db` = Neon pooled endpoint, `ConnectionStrings__dbDirect` = direct endpoint used only by startup migrations (`Database__MigrateOnStartup=true`); Keycloak/SMTP/`Frontend__BaseUrl` via env + Container Apps secrets |
+| `<prefix>-kc` | `birrapoint-keycloak` image: optimized `kc.sh build` (postgres, health, metrics) + login theme + production realm (`infra/keycloak/Dockerfile`) | external | `start --optimized --import-realm`; `KC_PROXY_HEADERS=xforwarded`, `KC_HOSTNAME` = public URL; startup/readiness/liveness probes on management port 9000; realm placeholders `${SPA_URL}`, `${API_ADMIN_CLIENT_SECRET}`, `${SMTP_*}` resolved from env at first import |
+| Neon project `<prefix>` | `kislerdm/neon` provider, PG 16, branch `main` | — | databases `birrapoint` (role `birrapoint`) and `keycloak` (role `keycloak`) on one branch, so a PITR restores both consistently; history retention = `neon_history_retention_seconds` (default 1 day) |
+
+Secrets never enter an image or the repo: Neon role passwords come from the provider, the Keycloak
+bootstrap admin password and the API admin-client secret from `random_password`, SMTP and the
+optional Docker Hub token from `terraform.tfvars` (gitignored); all land as Container Apps
+secrets. The production realm is derived from the local one at image build time: the seeded
+`organizer`/`organizer` account and the admin-client secret's dev fallback are stripped (the build
+fails if either survives). Realm import placeholders use Keycloak's `${VAR:default}` syntax — the
+previous `${env.SMTP_HOST}` form was never substituted by Keycloak and is fixed.
+
 ## Backend (`backend/`, .NET 10 / C# 14)
 
 - **Projects** (`BirraPoint.sln`): `BirraPoint.Api` (modular monolith; `Domain/` shared kernel +
@@ -355,13 +381,21 @@ judge already provisioned with a Keycloak account.
   file is the single place to bump the target framework.
 - **`BirraPoint.Api`**: `AddServiceDefaults()` + `MapDefaultEndpoints()`, plus (T009)
   `AddDbContext<AppDbContext>` wired to the `db` connection string and `Database.MigrateAsync()`
-  run on startup **in Development only**. Pipeline order (T011/T012/T020):
+  run on startup in Development, or anywhere `Database:MigrateOnStartup=true` (production;
+  `Common/Persistence/StartupMigrations.cs`, T095–T097), over `ConnectionStrings:dbDirect` when
+  set (Neon direct endpoint — the pooled one breaks EF's session-level migration lock), else
+  `db`. Outside Development the pipeline starts with `UseForwardedHeaders` (For/Proto/Host,
+  known networks cleared — safe only because the API's ACA ingress is internal) and no longer
+  calls `UseHttpsRedirection` (TLS terminates at ACA; the nginx hop is plain HTTP); HSTS stays
+  (ADR-0017). SMTP settings resolve through `Common/Email/SmtpSettings.cs`: optional
+  `Smtp:Username`/`Password` (auth only with a username; username without password fails fast),
+  `Smtp:UseStartTls`, `Smtp:From` — Mailpit's host/port-only config behaves as before. Pipeline order (T011/T012/T020):
   `UseExceptionHandler()` → `UseCors()` (Development only) → `UseAuthentication()` →
   `UseAuthorization()` → endpoint mapping. **CORS** (T020): a default policy allowing only
   `http://localhost:4200` (`AllowAnyHeader`/`AllowAnyMethod`, no `AllowCredentials` — auth is
   bearer-token via header or SignalR's `?access_token=`, never cookies), registered and applied
-  in Development only; production topology (same-origin behind ACA ingress, or a real allowed
-  origin) is a Phase 16 decision. Added alongside the frontend's `ApiClient`/`CompetitionHubService`
+  in Development only; production is same-origin behind the web container's nginx reverse proxy
+  (ADR-0017), so no production CORS policy exists. Added alongside the frontend's `ApiClient`/`CompetitionHubService`
   because nothing had called the API cross-origin from a browser before T020 — verified with a
   live `fetch` from `localhost:4200` to `localhost:5121` in T020's browser check.
   **Current HTTP surface**: `/health` (all checks) and `/alive` (checks tagged `live`), both
@@ -989,11 +1023,20 @@ judge already provisioned with a Keycloak account.
   was wired but unconsumed until now). Not addressed this phase — flagged in Recorded debt below
   since the gzip budget (the actual constitutional gate) is unaffected today, but the margin to the
   CLI warning threshold is gone.
-- **`src/environments/environment.ts`** (T019): local-dev-only config — `keycloak: { url, realm:
-  'birrapoint', clientId: 'birrapoint-spa' }` (matches `infra/keycloak/birrapoint-realm.json`)
-  and `apiBaseUrl`, both the fixed Aspire local ports (CLAUDE.md §Commands). No dev/prod split or
-  build `fileReplacements` yet — real per-environment values and any build-time swap arrive with
-  Phase 16 (Terraform/nginx).
+- **Runtime configuration — `core/config/`** (T095–T097, ADR-0017; replaced T019's
+  `src/environments/environment.ts`, now deleted): `main.ts` awaits `loadAppConfig()` — fetches
+  `/config.json` (`cache: 'no-cache'`), validates `keycloak.url/realm/clientId` (non-empty) and
+  `apiBaseUrl` (string, may be `""`), strips trailing slashes — then bootstraps with
+  `buildAppConfig(config)`, which provides the `APP_CONFIG` token; on failure it renders a plain
+  error message into `<body>`. Consumers: `ApiClient`, `provideAuthBearerInterceptor(config)`
+  (bearer URL pattern now `${apiBaseUrl}/api(/.*)?` — with `""` it matches only same-origin
+  `/api/...`, never Keycloak or third-party URLs), `provideAppKeycloak(config)`, and the default
+  `CompetitionHubService` connection factory. Locally `ng serve` serves `public/config.json`
+  (Aspire fixed ports); the web container generates it from env vars and the image build drops
+  the local file. `ngsw-config.json` caches `/config.json` in a `freshness` data group (3 s
+  timeout) so an installed PWA still boots offline (R-08); it is deliberately not an asset group,
+  since it is rewritten at runtime. Specs use the `TEST_APP_CONFIG` fixture
+  (`core/config/app-config.testing.ts`).
 - **`core/auth/`** (T019): the Keycloak auth core, built on the modern `keycloak-angular` v19+
   API (`provideKeycloak`/`createAuthGuard`/`includeBearerTokenInterceptor`) — the older
   `KeycloakService`/class-guard/`KeycloakBearerInterceptor` APIs are deprecated and unused.
@@ -2364,8 +2407,9 @@ safety-net poll — no new retry mechanism, just reuse of what T016 already buil
   the invitation email's login link) that's only ever set by `AppHost.cs`'s Aspire env injection —
   there's no fallback in `appsettings.json`/`appsettings.Development.json`. Harmless today (every
   local/test path goes through Aspire or a test-config override), but will need a real value wired
-  into whatever non-Aspire deployment Phase 16 (`azd`) produces, or the job will fail every time in
-  that environment. Flagged during T039 review; not fixed here since Phase 16 doesn't exist yet.
+  into whatever non-Aspire deployment Phase 16 produces, or the job will fail every time in
+  that environment. Flagged during T039 review. **Resolved (T096)**: Terraform sets
+  `Frontend__BaseUrl` to the web app's public URL.
 - **New (Session 2026-09-20)**: `/select-role` (`RoleSelectComponent`) has no E2E or axe-core a11y
   coverage — `frontend/e2e/a11y/routes.a11y.spec.ts`'s route enumeration predates this route and
   wasn't extended to include it. Flagged by senior-code-reviewer on PR #43; not fixed there given
@@ -2420,8 +2464,15 @@ safety-net poll — no new retry mechanism, just reuse of what T016 already buil
 - `WaitFor` a *ready* Keycloak once auth is wired (T011; ADR-0001 mitigation).
 - Add a webkit Playwright project before writing the offline E2E suites (iOS Safari is the
   constrained target for the offline engine, R-08).
-- No `.gitattributes` in the repo: Prettier `endOfLine: "auto"` (T007) keeps `format:check`
+- **Partially addressed (T095)**: a `.gitattributes` now pins LF for `*.sh`, `*.template` and
+  `Dockerfile` (container-executed files). The repo-wide rule below is still open. Previously: no `.gitattributes` in the repo: Prettier `endOfLine: "auto"` (T007) keeps `format:check`
   green on both CRLF (Windows autocrlf) and LF checkouts, but a contributor with
   `core.autocrlf=false` on Windows could still commit CRLF blobs unnoticed. Durable fix:
   `* text=auto eol=lf` + Prettier `endOfLine: "lf"` as its own follow-up task (PR #3 review).
-- `/health`//`/alive` exposure strategy for ACA probes (Phase 16).
+- `/health`//`/alive` exposure strategy for ACA probes — still Development-only; T098. Until then
+  the API Container App uses ACA's default TCP probe.
+- **New (T095–T097)**: the API is pinned to one replica (SignalR without backplane, single
+  DispatchJob consumer, startup migrations). Scaling out needs a backplane, a job lease model and
+  a dedicated migration job (ADR-0016).
+- **New (T095–T097)**: Keycloak's JDBC URL uses `sslmode=require` (encrypted, certificate not
+  verified); the API's Npgsql strings use `VerifyFull`.

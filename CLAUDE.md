@@ -17,8 +17,9 @@ independently functional**, including US13 (organizer competition selection, P2,
 of Phase 16 per its own dependency note — it only needed `GET /competitions` from US2). Phase 15
 (Polish & Cross-Cutting Concerns, T089–T094 — accessibility sweep, performance budgets, bundle
 budget enforcement, full quickstart validation, this file, security pass) is in progress. Phase 16
-(Deployment & Operations — Dockerfiles, Terraform, Neon provisioning, ops verification) has not
-started.
+(Deployment & Operations) is in progress: T095–T097 (Dockerfiles, Terraform + Neon, Docker Hub
+images, `infra/deploy.ps1`) are implemented; T098 (health/OpenTelemetry in ACA) and T099 (validated
+fresh cloud deploy) are pending.
 `Docs/arquitectura_viva.md` tracks the actual current system state in detail. `Docs/` holds the
 original product definition (in Spanish); the English spec supersedes it.
 
@@ -138,8 +139,12 @@ k6 run infra/perf/api-budgets.js       # API p95 budgets (reads <200ms, writes <
                                        #   get one (neither Keycloak client here supports
                                        #   non-interactive token grants)
 
-terraform -chdir=infra/terraform apply   # cloud deploy — NOT yet real: infra/terraform/ lands in
-                                          #   Phase 16
+./infra/deploy.ps1 -ImageNamespace <dockerhub-ns>   # cloud deploy (PowerShell): state bootstrap,
+                                          #   docker build+push to Docker Hub, terraform apply —
+                                          #   prerequisites in infra/terraform/README.md
+docker build -f backend/src/BirraPoint.Api/Dockerfile backend   # API image (context = backend/)
+docker build frontend                     # PWA image (nginx; /config.json generated at start)
+docker build infra/keycloak               # Keycloak image (theme + prod realm baked in)
 ```
 
 ## Repository layout (per plan.md — binding)
@@ -157,8 +162,9 @@ backend/tests/     # BirraPoint.Api.UnitTests + BirraPoint.Api.IntegrationTests
 frontend/src/app/  # Feature-Sliced Design: core/ (auth, api, realtime, offline), features/, shared/
 frontend/e2e/      # Playwright suites, incl. e2e/a11y/ (axe-core WCAG gate)
 frontend/scripts/  # build-time checks (bundle gzip budget) not owned by any one feature
-infra/             # terraform/ (ACA environment + apps, images from Docker Hub, Keycloak container app; remote
-                   #   state in Azure Storage), keycloak/birrapoint-realm.json,
+infra/             # deploy.ps1 (single-command deploy), terraform/ (ACA environment + apps,
+                   #   Neon project; images from Docker Hub; remote state in Azure Storage),
+                   #   keycloak/ (realm json, login theme, production Dockerfile),
                    #   perf/ (k6 API-budget scripts)
 ```
 

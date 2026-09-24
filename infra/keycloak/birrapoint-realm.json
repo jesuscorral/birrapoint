@@ -10,12 +10,14 @@
   "sslRequired": "external",
   "loginTheme": "birrapoint",
   "smtpServer": {
-    "host": "${env.SMTP_HOST}",
-    "port": "${env.SMTP_PORT}",
-    "from": "no-reply@birrapoint.local",
+    "host": "${SMTP_HOST:localhost}",
+    "port": "${SMTP_PORT:1025}",
+    "from": "${SMTP_FROM:no-reply@birrapoint.local}",
     "fromDisplayName": "BirraPoint",
-    "auth": "false",
-    "starttls": "false"
+    "auth": "${SMTP_AUTH:false}",
+    "starttls": "${SMTP_STARTTLS:false}",
+    "user": "${SMTP_USER:}",
+    "password": "${SMTP_PASSWORD:}"
   },
   "internationalizationEnabled": true,
   "supportedLocales": ["es", "en"],
@@ -52,13 +54,13 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "rootUrl": "http://localhost:4200",
-      "baseUrl": "http://localhost:4200",
-      "redirectUris": ["http://localhost:4200/*"],
-      "webOrigins": ["http://localhost:4200"],
+      "rootUrl": "${SPA_URL:http://localhost:4200}",
+      "baseUrl": "${SPA_URL:http://localhost:4200}",
+      "redirectUris": ["${SPA_URL:http://localhost:4200}/*"],
+      "webOrigins": ["${SPA_URL:http://localhost:4200}"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:4200/*"
+        "post.logout.redirect.uris": "${SPA_URL:http://localhost:4200}/*"
       },
       "fullScopeAllowed": true,
       "protocolMappers": [
@@ -77,7 +79,7 @@
     },
     {
       "clientId": "birrapoint-api-admin",
-      "name": "BirraPoint API service account for judge provisioning (secret below is a LOCAL-DEV placeholder; production injects it at deploy time, FR-046)",
+      "name": "BirraPoint API service account for judge provisioning (secret comes from API_ADMIN_CLIENT_SECRET; the fallback is a LOCAL-DEV placeholder, production injects the real one at deploy time, FR-046)",
       "protocol": "openid-connect",
       "enabled": true,
       "publicClient": false,
@@ -85,7 +87,7 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
-      "secret": "dev-only-secret-change-me"
+      "secret": "${API_ADMIN_CLIENT_SECRET:dev-only-secret-change-me}"
     }
   ],
   "users": [

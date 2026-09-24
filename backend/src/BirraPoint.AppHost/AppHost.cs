@@ -1,6 +1,6 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-// PostgreSQL 16 (constitution stack; prod runs the same major in ACA, FR-047).
+// PostgreSQL 16 (constitution stack; production runs PostgreSQL 16 on Neon, FR-047/R-18).
 var postgres = builder.AddPostgres("postgres")
     .WithImageTag("16")
     .WithDataVolume()

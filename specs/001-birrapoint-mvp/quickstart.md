@@ -11,9 +11,9 @@ This is the end-to-end validation guide for the feature. Commands mirror `CLAUDE
 - Docker Desktop (container runtime for the Aspire-managed PostgreSQL 16, Keycloak 25+, Mailpit)
 - .NET 10 SDK
 - Node.js 24+ / npm 10+ (Jest loads `jest.config.ts` via Node's native TS type stripping — no ts-node)
-- Terraform CLI — cloud deployment only
-- A Neon account/project (or `NEON_API_KEY` if provisioned via Terraform's Neon provider) — cloud
-  deployment only
+- Cloud deployment only: Azure CLI (`az login`), Terraform ≥ 1.9, a Docker Hub account
+  (`docker login`), a Neon API key in `NEON_API_KEY`, SMTP relay credentials — details in
+  `infra/terraform/README.md`
 
 ## Environment up
 
@@ -32,25 +32,33 @@ dotnet run --project backend/src/BirraPoint.AppHost
 cd frontend && npm ci && npm start
 ```
 
-Configuration is environment-variable driven (no secrets in the repo): `ConnectionStrings__Db`,
-`Keycloak__Authority`, `Keycloak__AdminClientId/Secret`, `Smtp__Host/Port` — supplied locally by
-the AppHost, in the cloud by Terraform-provisioned Container Apps secrets (`ConnectionStrings__Db`
-pointing at the Neon pooled connection string).
+Configuration is environment-variable driven (no secrets in the repo or in any image):
+`ConnectionStrings__db` (+ `ConnectionStrings__dbDirect` for migrations in the cloud),
+`Database__MigrateOnStartup`, `Keycloak__Authority`, `Keycloak__AdminClientId/Secret`,
+`Smtp__Host/Port/Username/Password/UseStartTls/From`, `Frontend__BaseUrl` — supplied locally by
+the AppHost, in the cloud by Terraform-provisioned Container Apps secrets (Neon pooled endpoint
+for runtime, direct endpoint for migrations). The PWA reads `/config.json` at startup
+(`frontend/public/config.json` locally; generated from env vars by the web container).
 
 ## Cloud deployment (SC-011)
 
-```bash
-az acr build --registry <acr-name> --image birrapoint-api:latest backend/src/BirraPoint.Api
-az acr build --registry <acr-name> --image birrapoint-web:latest frontend
-# (or an equivalent CI build/push step — Terraform, unlike azd, does not build images itself)
-
-cd infra/terraform
-terraform init    # remote state in Azure Storage
-terraform apply   # provisions ACR (if not already present), the ACA environment, container apps
-                   # for frontend (public ingress), backend, and Keycloak, and the Neon database
-                   # (Neon provider, or wires up a pre-created Neon project — see the Terraform
-                   # module's own README for which) — zero manual configuration steps thereafter
+```powershell
+# One-time: az login; docker login; copy infra/terraform/terraform.tfvars.example → terraform.tfvars
+$env:NEON_API_KEY = "<neon api key>"
+./infra/deploy.ps1 -ImageNamespace <dockerhub-user-or-org> [-AutoApprove]
+# Idempotent: creates the Terraform state storage if missing, builds + pushes birrapoint-api,
+# -web and -keycloak to Docker Hub (tag = commit SHA), then terraform init + apply: ACA
+# environment, the three Container Apps (web public, API internal-only, Keycloak public) and the
+# Neon project with databases `birrapoint` + `keycloak`. Prints web_url / keycloak_url.
 ```
+
+Restore: Neon point-in-time recovery, procedure in `infra/terraform/README.md` (FR-047).
+
+Local production-image smoke (no Azure needed): build the three images
+(`docker build -f backend/src/BirraPoint.Api/Dockerfile backend`, `docker build frontend`,
+`docker build infra/keycloak`) and run them on one Docker network with a `postgres:16`
+container; the web container needs `API_UPSTREAM=http://<api container>:8080` and
+`KEYCLOAK_URL`.
 
 ## Test commands
 
