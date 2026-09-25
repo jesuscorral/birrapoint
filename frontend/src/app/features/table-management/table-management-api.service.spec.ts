@@ -3,7 +3,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 
-import { environment } from '../../../environments/environment';
+import { APP_CONFIG } from '../../core/config/app-config.model';
+import { TEST_APP_CONFIG } from '../../core/config/app-config.testing';
 import { TableManagementApiService } from './table-management-api.service';
 import type {
   JudgeListItem,
@@ -41,7 +42,11 @@ describe('TableManagementApiService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: APP_CONFIG, useValue: TEST_APP_CONFIG },
+      ],
     });
     service = TestBed.inject(TableManagementApiService);
     httpMock = TestBed.inject(HttpTestingController);
@@ -52,7 +57,7 @@ describe('TableManagementApiService', () => {
   it('getTables() gets the competition tables', async () => {
     const result = firstValueFrom(service.getTables('c1'));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1/tables`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/tables`);
     expect(req.request.method).toBe('GET');
     req.flush([table]);
 
@@ -65,7 +70,7 @@ describe('TableManagementApiService', () => {
     ];
     const result = firstValueFrom(service.getJudges('c1'));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1/judges`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/judges`);
     expect(req.request.method).toBe('GET');
     req.flush(judges);
 
@@ -78,7 +83,7 @@ describe('TableManagementApiService', () => {
       service.createTable('c1', { name: 'Mesa 1', judgeIds: ['j1'], beerEntryIds: ['e1'] }),
     );
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1/tables`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/tables`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ name: 'Mesa 1', judgeIds: ['j1'], beerEntryIds: ['e1'] });
     req.flush(mutationResult);
@@ -92,7 +97,9 @@ describe('TableManagementApiService', () => {
       service.updateTable('c1', 't1', { name: 'Mesa 1', judgeIds: [], beerEntryIds: [] }),
     );
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1/tables/t1`);
+    const req = httpMock.expectOne(
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/tables/t1`,
+    );
     expect(req.request.method).toBe('PUT');
     expect(req.request.body).toEqual({ name: 'Mesa 1', judgeIds: [], beerEntryIds: [] });
     req.flush(mutationResult);

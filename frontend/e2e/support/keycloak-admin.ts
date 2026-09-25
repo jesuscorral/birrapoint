@@ -2,7 +2,7 @@
 // us1-auth.spec.ts. Deliberately NOT editing infra/keycloak/birrapoint-realm.json: Keycloak only
 // imports that file once at container start, so seeding a fixed judge credential there would make
 // the first test run pass and every rerun after it flaky (the temp password would already be
-// consumed/changed). Values below mirror frontend/src/environments/environment.ts and the
+// consumed/changed). Values below mirror frontend/public/config.json and the
 // `birrapoint-api-admin` service-account client in infra/keycloak/birrapoint-realm.json — the
 // client secret is the same committed LOCAL-DEV placeholder already used by Program.cs/AppHost.cs
 // (FR-046; production injects a real one and never runs this suite against it).

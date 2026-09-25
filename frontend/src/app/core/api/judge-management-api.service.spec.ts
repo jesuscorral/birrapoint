@@ -3,7 +3,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 
-import { environment } from '../../../environments/environment';
+import { APP_CONFIG } from '../config/app-config.model';
+import { TEST_APP_CONFIG } from '../config/app-config.testing';
 import { JudgeManagementApiService } from './judge-management-api.service';
 import type { JudgeProfile, RegisterJudgesResult } from './judge-management-api.service';
 
@@ -29,7 +30,11 @@ describe('JudgeManagementApiService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: APP_CONFIG, useValue: TEST_APP_CONFIG },
+      ],
     });
     service = TestBed.inject(JudgeManagementApiService);
     httpMock = TestBed.inject(HttpTestingController);
@@ -46,7 +51,7 @@ describe('JudgeManagementApiService', () => {
       service.registerJudges('c1', ['ada@example.com', 'grace@example.com']),
     );
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1/judges`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/judges`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ emails: ['ada@example.com', 'grace@example.com'] });
     req.flush(registerResult);
@@ -57,7 +62,7 @@ describe('JudgeManagementApiService', () => {
   it('getJudges() gets the delivery status list', async () => {
     const result = firstValueFrom(service.getJudges('c1'));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1/judges`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/judges`);
     expect(req.request.method).toBe('GET');
     req.flush(judges);
 
@@ -68,7 +73,9 @@ describe('JudgeManagementApiService', () => {
     const updated: JudgeProfile = { ...judges[0], email: 'ada2@example.com' };
     const result = firstValueFrom(service.updateJudgeEmail('c1', 'j1', 'ada2@example.com'));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1/judges/j1`);
+    const req = httpMock.expectOne(
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/judges/j1`,
+    );
     expect(req.request.method).toBe('PUT');
     expect(req.request.body).toEqual({ email: 'ada2@example.com' });
     req.flush(updated);
@@ -80,7 +87,7 @@ describe('JudgeManagementApiService', () => {
     const result = firstValueFrom(service.resendInvitation('c1', 'j1'));
 
     const req = httpMock.expectOne(
-      `${environment.apiBaseUrl}/api/v1/competitions/c1/judges/j1/invitation`,
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/judges/j1/invitation`,
     );
     expect(req.request.method).toBe('POST');
     req.flush({ status: 'Pending' });
@@ -92,7 +99,7 @@ describe('JudgeManagementApiService', () => {
     const result = firstValueFrom(service.notifyJudges('c1'));
 
     const req = httpMock.expectOne(
-      `${environment.apiBaseUrl}/api/v1/competitions/c1/judges/notify`,
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/judges/notify`,
     );
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({});

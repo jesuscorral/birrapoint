@@ -3,7 +3,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 
-import { environment } from '../../../environments/environment';
+import { APP_CONFIG } from '../config/app-config.model';
+import { TEST_APP_CONFIG } from '../config/app-config.testing';
 import { ImportApiService } from './import-api.service';
 import type { EditImportRowRequest, ImportBatch, ImportRow } from './import-api.service';
 
@@ -45,7 +46,11 @@ describe('ImportApiService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: APP_CONFIG, useValue: TEST_APP_CONFIG },
+      ],
     });
     service = TestBed.inject(ImportApiService);
     httpMock = TestBed.inject(HttpTestingController);
@@ -57,7 +62,7 @@ describe('ImportApiService', () => {
     const file = new File(['data'], 'entries.xlsx');
     const result = firstValueFrom(service.upload('c1', file));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1/imports`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/imports`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toBeInstanceOf(FormData);
     expect((req.request.body as FormData).get('file')).toBe(file);
@@ -69,7 +74,9 @@ describe('ImportApiService', () => {
   it('getImport() gets the current row states', async () => {
     const result = firstValueFrom(service.getImport('c1', 'i1'));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1/imports/i1`);
+    const req = httpMock.expectOne(
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/imports/i1`,
+    );
     expect(req.request.method).toBe('GET');
     req.flush(batch);
 
@@ -100,7 +107,7 @@ describe('ImportApiService', () => {
     const result = firstValueFrom(service.editRow('c1', 'i1', 1, body));
 
     const req = httpMock.expectOne(
-      `${environment.apiBaseUrl}/api/v1/competitions/c1/imports/i1/rows/1`,
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/imports/i1/rows/1`,
     );
     expect(req.request.method).toBe('PUT');
     expect(req.request.body).toEqual(body);
@@ -114,7 +121,7 @@ describe('ImportApiService', () => {
     const result = firstValueFrom(service.excludeRow('c1', 'i1', 1));
 
     const req = httpMock.expectOne(
-      `${environment.apiBaseUrl}/api/v1/competitions/c1/imports/i1/rows/1/exclude`,
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/imports/i1/rows/1/exclude`,
     );
     expect(req.request.method).toBe('POST');
     req.flush(updatedRow);
@@ -131,7 +138,7 @@ describe('ImportApiService', () => {
     const result = firstValueFrom(service.consolidate('c1', 'i1'));
 
     const req = httpMock.expectOne(
-      `${environment.apiBaseUrl}/api/v1/competitions/c1/imports/i1/consolidate`,
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/imports/i1/consolidate`,
     );
     expect(req.request.method).toBe('POST');
     req.flush(consolidateResult);
@@ -143,7 +150,7 @@ describe('ImportApiService', () => {
     const result = firstValueFrom(service.revalidate('c1', 'i1'));
 
     const req = httpMock.expectOne(
-      `${environment.apiBaseUrl}/api/v1/competitions/c1/imports/i1/revalidate`,
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/imports/i1/revalidate`,
     );
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({});

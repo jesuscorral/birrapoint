@@ -1,11 +1,14 @@
 import { TestBed } from '@angular/core/testing';
 import type { HubConnection } from '@microsoft/signalr';
-import { HubConnectionState } from '@microsoft/signalr';
+import { HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr';
+import Keycloak from 'keycloak-js';
 
+import { APP_CONFIG } from '../config/app-config.model';
 import {
   COMPETITION_HUB_CONNECTION_FACTORY,
   CompetitionHubService,
 } from './competition-hub.service';
+import type { HubConnectionFactory } from './competition-hub.service';
 
 /** Hand-rolled fake matching only the HubConnection surface this service calls. */
 function createFakeConnection() {
@@ -153,5 +156,50 @@ describe('CompetitionHubService', () => {
 
     expect(fakeConnection.invoke).toHaveBeenCalledWith('JoinTable', 'table-1');
     expect(fakeConnection.invoke).toHaveBeenCalledWith('JoinTable', 'table-2');
+  });
+});
+
+describe('COMPETITION_HUB_CONNECTION_FACTORY (default factory)', () => {
+  function factoryFor(apiBaseUrl: string): HubConnectionFactory {
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: Keycloak, useValue: { token: 'a-token' } },
+        {
+          provide: APP_CONFIG,
+          useValue: { keycloak: { url: '', realm: '', clientId: '' }, apiBaseUrl },
+        },
+      ],
+    });
+    return TestBed.inject(COMPETITION_HUB_CONNECTION_FACTORY);
+  }
+
+  // .build() resolves the URL via an anchor tag and only does so when @microsoft/signalr detects
+  // a real browser (Platform.isBrowser) — under Jest/jsdom it always evaluates to false (Node's
+  // own `process` global trips its isNode check), so a relative URL would throw at .build() time
+  // even though it works fine in an actual browser. Stubbing .build() and asserting on the raw
+  // string passed to .withUrl() instead exercises this service's own logic without depending on
+  // that browser check.
+  function captureRequestedUrl(apiBaseUrl: string): string {
+    const withUrlSpy = jest.spyOn(HubConnectionBuilder.prototype, 'withUrl');
+    const buildSpy = jest
+      .spyOn(HubConnectionBuilder.prototype, 'build')
+      .mockReturnValue({} as HubConnection);
+
+    factoryFor(apiBaseUrl)();
+    const [url] = withUrlSpy.mock.calls[0];
+
+    withUrlSpy.mockRestore();
+    buildSpy.mockRestore();
+    return url;
+  }
+
+  it('builds the connection against an absolute apiBaseUrl', () => {
+    expect(captureRequestedUrl('http://localhost:5121')).toBe(
+      'http://localhost:5121/hubs/competition',
+    );
+  });
+
+  it('builds the connection against a relative path for a same-origin ("") apiBaseUrl', () => {
+    expect(captureRequestedUrl('')).toBe('/hubs/competition');
   });
 });

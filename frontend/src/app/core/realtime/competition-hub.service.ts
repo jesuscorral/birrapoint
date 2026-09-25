@@ -4,7 +4,7 @@ import type { HubConnection } from '@microsoft/signalr';
 import Keycloak from 'keycloak-js';
 import { Observable } from 'rxjs';
 
-import { environment } from '../../../environments/environment';
+import { APP_CONFIG } from '../config/app-config.model';
 import type { CompetitionHubServerEvents } from './competition-hub.events';
 
 export type HubConnectionFactory = () => HubConnection;
@@ -21,9 +21,10 @@ export const COMPETITION_HUB_CONNECTION_FACTORY = new InjectionToken<HubConnecti
     providedIn: 'root',
     factory: () => {
       const keycloak = inject(Keycloak);
+      const config = inject(APP_CONFIG);
       return () =>
         new HubConnectionBuilder()
-          .withUrl(`${environment.apiBaseUrl}/hubs/competition`, {
+          .withUrl(`${config.apiBaseUrl}/hubs/competition`, {
             accessTokenFactory: () => keycloak.token ?? '',
             // @microsoft/signalr defaults withCredentials to true, which requires the backend's
             // CORS policy to set AllowCredentials — it doesn't (auth here is bearer-token via

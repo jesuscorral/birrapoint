@@ -17,13 +17,15 @@ independently functional**, including US13 (organizer competition selection, P2,
 of Phase 16 per its own dependency note — it only needed `GET /competitions` from US2). Phase 15
 (Polish & Cross-Cutting Concerns, T089–T094 — accessibility sweep, performance budgets, bundle
 budget enforcement, full quickstart validation, this file, security pass) is in progress. Phase 16
-(Deployment & Operations — Dockerfiles, Bicep/`azd`, backups, ops verification) has not started.
+(Deployment & Operations) is in progress: T095–T097 (Dockerfiles, Terraform + Neon, Docker Hub
+images, `infra/deploy.ps1`) are implemented; T098 (health/OpenTelemetry in ACA) and T099 (validated
+fresh cloud deploy) are pending.
 `Docs/arquitectura_viva.md` tracks the actual current system state in detail. `Docs/` holds the
 original product definition (in Spanish); the English spec supersedes it.
 
 ## Source of truth (in priority order)
 
-1. `.specify/memory/constitution.md` — v1.2.0, ten principles. Supersedes everything, including
+1. `.specify/memory/constitution.md` — v1.3.1, ten principles. Supersedes everything, including
    this file. Stack deviations require a constitution amendment, not a per-feature choice.
 2. `specs/001-birrapoint-mvp/spec.md` — user stories US1–US13, FR-001–FR-051, clarifications,
    edge cases, success criteria SC-001–SC-011.
@@ -137,13 +139,18 @@ k6 run infra/perf/api-budgets.js       # API p95 budgets (reads <200ms, writes <
                                        #   get one (neither Keycloak client here supports
                                        #   non-interactive token grants)
 
-azd up   # cloud deploy — NOT yet real: azure.yaml + infra/bicep/ land in Phase 16
+./infra/deploy.ps1 -ImageNamespace <dockerhub-ns>   # cloud deploy (PowerShell): state bootstrap,
+                                          #   docker build+push to Docker Hub, terraform apply —
+                                          #   prerequisites in infra/terraform/README.md
+docker build -f backend/src/BirraPoint.Api/Dockerfile backend   # API image (context = backend/)
+docker build frontend                     # PWA image (nginx; /config.json generated at start)
+docker build infra/keycloak               # Keycloak image (theme + prod realm baked in)
 ```
 
 ## Repository layout (per plan.md — binding)
 
 ```text
-backend/src/BirraPoint.AppHost/         # Aspire orchestration (local topology + azd model)
+backend/src/BirraPoint.AppHost/         # Aspire orchestration (local topology)
 backend/src/BirraPoint.ServiceDefaults/ # OpenTelemetry, health checks, resilience
 backend/src/BirraPoint.Api/             # single deployable modular monolith
 ├── Domain/        # shared kernel: entities, enums, invariants (see data-model.md)
@@ -155,9 +162,10 @@ backend/tests/     # BirraPoint.Api.UnitTests + BirraPoint.Api.IntegrationTests
 frontend/src/app/  # Feature-Sliced Design: core/ (auth, api, realtime, offline), features/, shared/
 frontend/e2e/      # Playwright suites, incl. e2e/a11y/ (axe-core WCAG gate)
 frontend/scripts/  # build-time checks (bundle gzip budget) not owned by any one feature
-infra/             # bicep/, backup/ (pg_dump job + RESTORE.md), keycloak/birrapoint-realm.json,
+infra/             # deploy.ps1 (single-command deploy), terraform/ (ACA environment + apps,
+                   #   Neon project; images from Docker Hub; remote state in Azure Storage),
+                   #   keycloak/ (realm json, login theme, production Dockerfile),
                    #   perf/ (k6 API-budget scripts)
-azure.yaml         # azd project definition
 ```
 
 Organize by business capability, never by technical layer (no `controllers/`, `services/`,
@@ -237,7 +245,8 @@ Organize by business capability, never by technical layer (no `controllers/`, `s
 - **Testing**: xUnit; `WebApplicationFactory` + Testcontainers (real PostgreSQL — no EF InMemory);
   Jest via `jest-preset-angular` (not Karma); Playwright + `@axe-core/playwright`.
 - **Identity/Infra**: Keycloak 25+ (OIDC, roles `ORGANIZER`/`JUDGE`); multi-stage Docker images
-  (no baked secrets); Bicep + `azd` → Azure Container Apps; Mailpit locally.
+  (no baked secrets); Terraform → Azure Container Apps; PostgreSQL production database on Neon;
+  Mailpit locally.
 
 Any dependency beyond this list must be justified in the plan (Principle V); micro-dependencies
 are rejected.

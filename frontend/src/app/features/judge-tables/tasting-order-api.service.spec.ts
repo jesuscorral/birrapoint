@@ -3,7 +3,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 
-import { environment } from '../../../environments/environment';
+import { APP_CONFIG } from '../../core/config/app-config.model';
+import { TEST_APP_CONFIG } from '../../core/config/app-config.testing';
 import { TastingOrderApiService } from './tasting-order-api.service';
 import type { JudgeSample, JudgeTableMember, JudgeTableSummary } from './tasting-order-api.service';
 
@@ -13,7 +14,11 @@ describe('TastingOrderApiService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: APP_CONFIG, useValue: TEST_APP_CONFIG },
+      ],
     });
     service = TestBed.inject(TastingOrderApiService);
     httpMock = TestBed.inject(HttpTestingController);
@@ -34,7 +39,7 @@ describe('TastingOrderApiService', () => {
     ];
     const result = firstValueFrom(service.getMyTables());
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/me/tables`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/me/tables`);
     expect(req.request.method).toBe('GET');
     req.flush(tables);
 
@@ -55,7 +60,7 @@ describe('TastingOrderApiService', () => {
     ];
     const result = firstValueFrom(service.getTableSamples('t1'));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/me/tables/t1/samples`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/me/tables/t1/samples`);
     expect(req.request.method).toBe('GET');
     req.flush(samples);
 
@@ -66,7 +71,7 @@ describe('TastingOrderApiService', () => {
     const members: JudgeTableMember[] = [{ displayName: 'Ana García', bjcpRank: 'Certificado' }];
     const result = firstValueFrom(service.getTableJudges('t1'));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/me/tables/t1/judges`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/me/tables/t1/judges`);
     expect(req.request.method).toBe('GET');
     req.flush(members);
 
@@ -87,7 +92,7 @@ describe('TastingOrderApiService', () => {
     ];
     const result = firstValueFrom(service.fixOrder('t1', ['e1']));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/me/tables/t1/order`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/me/tables/t1/order`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ orderedBeerEntryIds: ['e1'] });
     req.flush(samples);
@@ -99,7 +104,7 @@ describe('TastingOrderApiService', () => {
     const response = { tableId: 't1' };
     const result = firstValueFrom(service.closeTable('t1'));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/me/tables/t1/close`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/me/tables/t1/close`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toBeNull();
     req.flush(response);

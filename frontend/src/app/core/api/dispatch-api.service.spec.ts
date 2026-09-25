@@ -3,7 +3,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 
-import { environment } from '../../../environments/environment';
+import { APP_CONFIG } from '../config/app-config.model';
+import { TEST_APP_CONFIG } from '../config/app-config.testing';
 import { DispatchApiService } from './dispatch-api.service';
 import type { DispatchStatusRow } from './dispatch-api.service';
 
@@ -13,7 +14,11 @@ describe('DispatchApiService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: APP_CONFIG, useValue: TEST_APP_CONFIG },
+      ],
     });
     service = TestBed.inject(DispatchApiService);
     httpMock = TestBed.inject(HttpTestingController);
@@ -40,7 +45,7 @@ describe('DispatchApiService', () => {
     ];
     const result = firstValueFrom(service.getDispatchStatus('c1'));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1/dispatch`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/dispatch`);
     expect(req.request.method).toBe('GET');
     req.flush(rows);
 
@@ -51,7 +56,7 @@ describe('DispatchApiService', () => {
     const result = firstValueFrom(service.retryDispatch('c1', ['p2']));
 
     const req = httpMock.expectOne(
-      `${environment.apiBaseUrl}/api/v1/competitions/c1/dispatch/retries`,
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/dispatch/retries`,
     );
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ participantIds: ['p2'] });
@@ -65,7 +70,7 @@ describe('DispatchApiService', () => {
       const result = firstValueFrom(service.downloadResultsArchive('c1'));
 
       const req = httpMock.expectOne(
-        `${environment.apiBaseUrl}/api/v1/competitions/c1/results/archive`,
+        `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/results/archive`,
       );
       expect(req.request.method).toBe('GET');
       req.flush(new Blob(['zip-bytes'], { type: 'application/zip' }));
@@ -81,7 +86,7 @@ describe('DispatchApiService', () => {
       const result = firstValueFrom(service.downloadResultsArchive('c1'));
 
       const req = httpMock.expectOne(
-        `${environment.apiBaseUrl}/api/v1/competitions/c1/results/archive`,
+        `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/results/archive`,
       );
       req.flush(new Blob([JSON.stringify({ status: 'Running' })], { type: 'application/json' }), {
         status: 202,
@@ -96,7 +101,7 @@ describe('DispatchApiService', () => {
       const result = firstValueFrom(service.downloadResultsArchive('c1'));
 
       const req = httpMock.expectOne(
-        `${environment.apiBaseUrl}/api/v1/competitions/c1/results/archive`,
+        `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/results/archive`,
       );
       req.flush(new Blob(['not json'], { type: 'text/plain' }), {
         status: 202,

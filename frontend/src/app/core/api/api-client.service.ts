@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import type { Observable } from 'rxjs';
 import { catchError, from, switchMap, throwError } from 'rxjs';
 
-import { environment } from '../../../environments/environment';
+import { APP_CONFIG } from '../config/app-config.model';
 import { toApiError } from './api-error';
 import { blobToText } from './blob-text';
 
@@ -45,7 +45,8 @@ function rethrowBlobError(error: unknown): Observable<never> {
 @Injectable({ providedIn: 'root' })
 export class ApiClient {
   private readonly http = inject(HttpClient);
-  private readonly baseUrl = `${environment.apiBaseUrl}/api/v1`;
+  private readonly config = inject(APP_CONFIG);
+  private readonly baseUrl = `${this.config.apiBaseUrl}/api/v1`;
 
   get<T>(path: string, options?: ApiRequestOptions): Observable<T> {
     return this.http.get<T>(this.url(path), options).pipe(catchError(rethrowAsApiError));

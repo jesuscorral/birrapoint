@@ -3,7 +3,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 
-import { environment } from '../../../environments/environment';
+import { APP_CONFIG } from '../config/app-config.model';
+import { TEST_APP_CONFIG } from '../config/app-config.testing';
 import { EntriesApiService } from './entries-api.service';
 import type { EntryListItem } from './entries-api.service';
 
@@ -13,7 +14,11 @@ describe('EntriesApiService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: APP_CONFIG, useValue: TEST_APP_CONFIG },
+      ],
     });
     service = TestBed.inject(EntriesApiService);
     httpMock = TestBed.inject(HttpTestingController);
@@ -42,7 +47,7 @@ describe('EntriesApiService', () => {
     ];
     const result = firstValueFrom(service.getEntries('c1'));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1/entries`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/entries`);
     expect(req.request.method).toBe('GET');
     req.flush(entries);
 

@@ -3,7 +3,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 
-import { environment } from '../../../environments/environment';
+import { APP_CONFIG } from '../config/app-config.model';
+import { TEST_APP_CONFIG } from '../config/app-config.testing';
 import { CatalogApiService } from './catalog-api.service';
 import type { StyleDetail } from './catalog-api.service';
 
@@ -46,7 +47,11 @@ describe('CatalogApiService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: APP_CONFIG, useValue: TEST_APP_CONFIG },
+      ],
     });
     service = TestBed.inject(CatalogApiService);
     httpMock = TestBed.inject(HttpTestingController);
@@ -57,7 +62,7 @@ describe('CatalogApiService', () => {
   it('getStyleDetail() gets the full BJCP style detail by code', async () => {
     const result = firstValueFrom(service.getStyleDetail('21A'));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/styles/21A`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/styles/21A`);
     expect(req.request.method).toBe('GET');
     req.flush(detail);
 
@@ -66,22 +71,22 @@ describe('CatalogApiService', () => {
 
   it('caches a fetched style detail in memory and does not refetch it on a later call', async () => {
     const firstResult = firstValueFrom(service.getStyleDetail('21A'));
-    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/styles/21A`).flush(detail);
+    httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/styles/21A`).flush(detail);
     expect(await firstResult).toEqual(detail);
 
     const secondResult = firstValueFrom(service.getStyleDetail('21A'));
-    httpMock.expectNone(`${environment.apiBaseUrl}/api/v1/styles/21A`);
+    httpMock.expectNone(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/styles/21A`);
     expect(await secondResult).toEqual(detail);
   });
 
   it('fetches a different code independently of a cached one', async () => {
     const firstResult = firstValueFrom(service.getStyleDetail('21A'));
-    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/styles/21A`).flush(detail);
+    httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/styles/21A`).flush(detail);
     expect(await firstResult).toEqual(detail);
 
     const otherDetail = { ...detail, code: '4A', name: 'Munich Helles' };
     const otherResult = firstValueFrom(service.getStyleDetail('4A'));
-    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/styles/4A`).flush(otherDetail);
+    httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/styles/4A`).flush(otherDetail);
 
     expect((await otherResult).code).toBe('4A');
   });

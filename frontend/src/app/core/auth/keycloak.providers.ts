@@ -7,9 +7,11 @@ import {
 } from 'keycloak-angular';
 import type { KeycloakConfig, KeycloakInitOptions } from 'keycloak-js';
 
-import { environment } from '../../../environments/environment';
+import type { AppConfig } from '../config/app-config.model';
 
-export const keycloakConfig: KeycloakConfig = environment.keycloak;
+export function buildKeycloakConfig(config: AppConfig): KeycloakConfig {
+  return config.keycloak;
+}
 
 // `check-sso` silently checks if there's an active session but doesn't force login.
 // The public /welcome landing (Angular) is guarded by role-based redirects at the route level,
@@ -23,9 +25,9 @@ export const keycloakInitOptions: KeycloakInitOptions = {
   pkceMethod: 'S256',
 };
 
-export function provideAppKeycloak(): EnvironmentProviders {
+export function provideAppKeycloak(config: AppConfig): EnvironmentProviders {
   return provideKeycloak({
-    config: keycloakConfig,
+    config: buildKeycloakConfig(config),
     initOptions: keycloakInitOptions,
     // Silent token refresh (R-11) driven by user activity, logs out on prolonged inactivity.
     features: [withAutoRefreshToken()],

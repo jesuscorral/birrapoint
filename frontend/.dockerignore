@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.angular/
+coverage/
+e2e/
+test-results/
+playwright-report/
+blob-report/
+Dockerfile
+.dockerignore

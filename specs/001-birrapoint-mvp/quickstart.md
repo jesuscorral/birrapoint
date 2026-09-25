@@ -11,7 +11,9 @@ This is the end-to-end validation guide for the feature. Commands mirror `CLAUDE
 - Docker Desktop (container runtime for the Aspire-managed PostgreSQL 16, Keycloak 25+, Mailpit)
 - .NET 10 SDK
 - Node.js 24+ / npm 10+ (Jest loads `jest.config.ts` via Node's native TS type stripping — no ts-node)
-- Azure Developer CLI (`azd`) — cloud deployment only
+- Cloud deployment only: Azure CLI (`az login`), Terraform ≥ 1.9, a Docker Hub account
+  (`docker login`), a Neon API key in `NEON_API_KEY`, SMTP relay credentials — details in
+  `infra/terraform/README.md`
 
 ## Environment up
 
@@ -30,18 +32,33 @@ dotnet run --project backend/src/BirraPoint.AppHost
 cd frontend && npm ci && npm start
 ```
 
-Configuration is environment-variable driven (no secrets in the repo): `ConnectionStrings__Db`,
-`Keycloak__Authority`, `Keycloak__AdminClientId/Secret`, `Smtp__Host/Port` — supplied locally by
-the AppHost, in the cloud by Bicep-provisioned env vars/secrets.
+Configuration is environment-variable driven (no secrets in the repo or in any image):
+`ConnectionStrings__db` (+ `ConnectionStrings__dbDirect` for migrations in the cloud),
+`Database__MigrateOnStartup`, `Keycloak__Authority`, `Keycloak__AdminClientId/Secret`,
+`Smtp__Host/Port/Username/Password/UseStartTls/From`, `Frontend__BaseUrl` — supplied locally by
+the AppHost, in the cloud by Terraform-provisioned Container Apps secrets (Neon pooled endpoint
+for runtime, direct endpoint for migrations). The PWA reads `/config.json` at startup
+(`frontend/public/config.json` locally; generated from env vars by the web container).
 
 ## Cloud deployment (SC-011)
 
-```bash
-azd auth login
-azd up   # builds the Docker images, pushes to ACR, provisions the ACA environment via Bicep
-         # (frontend public ingress, backend, Keycloak, PostgreSQL container + backup job),
-         # and deploys — zero manual configuration steps
+```powershell
+# One-time: az login; docker login; copy infra/terraform/terraform.tfvars.example → terraform.tfvars
+$env:NEON_API_KEY = "<neon api key>"
+./infra/deploy.ps1 -ImageNamespace <dockerhub-user-or-org> [-AutoApprove]
+# Idempotent: creates the Terraform state storage if missing, builds + pushes birrapoint-api,
+# -web and -keycloak to Docker Hub (tag = commit SHA), then terraform init + apply: ACA
+# environment, the three Container Apps (web public, API internal-only, Keycloak public) and the
+# Neon project with databases `birrapoint` + `keycloak`. Prints web_url / keycloak_url.
 ```
+
+Restore: Neon point-in-time recovery, procedure in `infra/terraform/README.md` (FR-047).
+
+Local production-image smoke (no Azure needed): build the three images
+(`docker build -f backend/src/BirraPoint.Api/Dockerfile backend`, `docker build frontend`,
+`docker build infra/keycloak`) and run them on one Docker network with a `postgres:16`
+container; the web container needs `API_UPSTREAM=http://<api container>:8080` and
+`KEYCLOAK_URL`.
 
 ## Test commands
 
@@ -101,5 +118,7 @@ Each scenario maps to a spec user story (US) and must pass before that story is 
   p95 budgets verified with `k6 run infra/perf/api-budgets.js`; initial bundle gzip size gated by
   `npm run build:budget` (500 KB, Principle IX).
 - Operations: health endpoints + OpenTelemetry visible for every service in the Aspire dashboard
-  and in ACA (FR-048); a fresh `azd up` into a clean resource group completes with zero manual
-  steps (SC-011); backup/restore procedure exercised once per `infra/backup/RESTORE.md` (FR-047).
+  and in ACA (FR-048); a fresh `terraform apply` into a clean resource group + Neon project
+  completes with zero manual steps beyond the documented prerequisites (SC-011); Neon's
+  point-in-time recovery documented as the restore path in place of a self-managed backup job
+  (FR-047).

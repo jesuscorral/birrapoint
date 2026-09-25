@@ -42,3 +42,12 @@ appsettings.*.Local.json
 *.tmp
 .DS_Store
 Thumbs.db
+
+# Terraform (state lives in Azure Storage; tfvars may hold secrets — only the example is committed)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+*.tfplan

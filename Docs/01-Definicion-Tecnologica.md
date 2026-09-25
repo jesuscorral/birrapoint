@@ -30,16 +30,16 @@ tags: [birrapoint, arquitectura, .NET, angular, keycloak]
 * **Gestión:** Keycloak se encarga de las pantallas de login, forzado de cambio de contraseñas temporales y generación de JWT. El backend en .NET se limita a verificar la firma y autorizar mediante Claims (Roles: `ORGANIZER`, `JUDGE`).
 
 ## 4. Persistencia de Datos
-* **Base de Datos:** **PostgreSQL**.
+* **Base de Datos:** **PostgreSQL**. En local, contenedor orquestado por Aspire; en producción, **Neon** (Postgres-as-a-service gestionado).
 * **ORM:** **Entity Framework Core (EF Core)** con el proveedor `Npgsql`. Se utilizarán migraciones *Code-First* para mantener sincronizado el esquema relacional.
 
 ## 5. Infraestructura y Despliegue
 * **Contenerización:** Imágenes Docker multi-stage para todos los componentes (backend: imagen SDK de .NET para build/publish → runtime ASP.NET; frontend: build con Node.js → Nginx Alpine sirviendo los estáticos compilados). Las imágenes nunca contienen secretos ni configuración de entorno.
 * **Orquestación Local:** **.NET Aspire** — proyecto `AppHost` centralizado que levanta PostgreSQL, Keycloak, el backend y el frontend con un solo comando, y proyecto `ServiceDefaults` que inyecta OpenTelemetry, health checks y resiliencia estándar.
-* **Infraestructura en la Nube (IaC):** **Bicep** integrado con Azure Developer CLI: `azd up` construye las imágenes, las publica en el registro y despliega en un único comando.
+* **Infraestructura en la Nube (IaC):** **Terraform** (HCL). Un paso previo de build/push de imágenes (CI, o `docker build`/`docker push`) las publica en Docker Hub; `terraform apply` provisiona después el entorno ACA y los recursos de aplicación. El *state* de Terraform vive en un backend remoto (Azure Storage), nunca en el repositorio.
 * **Hosting (Azure Container Apps):**
-    * *Registro:* Azure Container Registry (ACR).
+    * *Registro:* Docker Hub (repositorios privados con token de acceso inyectado como secreto de registro del Container App).
     * *Frontend:* Container App (imagen Angular/Nginx) con ingress público.
     * *Backend:* Container App (imagen .NET) con ingress.
     * *Identidad:* Keycloak como Container App en el mismo entorno ACA.
-    * *Base de Datos:* PostgreSQL como contenedor en el entorno ACA, con almacenamiento persistente, backup/export programado y procedimiento de restauración documentado.
+    * *Base de Datos:* **Neon** (PostgreSQL gestionado, externo al entorno ACA) — connection string inyectada como secreto del Container App del backend. Backup/PITR los gestiona Neon; no hay procedimiento de restauración propio que mantener.

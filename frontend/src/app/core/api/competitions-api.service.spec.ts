@@ -3,7 +3,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 
-import { environment } from '../../../environments/environment';
+import { APP_CONFIG } from '../config/app-config.model';
+import { TEST_APP_CONFIG } from '../config/app-config.testing';
 import { CompetitionsApiService } from './competitions-api.service';
 import type {
   CompetitionDetail,
@@ -31,7 +32,11 @@ describe('CompetitionsApiService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: APP_CONFIG, useValue: TEST_APP_CONFIG },
+      ],
     });
     service = TestBed.inject(CompetitionsApiService);
     httpMock = TestBed.inject(HttpTestingController);
@@ -48,7 +53,7 @@ describe('CompetitionsApiService', () => {
     };
     const result = firstValueFrom(service.create(payload));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual(payload);
     req.flush(detail);
@@ -66,7 +71,7 @@ describe('CompetitionsApiService', () => {
     };
     const result = firstValueFrom(service.update('c1', payload));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1`);
     expect(req.request.method).toBe('PUT');
     expect(req.request.body).toEqual(payload);
     req.flush({ ...detail, description: payload.description ?? null });
@@ -77,7 +82,7 @@ describe('CompetitionsApiService', () => {
   it('getById() gets /competitions/{id}', async () => {
     const result = firstValueFrom(service.getById('c1'));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1`);
     expect(req.request.method).toBe('GET');
     req.flush(detail);
 
@@ -97,7 +102,7 @@ describe('CompetitionsApiService', () => {
     ];
     const result = firstValueFrom(service.list());
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions`);
     expect(req.request.method).toBe('GET');
     req.flush(summaries);
 
@@ -107,7 +112,7 @@ describe('CompetitionsApiService', () => {
   it('changeState() posts the target state to /competitions/{id}/state', async () => {
     const result = firstValueFrom(service.changeState('c1', 'Active'));
 
-    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/competitions/c1/state`);
+    const req = httpMock.expectOne(`${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/state`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ target: 'Active' });
     req.flush({ state: 'Active' });
