@@ -817,7 +817,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                       [min]="0"
                       [max]="section.max"
                       [required]="true"
-                      [formControlName]="section.scoreControl"
+                      [formControl]="control(section.scoreControl)"
                       [hasError]="hasScoreError(section)"
                       [errorMessage]="'Indica una puntuación entre 0 y ' + section.max + '.'"
                     ></bp-input>
@@ -827,7 +827,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
                       [id]="section.key + '-comment'"
                       [rows]="4"
                       [required]="true"
-                      [formControlName]="section.commentControl"
+                      [formControl]="control(section.commentControl)"
                       [hasError]="hasCommentError(section)"
                       [errorMessage]="commentErrorMessage(section)"
                       [hint]="commentHint(section)"
@@ -1224,6 +1224,14 @@ export class EvaluationSheetComponent implements OnInit, OnDestroy {
 
   protected goToTab(tab: ActiveTab): void {
     this.activeTab.set(tab);
+  }
+
+  // The score/comment inputs live in one @if block that is reused across section tabs, so they
+  // bind via [formControl] rather than formControlName: FormControlName only resolves its control
+  // once, on first change, and would keep every tab writing into the first section's controls.
+  // FormControlDirective re-binds whenever the control instance it is given changes.
+  protected control(name: string): FormControl {
+    return this.form.get(name) as FormControl;
   }
 
   protected sectionValid(section: EvaluationSectionConfig): boolean {
