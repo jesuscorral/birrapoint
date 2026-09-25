@@ -677,6 +677,43 @@ describe('EvaluationSheetComponent', () => {
       expect(sectionNavButton(fixture.nativeElement, 'Apariencia').textContent).toContain('✓');
     });
 
+    it('binds each section tab to its own score and comment, so every section gets its own ✓', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      const tabs = [
+        { label: 'Apariencia', key: 'appearance' },
+        { label: 'Aroma', key: 'aroma' },
+        { label: 'Sabor', key: 'flavor' },
+        { label: 'Sensación en boca', key: 'mouthfeel' },
+        { label: 'Impresión general', key: 'overall' },
+      ] as const;
+
+      for (const tab of tabs) {
+        sectionNavButton(fixture.nativeElement, tab.label).click();
+        fixture.detectChanges();
+        fillField(fixture.nativeElement, `${tab.key}-score`, String(validScores()[tab.key]));
+        fillField(fixture.nativeElement, `${tab.key}-comment`, validComments()[tab.key]);
+        fixture.detectChanges();
+      }
+
+      const form = fixture.componentInstance.form;
+      for (const tab of tabs) {
+        expect(form.get(`${tab.key}Score`)?.value).toBe(validScores()[tab.key]);
+        expect(form.get(`${tab.key}Comment`)?.value).toBe(validComments()[tab.key]);
+        expect(sectionNavButton(fixture.nativeElement, tab.label).textContent).toContain('✓');
+      }
+
+      // Going back to an earlier tab shows that tab's own comment, not the last one typed.
+      sectionNavButton(fixture.nativeElement, 'Aroma').click();
+      fixture.detectChanges();
+      const aromaComment = fixture.nativeElement.querySelector(
+        '#aroma-comment',
+      ) as HTMLTextAreaElement;
+      expect(aromaComment.value).toBe(validComments().aroma);
+    });
+
     it('reaches Resumen showing every score, comment and the total, submit button included', async () => {
       const fixture = createComponent();
       await flush();
