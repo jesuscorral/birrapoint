@@ -69,13 +69,18 @@ function Get-HttpStatusCode {
 function Get-DockerHubAuthHeader {
     # With DOCKERHUB_USERNAME + DOCKERHUB_TOKEN (a personal access token) in the environment, trade
     # them for a bearer token so private repositories can be checked; otherwise anonymous access.
+    # One login per credential set and session.
     if (-not $env:DOCKERHUB_USERNAME -or -not $env:DOCKERHUB_TOKEN) { return @{} }
+    $cacheKey = "$($env:DOCKERHUB_USERNAME):$($env:DOCKERHUB_TOKEN)"
+    if ($script:DockerHubAuth -and $script:DockerHubAuth.Key -eq $cacheKey) { return $script:DockerHubAuth.Header }
 
     $body = @{ identifier = $env:DOCKERHUB_USERNAME; secret = $env:DOCKERHUB_TOKEN } | ConvertTo-Json -Compress
     $response = Invoke-RestMethod -Uri 'https://hub.docker.com/v2/auth/token' -Method Post `
         -ContentType 'application/json' -Body $body -TimeoutSec 30
     if (-not $response.access_token) { throw 'Docker Hub authentication returned no access token.' }
-    @{ Authorization = "Bearer $($response.access_token)" }
+    $header = @{ Authorization = "Bearer $($response.access_token)" }
+    $script:DockerHubAuth = @{ Key = $cacheKey; Header = $header }
+    $header
 }
 
 function Test-DockerHubTag {
@@ -96,20 +101,21 @@ function Test-DockerHubTag {
 }
 
 function New-RevisionSuffix {
-    # A unique suffix forces a new revision even when the image reference is unchanged — the only
-    # way to make Container Apps re-pull a moved `latest` — and never reuses a suffix, which
+    # A unique suffix forces a new revision even when the image reference is unchanged - the only
+    # way to make Container Apps re-pull a moved `latest` - and never reuses a suffix, which
     # Container Apps rejects. Rules: lowercase alphanumerics and single hyphens, starting with a
-    # letter; the revision name <app>--<suffix> is at most 64 characters.
+    # letter; the revision name <app>--<suffix> is at most 64 characters (checked when -AppName is
+    # given; the Terraform-applied infra suffix is length-checked by Terraform's own validation).
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)] [string] $Tag,
-        [Parameter(Mandatory = $true)] [string] $AppName,
+        [string] $AppName,
         [datetime] $Timestamp = (Get-Date).ToUniversalTime()
     )
     $label = if ($Tag -match '^\d') { 'v' + ($Tag -replace '\.', '-') } else { $Tag.ToLowerInvariant() }
     $suffix = "$label-$($Timestamp.ToString('yyyyMMddHHmmss'))"
     $revisionName = "$AppName--$suffix"
-    if ($revisionName.Length -gt $script:MaxRevisionNameLength) {
+    if ($AppName -and $revisionName.Length -gt $script:MaxRevisionNameLength) {
         throw "Revision name '$revisionName' exceeds the Container Apps limit of $($script:MaxRevisionNameLength) characters."
     }
     $suffix
@@ -119,7 +125,7 @@ function Test-RolloutNeeded {
     # Decides from what is actually serving, not from the app template: in Single revision mode a
     # failed rollout leaves the new image in the template while the previous revision keeps
     # serving. No rollout is needed only when the latest revision is the ready one and runs the
-    # target image — for a pinned release always, for `latest` only when that revision was just
+    # target image - for a pinned release always, for `latest` only when that revision was just
     # created (by the preceding infrastructure apply) and so has just pulled it.
     [CmdletBinding()]
     param(
@@ -133,7 +139,9 @@ function Test-RolloutNeeded {
 }
 
 function Get-RevisionOutcome {
-    # Maps a revision's Container Apps state to Succeeded / Failed / Pending. Without health probes
+    # Maps a revision's Container Apps state to Succeeded / Failed / Degraded / Pending. Degraded is
+    # reported separately because a slow start can pass through it; the caller decides how long it
+    # may last. Without health probes
     # Container Apps' default TCP probe decides `Healthy`; an app allowed to scale to zero (web)
     # may legitimately end provisioned with no replicas, and so no health state.
     [CmdletBinding()]
@@ -145,7 +153,8 @@ function Get-RevisionOutcome {
         [int] $MinReplicas
     )
     if ($ProvisioningState -in 'Failed', 'Deprovisioning', 'Deprovisioned') { return 'Failed' }
-    if ($RunningState -in 'Failed', 'Degraded') { return 'Failed' }
+    if ($RunningState -eq 'Failed') { return 'Failed' }
+    if ($RunningState -eq 'Degraded') { return 'Degraded' }
     if ($ProvisioningState -ne 'Provisioned') { return 'Pending' }
     if ($HealthState -eq 'Healthy') { return 'Succeeded' }
     if ($MinReplicas -eq 0 -and $Replicas -eq 0) { return 'Succeeded' }
