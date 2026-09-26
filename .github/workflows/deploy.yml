@@ -2,7 +2,8 @@
 # Container Apps to a released version (<ns>/birrapoint-<component>-release:X.Y.Z, published by
 # release.yml) with `infra/deploy.ps1 -AppsOnly` — image rollout only. No Terraform, no state, no
 # Neon key: the infrastructure is assumed to exist (created with a full infra/deploy.ps1 run).
-# Rollback = run it again with the previous version. Setup: infra/github-actions-setup.md.
+# Rollback = run it again with the previous version. Only runs when dispatched from main (the
+# `production` environment is also restricted to main). Setup: infra/github-actions-setup.md.
 name: Deploy
 
 on:
@@ -28,13 +29,8 @@ on:
 permissions:
   contents: read
 
-# One production deployment at a time; never cancel one halfway through a rollout.
-concurrency:
-  group: deploy-production
-  cancel-in-progress: false
-
 jobs:
-  # Validates the inputs before anyone is asked to approve.
+  # Validates the inputs - and that the release images exist - before anyone is asked to approve.
   resolve:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -43,9 +39,15 @@ jobs:
       web: ${{ steps.versions.outputs.web }}
       keycloak: ${{ steps.versions.outputs.keycloak }}
     steps:
+      - name: Require dispatch from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Run the Deploy workflow from main (\"Use workflow from: main\")."
+          exit 1
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           sparse-checkout: .github/scripts
+          persist-credentials: false
       - name: Resolve versions
         id: versions
         env:
@@ -71,11 +73,44 @@ jobs:
             echo "| api | $api |"
             echo "| web | $web |"
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Check the release images exist
+        env:
+          IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE }}
+          API: ${{ steps.versions.outputs.api }}
+          WEB: ${{ steps.versions.outputs.web }}
+          KEYCLOAK: ${{ steps.versions.outputs.keycloak }}
+          # Optional read-only token (private repositories); anonymous otherwise.
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_READ_TOKEN }}
+        run: |
+          if [ -z "$IMAGE_NAMESPACE" ]; then
+            echo "::error::Repository variable IMAGE_NAMESPACE (Docker Hub user/org) is not set."
+            exit 1
+          fi
+          missing=0
+          for pair in "keycloak:$KEYCLOAK" "api:$API" "web:$WEB"; do
+            component="${pair%%:*}" version="${pair#*:}"
+            status=0
+            .github/scripts/dockerhub-tag-exists.sh "$IMAGE_NAMESPACE" "birrapoint-$component-release" "$version" || status=$?
+            case "$status" in
+              0) ;;
+              1) echo "::error::$IMAGE_NAMESPACE/birrapoint-$component-release:$version does not exist (run the Release workflow first)."; missing=1 ;;
+              *) exit 1 ;;
+            esac
+          done
+          exit "$missing"
 
   deploy:
     needs: resolve
+    # Defence in depth next to the environment's main-only branch policy: the production Azure
+    # identity trusts the `production` environment, so no other branch may reach this job.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # One production rollout at a time, never cancelled halfway; held only once approved.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     # Required reviewers are configured on this environment (infra/github-actions-setup.md); its
     # secrets hold the Azure OIDC identity, scoped to the application resource group.
     environment: production
@@ -90,12 +125,8 @@ jobs:
       KEYCLOAK_VERSION: ${{ needs.resolve.outputs.keycloak }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - name: Verify configuration
-        run: |
-          if [ -z "$IMAGE_NAMESPACE" ]; then
-            echo "::error::Repository variable IMAGE_NAMESPACE (Docker Hub user/org) is not set."
-            exit 1
-          fi
+        with:
+          persist-credentials: false
       - name: Azure login (OIDC)
         uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
@@ -105,28 +136,36 @@ jobs:
       - name: Roll out images
         shell: pwsh
         env:
-          # Lets deploy.ps1 check private repositories on Docker Hub.
+          # Optional read-only token so deploy.ps1 can check private repositories; this job never
+          # gets the read/write token CI and releases push with.
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_READ_TOKEN }}
         run: |
           ./infra/deploy.ps1 -AppsOnly -ImageNamespace $env:IMAGE_NAMESPACE -NamePrefix $env:NAME_PREFIX `
             -ApiVersion $env:API_VERSION -WebVersion $env:WEB_VERSION -KeycloakVersion $env:KEYCLOAK_VERSION
       - name: Summary
         if: always()
+        env:
+          AZURE_EXTENSION_USE_DYNAMIC_INSTALL: yes_without_prompt
         run: |
           rg="rg-$NAME_PREFIX"
           {
             echo '## Production after this run'
             echo
-            echo '| App | Serving revision | Image |'
-            echo '|---|---|---|'
+            echo '| App | Latest revision | Serving revision | Serving image |'
+            echo '|---|---|---|---|'
             for app in "$NAME_PREFIX-kc" "$NAME_PREFIX-api" "$NAME_PREFIX-web"; do
-              ready="$(az containerapp show --name "$app" --resource-group "$rg" --query properties.latestReadyRevisionName --output tsv 2>/dev/null || true)"
-              image=''
+              if ! state="$(az containerapp show --name "$app" --resource-group "$rg" --output tsv \
+                --query '[properties.latestRevisionName, properties.latestReadyRevisionName]' 2>&1)"; then
+                echo "| $app | (could not read: ${state//$'\n'/ }) | | |"
+                continue
+              fi
+              latest="$(echo "$state" | sed -n 1p)" ready="$(echo "$state" | sed -n 2p)"
+              image='(none)'
               if [ -n "$ready" ]; then
                 image="$(az containerapp revision show --name "$app" --resource-group "$rg" --revision "$ready" \
-                  --query 'properties.template.containers[0].image' --output tsv 2>/dev/null || true)"
+                  --query 'properties.template.containers[0].image' --output tsv 2>&1)" || image="(could not read)"
               fi
-              echo "| $app | ${ready:-?} | \`${image:-?}\` |"
+              echo "| $app | $latest | ${ready:-(none)} | \`$image\` |"
             done
           } >> "$GITHUB_STEP_SUMMARY"

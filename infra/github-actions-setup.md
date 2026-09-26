@@ -28,6 +28,10 @@ Commands below are PowerShell. Run them from the repository root, logged in with
 gh secret set DOCKERHUB_USERNAME --body "<docker hub user>"
 gh secret set DOCKERHUB_TOKEN            # paste the token when prompted
 gh variable set IMAGE_NAMESPACE --body "<docker hub user or org>"
+
+# Optional, only needed for private repositories: a separate READ-ONLY token for deploy.yml,
+# which never receives the read/write token above
+gh secret set DOCKERHUB_READ_TOKEN
 ```
 
 `IMAGE_NAMESPACE` must be a **variable**, not a secret. The workflows read `vars.IMAGE_NAMESPACE`,
@@ -50,31 +54,41 @@ $tenant = az account show --query tenantId --output tsv
 $appId = az ad app create --display-name "birrapoint-github-deploy" --query appId --output tsv
 az ad sp create --id $appId | Out-Null
 
-# Trust GitHub's OIDC token, but only for jobs running in the `production` environment
-@{
+# Trust GitHub's OIDC token, but only for jobs running in the `production` environment.
+# Written without a BOM (Windows PowerShell 5.1's `Set-Content -Encoding utf8` adds one).
+$federated = @{
   name      = "github-production"
   issuer    = "https://token.actions.githubusercontent.com"
   subject   = "repo:${repo}:environment:production"
   audiences = @("api://AzureADTokenExchange")
-} | ConvertTo-Json | Set-Content -Encoding utf8 federated.json
+} | ConvertTo-Json
+[IO.File]::WriteAllText("$PWD\federated.json", $federated, (New-Object Text.UTF8Encoding $false))
 az ad app federated-credential create --id $appId --parameters "@federated.json"
 Remove-Item federated.json
 
 # Rights on the application resource group only (Contributor includes the Container Apps
-# `listSecrets` action that `az containerapp update` needs)
-az role assignment create --assignee $appId --role Contributor `
-  --scope "/subscriptions/$sub/resourceGroups/$rg"
+# `listSecrets` action that `az containerapp update` needs). Using the object id avoids a Graph
+# lookup that can fail while the new service principal is still replicating.
+$spObjectId = az ad sp show --id $appId --query id --output tsv
+az role assignment create --assignee-object-id $spObjectId --assignee-principal-type ServicePrincipal `
+  --role Contributor --scope "/subscriptions/$sub/resourceGroups/$rg"
 ```
 
-To narrow the permissions further, replace Contributor with a custom role limited to
-`Microsoft.App/containerApps/*` and `Microsoft.App/containerApps/revisions/*` on that resource
-group.
+The OIDC subject names the environment, not a branch. The environment's main-only branch
+policy in step 3 is what ties this identity to `main`. It is mandatory.
+
+A narrower custom role instead of Contributor is possible, but it must include more than the
+Container Apps actions: `Microsoft.App/managedEnvironments/read` and `join/action`, and the
+operation-status reads. Validate it with a real deploy before relying on it.
 
 ## 3. GitHub `production` environment
 
 ```powershell
-# Create the environment (no-op if it exists)
-gh api --method PUT "repos/$repo/environments/production" | Out-Null
+# Create the environment, restricted to deployments from main (MANDATORY: see step 2)
+@{ deployment_branch_policy = @{ protected_branches = $false; custom_branch_policies = $true } } |
+  ConvertTo-Json | gh api --method PUT "repos/$repo/environments/production" --input - | Out-Null
+gh api --method POST "repos/$repo/environments/production/deployment-branch-policies" `
+  -f name=main -f type=branch | Out-Null
 
 # Azure identity, as environment secrets (only jobs in `production` can read them)
 gh secret set AZURE_CLIENT_ID       --env production --body $appId
@@ -83,8 +97,9 @@ gh secret set AZURE_SUBSCRIPTION_ID --env production --body $sub
 ```
 
 Then add **required reviewers** in Settings → Environments → `production` → Required
-reviewers. With reviewers set, every deploy waits for an approval after its inputs have been
-validated. Optionally, also restrict the environment's deployment branches to `main`.
+reviewers. With reviewers set, every deploy waits for an approval after its inputs (and the
+existence of the release images) have been validated. Check that *Deployment branches and tags*
+shows only `main`. `deploy.yml` also refuses to run from any other branch.
 
 If you changed Terraform's `name_prefix`, set it for `deploy.yml` too:
 `gh variable set NAME_PREFIX --body "<prefix>"`.
@@ -103,8 +118,14 @@ push the bump. In that case:
 2. In `release.yml`'s `finalize` job, mint a token with `actions/create-github-app-token`
    (pinned by SHA), and use it for the checkout and pushes instead of `GITHUB_TOKEN`.
 
+A **tag ruleset** protecting `v*` tags would block the bot's tag push in the same way; the same
+GitHub App bypass applies.
+
 If CI later becomes a required check, remember that docs-only PRs never produce it, because of
-the path filters (T137).
+the path filters (T137). The reusable gates report as `gates / backend` and `gates / frontend`.
+
+`release.yml` and `deploy.yml` refuse to run unless dispatched from `main` ("Use workflow from:
+main" in the Actions tab, the default).
 
 ## Everyday use
 

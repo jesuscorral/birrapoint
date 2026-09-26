@@ -382,9 +382,12 @@ Every finalize step is idempotent ("Re-run failed jobs"). `.github/workflows/wor
 actionlint and the `.github/scripts/version.test.sh` tests when `.github/**` changes.
 
 Deploy (`.github/workflows/deploy.yml`, T136): manual, input `version` (X.Y.Z for all three) with
-optional per-component overrides. A `resolve` job validates the versions before approval; the
-`deploy` job runs in the `production` GitHub environment (required reviewers), logs in to Azure
-with OIDC (federated credential for `environment:production`, Contributor on `rg-<prefix>` only)
+optional per-component overrides; dispatchable from `main` only. A `resolve` job validates the
+versions and checks the release images exist before approval; the `deploy` job runs in the
+`production` GitHub environment (required reviewers, deployment branches restricted to `main` —
+the OIDC subject names the environment, so that policy is what binds the identity to `main`),
+gets only an optional read-only Docker Hub token, logs in to Azure with OIDC (federated
+credential for `environment:production`, Contributor on `rg-<prefix>` only)
 and runs `infra/deploy.ps1 -AppsOnly` — image rollout only, no Terraform/state/Neon; the
 infrastructure is assumed to exist. `concurrency: deploy-production`; the run summary lists each
 app's serving revision and image. One-time configuration: `infra/github-actions-setup.md`.
