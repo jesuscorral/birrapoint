@@ -1,0 +1,132 @@
+# Deploy pipeline (FR-064c, T136). Manually triggered, approval-gated: rolls the production
+# Container Apps to a released version (<ns>/birrapoint-<component>-release:X.Y.Z, published by
+# release.yml) with `infra/deploy.ps1 -AppsOnly` — image rollout only. No Terraform, no state, no
+# Neon key: the infrastructure is assumed to exist (created with a full infra/deploy.ps1 run).
+# Rollback = run it again with the previous version. Setup: infra/github-actions-setup.md.
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version X.Y.Z for all three components
+        type: string
+        required: true
+      api_version:
+        description: Optional override for the API (X.Y.Z)
+        type: string
+        required: false
+      web_version:
+        description: Optional override for the web app (X.Y.Z)
+        type: string
+        required: false
+      keycloak_version:
+        description: Optional override for Keycloak (X.Y.Z)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+# One production deployment at a time; never cancel one halfway through a rollout.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  # Validates the inputs before anyone is asked to approve.
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      api: ${{ steps.versions.outputs.api }}
+      web: ${{ steps.versions.outputs.web }}
+      keycloak: ${{ steps.versions.outputs.keycloak }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          sparse-checkout: .github/scripts
+      - name: Resolve versions
+        id: versions
+        env:
+          VERSION: ${{ inputs.version }}
+          API_VERSION: ${{ inputs.api_version }}
+          WEB_VERSION: ${{ inputs.web_version }}
+          KEYCLOAK_VERSION: ${{ inputs.keycloak_version }}
+        run: |
+          api="$(.github/scripts/version.sh validate "${API_VERSION:-$VERSION}")"
+          web="$(.github/scripts/version.sh validate "${WEB_VERSION:-$VERSION}")"
+          keycloak="$(.github/scripts/version.sh validate "${KEYCLOAK_VERSION:-$VERSION}")"
+          {
+            echo "api=$api"
+            echo "web=$web"
+            echo "keycloak=$keycloak"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo '## Deployment request'
+            echo
+            echo '| Component | Version |'
+            echo '|---|---|'
+            echo "| keycloak | $keycloak |"
+            echo "| api | $api |"
+            echo "| web | $web |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Required reviewers are configured on this environment (infra/github-actions-setup.md); its
+    # secrets hold the Azure OIDC identity, scoped to the application resource group.
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE }}
+      NAME_PREFIX: ${{ vars.NAME_PREFIX || 'birrapoint' }}
+      API_VERSION: ${{ needs.resolve.outputs.api }}
+      WEB_VERSION: ${{ needs.resolve.outputs.web }}
+      KEYCLOAK_VERSION: ${{ needs.resolve.outputs.keycloak }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Verify configuration
+        run: |
+          if [ -z "$IMAGE_NAMESPACE" ]; then
+            echo "::error::Repository variable IMAGE_NAMESPACE (Docker Hub user/org) is not set."
+            exit 1
+          fi
+      - name: Azure login (OIDC)
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Roll out images
+        shell: pwsh
+        env:
+          # Lets deploy.ps1 check private repositories on Docker Hub.
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          ./infra/deploy.ps1 -AppsOnly -ImageNamespace $env:IMAGE_NAMESPACE -NamePrefix $env:NAME_PREFIX `
+            -ApiVersion $env:API_VERSION -WebVersion $env:WEB_VERSION -KeycloakVersion $env:KEYCLOAK_VERSION
+      - name: Summary
+        if: always()
+        run: |
+          rg="rg-$NAME_PREFIX"
+          {
+            echo '## Production after this run'
+            echo
+            echo '| App | Serving revision | Image |'
+            echo '|---|---|---|'
+            for app in "$NAME_PREFIX-kc" "$NAME_PREFIX-api" "$NAME_PREFIX-web"; do
+              ready="$(az containerapp show --name "$app" --resource-group "$rg" --query properties.latestReadyRevisionName --output tsv 2>/dev/null || true)"
+              image=''
+              if [ -n "$ready" ]; then
+                image="$(az containerapp revision show --name "$app" --resource-group "$rg" --revision "$ready" \
+                  --query 'properties.template.containers[0].image' --output tsv 2>/dev/null || true)"
+              fi
+              echo "| $app | ${ready:-?} | \`${image:-?}\` |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"

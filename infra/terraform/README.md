@@ -102,6 +102,10 @@ Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -SkipPublisherCheck
 Invoke-Pester infra/tests
 ```
 
+GitHub Actions publishes the images and deploys releases (`deploy.yml` runs the `-AppsOnly` mode
+below); its one-time setup — Docker Hub token, Azure OIDC identity, `production` environment — is
+in [`infra/github-actions-setup.md`](../github-actions-setup.md).
+
 ### Image-only deployment (`-AppsOnly`)
 
 ```powershell
