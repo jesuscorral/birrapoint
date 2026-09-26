@@ -4,6 +4,12 @@
 # --- Backend API: internal ingress only, reached through the web app's nginx reverse proxy -----
 
 resource "azurerm_container_app" "api" {
+  # The image is rolled out by infra/deploy.ps1 / the deploy pipeline (`az containerapp update`);
+  # Terraform only sets it at creation (FR-064, T134, ADR-0018).
+  lifecycle {
+    ignore_changes = [template[0].container[0].image]
+  }
+
   name                         = local.api_name
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = azurerm_resource_group.main.name
@@ -64,6 +70,10 @@ resource "azurerm_container_app" "api" {
   }
 
   template {
+    # Fresh per apply (infra/deploy.ps1): a rollout leaves its own suffix in state, and Container
+    # Apps rejects a template change that would reuse an existing revision suffix.
+    revision_suffix = var.revision_suffix
+
     # Exactly one replica: SignalR has no backplane and the DispatchJob worker is designed for a
     # single consumer (R-06), so this app does not scale out, and never scales to zero (the
     # worker must keep draining the job queue).
@@ -146,6 +156,12 @@ resource "azurerm_container_app" "api" {
 # --- Keycloak: public ingress for login flows (R-19) ---------------------------------------------
 
 resource "azurerm_container_app" "keycloak" {
+  # The image is rolled out by infra/deploy.ps1 / the deploy pipeline (`az containerapp update`);
+  # Terraform only sets it at creation (FR-064, T134, ADR-0018).
+  lifecycle {
+    ignore_changes = [template[0].container[0].image]
+  }
+
   name                         = local.keycloak_name
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = azurerm_resource_group.main.name
@@ -206,6 +222,10 @@ resource "azurerm_container_app" "keycloak" {
   }
 
   template {
+    # Fresh per apply (infra/deploy.ps1): a rollout leaves its own suffix in state, and Container
+    # Apps rejects a template change that would reuse an existing revision suffix.
+    revision_suffix = var.revision_suffix
+
     min_replicas = 1
     max_replicas = 1
 
@@ -316,6 +336,12 @@ resource "azurerm_container_app" "keycloak" {
 # --- Frontend: public ingress; nginx serves the PWA and proxies /api + /hubs to the API ---------
 
 resource "azurerm_container_app" "web" {
+  # The image is rolled out by infra/deploy.ps1 / the deploy pipeline (`az containerapp update`);
+  # Terraform only sets it at creation (FR-064, T134, ADR-0018).
+  lifecycle {
+    ignore_changes = [template[0].container[0].image]
+  }
+
   name                         = local.web_name
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = azurerm_resource_group.main.name
@@ -351,6 +377,10 @@ resource "azurerm_container_app" "web" {
   }
 
   template {
+    # Fresh per apply (infra/deploy.ps1): a rollout leaves its own suffix in state, and Container
+    # Apps rejects a template change that would reuse an existing revision suffix.
+    revision_suffix = var.revision_suffix
+
     min_replicas = var.web_min_replicas
     max_replicas = 3
 

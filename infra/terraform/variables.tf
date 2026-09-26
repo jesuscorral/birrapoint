@@ -22,14 +22,42 @@ variable "name_prefix" {
 
 # --- Images (Docker Hub, constitution v1.3.1) ---------------------------------------------------
 
-variable "image_namespace" {
-  description = "Docker Hub user or organization owning the birrapoint-api/-web/-keycloak repositories."
+# Full image references, e.g. docker.io/<ns>/birrapoint-api-release:0.3.0 (resolved by
+# infra/deploy.ps1). Used only when a Container App is first created: afterwards the image is
+# owned by the deployment rollout (`az containerapp update`, via infra/deploy.ps1 or the deploy
+# pipeline) and Terraform ignores it (see `lifecycle` in apps.tf), so infrastructure applies never
+# roll an app back to an older image (FR-064, T134).
+
+variable "api_image" {
+  description = "Initial image of the API Container App (ignored after creation)."
   type        = string
 }
 
-variable "image_tag" {
-  description = "Tag of all three images to deploy (infra/deploy.ps1 uses the git commit SHA)."
+variable "web_image" {
+  description = "Initial image of the web Container App (ignored after creation)."
   type        = string
+}
+
+variable "keycloak_image" {
+  description = "Initial image of the Keycloak Container App (ignored after creation)."
+  type        = string
+}
+
+variable "revision_suffix" {
+  description = "Revision suffix for every Container App, unique per apply (infra/deploy.ps1 passes infra-<UTC timestamp>). Each apply therefore creates a new revision of all three apps (a restart); never run Terraform directly with a reused value."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]*[a-z0-9]$", var.revision_suffix)) && !strcontains(var.revision_suffix, "--")
+    error_message = "revision_suffix must be lowercase alphanumerics and single hyphens, starting with a letter."
+  }
+
+  # Container Apps limits a revision name (<app>--<suffix>) to 64 characters; -api/-web are the
+  # longest app names.
+  validation {
+    condition     = length("${var.name_prefix}-api--${var.revision_suffix}") <= 64
+    error_message = "name_prefix + revision_suffix give a revision name longer than 64 characters."
+  }
 }
 
 variable "dockerhub_username" {

@@ -43,7 +43,9 @@ Dexie.js on judge devices (drafts + offline outbox only, never the source of tru
 
 **Testing**: Backend: xUnit; handler-level unit tests; contract/integration tests with
 `WebApplicationFactory` + Testcontainers (PostgreSQL). Frontend: Jest (unit), Playwright (E2E,
-including offline simulation and `axe-core` accessibility checks).
+including offline simulation and `axe-core` accessibility checks). Deployment tooling: Pester 5+
+(PowerShell's de facto test framework, preinstalled on GitHub runners; test-only) for
+`infra/DeployImages.psm1` (T134, ADR-0018).
 
 **Target Platform**: Backend: Linux containers — orchestrated locally by .NET Aspire, deployed to
 Azure Container Apps (images on Docker Hub + Terraform; Keycloak runs as a container in the same ACA environment,

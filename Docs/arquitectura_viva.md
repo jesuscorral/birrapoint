@@ -346,10 +346,28 @@ judge already provisioned with a Keycloak account.
 
 ## Cloud topology (Phase 16 — Terraform → Azure Container Apps + Neon; T095–T097)
 
-Single command: `./infra/deploy.ps1 -ImageNamespace <dockerhub-ns>` (ADR-0016). It bootstraps the
-Terraform remote state (`rg-birrapoint-tfstate`, storage account + `tfstate` container, created
-idempotently with `az`), builds and pushes the three images to Docker Hub tagged with the commit
-SHA, then runs `terraform init` + `apply` on the single root module `infra/terraform/`.
+Single command: `./infra/deploy.ps1 -ImageNamespace <dockerhub-ns>` (ADR-0016, ADR-0018). It never
+builds images — GitHub Actions publishes them (`ci.yml`: `<ns>/birrapoint-<component>:latest` on
+every merge to `main`; release images `<ns>/birrapoint-<component>-release:X.Y.Z` come from the
+release pipeline, T135). Per component it resolves the image (`-ApiVersion`/`-WebVersion`/
+`-KeycloakVersion X.Y.Z` → release repository, omitted → `latest`; logic and Pester tests in
+`infra/DeployImages.psm1` / `infra/tests/`) and checks it exists on the Docker Hub API. It then
+bootstraps the Terraform remote state (`rg-birrapoint-tfstate`, storage account + `tfstate`
+container, created idempotently with `az`), runs `terraform init` + `apply` on the single root
+module `infra/terraform/`, and finally rolls each Container App to its image with
+`az containerapp update` (Keycloak → API → web, per-deploy revision suffix, waiting for a healthy
+revision before the next; the skip decision uses the image of the healthy serving revision, not
+the app template). Terraform sets the image only when an app is created (`lifecycle.ignore_changes`
+on the image), so infrastructure applies never roll an app back; each full apply passes a fresh
+`revision_suffix` (`infra-<timestamp>`), creating a new revision of every app. The running
+Container App, not the Terraform state, is the source of truth for the deployed version. `-AppsOnly` runs only the rollout (no Terraform, tfvars, Neon key or state —
+`az` rights on `rg-<prefix>` only), the mode the deploy pipeline (T136) uses. `-WhatIf` previews.
+
+CI (`.github/workflows/ci.yml`, T133): PRs run the backend and frontend gates and a non-pushing
+build of the three images; runs on `main` also push `sha-<short>` and — only while the commit is
+still the head of `main` — `latest`. No Terraform, no Azure access, no deployment. Infrastructure
+checks live in `.github/workflows/infra.yml` (T134), triggered only by `infra/**` changes:
+`terraform fmt -check` + `validate` (no backend, Terraform 1.14.3) and the Pester tests.
 Prerequisites and the Neon PITR restore procedure (FR-047) are in `infra/terraform/README.md`.
 **Not yet applied to a real subscription** — that is T099.
 
