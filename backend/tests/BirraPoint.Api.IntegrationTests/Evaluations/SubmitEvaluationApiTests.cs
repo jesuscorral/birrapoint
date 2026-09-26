@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.Features.Evaluations;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -529,5 +530,108 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.OK));
 
         Assert.Equal(1, await CountEvaluationsAsync(fixture.JudgeId, fixture.EntryIds[0]));
+    }
+
+    /// <summary>Builds the same fully-formed, valid <see cref="Evaluation"/> row a genuinely
+    /// concurrent request would have committed for (judgeId, beerEntryId) — shared by the two
+    /// interceptor-driven race tests below.</summary>
+    private static Evaluation BuildCompetingEvaluation(Guid tableId, Guid judgeId, Guid beerEntryId) => new()
+    {
+        TastingTableId = tableId,
+        JudgeId = judgeId,
+        BeerEntryId = beerEntryId,
+        AromaScore = 9,
+        AppearanceScore = 3,
+        FlavorScore = 18,
+        MouthfeelScore = 4,
+        OverallScore = 9,
+        AromaComment = LongComment,
+        AppearanceComment = LongComment,
+        FlavorComment = LongComment,
+        MouthfeelComment = LongComment,
+        OverallComment = LongComment,
+        Status = EvaluationStatus.Confirmed,
+        SubmittedAt = DateTimeOffset.UtcNow,
+    };
+
+    /// <summary>
+    /// Deterministic version of the race above — reproduces it without relying on two real HTTP
+    /// calls happening to interleave in the exact right window (flaky: <c>Two_near_simultaneous_
+    /// submissions_for_the_same_pair_leave_exactly_one_row</c> above intermittently observed 0
+    /// instead of 1 OK response). <see cref="SubmitEvaluationRaceInterceptor"/> is armed to
+    /// insert-and-commit a competing row for this exact (judge, entry) pair — on its own
+    /// AppDbContext/connection — right before the handler's <c>alreadySubmittedIds</c> query runs,
+    /// i.e. exactly the window the handler's early idempotent-replay check cannot see. Before the
+    /// fix this made <see cref="SubmitEvaluationRules.IsNextInSequence"/> reject the id and throw
+    /// 409 OutOfSequence; it must instead replay the row the interceptor inserted, with 200 OK.
+    /// </summary>
+    [Fact]
+    public async Task A_row_committed_between_the_early_replay_check_and_the_sequence_read_is_replayed_not_rejected()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer);
+
+        var competingEvaluationId = Guid.NewGuid();
+        using var arm = factory.EvaluationRaceInterceptor.ArmBeforeNext(SubmitEvaluationQueryTags.AlreadySubmittedIds, async cancellationToken =>
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var evaluation = BuildCompetingEvaluation(fixture.TableId, fixture.JudgeId, fixture.EntryIds[0]);
+            evaluation.Id = competingEvaluationId;
+            db.Evaluations.Add(evaluation);
+            await db.SaveChangesAsync(cancellationToken);
+        });
+
+        using var judge = JudgeClient(fixture.JudgeSub);
+        var response = await SubmitAsync(judge, fixture.TableId, fixture.EntryIds[0]);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(competingEvaluationId, document.RootElement.GetProperty("evaluationId").GetGuid());
+
+        Assert.Equal(1, await CountEvaluationsAsync(fixture.JudgeId, fixture.EntryIds[0]));
+        Assert.True(arm.Fired);
+    }
+
+    /// <summary>
+    /// L2 (PR #56 review): the table-closed gate — like the state and order-fixed gates right above
+    /// it in the handler — must re-check for a stored evaluation before throwing, not just after all
+    /// gates already passed. Here the interceptor closes the table AND commits the competing
+    /// evaluation row right before the handler's own table read, so by the time the handler reaches
+    /// <c>table.State != Open</c> the table is already closed — reproducing a genuine concurrent
+    /// commit + close racing this request's gate reads without relying on real timing. Before the
+    /// fix this threw 409 table-closed; it must instead replay the row, with 200 OK.
+    /// </summary>
+    [Fact]
+    public async Task A_table_closed_between_the_early_replay_check_and_the_table_read_still_replays_not_409()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer);
+
+        var competingEvaluationId = Guid.NewGuid();
+        using var arm = factory.EvaluationRaceInterceptor.ArmBeforeNext(SubmitEvaluationQueryTags.TableLoad, async cancellationToken =>
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var evaluation = BuildCompetingEvaluation(fixture.TableId, fixture.JudgeId, fixture.EntryIds[0]);
+            evaluation.Id = competingEvaluationId;
+            db.Evaluations.Add(evaluation);
+
+            var table = await db.TastingTables.SingleAsync(t => t.Id == fixture.TableId, cancellationToken);
+            table.State = TableState.Closed;
+            table.ClosedAt = DateTimeOffset.UtcNow;
+
+            await db.SaveChangesAsync(cancellationToken);
+        });
+
+        using var judge = JudgeClient(fixture.JudgeSub);
+        var response = await SubmitAsync(judge, fixture.TableId, fixture.EntryIds[0]);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(competingEvaluationId, document.RootElement.GetProperty("evaluationId").GetGuid());
+
+        Assert.Equal(1, await CountEvaluationsAsync(fixture.JudgeId, fixture.EntryIds[0]));
+        Assert.True(arm.Fired);
     }
 }

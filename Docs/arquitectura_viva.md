@@ -60,7 +60,13 @@ satisfies it; it remains an explicit outstanding manual/team action, not somethi
 Phase 10/US8 below was still pending at the time; fixed here). Backend: `Features/
 Evaluations/` (`POST /me/tables/{tableId}/evaluations`, idempotent via a unique-constraint-catch on
 the (judge, entry) index rather than a pre-check — the first genuine insert-time race guard in this
-codebase, since locked-on-submit forbids ever pre-checking-then-upserting) and `Features/Catalog/
+codebase, since locked-on-submit forbids ever pre-checking-then-upserting; since T140 it is
+race-safe end to end: a row a concurrent request commits between the early replay check and the
+sequence-order read is also replayed with `200`, never rejected as `409 OutOfSequence` — nor as a
+state/order-fixed/table-closed `409` if the table closes meanwhile: each of those gates re-checks for
+a stored row first — and every "return what is stored" path shares one helper; the races are
+reproduced deterministically by a test-only EF Core `DbCommandInterceptor` keyed on `TagWith` query
+tags, with no test seam in production code) and `Features/Catalog/
 GetStyleDetail.cs` (`GET /styles/{code}`, FR-049). Frontend: `core/offline/sync.service.ts` is the
 real offline engine T020 only scaffolded the Dexie tables for — drafts debounced ≤300ms, outbox
 durable-first submit with capped-exponential-backoff replay on `window online` / service
@@ -391,6 +397,22 @@ credential for `environment:production`, Contributor on `rg-<prefix>` only)
 and runs `infra/deploy.ps1 -AppsOnly` — image rollout only, no Terraform/state/Neon; the
 infrastructure is assumed to exist. `concurrency: deploy-production`; the run summary lists each
 app's serving revision and image. One-time configuration: `infra/github-actions-setup.md`.
+Teardown (`infra/teardown.ps1`, T140): by default `terraform destroy -target=azurerm_resource_group.main`
+removes every billed Azure resource and keeps the Neon project (free) and the Terraform state,
+which holds the Neon project and the generated secrets (the API admin-client secret is also in
+Keycloak's database) — a redeploy reconnects to the same data. `-IncludeNeon` wipes everything
+including the state. Idempotent, with a direct sweep (`az group delete`, Neon API by exact project
+id from the state; by exact name only without a state, refusing duplicates) when the destroy fails
+or the state is gone; the names to remove are read from the state blob, not parameters. Log
+Analytics is purged on destroy (`permanently_delete_on_destroy`). Pure decisions in
+`infra/Teardown.psm1` (Pester-tested). Because Keycloak imports its realm only once while a
+recreated environment gets a new random domain, every full `deploy.ps1` run ends by making the
+`birrapoint-spa` client allow the current web URL via the Keycloak Admin API
+(`infra/KeycloakClient.psm1`, ADR-0020): authenticated as the `birrapoint-deploy` service-account
+client (realm-management `view-clients` + `manage-clients` in `birrapoint` only; secret from
+`random_password.deploy_client_secret` → Keycloak env `DEPLOY_CLIENT_SECRET`), repaired once via the
+bootstrap admin on realms imported before it existed; URIs are merged (only the app's own stale
+Container Apps domains are dropped; manual URIs kept), written only on change.
 Prerequisites and the Neon PITR restore procedure (FR-047) are in `infra/terraform/README.md`.
 **Not yet applied to a real subscription** — that is T099.
 
@@ -400,7 +422,7 @@ Prerequisites and the Neon PITR restore procedure (FR-047) are in `infra/terrafo
 | `<prefix>-web` | `birrapoint-web` image: Node build → `nginxinc/nginx-unprivileged` (`frontend/Dockerfile`) | external | serves the PWA; `nginx/40-runtime-config.sh` writes `/config.json` from `KEYCLOAK_URL` (+ realm/client/`API_BASE_URL` defaults) at start; reverse-proxies `/api/` + `/hubs/` (WebSocket) to `API_UPSTREAM` (ADR-0017); security headers, `expires -1` on shell/ngsw files, 1-year cache on hashed assets |
 | `<prefix>-api` | `birrapoint-api` image: SDK → `aspnet:10.0`, non-root (`backend/src/BirraPoint.Api/Dockerfile`, context `backend/`) | **internal only** | exactly 1 replica (SignalR without backplane, single DispatchJob consumer); `ASPNETCORE_ENVIRONMENT=Production`; `ConnectionStrings__db` = Neon pooled endpoint, `ConnectionStrings__dbDirect` = direct endpoint used only by startup migrations (`Database__MigrateOnStartup=true`); Keycloak/SMTP/`Frontend__BaseUrl` via env + Container Apps secrets |
 | `<prefix>-kc` | `birrapoint-keycloak` image: optimized `kc.sh build` (postgres, health, metrics) + login theme + production realm (`infra/keycloak/Dockerfile`) | external | `start --optimized --import-realm`; `KC_PROXY_HEADERS=xforwarded`, `KC_HOSTNAME` = public URL; startup/readiness/liveness probes on management port 9000; realm placeholders `${SPA_URL}`, `${API_ADMIN_CLIENT_SECRET}`, `${SMTP_*}` resolved from env at first import |
-| Neon project `<prefix>` | `kislerdm/neon` provider, PG 16, branch `main` | — | databases `birrapoint` (role `birrapoint`) and `keycloak` (role `keycloak`) on one branch, so a PITR restores both consistently; history retention = `neon_history_retention_seconds` (default 1 day) |
+| Neon project `<prefix>` | `kislerdm/neon` provider, PG 16, branch `main` | — | databases `birrapoint` (role `birrapoint`) and `keycloak` (role `keycloak`) on one branch, so a PITR restores both consistently; history retention = `neon_history_retention_seconds` (default 21600 s = 6 h, the current free-plan cap) |
 
 Secrets never enter an image or the repo: Neon role passwords come from the provider, the Keycloak
 bootstrap admin password and the API admin-client secret from `random_password`, SMTP and the

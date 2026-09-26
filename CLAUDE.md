@@ -141,6 +141,8 @@ k6 run infra/perf/api-budgets.js       # API p95 budgets (reads <200ms, writes <
                                        #   get one (neither Keycloak client here supports
                                        #   non-interactive token grants)
 
+./infra/teardown.ps1                      # remove the Azure environment (no cost); keeps Neon data +
+                                          #   state; -IncludeNeon wipes everything; -WhatIf previews
 ./infra/deploy.ps1 -ImageNamespace <dockerhub-ns>   # cloud deploy (PowerShell): state bootstrap,
                                           #   terraform apply, then image rollout per Container App;
                                           #   -ApiVersion/-WebVersion/-KeycloakVersion X.Y.Z pick

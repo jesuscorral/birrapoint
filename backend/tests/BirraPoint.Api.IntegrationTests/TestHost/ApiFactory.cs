@@ -1,6 +1,7 @@
 using BirraPoint.Api.Common.Email;
 using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.IntegrationTests.Evaluations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -21,6 +22,13 @@ namespace BirraPoint.Api.IntegrationTests.TestHost;
 public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:16").Build();
+
+    /// <summary>Inert unless a test arms it — see its own doc comment. Registered once, on every
+    /// <c>AppDbContext</c> this factory creates, regardless of which test class file needs it, so no
+    /// test ever has to spin up a second host (<c>WithWebHostBuilder</c>) just to get an interceptor
+    /// in — a second host would run its own <c>DispatchWorker</c> hosted service against the same
+    /// database, which is unnecessary here.</summary>
+    public SubmitEvaluationRaceInterceptor EvaluationRaceInterceptor { get; } = new();
 
     public async ValueTask InitializeAsync()
     {
@@ -75,6 +83,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender, FakeEmailSender>();
+
+            // Layer EvaluationRaceInterceptor onto Program.cs's own AddDbContext<AppDbContext> options
+            // instead of replacing them: EF Core's DbContextOptions configuration actions accumulate
+            // (they don't overwrite each other), so ConfigureDbContext runs after Program.cs's
+            // UseNpgsql(builder.Configuration.GetConnectionString("db")) and simply adds the
+            // interceptor on top — no need to re-supply the connection string here at all, since the
+            // "ConnectionStrings:db" entry configured above already reaches Program.cs's own call.
+            services.ConfigureDbContext<AppDbContext>(options => options.AddInterceptors(EvaluationRaceInterceptor));
         });
     }
 }

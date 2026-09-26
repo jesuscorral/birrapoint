@@ -6,7 +6,7 @@ variable "subscription_id" {
 variable "location" {
   description = "Azure region for the resource group and Container Apps environment."
   type        = string
-  default     = "westeurope"
+  default     = "northeurope"
 }
 
 variable "name_prefix" {
@@ -84,13 +84,13 @@ variable "neon_region" {
 variable "neon_org_id" {
   description = "Neon organization id to create the project in. Null uses the API key's default."
   type        = string
-  default     = null
+  default     = "org-plain-cloud-73738163"
 }
 
 variable "neon_history_retention_seconds" {
-  description = "Point-in-time recovery window (FR-047). Neon's free plan caps it at 86400 (1 day)."
+  description = "Point-in-time recovery window (FR-047). Neon's free plan caps it at 21600."
   type        = number
-  default     = 86400
+  default     = 21600
 }
 
 # --- SMTP relay (invitations, results, Keycloak password reset) -------------------------------

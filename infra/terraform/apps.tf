@@ -200,6 +200,11 @@ resource "azurerm_container_app" "keycloak" {
     value = random_password.api_admin_client_secret.result
   }
 
+  secret {
+    name  = "deploy-client-secret"
+    value = random_password.deploy_client_secret.result
+  }
+
   # Container Apps rejects empty secret values, so the SMTP password secret (and the env var
   # referencing it) only exist when a password is configured.
   dynamic "secret" {
@@ -297,6 +302,10 @@ resource "azurerm_container_app" "keycloak" {
       env {
         name        = "API_ADMIN_CLIENT_SECRET"
         secret_name = "api-admin-client-secret"
+      }
+      env {
+        name        = "DEPLOY_CLIENT_SECRET"
+        secret_name = "deploy-client-secret"
       }
       env {
         name  = "SMTP_HOST"
