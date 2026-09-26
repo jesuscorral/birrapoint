@@ -228,7 +228,7 @@ jobs:
           {
             echo '## Images'
             echo
-            echo 'Deploy with the **Deploy** workflow (`deploy.yml`), version `'"$VERSION"'`.'
+            echo "Deploy with the **Deploy** workflow (\`deploy.yml\`), version \`$VERSION\`."
             echo
             echo '| Component | Image | Digest |'
             echo '|---|---|---|'
