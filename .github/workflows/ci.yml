@@ -1,0 +1,109 @@
+# Integration pipeline (FR-064a): quality gates on every PR; on push to main, the same gates and
+# then `latest` images of all three containers are published to Docker Hub. Releases (immutable,
+# semver-tagged images) are a separate pipeline: release.yml.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore: ['version.txt', '**.md']
+  push:
+    branches: [main]
+    paths-ignore: ['version.txt', '**.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# PRs: a newer push supersedes the older run. main: runs queue instead, so `latest` can never be
+# overwritten by an older commit's run finishing last.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet build backend/BirraPoint.sln --configuration Release
+      - run: dotnet format backend/BirraPoint.sln --verify-no-changes
+      - run: dotnet test backend/tests/BirraPoint.Api.UnitTests --configuration Release --no-build
+      # Testcontainers starts a real PostgreSQL through the runner's Docker daemon.
+      - run: dotnet test backend/tests/BirraPoint.Api.IntegrationTests --configuration Release --no-build
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx ng lint
+      - run: npm run format:check
+      - run: npx jest
+      - run: npm run build:budget
+
+  images:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: birrapoint-api
+            context: backend
+            dockerfile: backend/src/BirraPoint.Api/Dockerfile
+          - name: birrapoint-web
+            context: frontend
+            dockerfile: frontend/Dockerfile
+          - name: birrapoint-keycloak
+            context: infra/keycloak
+            dockerfile: infra/keycloak/Dockerfile
+    env:
+      # Only main publishes; PR builds (including forks, which get no secrets) just prove the image builds.
+      PUBLISH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to Docker Hub
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Image tags
+        id: meta
+        run: |
+          image="${{ vars.IMAGE_NAMESPACE }}/${{ matrix.name }}"
+          {
+            echo 'tags<<EOF'
+            echo "${image}:latest"
+            echo "${image}:sha-${GITHUB_SHA::7}"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+        if: env.PUBLISH == 'true'
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags || format('{0}:pr-check', matrix.name) }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,scope=${{ matrix.name }},mode=max
