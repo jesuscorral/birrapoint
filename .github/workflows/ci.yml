@@ -27,60 +27,15 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  DOTNET_NOLOGO: true
-  DOTNET_CLI_TELEMETRY_OPTOUT: true
-
 jobs:
-  backend:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
-        with:
-          global-json-file: global.json
-      - run: dotnet build backend/BirraPoint.sln --configuration Release
-      - run: dotnet format backend/BirraPoint.sln --verify-no-changes
-      - run: >-
-          dotnet test backend/tests/BirraPoint.Api.UnitTests --configuration Release --no-build
-          --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/unit"
-      # Testcontainers starts a real PostgreSQL through the runner's Docker daemon.
-      - run: >-
-          dotnet test backend/tests/BirraPoint.Api.IntegrationTests --configuration Release --no-build
-          --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/integration"
-      - name: Upload test results
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: backend-test-results
-          path: ${{ runner.temp }}/test-results
-          if-no-files-found: ignore
-
-  # Jest and the bundle-budget script print their full diagnostics to the job log, so there is no
-  # separate artifact (a JUnit reporter would be a new dependency, Principle V).
-  frontend:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      # No dependency lifecycle scripts; the Angular/esbuild toolchain ships prebuilt binaries.
-      - run: npm ci --ignore-scripts
-      - run: npm run lint
-      - run: npm run format:check
-      - run: npm test -- --ci
-      - run: npm run build:budget
+  # Backend and frontend gates, shared with release.yml.
+  gates:
+    uses: ./.github/workflows/quality-gates.yml
+    with:
+      ref: ${{ github.sha }}
 
   images:
-    needs: [backend, frontend]
+    needs: gates
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:

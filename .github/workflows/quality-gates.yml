@@ -1,0 +1,72 @@
+# Reusable quality gates (FR-064, T135): backend build/format/unit/integration tests and frontend
+# lint/format/Jest/bundle budget for one commit. Called by ci.yml (every PR and main) and by
+# release.yml (the exact commit being released — a hotfix branch included), so nothing reaches a
+# published image without passing them.
+name: Quality gates
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit SHA (or ref) to check out and test.
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          global-json-file: global.json
+      - run: dotnet build backend/BirraPoint.sln --configuration Release
+      - run: dotnet format backend/BirraPoint.sln --verify-no-changes
+      - run: >-
+          dotnet test backend/tests/BirraPoint.Api.UnitTests --configuration Release --no-build
+          --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/unit"
+      # Testcontainers starts a real PostgreSQL through the runner's Docker daemon.
+      - run: >-
+          dotnet test backend/tests/BirraPoint.Api.IntegrationTests --configuration Release --no-build
+          --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/integration"
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: backend-test-results
+          path: ${{ runner.temp }}/test-results
+          if-no-files-found: ignore
+
+  # Jest and the bundle-budget script print their full diagnostics to the job log, so there is no
+  # separate artifact (a JUnit reporter would be a new dependency, Principle V).
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # No dependency lifecycle scripts; the Angular/esbuild toolchain ships prebuilt binaries.
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test -- --ci
+      - run: npm run build:budget
