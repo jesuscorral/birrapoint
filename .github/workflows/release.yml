@@ -1,0 +1,317 @@
+# Release pipeline (FR-064b, T135). Manually triggered, and only from main (the pipeline that
+# publishes releases and pushes to main is always main's own definition). Builds `main`, a
+# `hotfix/*` branch (which must not carry unreleased main changes) or an existing `v*` tag and
+# publishes immutable images <ns>/birrapoint-<component>-release:X.Y.Z. The version comes from
+# version.txt on main; once the release exists, version.txt on main is advanced for the next one.
+#
+#   prepare   read + validate the version, resolve `ref` to a SHA, refuse an existing
+#             tag vX.Y.Z or any existing X.Y.Z image (a released version is never overwritten)
+#   gates     quality-gates.yml on that exact SHA
+#   images    build and push the three -release images; an image that already exists is reused
+#             only if it was built from this same SHA (a re-run after a failure past the push)
+#   finalize  tag vX.Y.Z, GitHub Release with image digests, bump version.txt on main
+#
+# Partial failure: use "Re-run failed jobs" — finished jobs are not repeated, an image leg reuses
+# an image it already pushed for this SHA, and every finalize step is idempotent (an existing tag
+# on the same SHA, an existing release or an already-advanced version.txt is accepted). It never
+# deploys: deploy.yml does that. Concurrency keeps a single pending run: a third dispatch while
+# one runs and one waits replaces the waiting one.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: What to release - main, a hotfix/* branch or an existing v* tag
+        type: string
+        required: true
+        default: main
+      bump:
+        description: How version.txt on main is advanced after this release
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+permissions:
+  contents: read
+
+# One release at a time; never cancel one halfway.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      next: ${{ steps.version.outputs.next }}
+      sha: ${{ steps.ref.outputs.sha }}
+    steps:
+      - name: Require dispatch from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Run the Release workflow from main (\"Use workflow from: main\"); ${GITHUB_REF} would use a different pipeline definition."
+          exit 1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+          fetch-depth: 0
+          # Credentials kept: the release checks run `git ls-remote origin`.
+      - name: Verify configuration
+        env:
+          IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE }}
+        run: |
+          if [ -z "$IMAGE_NAMESPACE" ]; then
+            echo "::error::Repository variable IMAGE_NAMESPACE (Docker Hub user/org) is not set."
+            exit 1
+          fi
+      - name: Read version from main
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          version="$(.github/scripts/version.sh read version.txt)"
+          next="$(.github/scripts/version.sh next "$version" "$BUMP")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "Releasing $version; version.txt on main advances to $next afterwards."
+      - name: Resolve ref
+        id: ref
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          case "$REF" in
+            main | hotfix/*) candidate="refs/remotes/origin/$REF" ;;
+            v[0-9]*) candidate="refs/tags/$REF" ;;
+            *)
+              echo "::error::'$REF' cannot be released: use main, a hotfix/* branch or an existing v* tag."
+              exit 1
+              ;;
+          esac
+          sha="$(git rev-parse --verify --quiet "$candidate^{commit}")" || {
+            echo "::error::'$REF' does not exist in this repository."
+            exit 1
+          }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Building $REF at $sha."
+      - name: Refuse an existing release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          status=0
+          git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" > /dev/null || status=$?
+          case "$status" in
+            0) echo "::error::Tag v$VERSION already exists. Is version.txt on main behind? Advance it in a PR, or re-run the failed jobs of the original release run."; exit 1 ;;
+            2) ;; # no such tag
+            *) echo "::error::Could not list tags (git ls-remote exit $status)."; exit 1 ;;
+          esac
+          for component in api web keycloak; do
+            status=0
+            .github/scripts/dockerhub-tag-exists.sh "$IMAGE_NAMESPACE" "birrapoint-$component-release" "$VERSION" || status=$?
+            case "$status" in
+              0) echo "::error::$IMAGE_NAMESPACE/birrapoint-$component-release:$VERSION already exists; released versions are immutable."; exit 1 ;;
+              1) ;;
+              *) exit 1 ;;
+            esac
+          done
+
+  gates:
+    needs: prepare
+    uses: ./.github/workflows/quality-gates.yml
+    with:
+      ref: ${{ needs.prepare.outputs.sha }}
+
+  images:
+    needs: [prepare, gates]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: api
+            context: backend
+            dockerfile: backend/src/BirraPoint.Api/Dockerfile
+          - component: web
+            context: frontend
+            dockerfile: frontend/Dockerfile
+          - component: keycloak
+            context: infra/keycloak
+            dockerfile: infra/keycloak/Dockerfile
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      IMAGE: ${{ vars.IMAGE_NAMESPACE }}/birrapoint-${{ matrix.component }}-release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      # The scripts come from main, like this workflow; the image content from the released SHA.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+          path: .release-tools
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Never overwrite a released image. The one exception is an image this release already pushed
+      # (same revision label = same SHA) before its job failed: it is reused, so "Re-run failed
+      # jobs" can complete the release instead of burning the version.
+      - name: Check for an existing image
+        id: existing
+        env:
+          IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          status=0
+          .release-tools/.github/scripts/dockerhub-tag-exists.sh "$IMAGE_NAMESPACE" "birrapoint-${{ matrix.component }}-release" "$VERSION" || status=$?
+          case "$status" in
+            1) echo "reuse=false" >> "$GITHUB_OUTPUT" ;;
+            0)
+              revision="$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{json .Image}}' |
+                jq -r '.. | .config?.Labels?."org.opencontainers.image.revision"? // empty' | head -n 1)"
+              if [ "$revision" != "$SHA" ]; then
+                echo "::error::$IMAGE:$VERSION already exists (built from ${revision:-an unknown revision}); released versions are immutable."
+                exit 1
+              fi
+              digest="$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{json .Manifest}}' | jq -r '.digest')"
+              echo "Reusing $IMAGE:$VERSION ($digest), already pushed for $SHA by an earlier attempt."
+              echo "reuse=true" >> "$GITHUB_OUTPUT"
+              echo "digest=$digest" >> "$GITHUB_OUTPUT"
+              ;;
+            *) exit 1 ;;
+          esac
+      - name: Build and push
+        id: build
+        if: steps.existing.outputs.reuse != 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ env.IMAGE }}:${{ env.VERSION }}
+          labels: |
+            org.opencontainers.image.version=${{ env.VERSION }}
+            org.opencontainers.image.revision=${{ needs.prepare.outputs.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          # Reuse main's layer cache (written by ci.yml); a release never writes to it.
+          cache-from: type=gha,scope=birrapoint-${{ matrix.component }}
+      - name: Record digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest || steps.existing.outputs.digest }}
+        run: |
+          mkdir -p digests
+          echo "| ${{ matrix.component }} | \`$IMAGE:$VERSION\` | \`$DIGEST\` |" > "digests/${{ matrix.component }}.md"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: digest-${{ matrix.component }}
+          path: digests/${{ matrix.component }}.md
+
+  finalize:
+    needs: [prepare, images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      NEXT: ${{ needs.prepare.outputs.next }}
+      SHA: ${{ needs.prepare.outputs.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: digest-*
+          merge-multiple: true
+          path: digests
+      - name: Configure git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - name: Tag v${{ env.VERSION }}
+        run: |
+          # Peeled entry (^{}) of an annotated tag last, so this is always the commit it points to.
+          existing="$(git ls-remote --tags origin "refs/tags/v$VERSION" "refs/tags/v$VERSION^{}" | tail -n 1 | cut -f1)"
+          if [ -n "$existing" ]; then
+            if [ "$existing" != "$SHA" ]; then
+              echo "::error::Tag v$VERSION already exists on $existing, not on the released $SHA."
+              exit 1
+            fi
+            echo "Tag v$VERSION already exists on $SHA."
+          else
+            git tag -a "v$VERSION" "$SHA" -m "Release $VERSION"
+            git push origin "v$VERSION"
+          fi
+      - name: GitHub Release
+        run: |
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "Release v$VERSION already exists."
+            exit 0
+          fi
+          {
+            echo '## Images'
+            echo
+            echo "Deploy with the **Deploy** workflow (\`deploy.yml\`), version \`$VERSION\`."
+            echo
+            echo '| Component | Image | Digest |'
+            echo '|---|---|---|'
+            cat digests/keycloak.md digests/api.md digests/web.md
+            echo
+          } > release-notes.md
+          # Notes start at the release this SHA descends from (a hotfix's own base tag), not at
+          # GitHub's default "latest release".
+          start_args=()
+          if previous="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "$SHA^" 2>/dev/null)"; then
+            start_args=(--notes-start-tag "$previous")
+          fi
+          gh release create "v$VERSION" --verify-tag --title "v$VERSION" \
+            --notes-file release-notes.md --generate-notes "${start_args[@]}"
+      - name: Advance version.txt on main to ${{ env.NEXT }}
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
+          current="$(.github/scripts/version.sh read version.txt)"
+          if [ "$current" != "$VERSION" ]; then
+            echo "version.txt on main is $current (not $VERSION); already advanced, leaving it."
+            exit 0
+          fi
+          echo "$NEXT" > version.txt
+          git add version.txt
+          # Pushed with GITHUB_TOKEN, which triggers no workflows; [skip ci] documents the intent.
+          git commit -m "chore(release): advance version.txt to $NEXT after v$VERSION [skip ci]"
+          # main may move while this runs: rebase onto it and retry.
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push rejected (attempt $attempt); rebasing onto the new main."
+            git pull --rebase origin main
+          done
+          echo "::error::Could not push the version.txt bump to main."
+          exit 1
+      - name: Summary
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          {
+            echo "## Released v$VERSION"
+            echo
+            echo "Built from \`$REF\` at \`$SHA\`. Next release: \`$NEXT\`."
+            echo
+            echo '| Component | Image | Digest |'
+            echo '|---|---|---|'
+            cat digests/keycloak.md digests/api.md digests/web.md
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -367,7 +367,19 @@ CI (`.github/workflows/ci.yml`, T133): PRs run the backend and frontend gates an
 build of the three images; runs on `main` also push `sha-<short>` and — only while the commit is
 still the head of `main` — `latest`. No Terraform, no Azure access, no deployment. Infrastructure
 checks live in `.github/workflows/infra.yml` (T134), triggered only by `infra/**` changes:
-`terraform fmt -check` + `validate` (no backend, Terraform 1.14.3) and the Pester tests.
+`terraform fmt -check` + `validate` (no backend, Terraform 1.14.3) and the Pester tests. The
+backend/frontend gates are the reusable `.github/workflows/quality-gates.yml`, shared by `ci.yml`
+and the release pipeline.
+
+Release (`.github/workflows/release.yml`, T135, ADR-0019): manual and only dispatchable from
+`main`, inputs `ref` (`main`, a `hotfix/*` branch or an existing `v*` tag) and `bump`. An image a
+failed attempt already pushed for the same SHA (revision label) is reused on re-run. It reads the version from `version.txt` **on main**,
+refuses an existing tag `vX.Y.Z` or `X.Y.Z` image, runs the quality gates on the resolved SHA,
+pushes `<ns>/birrapoint-<component>-release:X.Y.Z` (separate repositories from the `latest` ones,
+OCI version/revision labels), then tags `vX.Y.Z`, creates the GitHub Release (image digests +
+generated notes) and commits the next version to `version.txt` on `main` with `GITHUB_TOKEN`.
+Every finalize step is idempotent ("Re-run failed jobs"). `.github/workflows/workflows.yml` runs
+actionlint and the `.github/scripts/version.test.sh` tests when `.github/**` changes.
 Prerequisites and the Neon PITR restore procedure (FR-047) are in `infra/terraform/README.md`.
 **Not yet applied to a real subscription** — that is T099.
 
