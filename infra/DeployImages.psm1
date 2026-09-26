@@ -1,12 +1,15 @@
-# Pure helpers behind infra/deploy.ps1 (T134, FR-064): resolve which Docker Hub image each
-# Container App should run, check it exists, and decide whether a rollout is needed. Kept free of
-# Azure calls so it is unit-testable (infra/tests/DeployImages.Tests.ps1).
-# Compatible with Windows PowerShell 5.1 and PowerShell 7.
+# Pure helpers behind infra/deploy.ps1 (T134, FR-064, ADR-0018): resolve which Docker Hub image
+# each Container App should run, check it exists, and make the rollout decisions (whether to roll
+# out, how a revision is doing). Kept free of Azure calls so it is unit-testable
+# (infra/tests/DeployImages.Tests.ps1). Compatible with Windows PowerShell 5.1 and PowerShell 7.
 
 $ErrorActionPreference = 'Stop'
 
 # Component -> Container App name suffix; must match the locals in infra/terraform/main.tf.
 $script:AppSuffixes = @{ api = 'api'; web = 'web'; keycloak = 'kc' }
+
+# Container Apps limit for a revision name (<app>--<suffix>).
+$script:MaxRevisionNameLength = 64
 
 function Resolve-ImageReference {
     # A release version X.Y.Z comes from the immutable birrapoint-<component>-release repository
@@ -47,9 +50,12 @@ function Get-ContainerAppName {
 
 function Get-HttpStatusCode {
     # Thin wrapper so Test-DockerHubTag's decision logic can be tested without the network.
-    param([Parameter(Mandatory = $true)] [string] $Uri)
+    param(
+        [Parameter(Mandatory = $true)] [string] $Uri,
+        [hashtable] $Headers = @{}
+    )
     try {
-        $response = Invoke-WebRequest -Uri $Uri -Method Get -UseBasicParsing -TimeoutSec 30
+        $response = Invoke-WebRequest -Uri $Uri -Method Get -Headers $Headers -UseBasicParsing -TimeoutSec 30
         return [int] $response.StatusCode
     }
     catch {
@@ -60,8 +66,20 @@ function Get-HttpStatusCode {
     }
 }
 
+function Get-DockerHubAuthHeader {
+    # With DOCKERHUB_USERNAME + DOCKERHUB_TOKEN (a personal access token) in the environment, trade
+    # them for a bearer token so private repositories can be checked; otherwise anonymous access.
+    if (-not $env:DOCKERHUB_USERNAME -or -not $env:DOCKERHUB_TOKEN) { return @{} }
+
+    $body = @{ identifier = $env:DOCKERHUB_USERNAME; secret = $env:DOCKERHUB_TOKEN } | ConvertTo-Json -Compress
+    $response = Invoke-RestMethod -Uri 'https://hub.docker.com/v2/auth/token' -Method Post `
+        -ContentType 'application/json' -Body $body -TimeoutSec 30
+    if (-not $response.access_token) { throw 'Docker Hub authentication returned no access token.' }
+    @{ Authorization = "Bearer $($response.access_token)" }
+}
+
 function Test-DockerHubTag {
-    # Anonymous Docker Hub API lookup (the repositories are public); no Docker daemon needed.
+    # Docker Hub API lookup; no Docker daemon needed.
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)] [string] $Namespace,
@@ -69,7 +87,7 @@ function Test-DockerHubTag {
         [Parameter(Mandatory = $true)] [string] $Tag
     )
     $uri = "https://hub.docker.com/v2/namespaces/$Namespace/repositories/$Repository/tags/$Tag"
-    $status = Get-HttpStatusCode -Uri $uri
+    $status = Get-HttpStatusCode -Uri $uri -Headers (Get-DockerHubAuthHeader)
     switch ($status) {
         200 { return $true }
         404 { return $false }
@@ -79,27 +97,60 @@ function Test-DockerHubTag {
 
 function New-RevisionSuffix {
     # A unique suffix forces a new revision even when the image reference is unchanged — the only
-    # way to make Container Apps re-pull a moved `latest`. Lowercase alphanumerics and hyphens,
-    # starting with a letter (Container Apps revision-suffix rules).
+    # way to make Container Apps re-pull a moved `latest` — and never reuses a suffix, which
+    # Container Apps rejects. Rules: lowercase alphanumerics and single hyphens, starting with a
+    # letter; the revision name <app>--<suffix> is at most 64 characters.
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)] [string] $Tag,
+        [Parameter(Mandatory = $true)] [string] $AppName,
         [datetime] $Timestamp = (Get-Date).ToUniversalTime()
     )
-    $label = if ($Tag -eq 'latest') { 'latest' } else { 'v' + ($Tag -replace '\.', '-') }
-    "$label-$($Timestamp.ToString('yyyyMMddHHmmss'))"
+    $label = if ($Tag -match '^\d') { 'v' + ($Tag -replace '\.', '-') } else { $Tag.ToLowerInvariant() }
+    $suffix = "$label-$($Timestamp.ToString('yyyyMMddHHmmss'))"
+    $revisionName = "$AppName--$suffix"
+    if ($revisionName.Length -gt $script:MaxRevisionNameLength) {
+        throw "Revision name '$revisionName' exceeds the Container Apps limit of $($script:MaxRevisionNameLength) characters."
+    }
+    $suffix
 }
 
 function Test-RolloutNeeded {
-    # A pinned release already running is left alone (idempotent re-runs); `latest` always rolls
-    # out because its content can change under the same reference.
+    # Decides from what is actually serving, not from the app template: in Single revision mode a
+    # failed rollout leaves the new image in the template while the previous revision keeps
+    # serving. No rollout is needed only when the latest revision is the ready one and runs the
+    # target image — for a pinned release always, for `latest` only when that revision was just
+    # created (by the preceding infrastructure apply) and so has just pulled it.
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)] $Image,
-        [string] $CurrentReference
+        [string] $ReadyImage,
+        [switch] $LatestIsReady,
+        [switch] $JustRefreshed
     )
-    -not ($Image.Pinned -and $CurrentReference -eq $Image.Reference)
+    $serving = $LatestIsReady -and $ReadyImage -eq $Image.Reference
+    -not ($serving -and ($Image.Pinned -or $JustRefreshed))
+}
+
+function Get-RevisionOutcome {
+    # Maps a revision's Container Apps state to Succeeded / Failed / Pending. Without health probes
+    # Container Apps' default TCP probe decides `Healthy`; an app allowed to scale to zero (web)
+    # may legitimately end provisioned with no replicas, and so no health state.
+    [CmdletBinding()]
+    param(
+        [string] $ProvisioningState,
+        [string] $RunningState,
+        [string] $HealthState,
+        [int] $Replicas,
+        [int] $MinReplicas
+    )
+    if ($ProvisioningState -in 'Failed', 'Deprovisioning', 'Deprovisioned') { return 'Failed' }
+    if ($RunningState -in 'Failed', 'Degraded') { return 'Failed' }
+    if ($ProvisioningState -ne 'Provisioned') { return 'Pending' }
+    if ($HealthState -eq 'Healthy') { return 'Succeeded' }
+    if ($MinReplicas -eq 0 -and $Replicas -eq 0) { return 'Succeeded' }
+    'Pending'
 }
 
 Export-ModuleMember -Function Resolve-ImageReference, Get-ContainerAppName, Get-HttpStatusCode,
-    Test-DockerHubTag, New-RevisionSuffix, Test-RolloutNeeded
+    Get-DockerHubAuthHeader, Test-DockerHubTag, New-RevisionSuffix, Test-RolloutNeeded, Get-RevisionOutcome

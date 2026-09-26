@@ -71,8 +71,10 @@ The script is idempotent. Each component's image is chosen independently: `-ApiV
    `terraform apply`;
 3. rolls each Container App to its image with `az containerapp update` — Keycloak, then the API
    (which migrates the database on startup), then the web app — waiting for each new revision
-   to become healthy before the next. A release version an app already runs is skipped; `latest`
-   always gets a new revision so the moved tag is re-pulled.
+   to become healthy before the next (the web app may scale to zero, so for it "provisioned with
+   no replicas" also counts). An app whose latest revision is healthy and already serves the
+   target release is skipped; `latest` always gets a new revision so the moved tag is re-pulled,
+   except right after the apply created one that pulled it.
 
 It prints `web_url` and `keycloak_url` at the end.
 
@@ -80,6 +82,25 @@ It prints `web_url` and `keycloak_url` at the end.
 (`api_image`, `web_image`, `keycloak_image`) are used only when a Container App is first
 created; `lifecycle.ignore_changes` makes later applies leave the image alone, so an
 infrastructure change never rolls an app back to an older version.
+
+Every full run passes a fresh `revision_suffix` (`infra-<UTC timestamp>`), so **each apply
+creates a new revision of all three apps (a short restart)** — a rollout leaves its own suffix in
+the state, and Container Apps rejects a template change that reuses one (ADR-0018). Always apply
+through `deploy.ps1`; a bare `terraform apply` asks for `revision_suffix`.
+
+`-WhatIf` checks the images and reads the apps' current state but changes nothing (no state
+bootstrap, `terraform init`/`apply` or rollout).
+
+### Tests of the deploy logic
+
+The image-resolution and rollout decisions live in `infra/DeployImages.psm1`, with Pester tests
+in `infra/tests/` (run by the `infra.yml` workflow when `infra/**` changes). Windows PowerShell
+5.1 ships Pester 3.4, which cannot run them:
+
+```powershell
+Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -SkipPublisherCheck   # once
+Invoke-Pester infra/tests
+```
 
 ### Image-only deployment (`-AppsOnly`)
 
@@ -122,7 +143,7 @@ Branches → New branch → "Past data") and inspect it with `psql` before resto
 ## Tear down
 
 ```powershell
-terraform -chdir=infra/terraform destroy -var="subscription_id=<id>" -var="api_image=unused" -var="web_image=unused" -var="keycloak_image=unused" -var-file=terraform.tfvars
+terraform -chdir=infra/terraform destroy -var="subscription_id=<id>" -var="api_image=unused" -var="web_image=unused" -var="keycloak_image=unused" -var="revision_suffix=destroy" -var-file=terraform.tfvars
 ```
 
 This deletes the Azure resources **and the Neon project with all its data**. The state storage

@@ -14,14 +14,18 @@
       1. Verifies prerequisites and that every selected image exists on Docker Hub.
       2. (skipped with -AppsOnly) Creates the Terraform state resource group / storage account /
          container if missing, then runs `terraform init` + `terraform apply`. Terraform uses the
-         images only when it first creates a Container App (lifecycle ignore_changes, T134).
+         images only when it first creates a Container App (lifecycle ignore_changes, T134), and
+         gets a fresh revision suffix per apply, so every full run creates a new revision of each
+         app (a restart) and never reuses a suffix left by an earlier rollout (ADR-0018).
       3. Rolls each app to its image with `az containerapp update` — keycloak, then api (which
          migrates the database on startup), then web — waiting for each new revision to become
-         healthy before moving on. A pinned version the app already runs is skipped.
+         healthy before moving on. An app whose latest revision is healthy and already serves
+         the target release is skipped (so is `latest` right after the apply pulled it).
 
     -AppsOnly is the image-only deployment used by the deploy pipeline (deploy.yml): no Terraform,
     tfvars, NEON_API_KEY or state access — only `az login` with rights on the application
-    resource group. Compatible with Windows PowerShell 5.1 and PowerShell 7. Supports -WhatIf.
+    resource group. Compatible with Windows PowerShell 5.1 and PowerShell 7. -WhatIf reads Azure
+    and Docker Hub but changes nothing (no Terraform init/apply, no rollout).
 
     Prerequisites (documented in infra/terraform/README.md): Azure CLI logged in (`az login`);
     without -AppsOnly also Terraform >= 1.9, the NEON_API_KEY environment variable and
@@ -73,10 +77,6 @@ $terraformDir = Join-Path $PSScriptRoot 'terraform'
 if (-not $VarFile) { $VarFile = Join-Path $terraformDir 'terraform.tfvars' }
 Import-Module (Join-Path $PSScriptRoot 'DeployImages.psm1') -Force
 
-# `az containerapp` subcommands outside the core CLI install their extension without prompting
-# (non-interactive runs in CI).
-$env:AZURE_EXTENSION_USE_DYNAMIC_INSTALL = 'yes_without_prompt'
-
 function Invoke-Native {
     # Runs a native command and throws on a non-zero exit code (PowerShell 5.1 does not).
     param([string] $Description, [scriptblock] $Command)
@@ -108,79 +108,132 @@ function Invoke-AzJson {
     if ($json) { $json | ConvertFrom-Json } else { $null }
 }
 
+function Get-TerraformOutput {
+    param([string] $Name, [switch] $Json)
+    $format = if ($Json) { '-json' } else { '-raw' }
+    $value = (terraform -chdir="$terraformDir" output $format $Name) -join "`n"
+    if ($LASTEXITCODE -ne 0 -or -not $value) { throw "Reading Terraform output '$Name' failed." }
+    if ($Json) { $value | ConvertFrom-Json } else { $value.Trim() }
+}
+
+function Get-AppState {
+    # Latest / latest-ready revision, the ready revision's image and the app's minimum replicas;
+    # $null when the Container App does not exist (yet).
+    param([string] $App, [string] $ResourceGroup)
+    $json = (Invoke-Probe {
+            az containerapp show --name $App --resource-group $ResourceGroup --output json `
+                --query '{latest: properties.latestRevisionName, ready: properties.latestReadyRevisionName, minReplicas: properties.template.scale.minReplicas}'
+        }) -join "`n"
+    if (-not $json) { return $null }
+    $state = $json | ConvertFrom-Json
+
+    $readyImage = $null
+    if ($state.ready) {
+        $readyImage = (az containerapp revision show --name $App --resource-group $ResourceGroup `
+                --revision $state.ready --query 'properties.template.containers[0].image' --output tsv) -join ''
+        if ($LASTEXITCODE -ne 0) { throw "Reading revision $($state.ready) of $App failed." }
+    }
+    [pscustomobject]@{
+        Latest      = $state.latest
+        Ready       = $state.ready
+        ReadyImage  = if ($readyImage) { $readyImage.Trim() } else { $null }
+        MinReplicas = [int] $state.minReplicas
+    }
+}
+
 function Wait-HealthyRevision {
-    param([string] $App, [string] $ResourceGroup, [int] $TimeoutSeconds)
+    # Polls the revision this run created (not "whatever is latest"); tolerates a few transient az
+    # failures in a row before giving up.
+    param([string] $App, [string] $ResourceGroup, [string] $Revision, [int] $MinReplicas, [int] $TimeoutSeconds)
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $consecutiveErrors = 0
     while ($true) {
-        $state = Invoke-AzJson "Read $App state" {
-            az containerapp show --name $App --resource-group $ResourceGroup `
-                --query '{latest: properties.latestRevisionName, ready: properties.latestReadyRevisionName}' --output json
+        try {
+            $revision = Invoke-AzJson "Read revision $Revision" {
+                az containerapp revision show --name $App --resource-group $ResourceGroup --revision $Revision --output json `
+                    --query '{provisioning: properties.provisioningState, running: properties.runningState, health: properties.healthState, replicas: properties.replicas}'
+            }
+            $consecutiveErrors = 0
         }
-        $revision = Invoke-AzJson "Read revision $($state.latest)" {
-            az containerapp revision show --name $App --resource-group $ResourceGroup --revision $state.latest `
-                --query '{health: properties.healthState, provisioning: properties.provisioningState, running: properties.runningState}' --output json
+        catch {
+            $consecutiveErrors++
+            if ($consecutiveErrors -ge 3) { throw }
+            Write-Host "    transient error reading $Revision ($consecutiveErrors/3): $($_.Exception.Message)" -ForegroundColor Yellow
+            Start-Sleep -Seconds 10
+            continue
         }
-        Write-Host ("    {0}: provisioning={1} running={2} health={3}" -f $state.latest, $revision.provisioning, $revision.running, $revision.health)
 
-        if ($revision.provisioning -eq 'Failed' -or $revision.running -eq 'Failed') {
-            throw "Revision $($state.latest) of $App failed (provisioning=$($revision.provisioning), running=$($revision.running)). Check its logs; the previous revision keeps serving until a healthy one replaces it."
+        $replicas = if ($null -ne $revision.replicas) { [int] $revision.replicas } else { 0 }
+        $outcome = Get-RevisionOutcome -ProvisioningState $revision.provisioning -RunningState $revision.running `
+            -HealthState $revision.health -Replicas $replicas -MinReplicas $MinReplicas
+        Write-Host ("    {0}: provisioning={1} running={2} health={3} replicas={4} -> {5}" -f
+            $Revision, $revision.provisioning, $revision.running, $revision.health, $replicas, $outcome)
+
+        if ($outcome -eq 'Succeeded') { return }
+        if ($outcome -eq 'Failed') {
+            throw "Revision $Revision failed (provisioning=$($revision.provisioning), running=$($revision.running)). Check its logs; the previous revision keeps serving until a healthy one replaces it."
         }
-        if ($revision.health -eq 'Healthy' -and $state.ready -eq $state.latest) { return }
         if ((Get-Date) -gt $deadline) {
-            throw "Revision $($state.latest) of $App did not become healthy within $TimeoutSeconds s."
+            throw "Revision $Revision did not become healthy within $TimeoutSeconds s."
         }
         Start-Sleep -Seconds 10
     }
 }
 
-# --- 1. Prerequisites and images -------------------------------------------------------------
+# `az containerapp` subcommands outside the core CLI install their extension without prompting
+# (non-interactive runs in CI); restored on exit.
+$previousDynamicInstall = $env:AZURE_EXTENSION_USE_DYNAMIC_INSTALL
+$env:AZURE_EXTENSION_USE_DYNAMIC_INSTALL = 'yes_without_prompt'
+try {
 
-Assert-Command 'az'
-if (-not $AppsOnly) {
-    Assert-Command 'terraform'
-    if (-not $env:NEON_API_KEY) { throw 'NEON_API_KEY is not set (Neon console -> Account settings -> API keys).' }
-    if (-not (Test-Path $VarFile)) {
-        throw "Variables file '$VarFile' not found. Copy infra/terraform/terraform.tfvars.example and fill it in."
+    # --- 1. Prerequisites and images ---------------------------------------------------------
+
+    Assert-Command 'az'
+    if (-not $AppsOnly) {
+        Assert-Command 'terraform'
+        if (-not $env:NEON_API_KEY) { throw 'NEON_API_KEY is not set (Neon console -> Account settings -> API keys).' }
+        if (-not (Test-Path $VarFile)) {
+            throw "Variables file '$VarFile' not found. Copy infra/terraform/terraform.tfvars.example and fill it in."
+        }
     }
-}
 
-$accountJson = (Invoke-Probe { az account show --output json }) -join "`n"
-$account = if ($accountJson) { $accountJson | ConvertFrom-Json } else { $null }
-if (-not $account) { throw 'Not logged in to Azure. Run `az login` first.' }
-$subscriptionId = $account.id
-Write-Host "Azure subscription: $($account.name) ($subscriptionId)"
+    $accountJson = (Invoke-Probe { az account show --output json }) -join "`n"
+    $account = if ($accountJson) { $accountJson | ConvertFrom-Json } else { $null }
+    if (-not $account) { throw 'Not logged in to Azure. Run `az login` first.' }
+    $subscriptionId = $account.id
+    Write-Host "Azure subscription: $($account.name) ($subscriptionId)"
 
-# Rollout order: identity provider first, then the API (migrates the database on startup), then
-# the PWA that calls both.
-$images = @(
-    Resolve-ImageReference -Namespace $ImageNamespace -Component keycloak -Version $KeycloakVersion
-    Resolve-ImageReference -Namespace $ImageNamespace -Component api -Version $ApiVersion
-    Resolve-ImageReference -Namespace $ImageNamespace -Component web -Version $WebVersion
-)
-foreach ($image in $images) {
-    Write-Host ("Image {0,-8} {1}" -f $image.Component, $image.Reference)
-    if (-not (Test-DockerHubTag -Namespace $image.Namespace -Repository $image.Repository -Tag $image.Tag)) {
-        throw "Image $($image.Reference) does not exist on Docker Hub (published by ci.yml for latest, release.yml for X.Y.Z)."
+    # Rollout order: identity provider first, then the API (migrates the database on startup),
+    # then the PWA that calls both.
+    $images = @(
+        Resolve-ImageReference -Namespace $ImageNamespace -Component keycloak -Version $KeycloakVersion
+        Resolve-ImageReference -Namespace $ImageNamespace -Component api -Version $ApiVersion
+        Resolve-ImageReference -Namespace $ImageNamespace -Component web -Version $WebVersion
+    )
+    foreach ($image in $images) {
+        Write-Host ("Image {0,-9} {1}" -f $image.Component, $image.Reference)
+        if (-not (Test-DockerHubTag -Namespace $image.Namespace -Repository $image.Repository -Tag $image.Tag)) {
+            throw "Image $($image.Reference) does not exist on Docker Hub (published by ci.yml for latest, release.yml for X.Y.Z)."
+        }
     }
-}
-$byComponent = @{}
-foreach ($image in $images) { $byComponent[$image.Component] = $image }
+    $byComponent = @{}
+    foreach ($image in $images) { $byComponent[$image.Component] = $image }
 
-# --- 2. Infrastructure (Terraform) -------------------------------------------------------------
-
-if ($AppsOnly) {
+    # Default names (-AppsOnly, -WhatIf); a real apply reads them back from Terraform's outputs.
     $resourceGroup = "rg-$NamePrefix"
     $appNames = @{}
     foreach ($image in $images) { $appNames[$image.Component] = Get-ContainerAppName -NamePrefix $NamePrefix -Component $image.Component }
-}
-else {
-    if (-not $StateStorageAccount) {
-        # 3-24 lowercase alphanumerics, globally unique: stable per subscription.
-        $StateStorageAccount = ('stbirrapointtf' + ($subscriptionId -replace '-', '').Substring(0, 10)).ToLower()
-    }
 
-    if ($PSCmdlet.ShouldProcess("state storage '$StateStorageAccount' in '$StateResourceGroup'", 'Ensure Terraform remote state')) {
+    # --- 2. Infrastructure (Terraform) ---------------------------------------------------------
+
+    $infraSuffix = $null
+    if (-not $AppsOnly -and $PSCmdlet.ShouldProcess('infra/terraform (remote state bootstrap, init, apply)', 'Apply infrastructure')) {
+        if (-not $StateStorageAccount) {
+            # 3-24 lowercase alphanumerics, globally unique: stable per subscription.
+            $StateStorageAccount = ('stbirrapointtf' + ($subscriptionId -replace '-', '').Substring(0, 10)).ToLower()
+        }
+
         Invoke-Native "Ensure state resource group '$StateResourceGroup'" {
             az group create --name $StateResourceGroup --location $Location --output none
         }
@@ -203,66 +256,74 @@ else {
             az storage container create --name $StateContainer --account-name $StateStorageAccount `
                 --account-key $storageAccountKey --auth-mode key --output none
         }
-    }
 
-    Invoke-Native 'terraform init' {
-        terraform -chdir="$terraformDir" init -input=false -reconfigure `
-            "-backend-config=resource_group_name=$StateResourceGroup" `
-            "-backend-config=storage_account_name=$StateStorageAccount" `
-            "-backend-config=container_name=$StateContainer" `
-            "-backend-config=key=$StateKey"
-    }
+        Invoke-Native 'terraform init' {
+            terraform -chdir="$terraformDir" init -input=false -reconfigure `
+                "-backend-config=resource_group_name=$StateResourceGroup" `
+                "-backend-config=storage_account_name=$StateStorageAccount" `
+                "-backend-config=container_name=$StateContainer" `
+                "-backend-config=key=$StateKey"
+        }
 
-    $applyArgs = @(
-        "-chdir=$terraformDir", 'apply', '-input=false',
-        "-var-file=$((Resolve-Path $VarFile).Path)",
-        "-var=subscription_id=$subscriptionId",
-        "-var=location=$Location",
-        "-var=api_image=$($byComponent.api.Reference)",
-        "-var=web_image=$($byComponent.web.Reference)",
-        "-var=keycloak_image=$($byComponent.keycloak.Reference)"
-    )
-    if ($AutoApprove) { $applyArgs += '-auto-approve' }
-    if ($PSCmdlet.ShouldProcess('infra/terraform', 'terraform apply')) {
+        # A fresh suffix per apply: every apply creates a new revision of each app (a restart),
+        # and never reuses a suffix a previous rollout left in state (ADR-0018).
+        $infraSuffix = New-RevisionSuffix -Tag 'infra' -AppName $appNames.api
+        $applyArgs = @(
+            "-chdir=$terraformDir", 'apply', '-input=false',
+            "-var-file=$((Resolve-Path $VarFile).Path)",
+            "-var=subscription_id=$subscriptionId",
+            "-var=location=$Location",
+            "-var=api_image=$($byComponent.api.Reference)",
+            "-var=web_image=$($byComponent.web.Reference)",
+            "-var=keycloak_image=$($byComponent.keycloak.Reference)",
+            "-var=revision_suffix=$infraSuffix"
+        )
+        if ($AutoApprove) { $applyArgs += '-auto-approve' }
         Invoke-Native 'terraform apply' { terraform @applyArgs }
-        $resourceGroup = (terraform -chdir="$terraformDir" output -raw resource_group_name).Trim()
-        $appNames = (terraform -chdir="$terraformDir" output -json container_app_names) -join "`n" | ConvertFrom-Json
-        if ($LASTEXITCODE -ne 0) { throw 'Reading Terraform outputs failed.' }
+
+        $resourceGroup = Get-TerraformOutput 'resource_group_name'
+        $appNames = Get-TerraformOutput 'container_app_names' -Json
+    }
+
+    # --- 3. Image rollout ------------------------------------------------------------------------
+
+    foreach ($image in $images) {
+        $app = $appNames.($image.Component)
+        $state = Get-AppState -App $app -ResourceGroup $resourceGroup
+        if (-not $state -and -not $WhatIfPreference) {
+            throw "Container App '$app' not found in '$resourceGroup'. Create the environment first with a full run (without -AppsOnly)."
+        }
+
+        if ($state) {
+            $needed = Test-RolloutNeeded -Image $image -ReadyImage $state.ReadyImage `
+                -LatestIsReady:($state.Latest -and $state.Latest -eq $state.Ready) `
+                -JustRefreshed:($infraSuffix -and $state.Latest -eq "$app--$infraSuffix")
+            if (-not $needed) {
+                Write-Host "==> $app already serves $($image.Reference) from a healthy revision; skipping." -ForegroundColor Cyan
+                continue
+            }
+        }
+
+        $suffix = New-RevisionSuffix -Tag $image.Tag -AppName $app
+        if ($PSCmdlet.ShouldProcess("$app ($resourceGroup)", "Roll out $($image.Reference) as revision $app--$suffix")) {
+            Invoke-Native "Roll out $($image.Reference) to $app" {
+                az containerapp update --name $app --resource-group $resourceGroup `
+                    --image $image.Reference --revision-suffix $suffix --output none
+            }
+            Wait-HealthyRevision -App $app -ResourceGroup $resourceGroup -Revision "$app--$suffix" `
+                -MinReplicas $state.MinReplicas -TimeoutSeconds $RevisionTimeoutSeconds
+        }
+    }
+
+    Write-Host ''
+    if ($WhatIfPreference) {
+        Write-Host 'What-if complete; nothing was changed.' -ForegroundColor Green
     }
     else {
-        # -WhatIf: nothing was applied, so preview the rollout against the default names.
-        $resourceGroup = "rg-$NamePrefix"
-        $appNames = @{}
-        foreach ($image in $images) { $appNames[$image.Component] = Get-ContainerAppName -NamePrefix $NamePrefix -Component $image.Component }
+        Write-Host 'Deployed.' -ForegroundColor Green
+        if (-not $AppsOnly) { terraform -chdir="$terraformDir" output }
     }
 }
-
-# --- 3. Image rollout ----------------------------------------------------------------------------
-
-foreach ($image in $images) {
-    $app = $appNames.($image.Component)
-    $current = if ($WhatIfPreference) { $null } else {
-        (Invoke-AzJson "Read $app image" {
-            az containerapp show --name $app --resource-group $resourceGroup `
-                --query 'properties.template.containers[0].image' --output json
-        })
-    }
-
-    if (-not (Test-RolloutNeeded -Image $image -CurrentReference $current)) {
-        Write-Host "==> $app already runs $($image.Reference); skipping." -ForegroundColor Cyan
-        continue
-    }
-
-    $suffix = New-RevisionSuffix -Tag $image.Tag
-    if ($PSCmdlet.ShouldProcess("$app ($resourceGroup)", "Roll out $($image.Reference) as revision suffix $suffix")) {
-        Invoke-Native "Roll out $($image.Reference) to $app" {
-            az containerapp update --name $app --resource-group $resourceGroup `
-                --image $image.Reference --revision-suffix $suffix --output none
-        }
-        Wait-HealthyRevision -App $app -ResourceGroup $resourceGroup -TimeoutSeconds $RevisionTimeoutSeconds
-    }
+finally {
+    $env:AZURE_EXTENSION_USE_DYNAMIC_INSTALL = $previousDynamicInstall
 }
-
-Write-Host ''
-Write-Host 'Deployed.' -ForegroundColor Green
-if (-not $AppsOnly -and -not $WhatIfPreference) { terraform -chdir="$terraformDir" output }

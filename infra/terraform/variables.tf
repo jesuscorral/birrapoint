@@ -43,6 +43,16 @@ variable "keycloak_image" {
   type        = string
 }
 
+variable "revision_suffix" {
+  description = "Revision suffix for every Container App, unique per apply (infra/deploy.ps1 passes infra-<UTC timestamp>). Each apply therefore creates a new revision of all three apps (a restart); never run Terraform directly with a reused value."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]*[a-z0-9]$", var.revision_suffix)) && !strcontains(var.revision_suffix, "--")
+    error_message = "revision_suffix must be lowercase alphanumerics and single hyphens, starting with a letter."
+  }
+}
+
 variable "dockerhub_username" {
   description = "Docker Hub username for pulling private repositories. Leave empty for public repositories."
   type        = string

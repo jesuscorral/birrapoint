@@ -27,13 +27,23 @@ would mean:
 
 1. **Terraform owns the infrastructure, not the running image.** The three Container Apps take
    full image references (`api_image`, `web_image`, `keycloak_image`, replacing `image_tag`),
-   used only when an app is first created. `lifecycle.ignore_changes` covers the container image
-   and `revision_suffix`.
+   used only when an app is first created; `lifecycle.ignore_changes` covers the container
+   image only. Each apply also receives a fresh `revision_suffix` (`infra-<UTC timestamp>`,
+   passed by `deploy.ps1`): a rollout leaves its own suffix in the Terraform state, and Container
+   Apps rejects a template change that would reuse an existing suffix, so ignoring the suffix
+   would make the next infrastructure change fail. The cost is that every full apply creates a
+   new revision of all three apps (a restart); full applies are rare and deliberate.
 2. **Images are rolled out with `az containerapp update --image`.** A unique revision suffix
    forces a new revision, which is the only way to make Container Apps re-pull a moved `latest`.
    The order is Keycloak, then the API (which migrates the database on startup), then the web
-   app. Each new revision must be healthy before the next app starts. A pinned release an app
-   already runs is skipped, so re-runs are idempotent.
+   app. The script polls the revision it created until it is healthy — or, for the web app,
+   which may scale to zero, provisioned with no replicas — before the next app starts; failed,
+   degraded or deprovisioned revisions stop the deployment. The skip decision looks at what is
+   actually serving, not at the app template: in Single revision mode a failed rollout leaves
+   the new image in the template while the previous revision keeps serving. An app is skipped
+   only when its latest revision is the ready one and runs the target release (or `latest`
+   that the preceding apply just pulled), so re-runs are idempotent and a failed rollout is
+   retried.
 3. **`deploy.ps1` resolves each image independently.** `-ApiVersion`, `-WebVersion` and
    `-KeycloakVersion` accept `X.Y.Z`, which selects the `-release` repository. When a version is
    omitted, the script deploys `latest` from the integration repository. It checks every image on
@@ -43,8 +53,10 @@ would mean:
    state. The deploy pipeline (T136) uses this mode with an identity scoped to the application
    resource group.
 5. **Testable logic lives in a separate module.** Image resolution and the rollout decisions are
-   in `infra/DeployImages.psm1`, unit-tested with Pester (`infra/tests/`). CI runs these tests,
-   together with `terraform fmt` and `terraform validate`, in the `infra` job.
+   in `infra/DeployImages.psm1`, unit-tested with Pester (`infra/tests/`). The `infra.yml`
+   workflow runs these tests together with `terraform fmt` and `terraform validate`, only when
+   `infra/**` changes; the integration pipeline (`ci.yml`) contains nothing Terraform-related and
+   never deploys.
 
 ## Consequences
 
@@ -55,6 +67,11 @@ would mean:
   is the source of truth (`az containerapp show`, the revision list).
 - **Independent versions.** Each component can run a different version, and rollback means
   re-running the rollout with the previous versions.
+- **Terraform must only run through `deploy.ps1`,** which supplies the per-apply revision
+  suffix; `revision_suffix` has no default, so a bare `terraform apply` asks for it.
+- **Not yet verified against Azure:** the revision-suffix behaviour, the health semantics without
+  probes and with scale-to-zero, and "roll out, then change an env var through Terraform" are
+  validated in T137.
 - **First-time creation still uses Terraform.** A new environment gets its first images from a
   full `deploy.ps1` run; after that, the rollout owns the image.
 - **ADR-0016 still applies** except for its build/push step and the `image_tag` variable,

@@ -79,32 +79,8 @@ jobs:
       - run: npm test -- --ci
       - run: npm run build:budget
 
-  # Deployment tooling: Terraform format/validation (no backend, no credentials) and the Pester
-  # tests of infra/DeployImages.psm1, the image-resolution logic behind infra/deploy.ps1.
-  infra:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
-        with:
-          terraform_wrapper: false
-      - run: terraform -chdir=infra/terraform fmt -check -recursive
-      - run: terraform -chdir=infra/terraform init -backend=false -input=false
-      - run: terraform -chdir=infra/terraform validate
-      - name: Pester
-        shell: pwsh
-        run: |
-          Install-Module Pester -RequiredVersion 6.2.0 -Scope CurrentUser -Force -SkipPublisherCheck
-          Import-Module Pester -RequiredVersion 6.2.0
-          $config = New-PesterConfiguration
-          $config.Run.Path = 'infra/tests'
-          $config.Run.Exit = $true
-          $config.Output.Verbosity = 'Detailed'
-          Invoke-Pester -Configuration $config
-
   images:
-    needs: [backend, frontend, infra]
+    needs: [backend, frontend]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:

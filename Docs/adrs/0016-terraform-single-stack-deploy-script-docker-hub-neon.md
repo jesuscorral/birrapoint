@@ -1,6 +1,6 @@
 # 0016 - Single Terraform stack + `deploy.ps1`, images on Docker Hub, Neon via Terraform provider
 
-**Status:** Accepted
+**Status:** Accepted — partially superseded by ADR-0018 (image build/push and `image_tag`)
 **Date:** 2026-09-24
 
 ## Context

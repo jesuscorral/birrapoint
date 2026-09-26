@@ -146,7 +146,9 @@ k6 run infra/perf/api-budgets.js       # API p95 budgets (reads <200ms, writes <
                                           #   release images (omitted = latest), -AppsOnly skips
                                           #   Terraform, -WhatIf previews — see
                                           #   infra/terraform/README.md (images come from CI, ADR-0018)
-Invoke-Pester infra/tests                 # Pester 5+ tests of infra/DeployImages.psm1
+Invoke-Pester infra/tests                 # Pester 5+ tests of infra/DeployImages.psm1 (Windows
+                                          #   PowerShell ships 3.4: Install-Module Pester
+                                          #   -MinimumVersion 5.0 -Scope CurrentUser once)
 docker build -f backend/src/BirraPoint.Api/Dockerfile backend   # API image (context = backend/)
 docker build frontend                     # PWA image (nginx; /config.json generated at start)
 docker build infra/keycloak               # Keycloak image (theme + prod realm baked in)
