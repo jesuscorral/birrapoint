@@ -391,6 +391,13 @@ credential for `environment:production`, Contributor on `rg-<prefix>` only)
 and runs `infra/deploy.ps1 -AppsOnly` — image rollout only, no Terraform/state/Neon; the
 infrastructure is assumed to exist. `concurrency: deploy-production`; the run summary lists each
 app's serving revision and image. One-time configuration: `infra/github-actions-setup.md`.
+Teardown (`infra/teardown.ps1`, T140): by default `terraform destroy -target=azurerm_resource_group.main`
+removes every billed Azure resource and keeps the Neon project (free) and the Terraform state,
+which holds the Neon project and the generated secrets (the API admin-client secret is also in
+Keycloak's database) — a redeploy reconnects to the same data. `-IncludeNeon` wipes everything
+including the state. Idempotent, with a direct sweep (`az group delete`, Neon API by exact project
+name) when the destroy fails or the state is gone; Log Analytics is purged on destroy
+(`permanently_delete_on_destroy`). Pure decisions in `infra/Teardown.psm1` (Pester-tested).
 Prerequisites and the Neon PITR restore procedure (FR-047) are in `infra/terraform/README.md`.
 **Not yet applied to a real subscription** — that is T099.
 
