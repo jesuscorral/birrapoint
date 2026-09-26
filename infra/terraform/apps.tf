@@ -4,6 +4,15 @@
 # --- Backend API: internal ingress only, reached through the web app's nginx reverse proxy -----
 
 resource "azurerm_container_app" "api" {
+  # The image is rolled out by infra/deploy.ps1 / the deploy pipeline (`az containerapp update`,
+  # with a per-deploy revision suffix); Terraform only sets it at creation (FR-064, T134).
+  lifecycle {
+    ignore_changes = [
+      template[0].container[0].image,
+      template[0].revision_suffix,
+    ]
+  }
+
   name                         = local.api_name
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = azurerm_resource_group.main.name
@@ -146,6 +155,15 @@ resource "azurerm_container_app" "api" {
 # --- Keycloak: public ingress for login flows (R-19) ---------------------------------------------
 
 resource "azurerm_container_app" "keycloak" {
+  # The image is rolled out by infra/deploy.ps1 / the deploy pipeline (`az containerapp update`,
+  # with a per-deploy revision suffix); Terraform only sets it at creation (FR-064, T134).
+  lifecycle {
+    ignore_changes = [
+      template[0].container[0].image,
+      template[0].revision_suffix,
+    ]
+  }
+
   name                         = local.keycloak_name
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = azurerm_resource_group.main.name
@@ -316,6 +334,15 @@ resource "azurerm_container_app" "keycloak" {
 # --- Frontend: public ingress; nginx serves the PWA and proxies /api + /hubs to the API ---------
 
 resource "azurerm_container_app" "web" {
+  # The image is rolled out by infra/deploy.ps1 / the deploy pipeline (`az containerapp update`,
+  # with a per-deploy revision suffix); Terraform only sets it at creation (FR-064, T134).
+  lifecycle {
+    ignore_changes = [
+      template[0].container[0].image,
+      template[0].revision_suffix,
+    ]
+  }
+
   name                         = local.web_name
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = azurerm_resource_group.main.name

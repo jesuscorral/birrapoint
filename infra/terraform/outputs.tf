@@ -18,6 +18,15 @@ output "resource_group_name" {
   value       = azurerm_resource_group.main.name
 }
 
+output "container_app_names" {
+  description = "Container App name per component; infra/deploy.ps1 rolls the images out to these."
+  value = {
+    api      = azurerm_container_app.api.name
+    web      = azurerm_container_app.web.name
+    keycloak = azurerm_container_app.keycloak.name
+  }
+}
+
 output "neon_project_id" {
   description = "Neon project id (point-in-time restore is done against this project — see README)."
   value       = neon_project.main.id

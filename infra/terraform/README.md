@@ -23,7 +23,9 @@ Constitution v1.3.1, research R-17/R-18/R-19, ADR-0016/ADR-0017, FR-043–FR-047
    (+ Log Analytics)                     outside Azure (R-18)
 ```
 
-- **Images** come from Docker Hub (`<namespace>/birrapoint-api|web|keycloak:<tag>`); none
+- **Images** come from Docker Hub and are never built by the deployment: CI publishes
+  `<namespace>/birrapoint-api|web|keycloak:latest` on every merge to `main`, the release pipeline
+  publishes immutable `<namespace>/birrapoint-*-release:X.Y.Z` (FR-064). None
   contains secrets or environment-specific configuration (FR-043). The web image renders
   `/config.json` and its nginx upstream from env vars at start; the Keycloak realm resolves its
   `${VAR:default}` placeholders at import; the API reads everything from env vars.
@@ -41,7 +43,7 @@ Constitution v1.3.1, research R-17/R-18/R-19, ADR-0016/ADR-0017, FR-043–FR-047
 |---|---|
 | Azure subscription + CLI | `az login` (Contributor on the subscription) |
 | Terraform ≥ 1.9 | <https://developer.hashicorp.com/terraform/install> |
-| Docker + Docker Hub account | `docker login`; the three repositories are created on first push |
+| Docker Hub images | Published by GitHub Actions (`ci.yml` for `latest`, `release.yml` for `X.Y.Z`); no local Docker needed |
 | Neon account + API key | Neon console → Account settings → API keys; `$env:NEON_API_KEY = "..."` |
 | SMTP relay | Any provider with SMTP credentials and a verified sender address |
 | Variables file | `cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars`, fill in |
@@ -53,14 +55,43 @@ token in `dockerhub_token`; with public repositories leave both empty.
 
 ```powershell
 $env:NEON_API_KEY = "<key>"
-./infra/deploy.ps1 -ImageNamespace <dockerhub-user-or-org>          # interactive apply
-./infra/deploy.ps1 -ImageNamespace <dockerhub-user-or-org> -AutoApprove
+./infra/deploy.ps1 -ImageNamespace <dockerhub-user-or-org>          # latest images, interactive apply
+./infra/deploy.ps1 -ImageNamespace <dockerhub-user-or-org> -AutoApprove `
+    -ApiVersion 0.3.1 -WebVersion 0.3.1 -KeycloakVersion 0.3.0      # release images
+./infra/deploy.ps1 -ImageNamespace <dockerhub-user-or-org> -WhatIf  # preview, changes nothing
 ```
 
-The script is idempotent: it creates the state storage (`rg-birrapoint-tfstate`) if missing,
-builds and pushes the three images tagged with the current commit SHA (clean tree required, or
-`-ImageTag`/`-AllowDirty`), then runs `terraform init` + `terraform apply`. `-SkipBuild`
-redeploys images already on Docker Hub. It prints `web_url` and `keycloak_url` at the end.
+The script is idempotent. Each component's image is chosen independently: `-ApiVersion`,
+`-WebVersion`, `-KeycloakVersion` take a release version `X.Y.Z` and deploy
+`<ns>/birrapoint-<component>-release:X.Y.Z`; an omitted version deploys
+`<ns>/birrapoint-<component>:latest`. It then:
+
+1. checks that every selected image exists on Docker Hub (fails before changing anything);
+2. creates the state storage (`rg-birrapoint-tfstate`) if missing and runs `terraform init` +
+   `terraform apply`;
+3. rolls each Container App to its image with `az containerapp update` — Keycloak, then the API
+   (which migrates the database on startup), then the web app — waiting for each new revision
+   to become healthy before the next. A release version an app already runs is skipped; `latest`
+   always gets a new revision so the moved tag is re-pulled.
+
+It prints `web_url` and `keycloak_url` at the end.
+
+**Terraform owns the infrastructure, not the running image.** The image variables
+(`api_image`, `web_image`, `keycloak_image`) are used only when a Container App is first
+created; `lifecycle.ignore_changes` makes later applies leave the image alone, so an
+infrastructure change never rolls an app back to an older version.
+
+### Image-only deployment (`-AppsOnly`)
+
+```powershell
+./infra/deploy.ps1 -ImageNamespace <ns> -AppsOnly -ApiVersion 0.3.1 -WebVersion 0.3.1 -KeycloakVersion 0.3.1
+```
+
+Skips step 2 entirely: no Terraform, `terraform.tfvars`, `NEON_API_KEY` or state access —
+only `az login` with rights on the application resource group (`rg-<name_prefix>`; pass
+`-NamePrefix` if you changed `name_prefix`). This is how the deploy pipeline releases a version,
+and how to roll back: re-run with the previous versions. The environment must already exist
+(created once by a full run).
 
 First start takes a few minutes: Keycloak creates its schema on Neon and imports the realm, and
 the API applies EF Core migrations (including the BJCP catalog seed) before serving.
@@ -91,7 +122,7 @@ Branches → New branch → "Past data") and inspect it with `psql` before resto
 ## Tear down
 
 ```powershell
-terraform -chdir=infra/terraform destroy -var="subscription_id=<id>" -var="image_namespace=<ns>" -var="image_tag=<tag>" -var-file=terraform.tfvars
+terraform -chdir=infra/terraform destroy -var="subscription_id=<id>" -var="api_image=unused" -var="web_image=unused" -var="keycloak_image=unused" -var-file=terraform.tfvars
 ```
 
 This deletes the Azure resources **and the Neon project with all its data**. The state storage

@@ -12,9 +12,9 @@ locals {
   api_internal_url = "https://${local.api_name}.internal.${local.default_domain}"
 
   images = {
-    api      = "docker.io/${var.image_namespace}/birrapoint-api:${var.image_tag}"
-    web      = "docker.io/${var.image_namespace}/birrapoint-web:${var.image_tag}"
-    keycloak = "docker.io/${var.image_namespace}/birrapoint-keycloak:${var.image_tag}"
+    api      = var.api_image
+    web      = var.web_image
+    keycloak = var.keycloak_image
   }
 
   private_registry     = var.dockerhub_username != "" ? [var.dockerhub_username] : []

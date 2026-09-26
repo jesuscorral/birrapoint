@@ -43,13 +43,18 @@ for runtime, direct endpoint for migrations). The PWA reads `/config.json` at st
 ## Cloud deployment (SC-011)
 
 ```powershell
-# One-time: az login; docker login; copy infra/terraform/terraform.tfvars.example → terraform.tfvars
+# One-time: az login; copy infra/terraform/terraform.tfvars.example → terraform.tfvars.
+# Images are published to Docker Hub by GitHub Actions (ci.yml: latest; release.yml: X.Y.Z).
 $env:NEON_API_KEY = "<neon api key>"
-./infra/deploy.ps1 -ImageNamespace <dockerhub-user-or-org> [-AutoApprove]
-# Idempotent: creates the Terraform state storage if missing, builds + pushes birrapoint-api,
-# -web and -keycloak to Docker Hub (tag = commit SHA), then terraform init + apply: ACA
-# environment, the three Container Apps (web public, API internal-only, Keycloak public) and the
-# Neon project with databases `birrapoint` + `keycloak`. Prints web_url / keycloak_url.
+./infra/deploy.ps1 -ImageNamespace <dockerhub-user-or-org> [-AutoApprove] `
+    [-ApiVersion X.Y.Z] [-WebVersion X.Y.Z] [-KeycloakVersion X.Y.Z]
+# Idempotent: checks the selected images exist on Docker Hub (omitted version = latest), creates
+# the Terraform state storage if missing, terraform init + apply (ACA environment, the three
+# Container Apps — web public, API internal-only, Keycloak public — and the Neon project with
+# databases `birrapoint` + `keycloak`), then rolls each app to its image (keycloak → api → web,
+# waiting for healthy revisions). Prints web_url / keycloak_url.
+# Later version deploys without touching infrastructure (ADR-0018):
+./infra/deploy.ps1 -ImageNamespace <ns> -AppsOnly -ApiVersion X.Y.Z -WebVersion X.Y.Z -KeycloakVersion X.Y.Z
 ```
 
 Restore: Neon point-in-time recovery, procedure in `infra/terraform/README.md` (FR-047).

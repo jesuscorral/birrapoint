@@ -1,5 +1,5 @@
-# Copy to terraform.tfvars (gitignored) and fill in. subscription_id, location, image_namespace
-# and image_tag are passed by infra/deploy.ps1 and do not belong here.
+# Copy to terraform.tfvars (gitignored) and fill in. subscription_id, location, api_image,
+# web_image and keycloak_image are passed by infra/deploy.ps1 and do not belong here.
 # NEON_API_KEY is read from the environment by the Neon provider — never put it in this file.
 
 # name_prefix = "birrapoint"

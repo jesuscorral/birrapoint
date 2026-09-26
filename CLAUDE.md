@@ -19,7 +19,8 @@ of Phase 16 per its own dependency note — it only needed `GET /competitions` f
 budget enforcement, full quickstart validation, this file, security pass) is in progress. Phase 16
 (Deployment & Operations) is in progress: T095–T097 (Dockerfiles, Terraform + Neon, Docker Hub
 images, `infra/deploy.ps1`) are implemented; T098 (health/OpenTelemetry in ACA) and T099 (validated
-fresh cloud deploy) are pending.
+fresh cloud deploy) are pending. CI/CD (FR-064, T133–T139): T133 (`ci.yml`) and T134 (image rollout
+decoupled from Terraform, ADR-0018) are implemented; release/deploy pipelines (T135/T136) pending.
 `Docs/arquitectura_viva.md` tracks the actual current system state in detail. `Docs/` holds the
 original product definition (in Spanish); the English spec supersedes it.
 
@@ -140,8 +141,12 @@ k6 run infra/perf/api-budgets.js       # API p95 budgets (reads <200ms, writes <
                                        #   non-interactive token grants)
 
 ./infra/deploy.ps1 -ImageNamespace <dockerhub-ns>   # cloud deploy (PowerShell): state bootstrap,
-                                          #   docker build+push to Docker Hub, terraform apply —
-                                          #   prerequisites in infra/terraform/README.md
+                                          #   terraform apply, then image rollout per Container App;
+                                          #   -ApiVersion/-WebVersion/-KeycloakVersion X.Y.Z pick
+                                          #   release images (omitted = latest), -AppsOnly skips
+                                          #   Terraform, -WhatIf previews — see
+                                          #   infra/terraform/README.md (images come from CI, ADR-0018)
+Invoke-Pester infra/tests                 # Pester 5+ tests of infra/DeployImages.psm1
 docker build -f backend/src/BirraPoint.Api/Dockerfile backend   # API image (context = backend/)
 docker build frontend                     # PWA image (nginx; /config.json generated at start)
 docker build infra/keycloak               # Keycloak image (theme + prod realm baked in)
@@ -162,7 +167,8 @@ backend/tests/     # BirraPoint.Api.UnitTests + BirraPoint.Api.IntegrationTests
 frontend/src/app/  # Feature-Sliced Design: core/ (auth, api, realtime, offline), features/, shared/
 frontend/e2e/      # Playwright suites, incl. e2e/a11y/ (axe-core WCAG gate)
 frontend/scripts/  # build-time checks (bundle gzip budget) not owned by any one feature
-infra/             # deploy.ps1 (single-command deploy), terraform/ (ACA environment + apps,
+infra/             # deploy.ps1 + DeployImages.psm1 (deploy + image rollout; tests/ = Pester),
+                   #   terraform/ (ACA environment + apps,
                    #   Neon project; images from Docker Hub; remote state in Azure Storage),
                    #   keycloak/ (realm json, login theme, production Dockerfile),
                    #   perf/ (k6 API-budget scripts)

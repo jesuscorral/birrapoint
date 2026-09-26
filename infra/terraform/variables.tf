@@ -22,13 +22,24 @@ variable "name_prefix" {
 
 # --- Images (Docker Hub, constitution v1.3.1) ---------------------------------------------------
 
-variable "image_namespace" {
-  description = "Docker Hub user or organization owning the birrapoint-api/-web/-keycloak repositories."
+# Full image references, e.g. docker.io/<ns>/birrapoint-api-release:0.3.0 (resolved by
+# infra/deploy.ps1). Used only when a Container App is first created: afterwards the image is
+# owned by the deployment rollout (`az containerapp update`, via infra/deploy.ps1 or the deploy
+# pipeline) and Terraform ignores it (see `lifecycle` in apps.tf), so infrastructure applies never
+# roll an app back to an older image (FR-064, T134).
+
+variable "api_image" {
+  description = "Initial image of the API Container App (ignored after creation)."
   type        = string
 }
 
-variable "image_tag" {
-  description = "Tag of all three images to deploy (infra/deploy.ps1 uses the git commit SHA)."
+variable "web_image" {
+  description = "Initial image of the web Container App (ignored after creation)."
+  type        = string
+}
+
+variable "keycloak_image" {
+  description = "Initial image of the Keycloak Container App (ignored after creation)."
   type        = string
 }
 
