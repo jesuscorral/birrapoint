@@ -16,7 +16,7 @@
 # on the same SHA, an existing release or an already-advanced version.txt is accepted). It never
 # deploys: deploy.yml does that. Concurrency keeps a single pending run: a third dispatch while
 # one runs and one waits replaces the waiting one.
-name: Release
+name: 2.-Release
 
 on:
   workflow_dispatch:
