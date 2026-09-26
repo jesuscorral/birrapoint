@@ -1,4 +1,4 @@
-# Pester 5+ tests for infra/DeployImages.psm1 — the pure image-resolution and rollout-decision
+# Pester 5+ tests for infra/DeployImages.psm1 - the pure image-resolution and rollout-decision
 # logic behind infra/deploy.ps1 (T134, ADR-0018). Run: Invoke-Pester infra/tests
 # (Windows PowerShell 5.1 ships Pester 3.4: Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser)
 
@@ -61,6 +61,7 @@ Describe 'Test-DockerHubTag' {
     BeforeEach {
         $env:DOCKERHUB_USERNAME = $null
         $env:DOCKERHUB_TOKEN = $null
+        & (Get-Module DeployImages) { $script:DockerHubAuth = $null }
     }
     AfterAll {
         $env:DOCKERHUB_USERNAME = $null
@@ -94,6 +95,20 @@ Describe 'Test-DockerHubTag' {
         Should -Invoke Get-HttpStatusCode -ModuleName DeployImages -Times 1 -ParameterFilter {
             $Headers['Authorization'] -eq 'Bearer jwt-value'
         }
+    }
+
+    It 'logs in to Docker Hub once for several lookups' {
+        $env:DOCKERHUB_USERNAME = 'bot'
+        $env:DOCKERHUB_TOKEN = 'pat-value'
+        Mock Invoke-RestMethod -ModuleName DeployImages { [pscustomobject]@{ access_token = 'jwt-value' } }
+        Mock Get-HttpStatusCode -ModuleName DeployImages { 200 }
+
+        foreach ($repository in 'birrapoint-api', 'birrapoint-web', 'birrapoint-keycloak') {
+            Test-DockerHubTag -Namespace 'acme' -Repository $repository -Tag 'latest' | Out-Null
+        }
+
+        Should -Invoke Invoke-RestMethod -ModuleName DeployImages -Times 1 -Exactly
+        Should -Invoke Get-HttpStatusCode -ModuleName DeployImages -Times 3 -Exactly
     }
 
     It 'returns false on 404' {
@@ -130,6 +145,10 @@ Describe 'New-RevisionSuffix' {
         $suffix = New-RevisionSuffix -Tag '10.20.30' -AppName 'birrapoint-api' -Timestamp $at
         $suffix | Should -Match '^[a-z][a-z0-9-]*[a-z0-9]$'
         $suffix | Should -Not -Match '--'
+    }
+
+    It 'skips the length check when no app name is given (Terraform validates the infra suffix itself)' {
+        New-RevisionSuffix -Tag 'infra' -Timestamp $at | Should -Be 'infra-20260926103005'
     }
 
     It 'rejects a revision name (app name, "--", suffix) longer than 64 characters' {
@@ -198,11 +217,15 @@ Describe 'Get-RevisionOutcome' {
         @{ field = 'provisioning'; state = 'Failed'; p = 'Failed'; r = 'Processing' },
         @{ field = 'provisioning'; state = 'Deprovisioned'; p = 'Deprovisioned'; r = 'Stopped' },
         @{ field = 'provisioning'; state = 'Deprovisioning'; p = 'Deprovisioning'; r = 'Stopped' },
-        @{ field = 'running'; state = 'Failed'; p = 'Provisioned'; r = 'Failed' },
-        @{ field = 'running'; state = 'Degraded'; p = 'Provisioned'; r = 'Degraded' }
+        @{ field = 'running'; state = 'Failed'; p = 'Provisioned'; r = 'Failed' }
     ) {
         Get-RevisionOutcome -ProvisioningState $p -RunningState $r -HealthState 'Unhealthy' -Replicas 1 -MinReplicas 1 |
             Should -Be 'Failed'
+    }
+
+    It 'is Degraded (not yet Failed) when the running state is Degraded - a slow start can pass through it' {
+        Get-RevisionOutcome -ProvisioningState 'Provisioned' -RunningState 'Degraded' -HealthState 'Unhealthy' -Replicas 1 -MinReplicas 1 |
+            Should -Be 'Degraded'
     }
 
     It 'is Pending while provisioned but not yet healthy' {

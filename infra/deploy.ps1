@@ -17,13 +17,13 @@
          images only when it first creates a Container App (lifecycle ignore_changes, T134), and
          gets a fresh revision suffix per apply, so every full run creates a new revision of each
          app (a restart) and never reuses a suffix left by an earlier rollout (ADR-0018).
-      3. Rolls each app to its image with `az containerapp update` — keycloak, then api (which
-         migrates the database on startup), then web — waiting for each new revision to become
+      3. Rolls each app to its image with `az containerapp update` - keycloak, then api (which
+         migrates the database on startup), then web - waiting for each new revision to become
          healthy before moving on. An app whose latest revision is healthy and already serves
          the target release is skipped (so is `latest` right after the apply pulled it).
 
     -AppsOnly is the image-only deployment used by the deploy pipeline (deploy.yml): no Terraform,
-    tfvars, NEON_API_KEY or state access — only `az login` with rights on the application
+    tfvars, NEON_API_KEY or state access - only `az login` with rights on the application
     resource group. Compatible with Windows PowerShell 5.1 and PowerShell 7. -WhatIf reads Azure
     and Docker Hub but changes nothing (no Terraform init/apply, no rollout).
 
@@ -118,13 +118,19 @@ function Get-TerraformOutput {
 
 function Get-AppState {
     # Latest / latest-ready revision, the ready revision's image and the app's minimum replicas;
-    # $null when the Container App does not exist (yet).
+    # $null only when the resource group or the Container App does not exist (yet) - any other
+    # failure (throttling, expired login, wrong subscription) throws instead of passing for
+    # "not found".
     param([string] $App, [string] $ResourceGroup)
-    $json = (Invoke-Probe {
-            az containerapp show --name $App --resource-group $ResourceGroup --output json `
-                --query '{latest: properties.latestRevisionName, ready: properties.latestReadyRevisionName, minReplicas: properties.template.scale.minReplicas}'
-        }) -join "`n"
-    if (-not $json) { return $null }
+    $groupExists = (az group exists --name $ResourceGroup) -join ''
+    if ($LASTEXITCODE -ne 0) { throw "Checking resource group '$ResourceGroup' failed." }
+    if ($groupExists.Trim() -ne 'true') { return $null }
+
+    # `list` + filter instead of `show`: a missing app is an empty result, not an error.
+    $json = (az containerapp list --resource-group $ResourceGroup --output json `
+            --query "[?name=='$App'] | [0].{latest: properties.latestRevisionName, ready: properties.latestReadyRevisionName, minReplicas: properties.template.scale.minReplicas}") -join "`n"
+    if ($LASTEXITCODE -ne 0) { throw "Reading Container App '$App' failed." }
+    if (-not $json -or $json.Trim() -eq 'null') { return $null }
     $state = $json | ConvertFrom-Json
 
     $readyImage = $null
@@ -137,7 +143,8 @@ function Get-AppState {
         Latest      = $state.latest
         Ready       = $state.ready
         ReadyImage  = if ($readyImage) { $readyImage.Trim() } else { $null }
-        MinReplicas = [int] $state.minReplicas
+        # Unset means the platform default (not zero): never treat it as "may scale to zero".
+        MinReplicas = if ($null -ne $state.minReplicas) { [int] $state.minReplicas } else { 1 }
     }
 }
 
@@ -148,6 +155,9 @@ function Wait-HealthyRevision {
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $consecutiveErrors = 0
+    # A slow start (e.g. Keycloak booting behind the default TCP probe) can pass through Degraded;
+    # only a Degraded state that persists for a minute fails the deployment.
+    $consecutiveDegraded = 0
     while ($true) {
         try {
             $revision = Invoke-AzJson "Read revision $Revision" {
@@ -171,7 +181,8 @@ function Wait-HealthyRevision {
             $Revision, $revision.provisioning, $revision.running, $revision.health, $replicas, $outcome)
 
         if ($outcome -eq 'Succeeded') { return }
-        if ($outcome -eq 'Failed') {
+        $consecutiveDegraded = if ($outcome -eq 'Degraded') { $consecutiveDegraded + 1 } else { 0 }
+        if ($outcome -eq 'Failed' -or $consecutiveDegraded -ge 6) {
             throw "Revision $Revision failed (provisioning=$($revision.provisioning), running=$($revision.running)). Check its logs; the previous revision keeps serving until a healthy one replaces it."
         }
         if ((Get-Date) -gt $deadline) {
@@ -228,7 +239,12 @@ try {
     # --- 2. Infrastructure (Terraform) ---------------------------------------------------------
 
     $infraSuffix = $null
-    if (-not $AppsOnly -and $PSCmdlet.ShouldProcess('infra/terraform (remote state bootstrap, init, apply)', 'Apply infrastructure')) {
+    $applyInfrastructure = -not $AppsOnly -and
+        $PSCmdlet.ShouldProcess('infra/terraform (remote state bootstrap, init, apply)', 'Apply infrastructure')
+    if (-not $AppsOnly -and -not $applyInfrastructure -and -not $WhatIfPreference) {
+        throw 'Infrastructure apply declined; nothing was changed. Use -AppsOnly to roll out images without Terraform.'
+    }
+    if ($applyInfrastructure) {
         if (-not $StateStorageAccount) {
             # 3-24 lowercase alphanumerics, globally unique: stable per subscription.
             $StateStorageAccount = ('stbirrapointtf' + ($subscriptionId -replace '-', '').Substring(0, 10)).ToLower()
@@ -265,9 +281,26 @@ try {
                 "-backend-config=key=$StateKey"
         }
 
+        # An app whose latest revision is not the serving one (a failed earlier rollout) keeps the
+        # failed image in its template, and the apply below would start a new revision from it.
+        # Recover such apps with -AppsOnly first. New environments have no outputs yet: skipped.
+        $existingApps = $null
+        $outputsJson = (Invoke-Probe { terraform -chdir="$terraformDir" output -json container_app_names }) -join "`n"
+        if ($outputsJson -and $outputsJson.Trim().StartsWith('{')) {
+            $existingApps = $outputsJson | ConvertFrom-Json
+            $existingGroup = Get-TerraformOutput 'resource_group_name'
+            foreach ($component in 'keycloak', 'api', 'web') {
+                $existing = Get-AppState -App $existingApps.$component -ResourceGroup $existingGroup
+                if ($existing -and $existing.Latest -ne $existing.Ready) {
+                    throw "Container App '$($existingApps.$component)' has a latest revision ($($existing.Latest)) that is not the serving one ($($existing.Ready)), e.g. after a failed rollout. Recover it first: ./infra/deploy.ps1 -AppsOnly -ImageNamespace $ImageNamespace -<Component>Version <good version>."
+                }
+            }
+        }
+
         # A fresh suffix per apply: every apply creates a new revision of each app (a restart),
-        # and never reuses a suffix a previous rollout left in state (ADR-0018).
-        $infraSuffix = New-RevisionSuffix -Tag 'infra' -AppName $appNames.api
+        # and never reuses a suffix a previous rollout left in state (ADR-0018). Its length
+        # against the real name_prefix is validated by Terraform.
+        $infraSuffix = New-RevisionSuffix -Tag 'infra'
         $applyArgs = @(
             "-chdir=$terraformDir", 'apply', '-input=false',
             "-var-file=$((Resolve-Path $VarFile).Path)",
