@@ -150,11 +150,29 @@ Branches → New branch → "Past data") and inspect it with `psql` before resto
 ## Tear down
 
 ```powershell
-terraform -chdir=infra/terraform destroy -var="subscription_id=<id>" -var="api_image=unused" -var="web_image=unused" -var="keycloak_image=unused" -var="revision_suffix=destroy" -var-file=terraform.tfvars
+$env:NEON_API_KEY = "<key>"
+./infra/teardown.ps1            # stop all Azure costs; keep Neon data + state (asks to type the prefix)
+./infra/teardown.ps1 -WhatIf    # preview, changes nothing
+./infra/teardown.ps1 -IncludeNeon   # full wipe, production data included (second confirmation)
 ```
 
-This deletes the Azure resources **and the Neon project with all its data**. The state storage
-account (`rg-birrapoint-tfstate`) is left in place.
+**Default** — removes only what Azure bills for: `rg-birrapoint` with the three Container Apps,
+the environment and Log Analytics (`terraform destroy -target=azurerm_resource_group.main`). It
+**keeps** the Neon project and its data (free plan; its compute suspends when idle) and the
+Terraform state. The state must stay: it remembers the Neon project and the generated
+passwords — the API admin-client secret among them is already stored in Keycloak's database — so
+the next `deploy.ps1` recreates only the Azure part and reconnects to the same data with matching
+secrets. Deleting the state while keeping Neon would leave a redeploy with mismatched secrets.
+
+**`-IncludeNeon`** — destroys everything Terraform manages (the Neon project too), deletes
+`rg-birrapoint-tfstate` and the local `infra/terraform/.terraform`, for a fresh start with empty
+data.
+
+Both modes are idempotent: if `terraform destroy` fails or the state is missing, the script sweeps
+leftovers directly (`az group delete`; with `-IncludeNeon`, the Neon project named exactly
+`<name_prefix>` via the Neon API) and ends by verifying nothing remains. Log Analytics is purged,
+not soft-deleted (`permanently_delete_on_destroy`), so a redeploy never collides with it.
+Docker Hub images, GitHub secrets and the deploy identity are never touched.
 
 ## Known limitations
 

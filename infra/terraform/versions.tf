@@ -23,7 +23,13 @@ terraform {
 }
 
 provider "azurerm" {
-  features {}
+  features {
+    # Purge instead of the 14-day soft-delete, so a teardown (infra/teardown.ps1) followed by a
+    # fresh deploy never collides with a soft-deleted workspace of the same name.
+    log_analytics_workspace {
+      permanently_delete_on_destroy = true
+    }
+  }
   subscription_id = var.subscription_id
 }
 

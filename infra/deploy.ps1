@@ -57,7 +57,7 @@ param(
     # Defaults to infra/terraform/terraform.tfvars.
     [string] $VarFile,
 
-    [string] $Location = 'westeurope',
+    [string] $Location = 'northeurope',
     [string] $StateResourceGroup = 'rg-birrapoint-tfstate',
     # Globally unique; derived from the subscription id when omitted.
     [string] $StateStorageAccount,
