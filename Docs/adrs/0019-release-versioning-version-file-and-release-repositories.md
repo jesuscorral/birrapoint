@@ -29,8 +29,10 @@ Three constraints shaped the design. They are user decisions from 2026-09-26:
    The release pipeline always reads it from `main`, never from the ref it builds, so `main` is
    the single sequence of versions. A hotfix therefore gets the next number, and no number is
    ever reused.
-3. **The pipeline builds the `ref` input and publishes the images before anything else.** The
-   input is a branch, tag or SHA, resolved once to a SHA. The pipeline runs the same quality
+3. **The pipeline builds the `ref` input and publishes the images before anything else.** It
+   runs only when dispatched from `main`, so the definition that publishes releases and pushes
+   to `main` is always `main`'s own. The `ref` input must be `main`, a `hotfix/*` branch or an
+   existing `v*` tag; it is resolved once to a SHA. The pipeline runs the same quality
    gates as CI (`quality-gates.yml`, reusable) on that SHA, then pushes the three images, and
    only then creates the annotated tag `vX.Y.Z` on that SHA and a GitHub Release. The release
    notes list the image digests, followed by the notes GitHub generates.
@@ -39,8 +41,12 @@ Three constraints shaped the design. They are user decisions from 2026-09-26:
    trigger no workflows, and `ci.yml` also path-ignores `version.txt`. If `main` becomes
    protected, a GitHub App on the ruleset's bypass list replaces `GITHUB_TOKEN` for this step.
 5. **A released version is never overwritten.** The pipeline refuses to start when `vX.Y.Z` or
-   any `X.Y.Z` image already exists, and each image job re-checks right before pushing. Every
-   finalize step is idempotent, so "Re-run failed jobs" completes a partially failed release.
+   any `X.Y.Z` image already exists, and each image job re-checks right before pushing. The one
+   exception is an image the same release already pushed before its job failed: an image whose
+   `org.opencontainers.image.revision` label equals the released SHA is reused, digest included.
+   Together with idempotent finalize steps, this makes "Re-run failed jobs" complete a partially
+   failed release. If the Docker Hub plan offers immutable tags, enabling them on the `-release`
+   repositories adds a registry-side backstop.
    The version logic is in `.github/scripts/version.sh`, covered by
    `.github/scripts/version.test.sh`; the `workflows.yml` workflow runs those tests and
    actionlint.
@@ -49,6 +55,12 @@ Three constraints shaped the design. They are user decisions from 2026-09-26:
 
 - **Hotfix flow.** Branch from `vX.Y.Z`, fix, and run the release with `ref=hotfix/...`. The fix
   must then reach `main` through its own PR (cherry-pick); the pipeline does not merge back.
+- **Hotfixes take `main`'s next number.** After a hotfix, `main`'s following release may ship
+  features under a patch bump; choose `bump` (or edit `version.txt`) accordingly.
+- **One queued run.** The `release` concurrency group keeps a single pending run: a third dispatch
+  while one runs and one waits replaces the waiting one.
+- **Check names.** The reusable gates report as `gates / backend` and `gates / frontend`; any
+  required-status-check configuration must use those names.
 - **Minor and major versions.** Bump through the `bump` input of the preceding release, or edit
   `version.txt` in a PR.
 - **Release builds do not share the `latest` cache.** They read the GitHub Actions layer cache

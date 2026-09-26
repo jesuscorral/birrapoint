@@ -57,6 +57,7 @@ jobs:
       # cache quota is kept for main's entries, the only ones every run can reuse).
       PUBLISH: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     steps:
+      # Credentials kept: the head-of-main check below runs `git ls-remote origin`.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Verify publish configuration
         if: env.PUBLISH == 'true'

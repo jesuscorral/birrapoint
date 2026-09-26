@@ -21,6 +21,9 @@ concurrency:
 
 env:
   ACTIONLINT_VERSION: 1.7.12
+  # SHA-256 of actionlint_<version>_linux_amd64.tar.gz, pinned here rather than trusted from the
+  # same release's checksum file (update together with ACTIONLINT_VERSION).
+  ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
 
 jobs:
   lint:
@@ -28,15 +31,16 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - name: Install actionlint (checksum-verified release binary)
+        with:
+          persist-credentials: false
+      - name: Install actionlint (SHA-256-pinned release binary)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd "$RUNNER_TEMP"
           gh release download "v$ACTIONLINT_VERSION" --repo rhysd/actionlint \
-            --pattern "actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
-            --pattern "actionlint_${ACTIONLINT_VERSION}_checksums.txt"
-          sha256sum --ignore-missing --check "actionlint_${ACTIONLINT_VERSION}_checksums.txt"
+            --pattern "actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "$ACTIONLINT_SHA256  actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" | sha256sum --check
           tar -xzf "actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" actionlint
       - run: '"$RUNNER_TEMP/actionlint" -color'
       - run: bash .github/scripts/version.test.sh
