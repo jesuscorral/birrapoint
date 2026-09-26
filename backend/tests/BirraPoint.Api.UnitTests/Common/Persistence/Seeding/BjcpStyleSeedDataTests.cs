@@ -71,6 +71,6 @@ public sealed class BjcpStyleSeedDataTests
     {
         var hash = BjcpStyleCatalogLoader.ComputeContentHash();
 
-        Assert.Equal("C9146DC76CECBBA40DC587A5E5CDD2278E38ACED873CF16B191B425BE5405A8C", hash);
+        Assert.Equal("70BD66B2617804316DE7BCDCFEBEB87727E0392370B0ABDE22F2C769E35E5208", hash);
     }
 }
