@@ -73,8 +73,8 @@ The script is idempotent. Each component's image is chosen independently: `-ApiV
    (which migrates the database on startup), then the web app — waiting for each new revision
    to become healthy before the next (the web app may scale to zero, so for it "provisioned with
    no replicas" also counts). An app whose latest revision is healthy and already serves the
-   target release is skipped; `latest` always gets a new revision so the moved tag is re-pulled,
-   except right after the apply created one that pulled it.
+   target release is skipped; `latest` always gets a new revision so the moved tag is re-pulled
+   (usually skipped right after the apply created one that pulled it).
 
 It prints `web_url` and `keycloak_url` at the end.
 
@@ -86,7 +86,10 @@ infrastructure change never rolls an app back to an older version.
 Every full run passes a fresh `revision_suffix` (`infra-<UTC timestamp>`), so **each apply
 creates a new revision of all three apps (a short restart)** — a rollout leaves its own suffix in
 the state, and Container Apps rejects a template change that reuses one (ADR-0018). Always apply
-through `deploy.ps1`; a bare `terraform apply` asks for `revision_suffix`.
+through `deploy.ps1`; a bare `terraform apply` asks for `revision_suffix`. A full run refuses to
+start while an app's latest revision is not its serving one (a failed earlier rollout would
+otherwise be re-created from the failed image): recover that app with `-AppsOnly` first.
+Answering *No* to `-Confirm`'s apply prompt aborts the run.
 
 `-WhatIf` checks the images and reads the apps' current state but changes nothing (no state
 bootstrap, `terraform init`/`apply` or rollout).

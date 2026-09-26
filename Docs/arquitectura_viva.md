@@ -371,8 +371,9 @@ checks live in `.github/workflows/infra.yml` (T134), triggered only by `infra/**
 backend/frontend gates are the reusable `.github/workflows/quality-gates.yml`, shared by `ci.yml`
 and the release pipeline.
 
-Release (`.github/workflows/release.yml`, T135, ADR-0019): manual, inputs `ref` (branch, tag or
-SHA — e.g. a hotfix branch) and `bump`. It reads the version from `version.txt` **on main**,
+Release (`.github/workflows/release.yml`, T135, ADR-0019): manual and only dispatchable from
+`main`, inputs `ref` (`main`, a `hotfix/*` branch or an existing `v*` tag) and `bump`. An image a
+failed attempt already pushed for the same SHA (revision label) is reused on re-run. It reads the version from `version.txt` **on main**,
 refuses an existing tag `vX.Y.Z` or `X.Y.Z` image, runs the quality gates on the resolved SHA,
 pushes `<ns>/birrapoint-<component>-release:X.Y.Z` (separate repositories from the `latest` ones,
 OCI version/revision labels), then tags `vX.Y.Z`, creates the GitHub Release (image digests +

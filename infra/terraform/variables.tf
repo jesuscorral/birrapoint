@@ -51,6 +51,13 @@ variable "revision_suffix" {
     condition     = can(regex("^[a-z][a-z0-9-]*[a-z0-9]$", var.revision_suffix)) && !strcontains(var.revision_suffix, "--")
     error_message = "revision_suffix must be lowercase alphanumerics and single hyphens, starting with a letter."
   }
+
+  # Container Apps limits a revision name (<app>--<suffix>) to 64 characters; -api/-web are the
+  # longest app names.
+  validation {
+    condition     = length("${var.name_prefix}-api--${var.revision_suffix}") <= 64
+    error_message = "name_prefix + revision_suffix give a revision name longer than 64 characters."
+  }
 }
 
 variable "dockerhub_username" {

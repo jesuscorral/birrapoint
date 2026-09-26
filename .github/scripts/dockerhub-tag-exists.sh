@@ -23,7 +23,8 @@ if [ -n "${DOCKERHUB_USERNAME:-}" ] && [ -n "${DOCKERHUB_TOKEN:-}" ]; then
   auth=(-H "Authorization: Bearer $token")
 fi
 
-status="$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' "${auth[@]}" \
+# ${auth[@]+...}: an empty array under `set -u` is an error on bash < 4.4.
+status="$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' ${auth[@]+"${auth[@]}"} \
   "https://hub.docker.com/v2/namespaces/$namespace/repositories/$repository/tags/$tag")" || status='000'
 
 case "$status" in
