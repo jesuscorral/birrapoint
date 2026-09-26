@@ -20,8 +20,8 @@ budget enforcement, full quickstart validation, this file, security pass) is in 
 (Deployment & Operations) is in progress: T095–T097 (Dockerfiles, Terraform + Neon, Docker Hub
 images, `infra/deploy.ps1`) are implemented; T098 (health/OpenTelemetry in ACA) and T099 (validated
 fresh cloud deploy) are pending. CI/CD (FR-064, T133–T139): T133 (`ci.yml`), T134 (image rollout
-decoupled from Terraform, ADR-0018) and T135 (`release.yml`, ADR-0019) are implemented; the deploy
-pipeline (T136) is pending.
+decoupled from Terraform, ADR-0018), T135 (`release.yml`, ADR-0019) and T136 (`deploy.yml`) are
+implemented; T137 (validation against a real deployment) is pending.
 `Docs/arquitectura_viva.md` tracks the actual current system state in detail. `Docs/` holds the
 original product definition (in Spanish); the English spec supersedes it.
 
@@ -148,6 +148,8 @@ k6 run infra/perf/api-budgets.js       # API p95 budgets (reads <200ms, writes <
                                           #   Terraform, -WhatIf previews — see
                                           #   infra/terraform/README.md (images come from CI, ADR-0018)
 gh workflow run release.yml -f ref=main -f bump=patch   # release version.txt's X.Y.Z (ADR-0019)
+gh workflow run deploy.yml -f version=X.Y.Z  # roll production to a release (approval; no
+                                          #   Terraform) — setup in infra/github-actions-setup.md
 bash .github/scripts/version.test.sh      # tests of the release version logic
 Invoke-Pester infra/tests                 # Pester 5+ tests of infra/DeployImages.psm1 (Windows
                                           #   PowerShell ships 3.4: Install-Module Pester
