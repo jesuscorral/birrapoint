@@ -34,6 +34,12 @@ function Merge-UrlList([string[]] $Current, [string] $Wanted, [string] $ManagedP
     , $result.ToArray()
 }
 
+function Test-SameSet([string[]] $Left, [string[]] $Right) {
+    $l = @($Left | Where-Object { $_ } | Sort-Object -Unique)
+    $r = @($Right | Where-Object { $_ } | Sort-Object -Unique)
+    ($l -join '|') -ceq ($r -join '|')
+}
+
 function Get-SpaClientUpdate {
     # Returns a copy of the client representation that allows the web URL - rootUrl/baseUrl set to
     # it; redirect URIs, web origins and post-logout URIs MERGED: the current URL is added and only
@@ -57,10 +63,11 @@ function Get-SpaClientUpdate {
     $origins = Merge-UrlList @($Client.webOrigins) $url $managed
     $logout = Merge-UrlList $currentLogout $wildcard $managed
 
+    # Keycloak stores these as sets and may return them in any order: compare order-insensitively.
     $inSync = $Client.rootUrl -eq $url -and $Client.baseUrl -eq $url -and
-        (@($Client.redirectUris) -join '|') -eq ($redirects -join '|') -and
-        (@($Client.webOrigins) -join '|') -eq ($origins -join '|') -and
-        ($currentLogout -join '|') -eq ($logout -join '|')
+        (Test-SameSet @($Client.redirectUris) $redirects) -and
+        (Test-SameSet @($Client.webOrigins) $origins) -and
+        (Test-SameSet $currentLogout $logout)
     if ($inSync) { return }
 
     # Deep copy through JSON: the caller's object stays untouched.
@@ -99,4 +106,41 @@ function New-DeployClientRepresentation {
     }
 }
 
-Export-ModuleMember -Function Get-SpaClientUpdate, New-DeployClientRepresentation
+function Get-RoleMappingChange {
+    # Client-role changes that make a service account hold exactly the wanted roles: the missing
+    # ones to add and any others (e.g. granted by hand) to remove. Compared by role name.
+    [CmdletBinding()]
+    param(
+        [AllowEmptyCollection()] [object[]] $Current = @(),
+        [AllowEmptyCollection()] [object[]] $Wanted = @()
+    )
+    $currentNames = @($Current | ForEach-Object { $_.name })
+    $wantedNames = @($Wanted | ForEach-Object { $_.name })
+    [pscustomobject]@{
+        Add    = @($Wanted | Where-Object { $currentNames -notcontains $_.name })
+        Remove = @($Current | Where-Object { $wantedNames -notcontains $_.name })
+    }
+}
+
+function ConvertTo-JsonArray {
+    # A plain JSON array of the items. Windows PowerShell 5.1 serializes an array that lives in an
+    # object property (e.g. Get-RoleMappingChange's Add/Remove) as {"value":[...],"Count":n},
+    # which the Keycloak Admin API rejects; building the array text explicitly avoids that.
+    [CmdletBinding()]
+    param([AllowEmptyCollection()] [object[]] $Items = @())
+    $elements = @($Items | ForEach-Object { ConvertTo-Json -InputObject $_ -Depth 10 -Compress })
+    '[' + ($elements -join ',') + ']'
+}
+
+function ConvertTo-ItemList {
+    # Emits the items of a REST response. Windows PowerShell 5.1's Invoke-RestMethod (like its
+    # ConvertFrom-Json) returns a JSON array as ONE object, so `@(Invoke-RestMethod ...)` would be a
+    # one-element list holding the whole array; PowerShell 7 enumerates. Assign the response to a
+    # variable and pass it here instead.
+    param($Response)
+    if ($null -eq $Response) { return }
+    foreach ($item in @($Response)) { $item }
+}
+
+Export-ModuleMember -Function Get-SpaClientUpdate, New-DeployClientRepresentation, Get-RoleMappingChange,
+    ConvertTo-JsonArray, ConvertTo-ItemList

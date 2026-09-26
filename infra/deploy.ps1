@@ -176,7 +176,7 @@ function Repair-DeployClient {
     $base = "$KeycloakUrl/admin/realms/birrapoint"
     $representation = New-DeployClientRepresentation -Secret $Secret
 
-    $existing = @(Invoke-RestMethod -Uri "$base/clients?clientId=birrapoint-deploy" -Headers $Headers -TimeoutSec 30) |
+    $existing = @(ConvertTo-ItemList (Invoke-RestMethod -Uri "$base/clients?clientId=birrapoint-deploy" -Headers $Headers -TimeoutSec 30)) |
         Select-Object -First 1
     if ($existing) {
         $representation | Add-Member -NotePropertyName id -NotePropertyValue $existing.id
@@ -187,19 +187,28 @@ function Repair-DeployClient {
     else {
         Invoke-RestMethod -Method Post -Uri "$base/clients" -Headers $Headers -ContentType 'application/json' `
             -Body ($representation | ConvertTo-Json -Depth 10) -TimeoutSec 30 | Out-Null
-        $clientId = (@(Invoke-RestMethod -Uri "$base/clients?clientId=birrapoint-deploy" -Headers $Headers -TimeoutSec 30) |
+        $clientId = (@(ConvertTo-ItemList (Invoke-RestMethod -Uri "$base/clients?clientId=birrapoint-deploy" -Headers $Headers -TimeoutSec 30)) |
                 Select-Object -First 1).id
     }
 
     $serviceAccount = Invoke-RestMethod -Uri "$base/clients/$clientId/service-account-user" -Headers $Headers -TimeoutSec 30
-    $realmManagement = @(Invoke-RestMethod -Uri "$base/clients?clientId=realm-management" -Headers $Headers -TimeoutSec 30) |
+    $realmManagement = @(ConvertTo-ItemList (Invoke-RestMethod -Uri "$base/clients?clientId=realm-management" -Headers $Headers -TimeoutSec 30)) |
         Select-Object -First 1
-    $roles = @(foreach ($role in 'view-clients', 'manage-clients') {
+    $wanted = @(foreach ($role in 'view-clients', 'manage-clients') {
             Invoke-RestMethod -Uri "$base/clients/$($realmManagement.id)/roles/$role" -Headers $Headers -TimeoutSec 30
         })
-    Invoke-RestMethod -Method Post -Uri "$base/users/$($serviceAccount.id)/role-mappings/clients/$($realmManagement.id)" `
-        -Headers $Headers -ContentType 'application/json' -Body (ConvertTo-Json -InputObject $roles -Depth 10) -TimeoutSec 30 |
-        Out-Null
+    # Exactly these roles: missing ones are granted, any others (e.g. added by hand) revoked.
+    $mappingUri = "$base/users/$($serviceAccount.id)/role-mappings/clients/$($realmManagement.id)"
+    $current = @(ConvertTo-ItemList (Invoke-RestMethod -Uri $mappingUri -Headers $Headers -TimeoutSec 30))
+    $change = Get-RoleMappingChange -Current $current -Wanted $wanted
+    if ($change.Add.Count -gt 0) {
+        Invoke-RestMethod -Method Post -Uri $mappingUri -Headers $Headers -ContentType 'application/json' `
+            -Body (ConvertTo-JsonArray -Items $change.Add) -TimeoutSec 30 | Out-Null
+    }
+    if ($change.Remove.Count -gt 0) {
+        Invoke-RestMethod -Method Delete -Uri $mappingUri -Headers $Headers -ContentType 'application/json' `
+            -Body (ConvertTo-JsonArray -Items $change.Remove) -TimeoutSec 30 | Out-Null
+    }
 }
 
 function Sync-KeycloakSpaClient {
@@ -247,8 +256,8 @@ function Sync-KeycloakSpaClient {
     }
     $headers = @{ Authorization = "Bearer $token" }
 
-    $client = @(Invoke-RestMethod -Uri "$KeycloakUrl/admin/realms/birrapoint/clients?clientId=birrapoint-spa" `
-            -Headers $headers -TimeoutSec 30) | Select-Object -First 1
+    $client = @(ConvertTo-ItemList (Invoke-RestMethod -Uri "$KeycloakUrl/admin/realms/birrapoint/clients?clientId=birrapoint-spa" `
+            -Headers $headers -TimeoutSec 30)) | Select-Object -First 1
     if (-not $client) { throw "Keycloak client 'birrapoint-spa' not found in realm 'birrapoint'." }
 
     $update = Get-SpaClientUpdate -Client $client -WebUrl $WebUrl
@@ -381,7 +390,9 @@ try {
 
         $storageAccountKey = az storage account keys list --account-name $StateStorageAccount --resource-group $StateResourceGroup --query '[0].value' --output tsv
         if (-not $storageAccountKey) { throw 'Could not read the state storage account key.' }
-        # The key goes through the environment (read by az storage), never on a command line.
+        # The key goes through the environment (read by az storage), never on a command line;
+        # whatever the operator had in those variables is restored afterwards.
+        $previousStorage = @($env:AZURE_STORAGE_ACCOUNT, $env:AZURE_STORAGE_KEY)
         $env:AZURE_STORAGE_ACCOUNT = $StateStorageAccount
         $env:AZURE_STORAGE_KEY = $storageAccountKey
         try {
@@ -390,7 +401,8 @@ try {
             }
         }
         finally {
-            Remove-Item Env:AZURE_STORAGE_ACCOUNT, Env:AZURE_STORAGE_KEY -ErrorAction SilentlyContinue
+            $env:AZURE_STORAGE_ACCOUNT = $previousStorage[0]
+            $env:AZURE_STORAGE_KEY = $previousStorage[1]
         }
 
         Invoke-Native 'terraform init' {

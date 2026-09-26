@@ -116,8 +116,10 @@ function Get-StateJson {
         --query '[0].value' --output tsv
     if ($LASTEXITCODE -ne 0 -or -not $key) { throw 'Reading the state storage account key failed.' }
 
-    # The key goes through the environment (read by az storage), never on a command line.
+    # The key goes through the environment (read by az storage), never on a command line;
+    # whatever the operator had in those variables is restored afterwards.
     $file = [IO.Path]::GetTempFileName()
+    $previousStorage = @($env:AZURE_STORAGE_ACCOUNT, $env:AZURE_STORAGE_KEY)
     $env:AZURE_STORAGE_ACCOUNT = $StateStorageAccount
     $env:AZURE_STORAGE_KEY = $key
     try {
@@ -132,7 +134,8 @@ function Get-StateJson {
         [IO.File]::ReadAllText($file)
     }
     finally {
-        Remove-Item Env:AZURE_STORAGE_ACCOUNT, Env:AZURE_STORAGE_KEY -ErrorAction SilentlyContinue -WhatIf:$false
+        $env:AZURE_STORAGE_ACCOUNT = $previousStorage[0]
+        $env:AZURE_STORAGE_KEY = $previousStorage[1]
         # A local temp file, never part of the what-if: always removed.
         Remove-Item $file -Force -ErrorAction SilentlyContinue -WhatIf:$false
     }

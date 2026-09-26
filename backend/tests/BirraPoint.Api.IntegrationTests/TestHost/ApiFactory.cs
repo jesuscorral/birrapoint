@@ -84,16 +84,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender, FakeEmailSender>();
 
-            // Re-register AppDbContext's options with EvaluationRaceInterceptor added — RemoveAll is
-            // needed because Program.cs's own AddDbContext<AppDbContext> call already registered
-            // DbContextOptions<AppDbContext> via TryAdd, which a second AddDbContext call alone
-            // would not override.
-            services.RemoveAll<DbContextOptions<AppDbContext>>();
-            services.AddDbContext<AppDbContext>(options =>
-            {
-                options.UseNpgsql(_container.GetConnectionString());
-                options.AddInterceptors(EvaluationRaceInterceptor);
-            });
+            // Layer EvaluationRaceInterceptor onto Program.cs's own AddDbContext<AppDbContext> options
+            // instead of replacing them: EF Core's DbContextOptions configuration actions accumulate
+            // (they don't overwrite each other), so ConfigureDbContext runs after Program.cs's
+            // UseNpgsql(builder.Configuration.GetConnectionString("db")) and simply adds the
+            // interceptor on top — no need to re-supply the connection string here at all, since the
+            // "ConnectionStrings:db" entry configured above already reaches Program.cs's own call.
+            services.ConfigureDbContext<AppDbContext>(options => options.AddInterceptors(EvaluationRaceInterceptor));
         });
     }
 }

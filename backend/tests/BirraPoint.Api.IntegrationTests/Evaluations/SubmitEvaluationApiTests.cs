@@ -572,7 +572,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         var fixture = await SeedReadyTableAsync(organizer);
 
         var competingEvaluationId = Guid.NewGuid();
-        factory.EvaluationRaceInterceptor.ArmBeforeNext(SubmitEvaluationQueryTags.AlreadySubmittedIds, async cancellationToken =>
+        using var arm = factory.EvaluationRaceInterceptor.ArmBeforeNext(SubmitEvaluationQueryTags.AlreadySubmittedIds, async cancellationToken =>
         {
             await using var scope = factory.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -590,6 +590,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         Assert.Equal(competingEvaluationId, document.RootElement.GetProperty("evaluationId").GetGuid());
 
         Assert.Equal(1, await CountEvaluationsAsync(fixture.JudgeId, fixture.EntryIds[0]));
+        Assert.True(arm.Fired);
     }
 
     /// <summary>
@@ -608,7 +609,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         var fixture = await SeedReadyTableAsync(organizer);
 
         var competingEvaluationId = Guid.NewGuid();
-        factory.EvaluationRaceInterceptor.ArmBeforeNext(SubmitEvaluationQueryTags.TableLoad, async cancellationToken =>
+        using var arm = factory.EvaluationRaceInterceptor.ArmBeforeNext(SubmitEvaluationQueryTags.TableLoad, async cancellationToken =>
         {
             await using var scope = factory.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -631,5 +632,6 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         Assert.Equal(competingEvaluationId, document.RootElement.GetProperty("evaluationId").GetGuid());
 
         Assert.Equal(1, await CountEvaluationsAsync(fixture.JudgeId, fixture.EntryIds[0]));
+        Assert.True(arm.Fired);
     }
 }

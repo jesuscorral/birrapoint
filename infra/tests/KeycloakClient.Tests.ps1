@@ -30,6 +30,15 @@ Describe 'Get-SpaClientUpdate' {
         Get-SpaClientUpdate -Client (New-SpaClient @($New)) -WebUrl $New | Should -BeNullOrEmpty
     }
 
+    It 'treats the same URIs in a different order as in sync (Keycloak stores them as sets)' {
+        $client = New-SpaClient @($New, 'https://app.example.com', 'http://localhost:4200')
+        $client.redirectUris = @('http://localhost:4200/*', "$New/*", 'https://app.example.com/*')
+        $client.webOrigins = @('https://app.example.com', 'http://localhost:4200', $New)
+        $client.attributes.'post.logout.redirect.uris' = "https://app.example.com/*##$New/*##http://localhost:4200/*"
+
+        Get-SpaClientUpdate -Client $client -WebUrl $New | Should -BeNullOrEmpty
+    }
+
     It 'ignores a trailing slash on the web URL' {
         Get-SpaClientUpdate -Client (New-SpaClient @($New)) -WebUrl "$New/" | Should -BeNullOrEmpty
     }
@@ -100,5 +109,79 @@ Describe 'New-DeployClientRepresentation' {
         $client.directAccessGrantsEnabled | Should -BeFalse
         $client.implicitFlowEnabled | Should -BeFalse
         $client.secret | Should -Be 's3cret'
+    }
+}
+
+Describe 'Get-RoleMappingChange' {
+    BeforeAll {
+        function New-Role([string] $Name) { [pscustomobject]@{ id = "id-$Name"; name = $Name } }
+    }
+
+    It 'adds the missing wanted roles' {
+        $change = Get-RoleMappingChange -Current @(New-Role 'view-clients') -Wanted @((New-Role 'view-clients'), (New-Role 'manage-clients'))
+        @($change.Add | ForEach-Object name) | Should -Be @('manage-clients')
+        @($change.Remove).Count | Should -Be 0
+    }
+
+    It 'removes roles granted beyond the wanted ones (e.g. added by hand)' {
+        $current = @((New-Role 'view-clients'), (New-Role 'manage-clients'), (New-Role 'manage-users'))
+        $change = Get-RoleMappingChange -Current $current -Wanted @((New-Role 'view-clients'), (New-Role 'manage-clients'))
+        @($change.Remove | ForEach-Object name) | Should -Be @('manage-users')
+        @($change.Add).Count | Should -Be 0
+    }
+
+    It 'has nothing to do when the mapping already matches' {
+        $roles = @((New-Role 'view-clients'), (New-Role 'manage-clients'))
+        $change = Get-RoleMappingChange -Current $roles -Wanted $roles
+        @($change.Add).Count | Should -Be 0
+        @($change.Remove).Count | Should -Be 0
+    }
+
+    It 'handles no current mapping at all' {
+        $change = Get-RoleMappingChange -Current @() -Wanted @(New-Role 'view-clients')
+        @($change.Add | ForEach-Object name) | Should -Be @('view-clients')
+    }
+}
+
+Describe 'ConvertTo-JsonArray' {
+    It 'always produces a plain JSON array, even for arrays held in object properties (PS 5.1 would emit {"value":...,"Count":...})' {
+        $holder = [pscustomobject]@{ Items = @([pscustomobject]@{ id = 'a'; name = 'view-clients' }, [pscustomobject]@{ id = 'b'; name = 'manage-clients' }) }
+
+        $json = ConvertTo-JsonArray -Items $holder.Items
+
+        $json.TrimStart().StartsWith('[') | Should -BeTrue
+        $parsed = $json | ConvertFrom-Json
+        @($parsed).Count | Should -Be 2
+        @($parsed)[1].name | Should -Be 'manage-clients'
+    }
+
+    It 'keeps a single element as a one-element array' {
+        $json = ConvertTo-JsonArray -Items @([pscustomobject]@{ id = 'a'; name = 'view-clients' })
+        $json.TrimStart().StartsWith('[') | Should -BeTrue
+        @($json | ConvertFrom-Json).Count | Should -Be 1
+    }
+
+    It 'renders an empty list as []' {
+        ConvertTo-JsonArray -Items @() | Should -Be '[]'
+    }
+}
+
+Describe 'ConvertTo-ItemList' {
+    It 'flattens a JSON array response into its items (Windows PowerShell 5.1 returns it as ONE object)' {
+        $response = '[{"id":"1","name":"view-clients"},{"id":"2","name":"manage-clients"}]' | ConvertFrom-Json
+
+        $items = @(ConvertTo-ItemList $response)
+
+        $items.Count | Should -Be 2
+        $items[1].name | Should -Be 'manage-clients'
+    }
+
+    It 'turns a single-object response into a one-item list' {
+        @(ConvertTo-ItemList ('{"id":"1"}' | ConvertFrom-Json)).Count | Should -Be 1
+    }
+
+    It 'turns an empty array or null into an empty list' {
+        @(ConvertTo-ItemList ('[]' | ConvertFrom-Json)).Count | Should -Be 0
+        @(ConvertTo-ItemList $null).Count | Should -Be 0
     }
 }

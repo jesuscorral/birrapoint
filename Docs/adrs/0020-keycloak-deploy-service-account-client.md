@@ -46,9 +46,25 @@ did this as the Keycloak **bootstrap admin**. That approach had two problems:
 - **Deploys no longer depend on the bootstrap admin** once the client exists, so the admin can be
   replaced or deleted as Keycloak recommends. The one-off repair path then no longer works, and
   `deploy.ps1`'s error explains the manual fix.
-- **The deploy credential is narrow.** It is scoped to managing clients in the `birrapoint`
-  realm. Verified against Keycloak 26.2: the service account gets `403` on the master admin API
-  and on the realm's users.
+- **The deploy credential is narrower than the bootstrap admin, but not narrow.** It has no rights
+  in `master` and gets `403` on direct user endpoints (both verified against Keycloak 26.2).
+  However, `view-clients` + `manage-clients` over the whole `birrapoint` realm reach further
+  *indirectly*:
+  - it can read any client secret, including `birrapoint-api-admin`'s, whose service account holds
+    `manage-users`, so it can manage users in two steps;
+  - it can regenerate that secret, which would break judge provisioning;
+  - it can add any redirect URI to `birrapoint-spa`, enough to phish logins.
+
+  This reach comes with the job of editing a client. It adds no exposure for anyone who already
+  holds the Terraform state, which contains every one of these secrets. It does make the deploy
+  secret as sensitive as the API admin secret: it **must never be copied into CI** or any other
+  store. `deploy.yml` does not need it, because image-only rollouts (`-AppsOnly`) never touch
+  Keycloak. Keycloak 26.2's fine-grained admin permissions (v2) could scope the service account to
+  `birrapoint-spa` alone; that follow-up is T141.
+- **The URL comparison is order-insensitive.** Keycloak stores URIs as sets, so a client that is
+  already in sync is never rewritten just because the order changed.
+- **The repair enforces exactly the two roles** and revokes any role granted to the service
+  account by hand.
 - **Upgrade of an existing environment.** The first full run after this change adds the secret to
   the Keycloak app and repairs the client through the bootstrap admin. Later runs use the service
   account only.
