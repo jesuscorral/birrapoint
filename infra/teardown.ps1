@@ -115,19 +115,24 @@ function Get-StateJson {
     $key = az storage account keys list --account-name $StateStorageAccount --resource-group $StateResourceGroup `
         --query '[0].value' --output tsv
     if ($LASTEXITCODE -ne 0 -or -not $key) { throw 'Reading the state storage account key failed.' }
-    $blobExists = (az storage blob exists --account-name $StateStorageAccount --account-key $key `
-            --container-name $StateContainer --name $StateKey --query exists --output tsv) -join ''
-    if ($LASTEXITCODE -ne 0) { throw 'Checking the state blob failed.' }
-    if ($blobExists.Trim() -ne 'true') { return $null }
 
+    # The key goes through the environment (read by az storage), never on a command line.
     $file = [IO.Path]::GetTempFileName()
+    $env:AZURE_STORAGE_ACCOUNT = $StateStorageAccount
+    $env:AZURE_STORAGE_KEY = $key
     try {
-        az storage blob download --account-name $StateStorageAccount --account-key $key `
-            --container-name $StateContainer --name $StateKey --file $file --overwrite --no-progress --output none
+        $blobExists = (az storage blob exists --container-name $StateContainer --name $StateKey `
+                --query exists --output tsv) -join ''
+        if ($LASTEXITCODE -ne 0) { throw 'Checking the state blob failed.' }
+        if ($blobExists.Trim() -ne 'true') { return $null }
+
+        az storage blob download --container-name $StateContainer --name $StateKey --file $file --overwrite `
+            --no-progress --output none
         if ($LASTEXITCODE -ne 0) { throw 'Downloading the Terraform state failed.' }
         [IO.File]::ReadAllText($file)
     }
     finally {
+        Remove-Item Env:AZURE_STORAGE_ACCOUNT, Env:AZURE_STORAGE_KEY -ErrorAction SilentlyContinue -WhatIf:$false
         # A local temp file, never part of the what-if: always removed.
         Remove-Item $file -Force -ErrorAction SilentlyContinue -WhatIf:$false
     }
@@ -212,7 +217,8 @@ Write-Host ''
 # --- 2. Confirmation -------------------------------------------------------------------------
 
 if (-not $Force -and -not $WhatIfPreference) {
-    Read-Confirmation 'This removes the environment listed above.' $NamePrefix
+    # The operator types the resource group that is actually about to be deleted.
+    Read-Confirmation 'This removes the environment listed above.' $appResourceGroup
     if ($IncludeNeon) {
         Read-Confirmation 'This ALSO DELETES ALL PRODUCTION DATA in Neon, irreversibly.' 'delete data'
     }

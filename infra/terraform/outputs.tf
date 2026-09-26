@@ -32,6 +32,12 @@ output "neon_project_id" {
   value       = neon_project.main.id
 }
 
+output "keycloak_deploy_client_secret" {
+  description = "Secret of the birrapoint-deploy service-account client that infra/deploy.ps1 uses to keep birrapoint-spa's URLs in step with the web app."
+  value       = random_password.deploy_client_secret.result
+  sensitive   = true
+}
+
 output "keycloak_admin_password" {
   description = "Keycloak bootstrap admin password (user `admin`). Read with `terraform output -raw keycloak_admin_password`."
   value       = random_password.keycloak_admin.result

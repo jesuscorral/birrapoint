@@ -57,3 +57,10 @@ resource "random_password" "api_admin_client_secret" {
   length  = 48
   special = false
 }
+
+# birrapoint-deploy service-account client (infra/deploy.ps1 reconciles birrapoint-spa's URLs with
+# it after each full run; T140, ADR-0020).
+resource "random_password" "deploy_client_secret" {
+  length  = 48
+  special = false
+}

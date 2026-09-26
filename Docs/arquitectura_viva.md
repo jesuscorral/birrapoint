@@ -62,8 +62,11 @@ Evaluations/` (`POST /me/tables/{tableId}/evaluations`, idempotent via a unique-
 the (judge, entry) index rather than a pre-check — the first genuine insert-time race guard in this
 codebase, since locked-on-submit forbids ever pre-checking-then-upserting; since T140 it is
 race-safe end to end: a row a concurrent request commits between the early replay check and the
-sequence-order read is also replayed with `200`, never rejected as `409 OutOfSequence`, and all
-three "return what is stored" paths share one helper) and `Features/Catalog/
+sequence-order read is also replayed with `200`, never rejected as `409 OutOfSequence` — nor as a
+state/order-fixed/table-closed `409` if the table closes meanwhile: each of those gates re-checks for
+a stored row first — and every "return what is stored" path shares one helper; the races are
+reproduced deterministically by a test-only EF Core `DbCommandInterceptor` keyed on `TagWith` query
+tags, with no test seam in production code) and `Features/Catalog/
 GetStyleDetail.cs` (`GET /styles/{code}`, FR-049). Frontend: `core/offline/sync.service.ts` is the
 real offline engine T020 only scaffolded the Dexie tables for — drafts debounced ≤300ms, outbox
 durable-first submit with capped-exponential-backoff replay on `window online` / service
@@ -403,9 +406,13 @@ id from the state; by exact name only without a state, refusing duplicates) when
 or the state is gone; the names to remove are read from the state blob, not parameters. Log
 Analytics is purged on destroy (`permanently_delete_on_destroy`). Pure decisions in
 `infra/Teardown.psm1` (Pester-tested). Because Keycloak imports its realm only once while a
-recreated environment gets a new random domain, every full `deploy.ps1` run ends by syncing the
-`birrapoint-spa` client's URLs to the current web URL via the Keycloak Admin API
-(`infra/KeycloakClient.psm1`, bootstrap admin, write only on change).
+recreated environment gets a new random domain, every full `deploy.ps1` run ends by making the
+`birrapoint-spa` client allow the current web URL via the Keycloak Admin API
+(`infra/KeycloakClient.psm1`, ADR-0020): authenticated as the `birrapoint-deploy` service-account
+client (realm-management `view-clients` + `manage-clients` in `birrapoint` only; secret from
+`random_password.deploy_client_secret` → Keycloak env `DEPLOY_CLIENT_SECRET`), repaired once via the
+bootstrap admin on realms imported before it existed; URIs are merged (only the app's own stale
+Container Apps domains are dropped; manual URIs kept), written only on change.
 Prerequisites and the Neon PITR restore procedure (FR-047) are in `infra/terraform/README.md`.
 **Not yet applied to a real subscription** — that is T099.
 

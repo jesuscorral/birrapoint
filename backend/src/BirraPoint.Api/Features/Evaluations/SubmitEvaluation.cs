@@ -77,38 +77,24 @@ public sealed class SubmitEvaluationCommandValidator : AbstractValidator<SubmitE
 }
 
 /// <summary>
-/// Test-only seam for deterministically reproducing the concurrent-commit race between the early
-/// idempotent-replay check and the <c>alreadySubmittedIds</c> read inside
-/// <see cref="SubmitEvaluationCommandHandler"/> — see
-/// <c>SubmitEvaluationApiTests.A_row_committed_between_the_early_replay_check_and_the_sequence_read_is_replayed_not_rejected</c>
-/// in the integration test project. Production never
-/// registers anything but <see cref="NoOpEvaluationRaceTestHook"/>; the handler falls back to that
-/// no-op whenever nothing else is registered in DI, so this has zero effect outside tests.
+/// EF <c>TagWith</c> constants for the handler's read queries — purely a SQL comment with zero
+/// runtime effect on production. They exist so the integration test suite's
+/// <c>SubmitEvaluationRaceInterceptor</c> (a <see cref="Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor"/>
+/// registered only in the test host) can recognize exactly which read is about to run and, when
+/// armed, inject a competing commit on a separate connection in that precise window —
+/// deterministically reproducing races that would otherwise need two real HTTP calls to interleave
+/// in exactly the right order (flaky).
 /// </summary>
-public interface IEvaluationRaceTestHook
+public static class SubmitEvaluationQueryTags
 {
-    Task AfterEarlyReplayCheckAsync(Guid tableId, Guid judgeId, Guid beerEntryId, CancellationToken cancellationToken);
+    public const string AlreadySubmittedIds = "SubmitEvaluation.AlreadySubmittedIds";
+    public const string TableLoad = "SubmitEvaluation.TableLoad";
+    public const string GateReplayRecheck = "SubmitEvaluation.GateReplayRecheck";
 }
 
-/// <summary>Default, always-a-no-op <see cref="IEvaluationRaceTestHook"/> used in production.</summary>
-public sealed class NoOpEvaluationRaceTestHook : IEvaluationRaceTestHook
-{
-    public static readonly NoOpEvaluationRaceTestHook Instance = new();
-
-    private NoOpEvaluationRaceTestHook()
-    {
-    }
-
-    public Task AfterEarlyReplayCheckAsync(Guid tableId, Guid judgeId, Guid beerEntryId, CancellationToken cancellationToken) =>
-        Task.CompletedTask;
-}
-
-public sealed class SubmitEvaluationCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher, IEvaluationRaceTestHook? raceTestHook = null)
+public sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher)
     : IRequestHandler<SubmitEvaluationCommand, SubmitEvaluationResult?>
 {
-    private readonly IEvaluationRaceTestHook _raceTestHook = raceTestHook ?? NoOpEvaluationRaceTestHook.Instance;
-
     public async Task<SubmitEvaluationResult?> Handle(SubmitEvaluationCommand request, CancellationToken cancellationToken)
     {
         var judges = await currentUser.GetJudgeRecordsAsync(cancellationToken);
@@ -133,40 +119,47 @@ public sealed class SubmitEvaluationCommandHandler(
             return await BuildReplayResultAsync(existingEvaluation, request.TableId, judgeId.Value, cancellationToken);
         }
 
-        // Test-only seam — see IEvaluationRaceTestHook's doc comment. A no-op in production; exists
-        // so a test can deterministically insert-and-commit a competing row for this exact
-        // (judge, entry) pair right here, closing — under test control, not timing luck — the same
-        // window a genuine concurrent request could win in production.
-        await _raceTestHook.AfterEarlyReplayCheckAsync(request.TableId, judgeId.Value, request.BeerEntryId, cancellationToken);
-
         // The active TableJudge row above references an existing TastingTable (FK), so this is
         // always found — no need to null-check.
-        var table = await dbContext.TastingTables.SingleAsync(t => t.Id == request.TableId, cancellationToken);
+        var table = await dbContext.TastingTables
+            .TagWith(SubmitEvaluationQueryTags.TableLoad)
+            .SingleAsync(t => t.Id == request.TableId, cancellationToken);
 
         var competitionState = await dbContext.Competitions
             .Where(c => c.Id == table.CompetitionId)
             .Select(c => c.State)
             .SingleAsync(cancellationToken);
 
+        // FR-029/R-07 idempotency must hold even if a genuinely concurrent submission for this same
+        // (judge, entry) pair commits — and the competition/table moves on — in the gap between the
+        // early replay check above and each gate read below. Re-checking for a stored row right
+        // before throwing (rather than only after all gates already passed, further down) is what
+        // stops that timing from turning a legitimate replay into a wrong 409.
         if (!SubmitEvaluationRules.CanSubmitInState(competitionState))
         {
-            throw new DomainException(
+            return await ThrowUnlessReplayableAsync(
+                judgeId.Value, request.BeerEntryId, request.TableId,
                 DomainErrorType.InvalidStateTransition,
-                "Evaluations can only be submitted while the competition is InEvaluation.");
+                "Evaluations can only be submitted while the competition is InEvaluation.",
+                cancellationToken);
         }
 
         if (table.OrderFixedByJudgeId is null)
         {
-            throw new DomainException(
+            return await ThrowUnlessReplayableAsync(
+                judgeId.Value, request.BeerEntryId, request.TableId,
                 DomainErrorType.OrderNotFixed,
-                "The tasting order for this table has not been fixed yet.");
+                "The tasting order for this table has not been fixed yet.",
+                cancellationToken);
         }
 
         if (table.State != TableState.Open)
         {
-            throw new DomainException(
+            return await ThrowUnlessReplayableAsync(
+                judgeId.Value, request.BeerEntryId, request.TableId,
                 DomainErrorType.TableClosed,
-                "This table is closed; no further evaluations can be submitted.");
+                "This table is closed; no further evaluations can be submitted.",
+                cancellationToken);
         }
 
         var orderedSampleIds = await dbContext.TableSamples
@@ -183,6 +176,7 @@ public sealed class SubmitEvaluationCommandHandler(
         // out-of-sequence submission, and is handled immediately below before this reaches
         // IsNextInSequence (which would otherwise reject it with a wrong 409).
         var alreadySubmittedIds = await dbContext.Evaluations
+            .TagWith(SubmitEvaluationQueryTags.AlreadySubmittedIds)
             .Where(e => e.TastingTableId == request.TableId && e.JudgeId == judgeId)
             .Select(e => e.BeerEntryId)
             .ToListAsync(cancellationToken);
@@ -298,12 +292,41 @@ public sealed class SubmitEvaluationCommandHandler(
     }
 
     /// <summary>
+    /// FR-029/R-07 gate guard: called right before the handler would otherwise throw a
+    /// state/order-fixed/table-closed <see cref="DomainException"/>. A genuinely concurrent
+    /// submission for this same (judge, entry) pair can commit — and the competition/table can move
+    /// on past it — in the gap between the handler's early replay check and any of these gate reads;
+    /// when that happens, the *fact* that the evaluation is already stored must win over a gate that
+    /// only failed because time (and this request's own reads) happened to land after that commit.
+    /// Re-checks for a stored row and returns its replay when found; otherwise throws
+    /// <paramref name="errorType"/>/<paramref name="message"/> exactly as the caller would have.
+    /// </summary>
+    private async Task<SubmitEvaluationResult> ThrowUnlessReplayableAsync(
+        Guid judgeId, Guid beerEntryId, Guid tableId, DomainErrorType errorType, string message, CancellationToken cancellationToken)
+    {
+        var stored = await dbContext.Evaluations
+            .TagWith(SubmitEvaluationQueryTags.GateReplayRecheck)
+            .SingleOrDefaultAsync(e => e.JudgeId == judgeId && e.BeerEntryId == beerEntryId, cancellationToken);
+
+        if (stored is not null)
+        {
+            return await BuildReplayResultAsync(stored, tableId, judgeId, cancellationToken);
+        }
+
+        throw new DomainException(errorType, message);
+    }
+
+    /// <summary>
     /// FR-029/R-07: builds the full idempotent-replay response for an already-stored evaluation —
-    /// shared by every "return what is stored" path (the early replay check, the concurrent-commit
-    /// path caught via <c>alreadySubmittedIds</c>, and the unique-violation catch path below) so
-    /// they can never drift from each other. No new reconciliation ever runs here — it already ran
-    /// when the row was first inserted; a replay only reflects whatever discrepancy state resulted
-    /// from that.
+    /// shared by every "return what is stored" path (the early replay check, the gate re-check above,
+    /// the concurrent-commit path caught via <c>alreadySubmittedIds</c>, and the unique-violation
+    /// catch path below) so they can never drift from each other. No new reconciliation ever runs
+    /// here — it already ran when the row was first inserted; a replay only reflects whatever
+    /// discrepancy state resulted from that. In particular, a replay may transiently report
+    /// <see cref="EvaluationStatus.Confirmed"/> with no discrepancy even though the winning
+    /// request's own reconciliation (<see cref="DiscrepancyReconciler.ReconcileAndSaveAsync"/>) has
+    /// not yet run its later save — replay paths must never run reconciliation themselves, only
+    /// reflect whatever is currently persisted.
     /// </summary>
     private async Task<SubmitEvaluationResult> BuildReplayResultAsync(
         Evaluation storedEvaluation, Guid tableId, Guid callerJudgeId, CancellationToken cancellationToken)

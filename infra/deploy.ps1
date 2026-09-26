@@ -21,9 +21,10 @@
          migrates the database on startup), then web - waiting for each new revision to become
          healthy before moving on. An app whose latest revision is healthy and already serves
          the target release is skipped (so is `latest` right after the apply pulled it).
-      4. (full runs) Points Keycloak's birrapoint-spa client at the current web URL through the
-         Keycloak Admin API. Keycloak imports the realm only once, so without this a recreated
-         environment - with a new random domain - would reject every login (redirect_uri).
+      4. (full runs) Makes Keycloak's birrapoint-spa client allow the current web URL through the
+         Keycloak Admin API, as the birrapoint-deploy service-account client. Keycloak imports
+         the realm only once, so without this a recreated environment - with a new random
+         domain - would reject every login (redirect_uri). URIs added by hand are kept.
 
     -AppsOnly is the image-only deployment used by the deploy pipeline (deploy.yml): no Terraform,
     tfvars, NEON_API_KEY or state access - only `az login` with rights on the application
@@ -152,14 +153,65 @@ function Get-AppState {
     }
 }
 
+function Get-KeycloakToken {
+    # Access token from a token endpoint, or $null when the credentials are rejected (400/401):
+    # the caller decides what a rejection means. Any other failure throws.
+    param([string] $KeycloakUrl, [string] $Realm, [hashtable] $Body)
+    try {
+        (Invoke-RestMethod -Method Post -Uri "$KeycloakUrl/realms/$Realm/protocol/openid-connect/token" `
+            -ContentType 'application/x-www-form-urlencoded' -Body $Body -TimeoutSec 30).access_token
+    }
+    catch {
+        $response = $_.Exception.Response
+        if ($response -and [int] $response.StatusCode -in 400, 401) { return $null }
+        throw
+    }
+}
+
+function Repair-DeployClient {
+    # Creates (or resets) the birrapoint-deploy client with the secret Terraform generated and gives
+    # its service account realm-management view-clients + manage-clients. Needed once on a realm
+    # imported before the client existed (Keycloak never re-imports an existing realm).
+    param([string] $KeycloakUrl, [hashtable] $Headers, [string] $Secret)
+    $base = "$KeycloakUrl/admin/realms/birrapoint"
+    $representation = New-DeployClientRepresentation -Secret $Secret
+
+    $existing = @(Invoke-RestMethod -Uri "$base/clients?clientId=birrapoint-deploy" -Headers $Headers -TimeoutSec 30) |
+        Select-Object -First 1
+    if ($existing) {
+        $representation | Add-Member -NotePropertyName id -NotePropertyValue $existing.id
+        Invoke-RestMethod -Method Put -Uri "$base/clients/$($existing.id)" -Headers $Headers -ContentType 'application/json' `
+            -Body ($representation | ConvertTo-Json -Depth 10) -TimeoutSec 30 | Out-Null
+        $clientId = $existing.id
+    }
+    else {
+        Invoke-RestMethod -Method Post -Uri "$base/clients" -Headers $Headers -ContentType 'application/json' `
+            -Body ($representation | ConvertTo-Json -Depth 10) -TimeoutSec 30 | Out-Null
+        $clientId = (@(Invoke-RestMethod -Uri "$base/clients?clientId=birrapoint-deploy" -Headers $Headers -TimeoutSec 30) |
+                Select-Object -First 1).id
+    }
+
+    $serviceAccount = Invoke-RestMethod -Uri "$base/clients/$clientId/service-account-user" -Headers $Headers -TimeoutSec 30
+    $realmManagement = @(Invoke-RestMethod -Uri "$base/clients?clientId=realm-management" -Headers $Headers -TimeoutSec 30) |
+        Select-Object -First 1
+    $roles = @(foreach ($role in 'view-clients', 'manage-clients') {
+            Invoke-RestMethod -Uri "$base/clients/$($realmManagement.id)/roles/$role" -Headers $Headers -TimeoutSec 30
+        })
+    Invoke-RestMethod -Method Post -Uri "$base/users/$($serviceAccount.id)/role-mappings/clients/$($realmManagement.id)" `
+        -Headers $Headers -ContentType 'application/json' -Body (ConvertTo-Json -InputObject $roles -Depth 10) -TimeoutSec 30 |
+        Out-Null
+}
+
 function Sync-KeycloakSpaClient {
     # Keycloak imports the realm only on its first start; an existing realm in its database is
     # never re-imported. When the Container Apps environment is recreated (e.g. after
     # infra/teardown.ps1) the web app gets a new random domain, so the stored birrapoint-spa
     # client must be pointed at it - otherwise every login fails with "Invalid parameter:
-    # redirect_uri". Uses the bootstrap admin (password in the Terraform state); writes only when
-    # the URLs differ.
-    param([string] $KeycloakUrl, [string] $WebUrl, [string] $AdminPassword, [int] $TimeoutSeconds)
+    # redirect_uri". Authenticates as the birrapoint-deploy service-account client (least
+    # privilege, birrapoint realm only). On a realm imported before that client existed - or with
+    # a drifted secret - it repairs the client ONCE using the bootstrap admin, then carries on with
+    # the service account. Writes birrapoint-spa only when its URLs differ (ADR-0020).
+    param([string] $KeycloakUrl, [string] $WebUrl, [string] $DeploySecret, [string] $AdminPassword, [int] $TimeoutSeconds)
 
     $realmUrl = "$KeycloakUrl/realms/birrapoint/.well-known/openid-configuration"
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
@@ -175,9 +227,24 @@ function Sync-KeycloakSpaClient {
         }
     }
 
-    $token = (Invoke-RestMethod -Method Post -Uri "$KeycloakUrl/realms/master/protocol/openid-connect/token" `
-            -ContentType 'application/x-www-form-urlencoded' -TimeoutSec 30 `
-            -Body @{ grant_type = 'password'; client_id = 'admin-cli'; username = 'admin'; password = $AdminPassword }).access_token
+    $deployCredentials = @{ grant_type = 'client_credentials'; client_id = 'birrapoint-deploy'; client_secret = $DeploySecret }
+    $token = Get-KeycloakToken -KeycloakUrl $KeycloakUrl -Realm 'birrapoint' -Body $deployCredentials
+    if (-not $token) {
+        Write-Host '==> Keycloak client birrapoint-deploy missing or out of date; repairing it with the bootstrap admin (one-off)' -ForegroundColor Cyan
+        $adminToken = Get-KeycloakToken -KeycloakUrl $KeycloakUrl -Realm 'master' `
+            -Body @{ grant_type = 'password'; client_id = 'admin-cli'; username = 'admin'; password = $AdminPassword }
+        if (-not $adminToken) {
+            throw ("Keycloak rejected both the birrapoint-deploy client and the bootstrap admin 'admin'. The deploy client " +
+                "cannot be repaired automatically: the bootstrap admin was deleted or its password changed. In the Keycloak " +
+                "admin console (realm birrapoint -> Clients) create/fix client 'birrapoint-deploy' (confidential, service " +
+                "accounts only, realm-management roles view-clients + manage-clients) with the secret from " +
+                "'terraform -chdir=infra/terraform output -raw keycloak_deploy_client_secret', then re-run the deploy. " +
+                "The apps themselves are already deployed.")
+        }
+        Repair-DeployClient -KeycloakUrl $KeycloakUrl -Headers @{ Authorization = "Bearer $adminToken" } -Secret $DeploySecret
+        $token = Get-KeycloakToken -KeycloakUrl $KeycloakUrl -Realm 'birrapoint' -Body $deployCredentials
+        if (-not $token) { throw 'Keycloak still rejects the birrapoint-deploy client right after repairing it.' }
+    }
     $headers = @{ Authorization = "Bearer $token" }
 
     $client = @(Invoke-RestMethod -Uri "$KeycloakUrl/admin/realms/birrapoint/clients?clientId=birrapoint-spa" `
@@ -189,7 +256,7 @@ function Sync-KeycloakSpaClient {
         Write-Host "==> Keycloak client birrapoint-spa already allows $WebUrl" -ForegroundColor Cyan
         return
     }
-    Write-Host "==> Point Keycloak client birrapoint-spa at $WebUrl" -ForegroundColor Cyan
+    Write-Host "==> Allow $WebUrl in Keycloak client birrapoint-spa" -ForegroundColor Cyan
     Invoke-RestMethod -Method Put -Uri "$KeycloakUrl/admin/realms/birrapoint/clients/$($client.id)" -Headers $headers `
         -ContentType 'application/json' -Body ($update | ConvertTo-Json -Depth 20) -TimeoutSec 30 | Out-Null
 }
@@ -314,9 +381,16 @@ try {
 
         $storageAccountKey = az storage account keys list --account-name $StateStorageAccount --resource-group $StateResourceGroup --query '[0].value' --output tsv
         if (-not $storageAccountKey) { throw 'Could not read the state storage account key.' }
-        Invoke-Native "Ensure state container '$StateContainer'" {
-            az storage container create --name $StateContainer --account-name $StateStorageAccount `
-                --account-key $storageAccountKey --auth-mode key --output none
+        # The key goes through the environment (read by az storage), never on a command line.
+        $env:AZURE_STORAGE_ACCOUNT = $StateStorageAccount
+        $env:AZURE_STORAGE_KEY = $storageAccountKey
+        try {
+            Invoke-Native "Ensure state container '$StateContainer'" {
+                az storage container create --name $StateContainer --auth-mode key --output none
+            }
+        }
+        finally {
+            Remove-Item Env:AZURE_STORAGE_ACCOUNT, Env:AZURE_STORAGE_KEY -ErrorAction SilentlyContinue
         }
 
         Invoke-Native 'terraform init' {
@@ -398,6 +472,7 @@ try {
 
     if (-not $AppsOnly -and $PSCmdlet.ShouldProcess('Keycloak client birrapoint-spa', 'Sync redirect URIs with the web URL')) {
         Sync-KeycloakSpaClient -KeycloakUrl (Get-TerraformOutput 'keycloak_url') -WebUrl (Get-TerraformOutput 'web_url') `
+            -DeploySecret (Get-TerraformOutput 'keycloak_deploy_client_secret') `
             -AdminPassword (Get-TerraformOutput 'keycloak_admin_password') -TimeoutSeconds $RevisionTimeoutSeconds
     }
 

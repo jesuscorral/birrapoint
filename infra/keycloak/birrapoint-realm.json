@@ -88,6 +88,18 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
       "secret": "${API_ADMIN_CLIENT_SECRET:dev-only-secret-change-me}"
+    },
+    {
+      "clientId": "birrapoint-deploy",
+      "name": "BirraPoint deployment (infra/deploy.ps1 keeps birrapoint-spa's URLs in step with the web app; secret comes from DEPLOY_CLIENT_SECRET, the fallback is a LOCAL-DEV placeholder)",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "secret": "${DEPLOY_CLIENT_SECRET:dev-only-secret-deploy-change-me}"
     }
   ],
   "users": [
@@ -109,6 +121,14 @@
       "serviceAccountClientId": "birrapoint-api-admin",
       "clientRoles": {
         "realm-management": ["manage-users", "view-users"]
+      }
+    },
+    {
+      "username": "service-account-birrapoint-deploy",
+      "enabled": true,
+      "serviceAccountClientId": "birrapoint-deploy",
+      "clientRoles": {
+        "realm-management": ["manage-clients", "view-clients"]
       }
     }
   ]
