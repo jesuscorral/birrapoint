@@ -4,7 +4,7 @@
 # Neon key: the infrastructure is assumed to exist (created with a full infra/deploy.ps1 run).
 # Rollback = run it again with the previous version. Only runs when dispatched from main (the
 # `production` environment is also restricted to main). Setup: infra/github-actions-setup.md.
-name: Deploy
+name: 3.-Deploy
 
 on:
   workflow_dispatch:

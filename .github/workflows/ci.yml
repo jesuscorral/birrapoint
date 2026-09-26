@@ -5,7 +5,7 @@
 #
 # Docs-only and version-bump changes are path-ignored: they change no image content, so no run
 # (and no publication) happens for them.
-name: CI
+name: 1.-CI
 
 on:
   pull_request:

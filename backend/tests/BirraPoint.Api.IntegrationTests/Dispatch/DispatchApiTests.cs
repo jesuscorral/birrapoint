@@ -492,10 +492,13 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
         Assert.Equal(HttpStatusCode.OK, retryResponse.StatusCode);
 
         // Reset itself is synchronous within the retry request — no polling needed for this part.
+        // The job is no longer Failed and its error is cleared; the DispatchWorker's safety-net poll
+        // may already have picked it up, so Running (mid-handler) is as valid as Pending or
+        // Completed here (T138: asserting only Pending/Completed made this test flaky).
         var statusResponse = await GetDispatchStatusAsync(organizer, competitionId);
         using var document = JsonDocument.Parse(await statusResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var row = document.RootElement.EnumerateArray().Single();
-        Assert.True(row.GetProperty("status").GetString() is "Pending" or "Completed");
+        Assert.Contains(row.GetProperty("status").GetString(), new[] { "Pending", "Running", "Completed" });
         Assert.Null(row.GetProperty("lastError").GetString());
 
         await PollForAllDispatchRowsCompletedAsync(organizer, competitionId, expectedCount: 1, SafetyNetPollTimeout);
