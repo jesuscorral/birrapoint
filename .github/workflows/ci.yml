@@ -1,6 +1,10 @@
-# Integration pipeline (FR-064a): quality gates on every PR; on push to main, the same gates and
-# then `latest` images of all three containers are published to Docker Hub. Releases (immutable,
+# Integration pipeline (FR-064a): quality gates on every PR; on main (push or manual run), the
+# same gates and then images of all three containers are published to Docker Hub as
+# `sha-<short>`, plus `latest` when the commit is still the head of main. Releases (immutable,
 # semver-tagged images) are a separate pipeline: release.yml.
+#
+# Docs-only and version-bump changes are path-ignored: they change no image content, so no run
+# (and no publication) happens for them.
 name: CI
 
 on:
@@ -15,8 +19,10 @@ on:
 permissions:
   contents: read
 
-# PRs: a newer push supersedes the older run. main: runs queue instead, so `latest` can never be
-# overwritten by an older commit's run finishing last.
+# PRs: a newer push cancels the older run. main: runs never overlap, but GitHub keeps only ONE
+# pending run per group — a newer push replaces a still-pending one, so the newest commit wins
+# and intermediate commits may never be built on main. The head-of-main check in the `images`
+# job additionally stops a re-run of an older run from moving `latest` backwards.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -30,16 +36,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
-          dotnet-version: 10.0.x
+          global-json-file: global.json
       - run: dotnet build backend/BirraPoint.sln --configuration Release
       - run: dotnet format backend/BirraPoint.sln --verify-no-changes
-      - run: dotnet test backend/tests/BirraPoint.Api.UnitTests --configuration Release --no-build
+      - run: >-
+          dotnet test backend/tests/BirraPoint.Api.UnitTests --configuration Release --no-build
+          --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/unit"
       # Testcontainers starts a real PostgreSQL through the runner's Docker daemon.
-      - run: dotnet test backend/tests/BirraPoint.Api.IntegrationTests --configuration Release --no-build
+      - run: >-
+          dotnet test backend/tests/BirraPoint.Api.IntegrationTests --configuration Release --no-build
+          --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/integration"
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: backend-test-results
+          path: ${{ runner.temp }}/test-results
+          if-no-files-found: ignore
 
+  # Jest and the bundle-budget script print their full diagnostics to the job log, so there is no
+  # separate artifact (a JUnit reporter would be a new dependency, Principle V).
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -47,16 +66,17 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - run: npx ng lint
+      # No dependency lifecycle scripts; the Angular/esbuild toolchain ships prebuilt binaries.
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
       - run: npm run format:check
-      - run: npx jest
+      - run: npm test -- --ci
       - run: npm run build:budget
 
   images:
@@ -77,33 +97,52 @@ jobs:
             context: infra/keycloak
             dockerfile: infra/keycloak/Dockerfile
     env:
-      # Only main publishes; PR builds (including forks, which get no secrets) just prove the image builds.
-      PUBLISH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      # Only main publishes; PR builds (including forks, which get no secrets) just prove the image
+      # builds, and read the layer cache without writing to it (the repository's 10 GB Actions
+      # cache quota is kept for main's entries, the only ones every run can reuse).
+      PUBLISH: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Verify publish configuration
+        if: env.PUBLISH == 'true'
+        env:
+          IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE }}
+        run: |
+          if [ -z "$IMAGE_NAMESPACE" ]; then
+            echo "::error::Repository variable IMAGE_NAMESPACE (Docker Hub user/org) is not set."
+            exit 1
+          fi
+      # All actions are pinned to full commit SHAs (the docker/* ones see the Docker Hub token);
+      # Dependabot (.github/dependabot.yml) keeps the pins current.
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Log in to Docker Hub
         if: env.PUBLISH == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Image tags
         id: meta
-        run: |
-          image="${{ vars.IMAGE_NAMESPACE }}/${{ matrix.name }}"
-          {
-            echo 'tags<<EOF'
-            echo "${image}:latest"
-            echo "${image}:sha-${GITHUB_SHA::7}"
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
         if: env.PUBLISH == 'true'
-      - uses: docker/build-push-action@v6
+        env:
+          IMAGE: ${{ vars.IMAGE_NAMESPACE }}/${{ matrix.name }}
+        run: |
+          head=$(git ls-remote origin refs/heads/main | cut -f1)
+          {
+            echo 'tags<<TAGS'
+            echo "${IMAGE}:sha-${GITHUB_SHA::7}"
+            if [ "$head" = "$GITHUB_SHA" ]; then
+              echo "${IMAGE}:latest"
+            else
+              echo "::notice::${GITHUB_SHA::7} is no longer the head of main (${head::7}); not moving latest." >&2
+            fi
+            echo 'TAGS'
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: ${{ env.PUBLISH == 'true' }}
           tags: ${{ steps.meta.outputs.tags || format('{0}:pr-check', matrix.name) }}
           cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,scope=${{ matrix.name }},mode=max
+          cache-to: ${{ env.PUBLISH == 'true' && format('type=gha,scope={0},mode=max', matrix.name) || '' }}

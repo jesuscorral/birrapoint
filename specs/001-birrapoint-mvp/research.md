@@ -199,6 +199,13 @@ Alternatives considered.
   `azd up` was simpler but coupled deployment to Aspire's manifest generation and couldn't reach
   Neon); hand-rolled GitHub Actions pipeline first (post-MVP concern — Terraform works from a
   workstation and from CI equally).
+- **Update 2026-09-26 (FR-064)**: the GitHub Actions deferral above is lifted. Image
+  publication and deployment move to three GitHub Actions pipelines — integration (`ci.yml`:
+  gates, then `latest` images on `main`), release (`release.yml`: immutable semver images in
+  separate `*-release` Docker Hub repositories, version read from `version.txt`), and deploy
+  (`deploy.yml`: approval-gated, runs `infra/deploy.ps1 -SkipBuild` for a released version via
+  Azure OIDC). `infra/deploy.ps1` stays the single deploy entry point, from a workstation or
+  from CI. Full rationale lands in the T137 ADR.
 - **Superseded decision (v1.2.0, kept for audit trail)**: `azure.yaml` + `infra/bicep/`
   (generated/extended from the AppHost model) so that a single `azd up` built the multi-stage
   images, pushed to Azure Container Registry, provisioned the ACA environment, and deployed
