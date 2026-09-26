@@ -344,7 +344,7 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 ---
 
-## Phase 16: Deployment & Operations (FR-043–FR-048)
+## Phase 16: Deployment & Operations (FR-043–FR-048, FR-064)
 
 **Purpose**: Containerization, IaC, and single-command cloud deployment (spec Operations & Deployment group; constitution v1.3.0; research R-16–R-19, superseded by the Terraform/Neon amendment)
 
@@ -357,6 +357,13 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 - [ ] T130 Production Keycloak hardening (PR #46 review M4): brute-force detection and a password policy in the production realm derivation (`infra/keycloak/Dockerfile` jq step), decide on `verifyEmail` for self-registration (grants ORGANIZER), keep the admin console off the public hostname or IP-restrict it, and document replacing the temporary bootstrap admin; also a fail-fast guard when `API_ADMIN_CLIENT_SECRET` is unset
 - [ ] T131 Docker Hub pull authentication (PR #46 review M6): anonymous pulls from ACA's shared outbound IPs can hit Docker Hub rate limits — decide whether `dockerhub_username`/`dockerhub_token` (read-only PAT) become mandatory in `infra/terraform/`
 - [ ] T132 Neon compute budget (PR #46 review M7): the DispatchWorker's 30 s safety-net poll and Keycloak's connection pool keep Neon compute awake 24/7, beyond the free plan's compute allowance — verify against current Neon plan limits during T099 and either document a paid plan as a prerequisite or make the production poll interval configurable/longer
+- [X] T133 [FR-064] CI pipeline: `version.txt` (initial `0.1.0`), `.github/workflows/ci.yml` and `.github/dependabot.yml` — PR runs backend/frontend quality gates plus non-pushing `docker build` of api/web/keycloak (layer cache read-only); main (push or manual run) additionally publishes `sha-<short>` images to Docker Hub, and `latest` only when the commit is still the head of `main` (a re-run of an older run cannot move it back); all three images rebuilt on every run, kept cheap by the buildx `gha` cache written only from main; all actions pinned to full commit SHAs kept current by Dependabot; fail-fast check for the `IMAGE_NAMESPACE` variable; backend TRX results uploaded on failure; `global.json` pins the SDK band
+- [ ] T134 [FR-064] Parametrize release image repositories: `image_repo_suffix` variable (default empty) in `infra/terraform/` and `-ImageRepoSuffix` in `infra/deploy.ps1` so `<ns>/birrapoint-*-release:X.Y.Z` can be deployed with `-SkipBuild` without requiring Docker; CI-generated `terraform.tfvars`/`TF_VAR_*` documented
+- [ ] T135 [FR-064] Release pipeline `.github/workflows/release.yml` (`workflow_dispatch`, inputs `ref` and `bump`): reads `version.txt` from `main`, fails if tag/images for that version exist, builds `ref` and pushes only to `birrapoint-*-release` repos, tags `vX.Y.Z`, creates the GitHub Release, bumps `version.txt` on `main` with `[skip ci]`; re-runnable after partial failure
+- [ ] T136 [FR-064] Deploy pipeline `.github/workflows/deploy.yml` (`workflow_dispatch`, input `version`): `production` Environment with required reviewers, verifies release images exist, Azure OIDC login, runs `infra/deploy.ps1 -SkipBuild -ImageTag <version> -ImageRepoSuffix -release`, deploy `concurrency` group; documents Azure OIDC/Docker Hub/GitHub App setup
+- [ ] T137 [FR-064] CI/CD documentation: ADR in `Docs/adrs/`, `Docs/arquitectura_viva.md`, `infra/terraform/README.md`, `CLAUDE.md` Commands; validate with a first `0.1.0` release and production deploy. If CI becomes a required status check on a protected `main`, handle path-ignored (docs-only) PRs, which never produce the check (PR #48 review M5)
+- [ ] T138 Integration-test flakiness (PR #48 review L5): one `BirraPoint.Api.IntegrationTests` failure seen locally during T133 did not reproduce on re-run and is now a CI merge gate — identify the flaky test from the CI TRX artifacts (uploaded on failure) or repeated local runs, and fix its root cause (no retries masking it)
+- [ ] T139 CI end-to-end and accessibility gate (PR #48 review): Principle VIII makes the axe-core Playwright suite a merge gate and the DoD requires each story's E2E scenario, but `ci.yml` (T133) runs neither — both need the full topology (Keycloak with realm import, PostgreSQL, Mailpit, API, PWA). Add a CI job that brings it up and runs `npm run e2e`; depends on the known broken-E2E debt (see T125/T127 notes) being fixed first
 
 ---
 
@@ -474,7 +481,7 @@ same screen remains reachable unchanged at its original standalone route
 - **US11 (Phase 13)**: Extends SubmitEvaluation (US7) and close gate (US8)
 - **US12 (Phase 14)**: Needs live tables (US6) and dashboard action surface (US9)
 - **Polish (Phase 15)**: After desired stories
-- **Deployment & Ops (Phase 16)**: T095 any time after Setup; T096–T098 after Foundational (need the AppHost from T005 and running services); T099 last — it validates the releasable whole
+- **Deployment & Ops (Phase 16)**: T095 any time after Setup; T096–T098 after Foundational (need the AppHost from T005 and running services); T099 last — it validates the releasable whole. CI/CD (FR-064): T133 first (it creates `version.txt`); T134 and T135 before T136 (deploy consumes the release repositories and the parametrized `deploy.ps1`); T137 last — it validates the full integration → release → deploy chain; T138 any time after T133; T139 after T133 and the E2E-suite repair
 - **US13 (Phase 17)**: Only needs `GET /competitions` (US2/T027, already built); no dependency on any other P2/P3 story or on Phases 9–16
 - **US14 (Phase 19)**: Needs a competition to import into (US2), same as US3/US4; independent of US5–US13. T117 modifies US4's `RegisterJudgesCommandHandler` (T042) in place, so Phase 19 must land after Phase 6, but nothing in Phases 7–18 depends on Phase 19.
 

@@ -3,3 +3,6 @@
 *.sh        text eol=lf
 *.template  text eol=lf
 Dockerfile  text eol=lf
+# The BJCP catalog is an embedded resource whose SHA-256 is pinned by a unit test
+# (BjcpStyleSeedDataTests); its bytes must be identical on Windows and Linux (CI) checkouts.
+backend/src/BirraPoint.Api/Features/Catalog/Data/bjcp-2021.json  text eol=lf

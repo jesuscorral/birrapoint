@@ -1,0 +1,10 @@
+# Keeps the SHA-pinned GitHub Actions in .github/workflows/ current (PR #48 review M4).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ['*']
