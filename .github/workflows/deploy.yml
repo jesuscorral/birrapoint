@@ -119,7 +119,8 @@ jobs:
       id-token: write
     env:
       IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE }}
-      NAME_PREFIX: ${{ vars.NAME_PREFIX || 'birrapoint' }}
+      # Resources are named birrapoint-<environment>-<acronym> (ADR-0021); PROD unless overridden.
+      BIRRAPOINT_ENVIRONMENT: ${{ vars.BIRRAPOINT_ENVIRONMENT || 'PROD' }}
       API_VERSION: ${{ needs.resolve.outputs.api }}
       WEB_VERSION: ${{ needs.resolve.outputs.web }}
       KEYCLOAK_VERSION: ${{ needs.resolve.outputs.keycloak }}
@@ -141,20 +142,21 @@ jobs:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_READ_TOKEN }}
         run: |
-          ./infra/deploy.ps1 -AppsOnly -ImageNamespace $env:IMAGE_NAMESPACE -NamePrefix $env:NAME_PREFIX `
+          ./infra/deploy.ps1 -AppsOnly -ImageNamespace $env:IMAGE_NAMESPACE -Environment $env:BIRRAPOINT_ENVIRONMENT `
             -ApiVersion $env:API_VERSION -WebVersion $env:WEB_VERSION -KeycloakVersion $env:KEYCLOAK_VERSION
       - name: Summary
         if: always()
         env:
           AZURE_EXTENSION_USE_DYNAMIC_INSTALL: yes_without_prompt
         run: |
-          rg="rg-$NAME_PREFIX"
+          prefix="birrapoint-${BIRRAPOINT_ENVIRONMENT,,}"
+          rg="$prefix-rg"
           {
             echo '## Production after this run'
             echo
             echo '| App | Latest revision | Serving revision | Serving image |'
             echo '|---|---|---|---|'
-            for app in "$NAME_PREFIX-kc" "$NAME_PREFIX-api" "$NAME_PREFIX-web"; do
+            for app in "$prefix-kc" "$prefix-api" "$prefix-web"; do
               if ! state="$(az containerapp show --name "$app" --resource-group "$rg" --output tsv \
                 --query '[properties.latestRevisionName, properties.latestReadyRevisionName]' 2>&1)"; then
                 echo "| $app | (could not read: ${state//$'\n'/ }) | | |"

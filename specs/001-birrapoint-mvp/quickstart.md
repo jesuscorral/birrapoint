@@ -36,8 +36,10 @@ Configuration is environment-variable driven (no secrets in the repo or in any i
 `ConnectionStrings__db` (+ `ConnectionStrings__dbDirect` for migrations in the cloud),
 `Database__MigrateOnStartup`, `Keycloak__Authority`, `Keycloak__AdminClientId/Secret`,
 `Smtp__Host/Port/Username/Password/UseStartTls/From`, `Frontend__BaseUrl` — supplied locally by
-the AppHost, in the cloud by Terraform-provisioned Container Apps secrets (Neon pooled endpoint
-for runtime, direct endpoint for migrations). The PWA reads `/config.json` at startup
+the AppHost; in the cloud the non-secret ones are Container Apps env vars and the secret ones
+(`ConnectionStrings__*`, `Keycloak__AdminClientSecret`, `Smtp__Password`) are read from Key Vault
+through the Dapr secret store when `Dapr__SecretStore` is set (Neon pooled endpoint for runtime,
+direct endpoint for migrations; ADR-0021). The PWA reads `/config.json` at startup
 (`frontend/public/config.json` locally; generated from env vars by the web container).
 
 ## Cloud deployment (SC-011)

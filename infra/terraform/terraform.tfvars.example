@@ -2,7 +2,8 @@
 # web_image and keycloak_image are passed by infra/deploy.ps1 and do not belong here.
 # NEON_API_KEY is read from the environment by the Neon provider — never put it in this file.
 
-# name_prefix = "birrapoint"
+# environment = "PROD"   # resources are named birrapoint-<environment>-<acronym>; deploy.ps1
+#                        # passes its -Environment (default PROD), which wins over this file
 
 # Private Docker Hub repositories only — leave both empty for public ones.
 # dockerhub_username = "myhubuser"

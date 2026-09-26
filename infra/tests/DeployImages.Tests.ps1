@@ -47,16 +47,6 @@ Describe 'Resolve-ImageReference' {
     }
 }
 
-Describe 'Get-ContainerAppName' {
-    It 'maps <component> to <expected> (same names as infra/terraform/main.tf)' -ForEach @(
-        @{ component = 'api'; expected = 'birrapoint-api' },
-        @{ component = 'web'; expected = 'birrapoint-web' },
-        @{ component = 'keycloak'; expected = 'birrapoint-kc' }
-    ) {
-        Get-ContainerAppName -NamePrefix 'birrapoint' -Component $component | Should -Be $expected
-    }
-}
-
 Describe 'Test-DockerHubTag' {
     BeforeEach {
         $env:DOCKERHUB_USERNAME = $null

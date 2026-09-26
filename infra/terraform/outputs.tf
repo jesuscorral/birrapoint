@@ -18,6 +18,16 @@ output "resource_group_name" {
   value       = azurerm_resource_group.main.name
 }
 
+output "environment" {
+  description = "Deployment environment (lower-cased) in every resource name, birrapoint-<environment>-<acronym>."
+  value       = local.environment
+}
+
+output "key_vault_name" {
+  description = "Key Vault holding every application secret (read by the apps through Dapr; infra/teardown.ps1 purges it)."
+  value       = azurerm_key_vault.main.name
+}
+
 output "container_app_names" {
   description = "Container App name per component; infra/deploy.ps1 rolls the images out to these."
   value = {

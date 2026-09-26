@@ -4,11 +4,12 @@
     clean `infra/deploy.ps1` run (T140).
 
 .DESCRIPTION
-    Default: removes only what Azure bills for - the application resource group rg-<NamePrefix>
-    with its three Container Apps, the Container Apps environment and Log Analytics - through
+    Default: removes only what Azure bills for - the application resource group
+    birrapoint-<environment>-rg with its three Container Apps, the Container Apps environment,
+    Log Analytics and the Key Vault (purged, so its globally unique name can be reused) - through
     `terraform destroy -target=azurerm_resource_group.main`. It KEEPS:
       - the Neon project and its data (free plan; its compute suspends on its own when idle);
-      - the Terraform state (rg-birrapoint-tfstate, a few KB): it remembers the Neon project
+      - the Terraform state (birrapoint-<environment>-tfstate-rg, a few KB): it remembers the Neon project
         and the generated passwords - among them the API admin-client secret already stored
         in Keycloak's database - so the next deploy.ps1 recreates only the Azure part and
         reconnects to the same database with matching secrets;
@@ -37,20 +38,21 @@
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    # Fallback only: the resource group and the Neon project are read from the Terraform state.
-    # Used when there is no state (must then match Terraform's name_prefix).
-    [string] $NamePrefix = 'birrapoint',
+    # Deployment environment (resources are named birrapoint-<environment>-<acronym>). Selects the
+    # state location; the resource group, Key Vault and Neon project are read from that state and
+    # derived from the environment only when there is no state.
+    [string] $Environment = 'PROD',
 
     # Defaults to infra/terraform/terraform.tfvars when it exists.
     [string] $VarFile,
 
     # Passed to Terraform only when given; otherwise tfvars or the variable default apply.
     [string] $Location,
-    [string] $StateResourceGroup = 'rg-birrapoint-tfstate',
-    # Globally unique; derived from the subscription id when omitted (same rule as deploy.ps1).
+    # Terraform state location; derived from -Environment when omitted (same rule as deploy.ps1).
+    [string] $StateResourceGroup,
     [string] $StateStorageAccount,
-    [string] $StateContainer = 'tfstate',
-    [string] $StateKey = 'birrapoint.tfstate',
+    [string] $StateContainer,
+    [string] $StateKey,
 
     # -IncludeNeon without a state only, when the Neon API key belongs to several organizations.
     [string] $NeonOrgId,
@@ -70,6 +72,8 @@ if (-not $VarFile) {
     if (Test-Path $defaultVarFile) { $VarFile = $defaultVarFile }
 }
 Import-Module (Join-Path $PSScriptRoot 'Teardown.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'ResourceNames.psm1') -Force
+$environmentName = ConvertTo-EnvironmentName $Environment
 
 $neonApi = 'https://console.neon.tech/api/v2'
 $neonHeaders = @{ Authorization = "Bearer $env:NEON_API_KEY"; Accept = 'application/json' }
@@ -176,24 +180,27 @@ $accountJson = (Invoke-Probe { az account show --output json }) -join "`n"
 $account = if ($accountJson) { $accountJson | ConvertFrom-Json } else { $null }
 if (-not $account) { throw 'Not logged in to Azure. Run `az login` first.' }
 $subscriptionId = $account.id
-if (-not $StateStorageAccount) {
-    # 3-24 lowercase alphanumerics, globally unique: stable per subscription.
-    $StateStorageAccount = ('stbirrapointtf' + ($subscriptionId -replace '-', '').Substring(0, 10)).ToLower()
-}
+$stateLocation = Get-StateLocation -Environment $environmentName -SubscriptionId $subscriptionId
+if (-not $StateResourceGroup) { $StateResourceGroup = $stateLocation.ResourceGroup }
+if (-not $StateStorageAccount) { $StateStorageAccount = $stateLocation.StorageAccount }
+if (-not $StateContainer) { $StateContainer = $stateLocation.Container }
+if (-not $StateKey) { $StateKey = $stateLocation.Key }
 
 # Names come from the state (what Terraform actually created), not from parameters.
 $stateJson = Get-StateJson
 $stateExists = [bool] $stateJson
 $outputs = Read-StateOutput -StateJson $stateJson
-$appResourceGroup = if ($outputs.resource_group_name) { $outputs.resource_group_name } else { "rg-$NamePrefix" }
+$appResourceGroup = if ($outputs.resource_group_name) { $outputs.resource_group_name } else { Get-ResourceName -Environment $environmentName -Resource ResourceGroup }
+$keyVault = if ($outputs.key_vault_name) { $outputs.key_vault_name } else { Get-ResourceName -Environment $environmentName -Resource KeyVault }
+$neonProjectName = Get-ResourceName -Environment $environmentName -Resource NeonProject
 $appExists = Test-ResourceGroup $appResourceGroup
 
 $neonTarget = $null
 if ($IncludeNeon) {
-    $nameMatches = if ($outputs.neon_project_id) { @() } else { @(Find-NeonProjectByName $NamePrefix) }
+    $nameMatches = if ($outputs.neon_project_id) { @() } else { @(Find-NeonProjectByName $neonProjectName) }
     $neonTarget = Resolve-NeonProjectTarget -StateProjectId $outputs.neon_project_id -NameMatches $nameMatches
     if ($neonTarget.Action -eq 'Refuse') {
-        throw "Several Neon projects are named '$NamePrefix' ($(($nameMatches | ForEach-Object { $_.id }) -join ', ')) and there is no Terraform state to tell which one is BirraPoint's. Delete the right one in the Neon console; nothing was changed."
+        throw "Several Neon projects are named '$neonProjectName' ($(($nameMatches | ForEach-Object { $_.id }) -join ', ')) and there is no Terraform state to tell which one is BirraPoint's. Delete the right one in the Neon console; nothing was changed."
     }
 }
 
@@ -201,7 +208,7 @@ Write-Host ''
 Write-Host "Azure subscription: $($account.name) ($subscriptionId)"
 Write-Host ("Terraform state: {0}" -f $(if ($stateExists) { "$StateResourceGroup/$StateStorageAccount" } else { 'none found' }))
 Write-Host 'Will remove:' -ForegroundColor Yellow
-Write-Host ("  - {0} (Container Apps, environment, Log Analytics){1}" -f $appResourceGroup, $(if ($appExists) { '' } else { ' - already absent' }))
+Write-Host ("  - {0} (Container Apps, environment, Log Analytics, Key Vault){1}" -f $appResourceGroup, $(if ($appExists) { '' } else { ' - already absent' }))
 if ($IncludeNeon) {
     if ($neonTarget.Action -eq 'DeleteById') {
         Write-Host "  - Neon project $($neonTarget.ProjectId) (from the $($neonTarget.Source)) and ALL its data"
@@ -243,7 +250,7 @@ if ($stateExists) {
             }
             $resolvedVarFile = if ($VarFile) { (Resolve-Path $VarFile).Path } else { $null }
             $destroyArgs = Get-DestroyArgument -TerraformDir $terraformDir -SubscriptionId $subscriptionId `
-                -Location $Location -VarFile $resolvedVarFile -IncludeNeon:$IncludeNeon
+                -Location $Location -Environment $environmentName -VarFile $resolvedVarFile -IncludeNeon:$IncludeNeon
             Invoke-Native 'terraform destroy' { terraform @destroyArgs }
         }
         catch {
@@ -273,6 +280,16 @@ if (Test-ResourceGroup $appResourceGroup) {
         Invoke-Native "Delete resource group '$appResourceGroup' (several minutes)" {
             az group delete --name $appResourceGroup --yes --output none
         }
+    }
+}
+
+# A vault deleted with its resource group (not through Terraform, which purges it) stays
+# soft-deleted for its retention period and blocks a redeploy under the same, globally unique name.
+$deletedVault = @(az keyvault list-deleted --resource-type vault --query "[?name=='$keyVault'].name" --output tsv)
+if ($LASTEXITCODE -ne 0) { throw 'Listing soft-deleted Key Vaults failed.' }
+if (($deletedVault | Where-Object { $_ }) -and $PSCmdlet.ShouldProcess($keyVault, 'Purge the soft-deleted Key Vault')) {
+    Invoke-Native "Purge soft-deleted Key Vault '$keyVault'" {
+        az keyvault purge --name $keyVault --output none
     }
 }
 
@@ -308,6 +325,9 @@ if ($WhatIfPreference) {
 
 $remaining = @()
 if (Test-ResourceGroup $appResourceGroup) { $remaining += "resource group $appResourceGroup" }
+$deletedVault = @(az keyvault list-deleted --resource-type vault --query "[?name=='$keyVault'].name" --output tsv)
+if ($LASTEXITCODE -ne 0) { throw 'Listing soft-deleted Key Vaults failed.' }
+if ($deletedVault | Where-Object { $_ }) { $remaining += "soft-deleted Key Vault $keyVault" }
 if ($IncludeNeon) {
     if (Test-ResourceGroup $StateResourceGroup) { $remaining += "resource group $StateResourceGroup" }
     if ($neonTarget.Action -eq 'DeleteById' -and (Test-NeonProject $neonTarget.ProjectId)) {

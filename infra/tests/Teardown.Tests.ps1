@@ -76,6 +76,11 @@ Describe 'Get-DestroyArgument' {
         Get-DestroyArgument @common -VarFile 'x.tfvars' -Location 'northeurope' | Should -Contain '-var=location=northeurope'
     }
 
+    It 'passes the environment only when given, so the destroy resolves the same resource names' {
+        (Get-DestroyArgument @common -VarFile 'x.tfvars' | Where-Object { $_ -like '-var=environment=*' }) | Should -BeNullOrEmpty
+        Get-DestroyArgument @common -VarFile 'x.tfvars' -Environment 'prod' | Should -Contain '-var=environment=prod'
+    }
+
     It 'puts the var file before the -var flags, so the script values win (same order as deploy.ps1)' {
         $arguments = @(Get-DestroyArgument @common -VarFile 'x.tfvars')
         $varFileIndex = [array]::IndexOf($arguments, '-var-file=x.tfvars')

@@ -8,6 +8,7 @@ using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Common.Secrets;
 using BirraPoint.Api.Features.Catalog;
 using BirraPoint.Api.Features.Competitions;
 using BirraPoint.Api.Features.Dispatch;
@@ -26,6 +27,10 @@ using Microsoft.EntityFrameworkCore;
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Secrets from Key Vault through the Dapr secret store when Dapr:SecretStore is set (Azure, T142/
+// ADR-0021); first, so every registration below already sees them. Locally: plain settings.
+builder.Configuration.AddDaprSecrets();
 
 // OpenTelemetry, health checks, service discovery, resilience (FR-048).
 builder.AddServiceDefaults();

@@ -21,13 +21,15 @@ budget enforcement, full quickstart validation, this file, security pass) is in 
 images, `infra/deploy.ps1`) are implemented; T098 (health/OpenTelemetry in ACA) and T099 (validated
 fresh cloud deploy) are pending. CI/CD (FR-064, T133–T139): T133 (`ci.yml`), T134 (image rollout
 decoupled from Terraform, ADR-0018), T135 (`release.yml`, ADR-0019) and T136 (`deploy.yml`) are
-implemented; T137 (validation against a real deployment) is pending.
+implemented; T137 (validation against a real deployment) is pending. T142 (ADR-0021) names every
+resource `birrapoint-<environment>-<acronym>` (default `PROD`) and moves production secrets to Key
+Vault, read by the apps through a Dapr secret store with system-assigned managed identities.
 `Docs/arquitectura_viva.md` tracks the actual current system state in detail. `Docs/` holds the
 original product definition (in Spanish); the English spec supersedes it.
 
 ## Source of truth (in priority order)
 
-1. `.specify/memory/constitution.md` — v1.3.1, ten principles. Supersedes everything, including
+1. `.specify/memory/constitution.md` — v1.4.0, ten principles. Supersedes everything, including
    this file. Stack deviations require a constitution amendment, not a per-feature choice.
 2. `specs/001-birrapoint-mvp/spec.md` — user stories US1–US13, FR-001–FR-051, clarifications,
    edge cases, success criteria SC-001–SC-011.
@@ -142,18 +144,21 @@ k6 run infra/perf/api-budgets.js       # API p95 budgets (reads <200ms, writes <
                                        #   non-interactive token grants)
 
 ./infra/teardown.ps1                      # remove the Azure environment (no cost); keeps Neon data +
-                                          #   state; -IncludeNeon wipes everything; -WhatIf previews
+                                          #   state; -IncludeNeon wipes everything; -WhatIf previews;
+                                          #   -Environment X (default PROD) as in deploy.ps1
 ./infra/deploy.ps1 -ImageNamespace <dockerhub-ns>   # cloud deploy (PowerShell): state bootstrap,
                                           #   terraform apply, then image rollout per Container App;
                                           #   -ApiVersion/-WebVersion/-KeycloakVersion X.Y.Z pick
                                           #   release images (omitted = latest), -AppsOnly skips
-                                          #   Terraform, -WhatIf previews — see
+                                          #   Terraform, -WhatIf previews, -Environment X names
+                                          #   resources birrapoint-<x>-<acronym> (default PROD) — see
                                           #   infra/terraform/README.md (images come from CI, ADR-0018)
 gh workflow run release.yml -f ref=main -f bump=patch   # release version.txt's X.Y.Z (ADR-0019)
 gh workflow run deploy.yml -f version=X.Y.Z  # roll production to a release (approval; no
                                           #   Terraform) — setup in infra/github-actions-setup.md
 bash .github/scripts/version.test.sh      # tests of the release version logic
-Invoke-Pester infra/tests                 # Pester 5+ tests of infra/DeployImages.psm1 (Windows
+bash infra/keycloak/dapr-secrets/DaprSecretsEnv.test.sh   # Keycloak Dapr secret loader (JDK 21 + python3)
+Invoke-Pester infra/tests                 # Pester 5+ tests of infra/*.psm1 (Windows
                                           #   PowerShell ships 3.4: Install-Module Pester
                                           #   -MinimumVersion 5.0 -Scope CurrentUser once)
 docker build -f backend/src/BirraPoint.Api/Dockerfile backend   # API image (context = backend/)
@@ -176,10 +181,12 @@ backend/tests/     # BirraPoint.Api.UnitTests + BirraPoint.Api.IntegrationTests
 frontend/src/app/  # Feature-Sliced Design: core/ (auth, api, realtime, offline), features/, shared/
 frontend/e2e/      # Playwright suites, incl. e2e/a11y/ (axe-core WCAG gate)
 frontend/scripts/  # build-time checks (bundle gzip budget) not owned by any one feature
-infra/             # deploy.ps1 + DeployImages.psm1 (deploy + image rollout; tests/ = Pester),
-                   #   terraform/ (ACA environment + apps,
+infra/             # deploy.ps1 + DeployImages.psm1 (deploy + image rollout), ResourceNames.psm1
+                   #   (birrapoint-<env>-<acronym> naming), teardown.ps1; tests/ = Pester;
+                   #   terraform/ (ACA environment + apps, Key Vault + Dapr secret store,
                    #   Neon project; images from Docker Hub; remote state in Azure Storage),
-                   #   keycloak/ (realm json, login theme, production Dockerfile),
+                   #   keycloak/ (realm json, login theme, production Dockerfile, dapr-secrets/
+                   #   entrypoint loading Keycloak's secrets from the Dapr sidecar),
                    #   perf/ (k6 API-budget scripts)
 ```
 
@@ -241,7 +248,8 @@ Organize by business capability, never by technical layer (no `controllers/`, `s
 7. **Security (Principle VII)** — identity is Keycloak-only (no custom login/password/token code);
    deny-by-default `RequireAuthorization()` fallback + `ORGANIZER`/`JUDGE` role policies per
    endpoint; validate all input at the API boundary; EF Core parameterized queries only; secrets
-   via environment variables, never in the repo; never log sensitive data.
+   via environment variables locally and from Key Vault through the Dapr secret store in Azure
+   (ADR-0021), never in the repo; never log sensitive data.
 8. **Accessibility (Principle VIII)** — WCAG 2.1 AA on all judge-facing flows; every drag & drop
    has a keyboard-accessible equivalent; axe-core Playwright checks are a merge gate.
 9. **Performance budgets (Principle IX)** — API p95: reads < 200 ms, writes < 500 ms; realtime
@@ -254,13 +262,15 @@ Organize by business capability, never by technical layer (no `controllers/`, `s
 
 - **Backend**: .NET 10 LTS / C# 14, ASP.NET Core Minimal APIs, MediatR 12.5.x, FluentValidation,
   EF Core + Npgsql (PostgreSQL 16, code-first migrations), SignalR, ClosedXML (xlsx), QuestPDF
-  Community (PDF), MailKit (SMTP), .NET Aspire AppHost + ServiceDefaults.
+  Community (PDF), MailKit (SMTP), .NET Aspire AppHost + ServiceDefaults,
+  `Dapr.Extensions.Configuration` (production secrets only, ADR-0021).
 - **Frontend**: Angular 20 (standalone + Signals), `@angular/pwa`, Dexie.js, Tailwind CSS,
   `@angular/cdk/drag-drop`, `keycloak-angular`/`keycloak-js`, `@microsoft/signalr`.
 - **Testing**: xUnit; `WebApplicationFactory` + Testcontainers (real PostgreSQL — no EF InMemory);
   Jest via `jest-preset-angular` (not Karma); Playwright + `@axe-core/playwright`.
 - **Identity/Infra**: Keycloak 25+ (OIDC, roles `ORGANIZER`/`JUDGE`); multi-stage Docker images
-  (no baked secrets); Terraform → Azure Container Apps; PostgreSQL production database on Neon;
+  (no baked secrets); Terraform → Azure Container Apps (system-assigned managed identities, Dapr
+  sidecars) + Azure Key Vault for production secrets; PostgreSQL production database on Neon;
   Mailpit locally.
 
 Any dependency beyond this list must be justified in the plan (Principle V); micro-dependencies

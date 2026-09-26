@@ -9,15 +9,22 @@ variable "location" {
   default     = "northeurope"
 }
 
-variable "name_prefix" {
-  description = "Prefix for every Azure resource and Container App name (lowercase letters, digits, hyphens)."
+variable "environment" {
+  description = "Deployment environment; every resource is named birrapoint-<environment>-<resource acronym>, lower-cased (e.g. birrapoint-prod-rg). Letters and digits only."
   type        = string
-  default     = "birrapoint"
+  default     = "PROD"
 
+  # At most 10 characters: the Key Vault name (birrapoint-<environment>-kv) is limited to 24.
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]{1,18}[a-z0-9]$", var.name_prefix))
-    error_message = "name_prefix must be 3-20 chars: lowercase letters, digits and hyphens, starting with a letter."
+    condition     = can(regex("^[A-Za-z][A-Za-z0-9]{1,9}$", var.environment))
+    error_message = "environment must be 2-10 letters or digits, starting with a letter (e.g. PROD, DEV, STAGING)."
   }
+}
+
+variable "dapr_secret_store_name" {
+  description = "Name of the Dapr secret store component (Key Vault) the apps read their secrets from."
+  type        = string
+  default     = "secretstore"
 }
 
 # --- Images (Docker Hub, constitution v1.3.1) ---------------------------------------------------
@@ -55,8 +62,8 @@ variable "revision_suffix" {
   # Container Apps limits a revision name (<app>--<suffix>) to 64 characters; -api/-web are the
   # longest app names.
   validation {
-    condition     = length("${var.name_prefix}-api--${var.revision_suffix}") <= 64
-    error_message = "name_prefix + revision_suffix give a revision name longer than 64 characters."
+    condition     = length("birrapoint-${lower(var.environment)}-api--${var.revision_suffix}") <= 64
+    error_message = "environment + revision_suffix give a revision name longer than 64 characters."
   }
 }
 

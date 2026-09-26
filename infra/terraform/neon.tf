@@ -2,7 +2,7 @@
 # databases — `birrapoint` (the API) and `keycloak` (R-19) — each owned by its own role.
 
 resource "neon_project" "main" {
-  name                      = var.name_prefix
+  name                      = local.names.neon_project
   region_id                 = var.neon_region
   pg_version                = 16
   org_id                    = var.neon_org_id
