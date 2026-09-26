@@ -76,9 +76,39 @@ public sealed class SubmitEvaluationCommandValidator : AbstractValidator<SubmitE
     }
 }
 
-public sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher)
+/// <summary>
+/// Test-only seam for deterministically reproducing the concurrent-commit race between the early
+/// idempotent-replay check and the <c>alreadySubmittedIds</c> read inside
+/// <see cref="SubmitEvaluationCommandHandler"/> — see
+/// <c>SubmitEvaluationApiTests.A_row_committed_between_the_early_replay_check_and_the_sequence_read_is_replayed_not_rejected</c>
+/// in the integration test project. Production never
+/// registers anything but <see cref="NoOpEvaluationRaceTestHook"/>; the handler falls back to that
+/// no-op whenever nothing else is registered in DI, so this has zero effect outside tests.
+/// </summary>
+public interface IEvaluationRaceTestHook
+{
+    Task AfterEarlyReplayCheckAsync(Guid tableId, Guid judgeId, Guid beerEntryId, CancellationToken cancellationToken);
+}
+
+/// <summary>Default, always-a-no-op <see cref="IEvaluationRaceTestHook"/> used in production.</summary>
+public sealed class NoOpEvaluationRaceTestHook : IEvaluationRaceTestHook
+{
+    public static readonly NoOpEvaluationRaceTestHook Instance = new();
+
+    private NoOpEvaluationRaceTestHook()
+    {
+    }
+
+    public Task AfterEarlyReplayCheckAsync(Guid tableId, Guid judgeId, Guid beerEntryId, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+}
+
+public sealed class SubmitEvaluationCommandHandler(
+    AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher, IEvaluationRaceTestHook? raceTestHook = null)
     : IRequestHandler<SubmitEvaluationCommand, SubmitEvaluationResult?>
 {
+    private readonly IEvaluationRaceTestHook _raceTestHook = raceTestHook ?? NoOpEvaluationRaceTestHook.Instance;
+
     public async Task<SubmitEvaluationResult?> Handle(SubmitEvaluationCommand request, CancellationToken cancellationToken)
     {
         var judges = await currentUser.GetJudgeRecordsAsync(cancellationToken);
@@ -100,16 +130,14 @@ public sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurr
             .SingleOrDefaultAsync(e => e.JudgeId == judgeId && e.BeerEntryId == request.BeerEntryId, cancellationToken);
         if (existingEvaluation is not null)
         {
-            // No new reconciliation here — it already ran when this row was first inserted; a
-            // replay only needs to reflect whatever discrepancy state resulted from that.
-            var replayDiscrepancy = await BuildDiscrepancyViewIfPendingAsync(
-                existingEvaluation, request.TableId, judgeId.Value, cancellationToken);
-            return new SubmitEvaluationResult(
-                existingEvaluation.Id, existingEvaluation.Status.ToString(), existingEvaluation.Total, replayDiscrepancy)
-            {
-                IsNewSubmission = false,
-            };
+            return await BuildReplayResultAsync(existingEvaluation, request.TableId, judgeId.Value, cancellationToken);
         }
+
+        // Test-only seam — see IEvaluationRaceTestHook's doc comment. A no-op in production; exists
+        // so a test can deterministically insert-and-commit a competing row for this exact
+        // (judge, entry) pair right here, closing — under test control, not timing luck — the same
+        // window a genuine concurrent request could win in production.
+        await _raceTestHook.AfterEarlyReplayCheckAsync(request.TableId, judgeId.Value, request.BeerEntryId, cancellationToken);
 
         // The active TableJudge row above references an existing TastingTable (FK), so this is
         // always found — no need to null-check.
@@ -147,12 +175,23 @@ public sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurr
             .Select(ts => ts.BeerEntryId)
             .ToListAsync(cancellationToken);
 
-        // request.BeerEntryId is guaranteed absent from this judge's already-submitted set here —
-        // the early idempotent-replay return above already handled the case where it's present.
+        // request.BeerEntryId is USUALLY absent from this judge's already-submitted set here — the
+        // early idempotent-replay return above already handled the case where it was present at the
+        // start of this request. But a genuinely concurrent submission for the same (judge, entry)
+        // pair can commit in the gap between that check and this query; when that happens the id
+        // shows up here even though it wasn't there a moment ago. That is a replay, not an
+        // out-of-sequence submission, and is handled immediately below before this reaches
+        // IsNextInSequence (which would otherwise reject it with a wrong 409).
         var alreadySubmittedIds = await dbContext.Evaluations
             .Where(e => e.TastingTableId == request.TableId && e.JudgeId == judgeId)
             .Select(e => e.BeerEntryId)
             .ToListAsync(cancellationToken);
+
+        if (alreadySubmittedIds.Contains(request.BeerEntryId))
+        {
+            var concurrentlyStored = await LoadStoredEvaluationAsync(judgeId.Value, request.BeerEntryId, cancellationToken);
+            return await BuildReplayResultAsync(concurrentlyStored, request.TableId, judgeId.Value, cancellationToken);
+        }
 
         if (!SubmitEvaluationRules.IsNextInSequence(orderedSampleIds, alreadySubmittedIds, request.BeerEntryId))
         {
@@ -200,18 +239,9 @@ public sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurr
             // never assumed to match this request's body.
             dbContext.Entry(evaluation).State = EntityState.Detached;
 
-            var existing = await dbContext.Evaluations
-                .SingleAsync(e => e.JudgeId == judgeId && e.BeerEntryId == request.BeerEntryId, cancellationToken);
+            var existing = await LoadStoredEvaluationAsync(judgeId.Value, request.BeerEntryId, cancellationToken);
 
-            // Same "no new reconciliation, just reflect current state" reasoning as the early
-            // idempotent-replay path above — whichever insert actually won the race already
-            // triggered reconciliation for this (table, entry) pair.
-            var raceDiscrepancy = await BuildDiscrepancyViewIfPendingAsync(existing, request.TableId, judgeId.Value, cancellationToken);
-
-            return new SubmitEvaluationResult(existing.Id, existing.Status.ToString(), existing.Total, raceDiscrepancy)
-            {
-                IsNewSubmission = false,
-            };
+            return await BuildReplayResultAsync(existing, request.TableId, judgeId.Value, cancellationToken);
         }
 
         // FR-031: compare this submission's total against every other already-submitted total for
@@ -266,6 +296,27 @@ public sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurr
             IsNewSubmission = true,
         };
     }
+
+    /// <summary>
+    /// FR-029/R-07: builds the full idempotent-replay response for an already-stored evaluation —
+    /// shared by every "return what is stored" path (the early replay check, the concurrent-commit
+    /// path caught via <c>alreadySubmittedIds</c>, and the unique-violation catch path below) so
+    /// they can never drift from each other. No new reconciliation ever runs here — it already ran
+    /// when the row was first inserted; a replay only reflects whatever discrepancy state resulted
+    /// from that.
+    /// </summary>
+    private async Task<SubmitEvaluationResult> BuildReplayResultAsync(
+        Evaluation storedEvaluation, Guid tableId, Guid callerJudgeId, CancellationToken cancellationToken)
+    {
+        var discrepancy = await BuildDiscrepancyViewIfPendingAsync(storedEvaluation, tableId, callerJudgeId, cancellationToken);
+        return new SubmitEvaluationResult(storedEvaluation.Id, storedEvaluation.Status.ToString(), storedEvaluation.Total, discrepancy)
+        {
+            IsNewSubmission = false,
+        };
+    }
+
+    private Task<Evaluation> LoadStoredEvaluationAsync(Guid judgeId, Guid beerEntryId, CancellationToken cancellationToken) =>
+        dbContext.Evaluations.SingleAsync(e => e.JudgeId == judgeId && e.BeerEntryId == beerEntryId, cancellationToken);
 
     /// <summary>Builds the discrepancy view for an idempotent-replay/race-caught early-return path
     /// (no new reconciliation — it already ran when the row was first inserted) by looking up the

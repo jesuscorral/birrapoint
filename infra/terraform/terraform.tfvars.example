@@ -10,7 +10,7 @@
 
 # neon_region                    = "aws-eu-central-1"
 # neon_org_id                    = "org-..."   # only if the API key belongs to several orgs
-# neon_history_retention_seconds = 86400       # free plan maximum
+# neon_history_retention_seconds = 21600       # free plan maximum (6 h)
 
 smtp_host         = "smtp.example.com"
 smtp_port         = 587

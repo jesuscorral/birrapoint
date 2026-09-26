@@ -133,7 +133,7 @@ There is **no seeded organizer account** in production (the image strips the loc
 ## Restore — Neon point-in-time recovery (FR-047)
 
 There is no self-managed backup job. Neon keeps a write-ahead-log history for
-`neon_history_retention_seconds` (default 1 day, the free-plan maximum; raise it on a paid plan)
+`neon_history_retention_seconds` (default 21600 s = 6 hours, the free-plan maximum; raise it on a paid plan)
 and can restore any moment inside that window:
 
 1. Neon console → project `birrapoint` (id: `terraform output neon_project_id`) → **Restore**.
@@ -168,10 +168,24 @@ secrets. Deleting the state while keeping Neon would leave a redeploy with misma
 `rg-birrapoint-tfstate` and the local `infra/terraform/.terraform`, for a fresh start with empty
 data.
 
+The resource group and the Neon project to remove are read from the Terraform state blob itself
+(read-only, before you confirm), not from parameters, so a custom `name_prefix` or `neon_org_id`
+in `terraform.tfvars` is honoured. With `-IncludeNeon` the Neon project is deleted **by the id in
+the state**; only without a state does the script look it up by exact name, and it refuses when
+several projects share that name.
+
 Both modes are idempotent: if `terraform destroy` fails or the state is missing, the script sweeps
-leftovers directly (`az group delete`; with `-IncludeNeon`, the Neon project named exactly
-`<name_prefix>` via the Neon API) and ends by verifying nothing remains. Log Analytics is purged,
-not soft-deleted (`permanently_delete_on_destroy`), so a redeploy never collides with it.
+leftovers directly (`az group delete` after purging Log Analytics; the Neon project by id) and ends
+by verifying nothing remains. Log Analytics is purged, not soft-deleted
+(`permanently_delete_on_destroy`), so a redeploy never collides with it. Note that the same
+provider setting also applies if Terraform ever *replaces* the workspace during a normal apply:
+its logs are then purged immediately instead of being recoverable for 14 days.
+
+**Redeploying after a default teardown.** The recreated Container Apps environment gets a new
+random domain, while Keycloak keeps its realm in Neon (the realm is imported only on first
+start). `deploy.ps1` therefore ends every full run by pointing Keycloak's `birrapoint-spa` client
+(redirect URIs, web origins, root/base URL, post-logout URIs) at the current web URL through the
+Keycloak Admin API, using the bootstrap admin; it writes only when the URLs differ.
 Docker Hub images, GitHub secrets and the deploy identity are never touched.
 
 ## Known limitations

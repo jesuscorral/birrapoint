@@ -37,20 +37,22 @@
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    # Must match Terraform's name_prefix.
+    # Fallback only: the resource group and the Neon project are read from the Terraform state.
+    # Used when there is no state (must then match Terraform's name_prefix).
     [string] $NamePrefix = 'birrapoint',
 
     # Defaults to infra/terraform/terraform.tfvars when it exists.
     [string] $VarFile,
 
-    [string] $Location = 'westeurope',
+    # Passed to Terraform only when given; otherwise tfvars or the variable default apply.
+    [string] $Location,
     [string] $StateResourceGroup = 'rg-birrapoint-tfstate',
     # Globally unique; derived from the subscription id when omitted (same rule as deploy.ps1).
     [string] $StateStorageAccount,
     [string] $StateContainer = 'tfstate',
     [string] $StateKey = 'birrapoint.tfstate',
 
-    # -IncludeNeon only, when the Neon API key belongs to several organizations.
+    # -IncludeNeon without a state only, when the Neon API key belongs to several organizations.
     [string] $NeonOrgId,
 
     [switch] $IncludeNeon,
@@ -69,8 +71,8 @@ if (-not $VarFile) {
 }
 Import-Module (Join-Path $PSScriptRoot 'Teardown.psm1') -Force
 
-$appResourceGroup = "rg-$NamePrefix"
 $neonApi = 'https://console.neon.tech/api/v2'
+$neonHeaders = @{ Authorization = "Bearer $env:NEON_API_KEY"; Accept = 'application/json' }
 
 function Invoke-Native {
     # Runs a native command and throws on a non-zero exit code (PowerShell 5.1 does not).
@@ -101,19 +103,53 @@ function Test-ResourceGroup([string] $Name) {
     $exists.Trim() -eq 'true'
 }
 
-function Test-StateStorage {
-    if (-not (Test-ResourceGroup $StateResourceGroup)) { return $false }
+function Get-StateJson {
+    # The raw state document straight from its blob - read-only (no `terraform init`), so it also
+    # works under -WhatIf and before the confirmation. $null when there is no state.
+    if (-not (Test-ResourceGroup $StateResourceGroup)) { return $null }
     $found = az storage account list --resource-group $StateResourceGroup `
         --query "[?name=='$StateStorageAccount'].name" --output tsv
     if ($LASTEXITCODE -ne 0) { throw 'Listing state storage accounts failed.' }
-    [bool] $found
+    if (-not $found) { return $null }
+
+    $key = az storage account keys list --account-name $StateStorageAccount --resource-group $StateResourceGroup `
+        --query '[0].value' --output tsv
+    if ($LASTEXITCODE -ne 0 -or -not $key) { throw 'Reading the state storage account key failed.' }
+    $blobExists = (az storage blob exists --account-name $StateStorageAccount --account-key $key `
+            --container-name $StateContainer --name $StateKey --query exists --output tsv) -join ''
+    if ($LASTEXITCODE -ne 0) { throw 'Checking the state blob failed.' }
+    if ($blobExists.Trim() -ne 'true') { return $null }
+
+    $file = [IO.Path]::GetTempFileName()
+    try {
+        az storage blob download --account-name $StateStorageAccount --account-key $key `
+            --container-name $StateContainer --name $StateKey --file $file --overwrite --no-progress --output none
+        if ($LASTEXITCODE -ne 0) { throw 'Downloading the Terraform state failed.' }
+        [IO.File]::ReadAllText($file)
+    }
+    finally {
+        # A local temp file, never part of the what-if: always removed.
+        Remove-Item $file -Force -ErrorAction SilentlyContinue -WhatIf:$false
+    }
 }
 
-function Get-NeonProjectToDelete {
-    $uri = "$neonApi/projects?search=$([uri]::EscapeDataString($NamePrefix))"
+function Test-NeonProject([string] $ProjectId) {
+    try {
+        Invoke-RestMethod -Uri "$neonApi/projects/$ProjectId" -Headers $neonHeaders -TimeoutSec 30 | Out-Null
+        return $true
+    }
+    catch {
+        $response = $_.Exception.Response
+        if ($response -and [int] $response.StatusCode -eq 404) { return $false }
+        throw
+    }
+}
+
+function Find-NeonProjectByName([string] $Name) {
+    $uri = "$neonApi/projects?limit=400&search=$([uri]::EscapeDataString($Name))"
     if ($NeonOrgId) { $uri += "&org_id=$([uri]::EscapeDataString($NeonOrgId))" }
-    $response = Invoke-RestMethod -Uri $uri -Headers @{ Authorization = "Bearer $env:NEON_API_KEY"; Accept = 'application/json' } -TimeoutSec 30
-    Select-NeonProjectToDelete -Projects @($response.projects) -Name $NamePrefix
+    $response = Invoke-RestMethod -Uri $uri -Headers $neonHeaders -TimeoutSec 30
+    Select-NeonProjectToDelete -Projects @($response.projects) -Name $Name
 }
 
 function Read-Confirmation([string] $Prompt, [string] $Expected) {
@@ -123,7 +159,7 @@ function Read-Confirmation([string] $Prompt, [string] $Expected) {
     }
 }
 
-# --- 1. Prerequisites ------------------------------------------------------------------------
+# --- 1. Prerequisites and what exists --------------------------------------------------------
 
 foreach ($tool in 'az', 'terraform') { Assert-Command $tool }
 if (-not $env:NEON_API_KEY) { throw 'NEON_API_KEY is not set (Neon console -> Account settings -> API keys).' }
@@ -137,15 +173,34 @@ if (-not $StateStorageAccount) {
     $StateStorageAccount = ('stbirrapointtf' + ($subscriptionId -replace '-', '').Substring(0, 10)).ToLower()
 }
 
+# Names come from the state (what Terraform actually created), not from parameters.
+$stateJson = Get-StateJson
+$stateExists = [bool] $stateJson
+$outputs = Read-StateOutput -StateJson $stateJson
+$appResourceGroup = if ($outputs.resource_group_name) { $outputs.resource_group_name } else { "rg-$NamePrefix" }
 $appExists = Test-ResourceGroup $appResourceGroup
-$stateExists = Test-StateStorage
+
+$neonTarget = $null
+if ($IncludeNeon) {
+    $nameMatches = if ($outputs.neon_project_id) { @() } else { @(Find-NeonProjectByName $NamePrefix) }
+    $neonTarget = Resolve-NeonProjectTarget -StateProjectId $outputs.neon_project_id -NameMatches $nameMatches
+    if ($neonTarget.Action -eq 'Refuse') {
+        throw "Several Neon projects are named '$NamePrefix' ($(($nameMatches | ForEach-Object { $_.id }) -join ', ')) and there is no Terraform state to tell which one is BirraPoint's. Delete the right one in the Neon console; nothing was changed."
+    }
+}
 
 Write-Host ''
 Write-Host "Azure subscription: $($account.name) ($subscriptionId)"
+Write-Host ("Terraform state: {0}" -f $(if ($stateExists) { "$StateResourceGroup/$StateStorageAccount" } else { 'none found' }))
 Write-Host 'Will remove:' -ForegroundColor Yellow
 Write-Host ("  - {0} (Container Apps, environment, Log Analytics){1}" -f $appResourceGroup, $(if ($appExists) { '' } else { ' - already absent' }))
 if ($IncludeNeon) {
-    Write-Host "  - Neon project '$NamePrefix' and ALL its data (databases birrapoint + keycloak)"
+    if ($neonTarget.Action -eq 'DeleteById') {
+        Write-Host "  - Neon project $($neonTarget.ProjectId) (from the $($neonTarget.Source)) and ALL its data"
+    }
+    else {
+        Write-Host "  - Neon project: none found"
+    }
     Write-Host ("  - Terraform state: {0}{1}" -f $StateResourceGroup, $(if ($stateExists) { '' } else { ' - already absent' }))
     Write-Host '  - local infra/terraform/.terraform'
 }
@@ -190,7 +245,7 @@ if ($stateExists) {
     }
 }
 else {
-    Write-Host "No Terraform state found in $StateResourceGroup; sweeping resources directly." -ForegroundColor Yellow
+    Write-Host "No Terraform state found; sweeping resources directly." -ForegroundColor Yellow
 }
 
 # --- 4. Sweep leftovers -------------------------------------------------------------------------
@@ -199,6 +254,7 @@ if (Test-ResourceGroup $appResourceGroup) {
     if ($PSCmdlet.ShouldProcess($appResourceGroup, 'Purge Log Analytics workspaces and delete the resource group')) {
         # Purged rather than soft-deleted (14-day retention) so a redeploy never collides with it.
         $workspaces = @(az monitor log-analytics workspace list --resource-group $appResourceGroup --query '[].name' --output tsv)
+        if ($LASTEXITCODE -ne 0) { throw "Listing Log Analytics workspaces in '$appResourceGroup' failed." }
         foreach ($workspace in $workspaces | Where-Object { $_ }) {
             Invoke-Native "Purge Log Analytics workspace '$workspace'" {
                 az monitor log-analytics workspace delete --resource-group $appResourceGroup `
@@ -212,12 +268,12 @@ if (Test-ResourceGroup $appResourceGroup) {
 }
 
 if ($IncludeNeon) {
-    $leftoverProjects = @(Get-NeonProjectToDelete)
-    foreach ($project in $leftoverProjects) {
-        if ($PSCmdlet.ShouldProcess("Neon project '$($project.name)' ($($project.id))", 'Delete')) {
-            Write-Host "==> Delete Neon project '$($project.name)' ($($project.id))" -ForegroundColor Cyan
-            Invoke-RestMethod -Method Delete -Uri "$neonApi/projects/$($project.id)" `
-                -Headers @{ Authorization = "Bearer $env:NEON_API_KEY"; Accept = 'application/json' } -TimeoutSec 60 | Out-Null
+    # Only the project identified above (by its id), and only if the destroy left it behind.
+    if ($neonTarget.Action -eq 'DeleteById' -and (Test-NeonProject $neonTarget.ProjectId)) {
+        if ($PSCmdlet.ShouldProcess("Neon project $($neonTarget.ProjectId)", 'Delete')) {
+            Write-Host "==> Delete Neon project $($neonTarget.ProjectId)" -ForegroundColor Cyan
+            Invoke-RestMethod -Method Delete -Uri "$neonApi/projects/$($neonTarget.ProjectId)" `
+                -Headers $neonHeaders -TimeoutSec 60 | Out-Null
         }
     }
 
@@ -245,7 +301,9 @@ $remaining = @()
 if (Test-ResourceGroup $appResourceGroup) { $remaining += "resource group $appResourceGroup" }
 if ($IncludeNeon) {
     if (Test-ResourceGroup $StateResourceGroup) { $remaining += "resource group $StateResourceGroup" }
-    if (@(Get-NeonProjectToDelete).Count -gt 0) { $remaining += "Neon project $NamePrefix" }
+    if ($neonTarget.Action -eq 'DeleteById' -and (Test-NeonProject $neonTarget.ProjectId)) {
+        $remaining += "Neon project $($neonTarget.ProjectId)"
+    }
 }
 
 foreach ($problem in $problems) { Write-Warning $problem }

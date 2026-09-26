@@ -32,29 +32,32 @@ function Get-DestroyArgument {
     # it every Container App, the environment and Log Analytics - is targeted: the Neon project
     # and the generated passwords stay in the state, so the next deploy reconnects to the same
     # database with matching secrets. -IncludeNeon destroys everything.
-    # The per-apply variables have no meaning for a destroy but are mandatory, so they get
-    # placeholders; so do the required SMTP variables when there is no var file.
+    # The var file comes first so the -var flags win, as in deploy.ps1. The per-apply variables
+    # have no meaning for a destroy but are mandatory, so they get placeholders; so do the
+    # required SMTP variables when there is no var file. The location is passed only when given.
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)] [string] $TerraformDir,
         [Parameter(Mandatory = $true)] [string] $SubscriptionId,
-        [Parameter(Mandatory = $true)] [string] $Location,
+        [string] $Location,
         [string] $VarFile,
         [switch] $IncludeNeon
     )
-    $arguments = @(
-        "-chdir=$TerraformDir", 'destroy', '-input=false', '-auto-approve',
+    $arguments = @("-chdir=$TerraformDir", 'destroy', '-input=false', '-auto-approve')
+    if ($VarFile) {
+        $arguments += "-var-file=$VarFile"
+    }
+    $arguments += @(
         "-var=subscription_id=$SubscriptionId",
-        "-var=location=$Location",
         '-var=api_image=docker.io/library/unused:teardown',
         '-var=web_image=docker.io/library/unused:teardown',
         '-var=keycloak_image=docker.io/library/unused:teardown',
         '-var=revision_suffix=teardown'
     )
-    if ($VarFile) {
-        $arguments += "-var-file=$VarFile"
+    if ($Location) {
+        $arguments += "-var=location=$Location"
     }
-    else {
+    if (-not $VarFile) {
         $arguments += '-var=smtp_host=unused.invalid', '-var=smtp_from_address=unused@unused.invalid'
     }
     if (-not $IncludeNeon) {
@@ -63,4 +66,41 @@ function Get-DestroyArgument {
     $arguments
 }
 
-Export-ModuleMember -Function Test-TeardownConfirmation, Select-NeonProjectToDelete, Get-DestroyArgument
+function Read-StateOutput {
+    # The outputs of a raw Terraform state document (read straight from the state blob, so no
+    # `terraform init` is needed and -WhatIf stays read-only) as name -> value.
+    [CmdletBinding()]
+    param([AllowEmptyString()] [AllowNull()] [string] $StateJson)
+    $result = @{}
+    if ([string]::IsNullOrWhiteSpace($StateJson)) { return $result }
+    $state = $StateJson | ConvertFrom-Json
+    if ($state.outputs) {
+        foreach ($property in $state.outputs.PSObject.Properties) {
+            $result[$property.Name] = $property.Value.value
+        }
+    }
+    $result
+}
+
+function Resolve-NeonProjectTarget {
+    # Which Neon project -IncludeNeon may delete. The id recorded in the Terraform state always
+    # wins; only without it may a project be chosen by name, and then only when exactly one has
+    # that exact name - Neon names are not unique, so several matches are never guessed between.
+    [CmdletBinding()]
+    param(
+        [AllowNull()] [AllowEmptyString()] [string] $StateProjectId,
+        [AllowEmptyCollection()] [object[]] $NameMatches = @()
+    )
+    if ($StateProjectId) {
+        return [pscustomobject]@{ Action = 'DeleteById'; ProjectId = $StateProjectId; Source = 'state' }
+    }
+    $candidates = @($NameMatches)
+    switch ($candidates.Count) {
+        0 { return [pscustomobject]@{ Action = 'None'; ProjectId = $null; Source = $null } }
+        1 { return [pscustomobject]@{ Action = 'DeleteById'; ProjectId = $candidates[0].id; Source = 'name' } }
+        default { return [pscustomobject]@{ Action = 'Refuse'; ProjectId = $null; Source = 'name' } }
+    }
+}
+
+Export-ModuleMember -Function Test-TeardownConfirmation, Select-NeonProjectToDelete, Get-DestroyArgument,
+    Read-StateOutput, Resolve-NeonProjectTarget

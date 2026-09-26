@@ -4,7 +4,10 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.Features.Evaluations;
 using BirraPoint.Api.IntegrationTests.TestHost;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -527,6 +530,41 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
 
         Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Created));
         Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.OK));
+
+        Assert.Equal(1, await CountEvaluationsAsync(fixture.JudgeId, fixture.EntryIds[0]));
+    }
+
+    /// <summary>
+    /// Deterministic version of the race above — reproduces it without relying on two real HTTP
+    /// calls happening to interleave in the exact right window (flaky: <c>Two_near_simultaneous_
+    /// submissions_for_the_same_pair_leave_exactly_one_row</c> above intermittently observed 0
+    /// instead of 1 OK response). <see cref="ConcurrentInsertRaceTestHook"/> inserts-and-commits a
+    /// competing row for this exact (judge, entry) pair right after the handler's early
+    /// idempotent-replay check finds nothing — i.e. exactly the window the early check cannot see —
+    /// forcing the handler's own later <c>alreadySubmittedIds</c> read to observe it. Before the
+    /// fix this made <see cref="SubmitEvaluationRules.IsNextInSequence"/> reject the id and throw
+    /// 409 OutOfSequence; it must instead replay the row the hook inserted, with 200 OK.
+    /// </summary>
+    [Fact]
+    public async Task A_row_committed_between_the_early_replay_check_and_the_sequence_read_is_replayed_not_rejected()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer);
+
+        var raceHook = new ConcurrentInsertRaceTestHook(factory.Services.GetRequiredService<IServiceScopeFactory>());
+        using var client = factory
+            .WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+                services.AddSingleton<IEvaluationRaceTestHook>(raceHook)))
+            .CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", TestJwtIssuer.IssueToken(fixture.JudgeSub, $"{fixture.JudgeSub}@brew.example", "JUDGE"));
+
+        var response = await SubmitAsync(client, fixture.TableId, fixture.EntryIds[0]);
+
+        Assert.NotNull(raceHook.InsertedEvaluationId);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(raceHook.InsertedEvaluationId, document.RootElement.GetProperty("evaluationId").GetGuid());
 
         Assert.Equal(1, await CountEvaluationsAsync(fixture.JudgeId, fixture.EntryIds[0]));
     }

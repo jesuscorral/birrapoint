@@ -53,7 +53,7 @@ Describe 'Select-NeonProjectToDelete' {
 
 Describe 'Get-DestroyArgument' {
     BeforeAll {
-        $common = @{ TerraformDir = 'C:/repo/infra/terraform'; SubscriptionId = 'sub-1'; Location = 'northeurope' }
+        $common = @{ TerraformDir = 'C:/repo/infra/terraform'; SubscriptionId = 'sub-1' }
     }
 
     It 'targets only the application resource group by default (Neon and its state survive)' {
@@ -71,11 +71,24 @@ Describe 'Get-DestroyArgument' {
         ($arguments | Where-Object { $_ -like '-target=*' }) | Should -BeNullOrEmpty
     }
 
-    It 'passes the subscription, location and placeholders for the per-apply variables' {
+    It 'passes the location only when given (tfvars or the variable default apply otherwise)' {
+        (Get-DestroyArgument @common -VarFile 'x.tfvars' | Where-Object { $_ -like '-var=location=*' }) | Should -BeNullOrEmpty
+        Get-DestroyArgument @common -VarFile 'x.tfvars' -Location 'northeurope' | Should -Contain '-var=location=northeurope'
+    }
+
+    It 'puts the var file before the -var flags, so the script values win (same order as deploy.ps1)' {
+        $arguments = @(Get-DestroyArgument @common -VarFile 'x.tfvars')
+        $varFileIndex = [array]::IndexOf($arguments, '-var-file=x.tfvars')
+        $firstVarIndex = [array]::IndexOf($arguments, '-var=subscription_id=sub-1')
+
+        $varFileIndex | Should -BeGreaterThan -1
+        $varFileIndex | Should -BeLessThan $firstVarIndex
+    }
+
+    It 'passes the subscription and placeholders for the per-apply variables' {
         $arguments = Get-DestroyArgument @common -VarFile 'x.tfvars'
 
         $arguments | Should -Contain '-var=subscription_id=sub-1'
-        $arguments | Should -Contain '-var=location=northeurope'
         foreach ($name in 'api_image', 'web_image', 'keycloak_image') {
             ($arguments | Where-Object { $_ -like "-var=$name=*" }).Count | Should -Be 1
         }
@@ -95,5 +108,61 @@ Describe 'Get-DestroyArgument' {
         ($arguments | Where-Object { $_ -like '-var-file=*' }) | Should -BeNullOrEmpty
         ($arguments | Where-Object { $_ -like '-var=smtp_host=*' }).Count | Should -Be 1
         ($arguments | Where-Object { $_ -like '-var=smtp_from_address=*' }).Count | Should -Be 1
+    }
+}
+
+Describe 'Read-StateOutput' {
+    It 'returns the outputs of a Terraform state document' {
+        $state = @{
+            version = 4
+            outputs = @{
+                resource_group_name = @{ value = 'rg-custom'; type = 'string' }
+                neon_project_id     = @{ value = 'young-sun-123'; type = 'string' }
+            }
+        } | ConvertTo-Json -Depth 5
+
+        $outputs = Read-StateOutput -StateJson $state
+        $outputs.resource_group_name | Should -Be 'rg-custom'
+        $outputs.neon_project_id | Should -Be 'young-sun-123'
+    }
+
+    It 'returns an empty result for a state without outputs (nothing applied yet)' {
+        $outputs = Read-StateOutput -StateJson '{"version":4,"outputs":{}}'
+        $outputs.resource_group_name | Should -BeNullOrEmpty
+    }
+
+    It 'returns an empty result for no state at all' {
+        (Read-StateOutput -StateJson '').resource_group_name | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Resolve-NeonProjectTarget' {
+    It 'uses the project id recorded in the state' {
+        $target = Resolve-NeonProjectTarget -StateProjectId 'young-sun-123' -NameMatches @()
+        $target.Action | Should -Be 'DeleteById'
+        $target.ProjectId | Should -Be 'young-sun-123'
+    }
+
+    It 'prefers the state id over name matches' {
+        $found = @([pscustomobject]@{ id = 'other-1'; name = 'birrapoint' })
+        (Resolve-NeonProjectTarget -StateProjectId 'young-sun-123' -NameMatches $found).ProjectId | Should -Be 'young-sun-123'
+    }
+
+    It 'falls back to a single exact-name match when there is no state' {
+        $found = @([pscustomobject]@{ id = 'p-1'; name = 'birrapoint' })
+        $target = Resolve-NeonProjectTarget -StateProjectId $null -NameMatches $found
+        $target.Action | Should -Be 'DeleteById'
+        $target.ProjectId | Should -Be 'p-1'
+    }
+
+    It 'refuses to guess between several projects with the same name' {
+        $found = @([pscustomobject]@{ id = 'p-1'; name = 'birrapoint' }, [pscustomobject]@{ id = 'p-2'; name = 'birrapoint' })
+        $target = Resolve-NeonProjectTarget -StateProjectId $null -NameMatches $found
+        $target.Action | Should -Be 'Refuse'
+        $target.ProjectId | Should -BeNullOrEmpty
+    }
+
+    It 'has nothing to do when neither the state nor a name match knows a project' {
+        (Resolve-NeonProjectTarget -StateProjectId $null -NameMatches @()).Action | Should -Be 'None'
     }
 }

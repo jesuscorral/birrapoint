@@ -21,6 +21,9 @@
          migrates the database on startup), then web - waiting for each new revision to become
          healthy before moving on. An app whose latest revision is healthy and already serves
          the target release is skipped (so is `latest` right after the apply pulled it).
+      4. (full runs) Points Keycloak's birrapoint-spa client at the current web URL through the
+         Keycloak Admin API. Keycloak imports the realm only once, so without this a recreated
+         environment - with a new random domain - would reject every login (redirect_uri).
 
     -AppsOnly is the image-only deployment used by the deploy pipeline (deploy.yml): no Terraform,
     tfvars, NEON_API_KEY or state access - only `az login` with rights on the application
@@ -76,6 +79,7 @@ $terraformDir = Join-Path $PSScriptRoot 'terraform'
 # param defaults when the script is run with `powershell -File`.
 if (-not $VarFile) { $VarFile = Join-Path $terraformDir 'terraform.tfvars' }
 Import-Module (Join-Path $PSScriptRoot 'DeployImages.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'KeycloakClient.psm1') -Force
 
 function Invoke-Native {
     # Runs a native command and throws on a non-zero exit code (PowerShell 5.1 does not).
@@ -146,6 +150,48 @@ function Get-AppState {
         # Unset means the platform default (not zero): never treat it as "may scale to zero".
         MinReplicas = if ($null -ne $state.minReplicas) { [int] $state.minReplicas } else { 1 }
     }
+}
+
+function Sync-KeycloakSpaClient {
+    # Keycloak imports the realm only on its first start; an existing realm in its database is
+    # never re-imported. When the Container Apps environment is recreated (e.g. after
+    # infra/teardown.ps1) the web app gets a new random domain, so the stored birrapoint-spa
+    # client must be pointed at it - otherwise every login fails with "Invalid parameter:
+    # redirect_uri". Uses the bootstrap admin (password in the Terraform state); writes only when
+    # the URLs differ.
+    param([string] $KeycloakUrl, [string] $WebUrl, [string] $AdminPassword, [int] $TimeoutSeconds)
+
+    $realmUrl = "$KeycloakUrl/realms/birrapoint/.well-known/openid-configuration"
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ($true) {
+        try {
+            Invoke-RestMethod -Uri $realmUrl -TimeoutSec 15 | Out-Null
+            break
+        }
+        catch {
+            if ((Get-Date) -gt $deadline) { throw "Keycloak realm 'birrapoint' not reachable at $realmUrl within $TimeoutSeconds s." }
+            Write-Host '    waiting for Keycloak to serve the realm...'
+            Start-Sleep -Seconds 10
+        }
+    }
+
+    $token = (Invoke-RestMethod -Method Post -Uri "$KeycloakUrl/realms/master/protocol/openid-connect/token" `
+            -ContentType 'application/x-www-form-urlencoded' -TimeoutSec 30 `
+            -Body @{ grant_type = 'password'; client_id = 'admin-cli'; username = 'admin'; password = $AdminPassword }).access_token
+    $headers = @{ Authorization = "Bearer $token" }
+
+    $client = @(Invoke-RestMethod -Uri "$KeycloakUrl/admin/realms/birrapoint/clients?clientId=birrapoint-spa" `
+            -Headers $headers -TimeoutSec 30) | Select-Object -First 1
+    if (-not $client) { throw "Keycloak client 'birrapoint-spa' not found in realm 'birrapoint'." }
+
+    $update = Get-SpaClientUpdate -Client $client -WebUrl $WebUrl
+    if (-not $update) {
+        Write-Host "==> Keycloak client birrapoint-spa already allows $WebUrl" -ForegroundColor Cyan
+        return
+    }
+    Write-Host "==> Point Keycloak client birrapoint-spa at $WebUrl" -ForegroundColor Cyan
+    Invoke-RestMethod -Method Put -Uri "$KeycloakUrl/admin/realms/birrapoint/clients/$($client.id)" -Headers $headers `
+        -ContentType 'application/json' -Body ($update | ConvertTo-Json -Depth 20) -TimeoutSec 30 | Out-Null
 }
 
 function Wait-HealthyRevision {
@@ -346,6 +392,13 @@ try {
             Wait-HealthyRevision -App $app -ResourceGroup $resourceGroup -Revision "$app--$suffix" `
                 -MinReplicas $state.MinReplicas -TimeoutSeconds $RevisionTimeoutSeconds
         }
+    }
+
+    # --- 4. Keycloak client URLs (full runs: the environment - and its domain - may be new) ------
+
+    if (-not $AppsOnly -and $PSCmdlet.ShouldProcess('Keycloak client birrapoint-spa', 'Sync redirect URIs with the web URL')) {
+        Sync-KeycloakSpaClient -KeycloakUrl (Get-TerraformOutput 'keycloak_url') -WebUrl (Get-TerraformOutput 'web_url') `
+            -AdminPassword (Get-TerraformOutput 'keycloak_admin_password') -TimeoutSeconds $RevisionTimeoutSeconds
     }
 
     Write-Host ''
