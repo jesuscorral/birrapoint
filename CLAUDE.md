@@ -1,295 +1,154 @@
 # Project Instructions
 
-Guidance for Claude Code (claude.ai/code) when working in this repository.
-
 ## Project
 
-BirraPoint is a PWA for running beer competitions with blind tastings (catas a ciegas): organizer
-provisioning (competition wizard with drafts, `.xlsx` entry import validated against the BJCP 2021
-catalog, bulk judge invitations, tasting tables with conflict-of-interest protection), an
-offline-first judge evaluation flow with a shared fixed tasting order and BJCP score caps,
-discrepancy consensus, a real-time organizer dashboard, and immutable closing with automated
-PDF/ZIP/email dispatch. Best of Show and tie-breaks are out of scope (only the `NotValidForBos`
-flag is recorded).
+BirraPoint: PWA for beer competitions with blind tastings. Organizer: competition wizard (drafts,
+`.xlsx` entry import validated against BJCP 2021), judge invitations, tasting tables with
+conflict-of-interest protection, real-time dashboard, immutable closing with PDF/ZIP/email
+dispatch. Judge: offline-first evaluation, shared fixed tasting order, BJCP score caps,
+discrepancy consensus. Out of scope: Best of Show, tie-breaks (only `NotValidForBos` flag).
 
-**Status: all 13 user stories (US1–US13, `tasks.md` Phases 3–14 + 17) are implemented and
-independently functional**, including US13 (organizer competition selection, P2, implemented ahead
-of Phase 16 per its own dependency note — it only needed `GET /competitions` from US2). Phase 15
-(Polish & Cross-Cutting Concerns, T089–T094 — accessibility sweep, performance budgets, bundle
-budget enforcement, full quickstart validation, this file, security pass) is in progress. Phase 16
-(Deployment & Operations) is in progress: T095–T097 (Dockerfiles, Terraform + Neon, Docker Hub
-images, `infra/deploy.ps1`) are implemented; T098 (health/OpenTelemetry in ACA) and T099 (validated
-fresh cloud deploy) are pending. CI/CD (FR-064, T133–T139): T133 (`ci.yml`), T134 (image rollout
-decoupled from Terraform, ADR-0018), T135 (`release.yml`, ADR-0019) and T136 (`deploy.yml`) are
-implemented; T137 (validation against a real deployment) is pending. T142 (ADR-0021) names every
-resource `birrapoint-<environment>-<acronym>` (default `PROD`) and moves production secrets to Key
-Vault, read by the apps through a Dapr secret store with system-assigned managed identities.
-`Docs/arquitectura_viva.md` tracks the actual current system state in detail. `Docs/` holds the
-original product definition (in Spanish); the English spec supersedes it.
+Status: US1–US14 done. Pending work lives in `specs/001-birrapoint-mvp/tasks.md` (T092 usability
+study; Phase 16 deploy/ops: T098, T099, T129–T132, T137, T139, T141). Current system state: `Docs/arquitectura_viva.md`.
+`Docs/` product definition is Spanish and superseded by the English spec.
 
-## Source of truth (in priority order)
+## Source of truth (priority order)
 
-1. `.specify/memory/constitution.md` — v1.4.0, ten principles. Supersedes everything, including
-   this file. Stack deviations require a constitution amendment, not a per-feature choice.
-2. `specs/001-birrapoint-mvp/spec.md` — user stories US1–US13, FR-001–FR-051, clarifications,
-   edge cases, success criteria SC-001–SC-011.
-3. `specs/001-birrapoint-mvp/plan.md` — technical approach, project structure, constitution gate.
-4. `specs/001-birrapoint-mvp/tasks.md` — 17 phases, dependency-ordered, grouped by user story.
-5. Supporting design: `research.md` (decisions R-01–R-19 with rationale), `data-model.md`
-   (entities, state machines, indexes, Dexie stores), `contracts/` (`rest-api.md`,
-   `signalr-hub.md`, `import-file.md`), `quickstart.md` (validation scenarios 1–13, one per story).
+1. `.specify/memory/constitution.md` (v1.4.0) — overrides everything; stack changes need an amendment.
+2. `specs/001-birrapoint-mvp/`: `spec.md` (US/FR/SC) → `plan.md` → `tasks.md`; supporting
+   `research.md` (R-01–R-19), `data-model.md`, `contracts/` (`rest-api.md`, `signalr-hub.md`,
+   `import-file.md`), `quickstart.md` (one validation scenario per story).
 
-Never implement functionality without an approved spec, plan, and task. Requirement changes
-discovered mid-implementation flow back into the spec first — never silently overridden in code.
+No implementation without approved spec + plan + task. Requirement changes go into the spec
+first, never silently into code.
 
-## Spec Kit workflow
+## Workflow
 
-Feature work goes through these skills in order: `/speckit-constitution` → `/speckit-specify` →
-`/speckit-clarify` → `/speckit-plan` → `/speckit-tasks` → task review → `/speckit-implement`.
-Supporting: `/speckit-analyze` (cross-artifact consistency), `/speckit-checklist`,
-`/speckit-converge` (diff codebase vs. spec, append remaining tasks), `/speckit-taskstoissues`.
-
-- Helper scripts are **PowerShell only**: `.specify/scripts/powershell/`. Feature numbering is
-  sequential. `.specify/feature.json` points downstream commands at the active feature
-  (`specs/001-birrapoint-mvp/`).
-- `.specify/extensions.yml` runs `speckit.agent-context.update` after specify and plan steps.
-
-## AI-assisted development tooling
-
-- **CodeGraph** — `.codegraph/` (gitignored, local-only) is a SQLite index of the workspace's
-  symbols and call graph, kept current by a file watcher. When present, agents query it via the
-  `codegraph_explore` MCP tool or `codegraph explore "<question>"` instead of grep/read loops —
-  one call returns verbatim source plus call paths (including dynamic-dispatch hops). Prefer it
-  over manual exploration whenever it's available; if `.codegraph/` is absent, fall back to
-  Grep/Glob/Read as normal.
-- **Specialized subagents** (`.claude/agents/`) — invoke instead of implementing backend/frontend/
-  QA work inline in the main thread:
-  - `backend-engineer` — .NET slice implementation under `backend/src/BirraPoint.Api/**` plus its
-    unit/integration tests.
-  - `frontend-engineer` — Angular implementation under `frontend/src/app/**` plus Jest unit tests.
-  - `qa-engineer` — contract tests, Playwright E2E, accessibility (axe-core) and performance (k6)
-    gates, owning `backend/tests/BirraPoint.Api.IntegrationTests/**`, `frontend/e2e/**`,
-    `infra/perf/**`.
-  - `senior-code-reviewer` — PR review (Implementation workflow step 5 below).
-  None of the three implementation agents run the branch/tollgate/PR orchestration themselves —
-  that stays at the top-level session; they do the implementation slice of a task already scoped
-  by a plan.
-- **Caveman mode** — an optional, per-developer terse-communication style for the Claude Code
-  session (toggled with `/caveman`), independent of application code and not part of this repo's
-  configuration. Code, commits, PR descriptions, and any security-sensitive output are always
-  written in full, normal language regardless of whether it's active.
-
-## Implementation workflow (per task — mandatory)
-
-Every `/speckit-implement` execution for a pending task follows these steps in order; none may
-be skipped:
-
-1. **Branch** — create and switch to `feature/<task-id>` (e.g. `feature/T002`) off `main`.
-2. **Technical plan (tollgate)** — output the exact files to create/modify, the architectural
-   approach (vertical slice, MediatR, standalone components…), and the testing strategy. Then
-   **stop**: write no code until the user explicitly replies "Approved, proceed".
-3. **Implement with TDD** — tests first, verified failing (Principle III), then implementation;
-   validate locally (`dotnet build`, `dotnet test`, frontend build/tests).
-4. **Commit & PR** — semantic commit, push the branch, open a PR against `main` (`gh` CLI).
-5. **Automated review** — run the `senior-code-reviewer` agent
-   (`.claude/agents/senior-code-reviewer.md`) on the PR diff and post its findings to the PR as
-   an informational comment. The agent never approves/requests-changes its own session's PR
-   (two-party review); a human decides on approval and merge.
-6. **Documentation phase (mandatory before closing any task)** —
-   (a) **ADR evaluation**: if the task involved a significant technical decision (framework
-   change, design pattern, core library, DB schema), add a sequential ADR in `Docs/adrs/`
-   (e.g. `0004-uso-de-redis-para-cache.md`, format per `Docs/adrs/template.md`);
-   (b) **Living documentation**: update `Docs/arquitectura_viva.md` so it faithfully reflects
-   the current system state — new endpoints, components, data flows. Both ship in the same
-   change as the implementation (Principle X). **All documentation (ADRs, living doc, any new
-   docs) is always written in English**; only the legacy product definition under `Docs/`
-   remains in Spanish.
+- Spec Kit order: constitution → specify → clarify → plan → tasks → review → implement. Helper
+  scripts are PowerShell only (`.specify/scripts/powershell/`); `.specify/feature.json` points at
+  the active feature.
+- **Per task (`/speckit-implement`, mandatory, in order):**
+  1. Branch `feature/<task-id>` off `main`.
+  2. Tollgate: list files to create/modify, approach, test strategy. **Stop** until the user
+     replies "Approved, proceed".
+  3. TDD: tests first, verified failing, then code; build + test both stacks locally.
+  4. Semantic commit, push, PR to `main` via `gh`.
+  5. Run `senior-code-reviewer` on the PR diff; post findings as an informational PR comment
+     (never approve/request changes — a human merges).
+  6. Docs in the same change: ADR in `Docs/adrs/NNNN-kebab-title.md` (per `template.md`) for
+     significant decisions; update `Docs/arquitectura_viva.md`. All docs in English.
+- Delegate implementation to subagents: `backend-engineer` (backend src + unit tests),
+  `frontend-engineer` (`frontend/src/app` + Jest), `qa-engineer` (integration/contract tests,
+  `frontend/e2e`, `infra/perf`). Orchestration (branch/tollgate/PR) stays in the main session.
+- CodeGraph (`.codegraph/`, local-only): use `codegraph_explore` before grep/read.
 
 ## Commands
 
-Verified against the running system at Phase 1 close (T007); keep in sync with `quickstart.md`
-(Principle X). Prerequisites: Docker Desktop running, .NET 10 SDK, Node.js 24+ (Jest loads
-`jest.config.ts` via Node's native TS type stripping — no ts-node; verified on 24.18).
+Prereqs: Docker Desktop, .NET 10 SDK, Node 24+.
 
 ```bash
-# Full local topology, one command (FR-044): PostgreSQL 16, Keycloak 26 (realm auto-import),
-# Mailpit, API, Angular frontend.
-dotnet run --project backend/src/BirraPoint.AppHost
-# Aspire dashboard https://localhost:17202 (login URL printed on startup)
-# API http://localhost:5121 · https://localhost:7075 — full endpoint surface documented in
-#   contracts/rest-api.md (Competitions, Catalog, Import, Judges, Tables, TastingOrder,
-#   Evaluations, Monitoring, Dispatch); plus /health + /alive (Development-only), /openapi/v1.json
-# PWA http://localhost:4200 · Keycloak http://localhost:8081 (realm `birrapoint`)
-# Mailpit UI: dynamic port — open it from the Aspire dashboard
-
+dotnet run --project backend/src/BirraPoint.AppHost   # full local stack: Postgres 16, Keycloak 26,
+  # Mailpit, API, PWA. Aspire https://localhost:17202 · API :5121/:7075 · PWA :4200 ·
+  # Keycloak :8081 (realm birrapoint) · Mailpit port via Aspire dashboard
 dotnet build backend/BirraPoint.sln
-dotnet test backend/tests/BirraPoint.Api.UnitTests            # handlers + validators
-dotnet test backend/tests/BirraPoint.Api.IntegrationTests     # contract tests; needs Docker (Testcontainers)
-dotnet test <project> --filter "FullyQualifiedName~SubmitEvaluation"   # single test
-dotnet format backend/BirraPoint.sln --verify-no-changes      # backend format gate
+dotnet test backend/tests/BirraPoint.Api.UnitTests
+dotnet test backend/tests/BirraPoint.Api.IntegrationTests   # Testcontainers, needs Docker
+dotnet test <project> --filter "FullyQualifiedName~Name"
+dotnet format backend/BirraPoint.sln --verify-no-changes
 
-cd frontend && npm ci && npm start     # frontend-only iteration (ng serve on :4200)
-cd frontend && npx jest                # unit (jest-preset-angular)
-cd frontend && npm run e2e             # Playwright E2E incl. e2e/a11y/ (axe) suite — config in e2e/,
-                                       #   so plain `npx playwright test` does NOT work
-cd frontend && npx ng lint             # angular-eslint
-cd frontend && npm run format:check    # Prettier gate (`npm run format` to fix)
-cd frontend && npm run build:budget    # production build + gzip initial-bundle budget gate
-                                       #   (500 KB, Principle IX — angular.json's own raw-byte
-                                       #   budget is a secondary, cheaper early warning only)
-k6 run infra/perf/api-budgets.js       # API p95 budgets (reads <200ms, writes <500ms) — needs a
-                                       #   pre-obtained ORGANIZER/JUDGE bearer token, see the
-                                       #   script's header comment for exact env vars and how to
-                                       #   get one (neither Keycloak client here supports
-                                       #   non-interactive token grants)
+cd frontend && npm ci && npm start    # ng serve :4200
+npx jest | npx ng lint | npm run format:check | npm run build:budget   # (from frontend/)
+npm run e2e                           # Playwright + axe; plain `npx playwright test` fails
+k6 run infra/perf/api-budgets.js      # needs bearer token, see script header
 
-./infra/teardown.ps1                      # remove the Azure environment (no cost); keeps Neon data +
-                                          #   state; -IncludeNeon wipes everything; -WhatIf previews;
-                                          #   -Environment X (default PROD) as in deploy.ps1
-./infra/deploy.ps1 -ImageNamespace <dockerhub-ns>   # cloud deploy (PowerShell): state bootstrap,
-                                          #   terraform apply, then image rollout per Container App;
-                                          #   -ApiVersion/-WebVersion/-KeycloakVersion X.Y.Z pick
-                                          #   release images (omitted = latest), -AppsOnly skips
-                                          #   Terraform, -WhatIf previews, -Environment X names
-                                          #   resources birrapoint-<x>-<acronym> (default PROD) — see
-                                          #   infra/terraform/README.md (images come from CI, ADR-0018)
-gh workflow run release.yml -f ref=main -f bump=patch   # release version.txt's X.Y.Z (ADR-0019)
-gh workflow run deploy.yml -f version=X.Y.Z  # roll production to a release (approval; no
-                                          #   Terraform) — setup in infra/github-actions-setup.md
-bash .github/scripts/version.test.sh      # tests of the release version logic
-bash infra/keycloak/dapr-secrets/DaprSecretsEnv.test.sh   # Keycloak Dapr secret loader (JDK 21 + python3)
-Invoke-Pester infra/tests                 # Pester 5+ tests of infra/*.psm1 (Windows
-                                          #   PowerShell ships 3.4: Install-Module Pester
-                                          #   -MinimumVersion 5.0 -Scope CurrentUser once)
-docker build -f backend/src/BirraPoint.Api/Dockerfile backend   # API image (context = backend/)
-docker build frontend                     # PWA image (nginx; /config.json generated at start)
-docker build infra/keycloak               # Keycloak image (theme + prod realm baked in)
+./infra/deploy.ps1 -ImageNamespace <ns> [-Environment X] [-AppsOnly] [-WhatIf] [-ApiVersion X.Y.Z ...]
+./infra/teardown.ps1 [-IncludeNeon] [-WhatIf]
+gh workflow run release.yml -f ref=main -f bump=patch   # ADR-0019
+gh workflow run deploy.yml -f version=X.Y.Z             # see infra/github-actions-setup.md
+bash .github/scripts/version.test.sh
+bash infra/keycloak/dapr-secrets/DaprSecretsEnv.test.sh
+Invoke-Pester infra/tests             # Pester 5+
+docker build -f backend/src/BirraPoint.Api/Dockerfile backend | docker build frontend | docker build infra/keycloak
 ```
 
-## Repository layout (per plan.md — binding)
+## Layout (binding — by business capability, never `controllers/`/`services/`/`repositories/`)
 
 ```text
-backend/src/BirraPoint.AppHost/         # Aspire orchestration (local topology)
-backend/src/BirraPoint.ServiceDefaults/ # OpenTelemetry, health checks, resilience
-backend/src/BirraPoint.Api/             # single deployable modular monolith
-├── Domain/        # shared kernel: entities, enums, invariants (see data-model.md)
-├── Common/        # cross-cutting: auth, persistence, errors, MediatR behaviors, audit, job queue
-├── Features/      # ONE vertical slice per capability: Competitions, Catalog, Import, Judges,
-│                  #   Tables, TastingOrder, Evaluations, Monitoring, Dispatch
-└── Realtime/      # CompetitionHub + emit-after-commit event publisher
-backend/tests/     # BirraPoint.Api.UnitTests + BirraPoint.Api.IntegrationTests
-frontend/src/app/  # Feature-Sliced Design: core/ (auth, api, realtime, offline), features/, shared/
-frontend/e2e/      # Playwright suites, incl. e2e/a11y/ (axe-core WCAG gate)
-frontend/scripts/  # build-time checks (bundle gzip budget) not owned by any one feature
-infra/             # deploy.ps1 + DeployImages.psm1 (deploy + image rollout), ResourceNames.psm1
-                   #   (birrapoint-<env>-<acronym> naming), teardown.ps1; tests/ = Pester;
-                   #   terraform/ (ACA environment + apps, Key Vault + Dapr secret store,
-                   #   Neon project; images from Docker Hub; remote state in Azure Storage),
-                   #   keycloak/ (realm json, login theme, production Dockerfile, dapr-secrets/
-                   #   entrypoint loading Keycloak's secrets from the Dapr sidecar),
-                   #   perf/ (k6 API-budget scripts)
+backend/src/BirraPoint.AppHost | ServiceDefaults | Api/
+  Api/Domain/    shared kernel (keep small)     Api/Common/   auth, persistence, errors, behaviors, audit, job queue
+  Api/Features/  one slice per capability: Competitions, Catalog, Import, Judges, Tables,
+                 TastingOrder, Evaluations, Monitoring, Dispatch
+  Api/Realtime/  CompetitionHub + emit-after-commit publisher
+backend/tests/   UnitTests + IntegrationTests
+frontend/src/app/  FSD: core/ (auth, api, realtime, offline, layout), features/, shared/
+frontend/e2e/    Playwright (+ e2e/a11y axe)
+infra/           deploy/teardown scripts + *.psm1, tests/ (Pester), terraform/ (ACA, Key Vault,
+                 Dapr, Neon), keycloak/ (realm, theme, Dockerfile, dapr-secrets), perf/ (k6)
 ```
-
-Organize by business capability, never by technical layer (no `controllers/`, `services/`,
-`repositories/` folders).
 
 ## Backend conventions
 
-- A slice = request + handler + FluentValidation validator + endpoint mapping, together under
-  `Features/<Capability>/`. Slices never touch another slice's internals — cross-slice interaction
-  only via MediatR messages or shared contracts. Keep the shared kernel (`Domain/`, `Common/`)
-  deliberately small.
-- **MediatR stays pinned to 12.x** — 13+ moved to a commercial license (R-03). Validation runs in
-  the MediatR pipeline (`ValidationBehavior`), before any handler logic.
-- Errors: RFC 7807 ProblemDetails everywhere, with the stable `urn:birrapoint:*` type URNs from
-  `contracts/rest-api.md` §Error catalog (14 entries — closed list; new ones require a contract
-  amendment). `400` validation, `409` domain/state conflicts, `404` for resources outside the
-  caller's scope (never reveal existence).
-- SignalR: single `CompetitionHub`, **server → client only** — all mutations via REST. Groups
-  `competition:{id}:organizers` (role + ownership guarded) and `table:{tableId}` (membership
-  guarded). Events emit **after** the owning transaction commits and are notifications, not the
-  source of truth (clients re-fetch on reconnect).
-- Background work: DB-persisted `DispatchJob` queue + hosted `BackgroundService` (R-06 — no
-  Hangfire, no broker). Jobs are idempotent and resume on startup.
-- Judge provisioning goes through the Keycloak Admin REST API (temporary password + required
-  action `UPDATE_PASSWORD`); invitation/result emails are sent app-side via MailKit for
-  per-recipient status and retry (R-10).
+- Slice = request + handler + FluentValidation validator + endpoint under `Features/<X>/`.
+  Cross-slice only via MediatR messages or shared contracts. **MediatR pinned 12.x** (licensing).
+- Errors: RFC 7807 with `urn:birrapoint:*` types from `rest-api.md` error catalog (closed list).
+  `400` validation, `409` state conflict, `404` for out-of-scope resources (never reveal existence).
+- SignalR: one `CompetitionHub`, server→client only; groups `competition:{id}:organizers`,
+  `table:{tableId}`; emit after commit; clients re-fetch on reconnect.
+- Background: DB `DispatchJob` queue + `BackgroundService`, idempotent, resumes on startup.
+- Judges provisioned via Keycloak Admin API (temp password + `UPDATE_PASSWORD`); emails via MailKit.
 
 ## Frontend conventions
 
-- Angular 20 standalone components + Signals, Feature-Sliced Design. Cross-cutting infrastructure
-  in `core/`, business screens in `features/<capability>/`, primitives in `shared/`.
-- Offline engine (R-08): Dexie stores `drafts` (persist ≤ 300 ms after each change) and `outbox`
-  (submitted-but-unsynced). Replay on `window online`, app start, and after each submit; do NOT
-  use the Background Sync API (unsupported on iOS Safari). IndexedDB is never the source of truth.
-- Auth: `keycloak-angular` + `keycloak-js`, Authorization Code + PKCE; realm roles map to
-  `/organizer/**` and `/judge/**` route guards. Forced password change happens inside the
-  Keycloak-hosted flow — the app never sees tokens until required actions complete.
+- Angular 20 standalone + Signals. Organizer screens desktop-first; judge flows mobile/tablet.
+- Offline (R-08): Dexie `drafts` (save ≤ 300 ms) + `outbox`; replay on `online`, app start, after
+  submit. No Background Sync API. IndexedDB never source of truth.
+- Auth: `keycloak-angular` + PKCE; roles guard `/organizer/**`, `/judge/**`.
 
 ## Non-negotiable invariants
 
-1. **Blind anonymity (BR-01/FR-019)** — judge-facing DTOs and SignalR payloads **physically lack
-   entrant fields** (no beer name, participant, brewery, origin). Judges see blind code + style
-   only. Contract tests assert field absence. This is a security invariant, not a UI rule.
-2. **TDD (Principle III)** — tests written first, verified failing, then implementation. Test
-   tasks precede implementation tasks in `tasks.md`; never reorder or skip them.
-3. **Competition state machine (FR-006)** — `Draft → Active → InEvaluation → Finalized`,
-   forward-only, skip-free, organizer-only; per-state capability gates in `data-model.md`.
-4. **Idempotent sync (FR-029/R-07)** — unique index `(JudgeId, BeerEntryId)`; deterministic
-   `X-Idempotency-Key: {competitionId}:{tableId}:{judgeId}:{entryId}`; replay returns `200` with
-   the stored evaluation. Never UPSERT (would violate locked-on-submit).
-5. **Immutability** — sheets lock on submit (reopened only via an open discrepancy involving that
-   judge); after table close, judge mutations are rejected including late offline syncs (FR-034);
-   only organizer corrections are allowed, always audit-logged (FR-035).
-6. **Scoring rules** — section caps Aroma 12 / Appearance 3 / Flavor 20 / Mouthfeel 5 / Overall 10;
-   total is computed (≤ 50), never editable; comments ≥ 20 chars per section; totals > 7 points
-   apart on one sample → provisional + discrepancy alert, blocks table close (FR-031/FR-032).
-   Evaluation requires: state `InEvaluation`, order fixed, strictly sequential samples (FR-022).
-7. **Security (Principle VII)** — identity is Keycloak-only (no custom login/password/token code);
-   deny-by-default `RequireAuthorization()` fallback + `ORGANIZER`/`JUDGE` role policies per
-   endpoint; validate all input at the API boundary; EF Core parameterized queries only; secrets
-   via environment variables locally and from Key Vault through the Dapr secret store in Azure
-   (ADR-0021), never in the repo; never log sensitive data.
-8. **Accessibility (Principle VIII)** — WCAG 2.1 AA on all judge-facing flows; every drag & drop
-   has a keyboard-accessible equivalent; axe-core Playwright checks are a merge gate.
-9. **Performance budgets (Principle IX)** — API p95: reads < 200 ms, writes < 500 ms; realtime
-   propagation (order fix, dashboard) < 1 s; draft save < 300 ms; initial JS bundle ≤ 500 KB
-   gzipped; PWA interactive < 3 s on 4G.
-10. **Contract-first (Principle VI)** — endpoints and hub events exist in `contracts/` before
-    implementation; breaking a contract requires a spec amendment and versioning decision.
+1. **Blind anonymity**: judge DTOs/SignalR payloads physically lack entrant fields (name,
+   participant, brewery, origin); contract tests assert absence.
+2. **TDD**: tests first and failing; never reorder/skip test tasks.
+3. **State machine**: `Draft → Active → InEvaluation → Finalized`, forward-only, no skips,
+   organizer-only; capability gates in `data-model.md`.
+4. **Idempotent sync**: unique `(JudgeId, BeerEntryId)`; `X-Idempotency-Key:
+   {competitionId}:{tableId}:{judgeId}:{entryId}`; replay → `200` stored evaluation. Never UPSERT.
+5. **Immutability**: sheet locks on submit (reopen only via open discrepancy for that judge);
+   after table close, judge mutations rejected incl. late offline sync; organizer corrections
+   always audit-logged.
+6. **Scoring**: caps Aroma 12 / Appearance 3 / Flavor 20 / Mouthfeel 5 / Overall 10; total
+   computed (≤ 50); comments ≥ 20 chars/section; totals > 7 apart → discrepancy, blocks table
+   close. Evaluating requires `InEvaluation`, fixed order, strictly sequential samples.
+7. **Security**: Keycloak-only identity; deny-by-default authorization + `ORGANIZER`/`JUDGE`
+   policies; validate at API boundary; parameterized EF only; secrets via env locally, Key Vault
+   + Dapr in Azure (ADR-0021); never log sensitive data.
+8. **Accessibility**: WCAG 2.1 AA on judge flows; keyboard alternative for every drag & drop;
+   axe checks gate merges.
+9. **Performance**: API p95 reads < 200 ms, writes < 500 ms; realtime < 1 s; initial JS ≤ 500 KB
+   gzip; PWA interactive < 3 s on 4G.
+10. **Contract-first**: endpoints/events in `contracts/` before code; breaking changes need spec
+    amendment + versioning.
 
-## Approved stack (pinned — constitution + research)
+## Stack (pinned; extra deps need plan justification, no micro-deps)
 
-- **Backend**: .NET 10 LTS / C# 14, ASP.NET Core Minimal APIs, MediatR 12.5.x, FluentValidation,
-  EF Core + Npgsql (PostgreSQL 16, code-first migrations), SignalR, ClosedXML (xlsx), QuestPDF
-  Community (PDF), MailKit (SMTP), .NET Aspire AppHost + ServiceDefaults,
-  `Dapr.Extensions.Configuration` (production secrets only, ADR-0021).
-- **Frontend**: Angular 20 (standalone + Signals), `@angular/pwa`, Dexie.js, Tailwind CSS,
-  `@angular/cdk/drag-drop`, `keycloak-angular`/`keycloak-js`, `@microsoft/signalr`.
-- **Testing**: xUnit; `WebApplicationFactory` + Testcontainers (real PostgreSQL — no EF InMemory);
-  Jest via `jest-preset-angular` (not Karma); Playwright + `@axe-core/playwright`.
-- **Identity/Infra**: Keycloak 25+ (OIDC, roles `ORGANIZER`/`JUDGE`); multi-stage Docker images
-  (no baked secrets); Terraform → Azure Container Apps (system-assigned managed identities, Dapr
-  sidecars) + Azure Key Vault for production secrets; PostgreSQL production database on Neon;
-  Mailpit locally.
+- Backend: .NET 10 / C# 14, Minimal APIs, MediatR 12.5.x, FluentValidation, EF Core + Npgsql
+  (Postgres 16, code-first migrations), SignalR, ClosedXML, QuestPDF Community, MailKit, Aspire,
+  `Dapr.Extensions.Configuration` (prod secrets only).
+- Frontend: Angular 20, `@angular/pwa`, Dexie, Tailwind, `@angular/cdk/drag-drop`,
+  `keycloak-angular`/`keycloak-js`, `@microsoft/signalr`.
+- Tests: xUnit, `WebApplicationFactory` + Testcontainers (no EF InMemory), Jest
+  (`jest-preset-angular`, not Karma), Playwright + `@axe-core/playwright`.
+- Infra: Keycloak, multi-stage Docker (no baked secrets), Terraform → Azure Container Apps
+  (managed identities, Dapr) + Key Vault, Neon Postgres, Mailpit locally.
 
-Any dependency beyond this list must be justified in the plan (Principle V); micro-dependencies
-are rejected.
+## Definition of Done
 
-## Definition of Done (every task/story)
-
-- Tests written first and passing: unit, integration/contract, and the story's E2E scenario from
-  `quickstart.md`; lint/format and build green for both stacks.
-- Accessibility checks pass; performance budget respected.
-- Documentation updated in the same change (Principle X): contracts for endpoint changes,
-  `quickstart.md` for setup changes, `Docs/` for product-behavior changes, this file when
-  commands or structure change; ADR in `Docs/adrs/` when a significant technical decision was
-  made, and `Docs/arquitectura_viva.md` refreshed to the current system state (workflow step 6).
-- If a check cannot run, say why and what was verified instead.
+Tests first and green (unit, integration/contract, story E2E from `quickstart.md`); lint/format/
+build green both stacks; a11y + perf budgets respected; docs updated in the same change
+(contracts, `quickstart.md`, this file if commands/structure change, ADR, living doc). If a check
+can't run, say why and what was verified instead.
 
 ## Git
 
-- Per-task branches `feature/<task-id>` off `main`; PRs target `main` (see Implementation
-  workflow); small, reviewable commits.
-- Commit spec artifacts together with the implementation they describe.
-- Never force-push or skip hooks (`--no-verify`).
+`feature/<task-id>` branches, PRs to `main`, small commits, spec artifacts committed with their
+implementation. Never force-push or `--no-verify`.

@@ -299,14 +299,14 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 
 ### Tests for User Story 11 (MANDATORY — write first, must fail) ⚠️
 
-- [ ] T079 [P] [US11] Unit tests: pairwise >7 detection (2 and ≥3 judges), `PendingConsensus` transition, resolution when all totals within 7, single-judge no-alert in `backend/tests/BirraPoint.Api.UnitTests/Evaluations/DiscrepancyTests.cs`
-- [ ] T080 [P] [US11] Contract tests: divergent submit → `201 PendingConsensus` + alert; `PUT` evaluation allowed only for involved judges during open alert (`409 evaluation-locked` otherwise); close blocked with `409 discrepancy-open` in `backend/tests/BirraPoint.Api.IntegrationTests/Evaluations/DiscrepancyApiTests.cs`
+- [X] T079 [P] [US11] Unit tests: pairwise >7 detection (2 and ≥3 judges), `PendingConsensus` transition, resolution when all totals within 7, single-judge no-alert in `backend/tests/BirraPoint.Api.UnitTests/Evaluations/DiscrepancyTests.cs`
+- [X] T080 [P] [US11] Contract tests: divergent submit → `201 PendingConsensus` + alert; `PUT` evaluation allowed only for involved judges during open alert (`409 evaluation-locked` otherwise); close blocked with `409 discrepancy-open` in `backend/tests/BirraPoint.Api.IntegrationTests/Evaluations/DiscrepancyApiTests.cs`
 
 ### Implementation for User Story 11
 
-- [ ] T081 [US11] Activate discrepancy detection in SubmitEvaluation; slices AdjustEvaluation (judge PUT path), GetMyDiscrepancies; `DiscrepancyRaised`/`DiscrepancyResolved` emits in `backend/src/BirraPoint.Api/Features/Evaluations/Discrepancy.cs`
-- [ ] T082 [US11] Frontend discrepancy feature: alert banner + totals comparison view, adjustment flow reopening the sheet, resolved confirmation in `frontend/src/app/features/discrepancy/`
-- [ ] T083 [US11] E2E scenario 11 (two judges 15 points apart → converge) in `frontend/e2e/us11-discrepancy.spec.ts`
+- [X] T081 [US11] Activate discrepancy detection in SubmitEvaluation; slices AdjustEvaluation (judge PUT path), GetMyDiscrepancies; `DiscrepancyRaised`/`DiscrepancyResolved` emits in `backend/src/BirraPoint.Api/Features/Evaluations/Discrepancy.cs`
+- [X] T082 [US11] Frontend discrepancy feature: alert banner + totals comparison view, adjustment flow reopening the sheet, resolved confirmation in `frontend/src/app/features/discrepancy/`
+- [X] T083 [US11] E2E scenario 11 (two judges 15 points apart → converge) in `frontend/e2e/us11-discrepancy.spec.ts`
 
 **Checkpoint**: Consensus rules enforced; offline-raised alerts surface on next connection (edge case)
 
