@@ -171,3 +171,51 @@ Describe 'Resolve-NeonProjectTarget' {
         (Resolve-NeonProjectTarget -StateProjectId $null -NameMatches @()).Action | Should -Be 'None'
     }
 }
+
+Describe 'Resolve-KeyVaultPurgeStep' {
+    BeforeAll {
+        $common = @{ Attempt = 1; MaxAttempts = 18; ConfirmAbsentAttempts = 3 }
+    }
+
+    It 'purges a soft-deleted vault' {
+        Resolve-KeyVaultPurgeStep @common -Active:$false -SoftDeleted:$true -WasPresent | Should -Be 'Purge'
+    }
+
+    It 'purges a soft-deleted vault left by an earlier run, even if this run never saw it active' {
+        Resolve-KeyVaultPurgeStep @common -Active:$false -SoftDeleted:$true | Should -Be 'Purge'
+    }
+
+    It 'waits while the vault is still active (its resource group is still being deleted)' {
+        Resolve-KeyVaultPurgeStep @common -Active:$true -SoftDeleted:$false -WasPresent | Should -Be 'Wait'
+    }
+
+    It 'waits while a vault that existed is not listed as soft-deleted yet (listing lag)' {
+        Resolve-KeyVaultPurgeStep -Attempt 2 -MaxAttempts 18 -ConfirmAbsentAttempts 3 -AbsentPolls 2 -Active:$false -SoftDeleted:$false -WasPresent |
+            Should -Be 'Wait'
+    }
+
+    It 'is done once a vault that existed stays absent for the confirmation polls (already purged, e.g. by Terraform)' {
+        Resolve-KeyVaultPurgeStep -Attempt 3 -MaxAttempts 18 -ConfirmAbsentAttempts 3 -AbsentPolls 3 -Active:$false -SoftDeleted:$false -WasPresent |
+            Should -Be 'Done'
+    }
+
+    It 'counts only consecutive absent polls: a vault that was active until just now is not done yet' {
+        # Polls 1-4 saw it active (resource group still deleting); poll 5 is the first without it.
+        Resolve-KeyVaultPurgeStep -Attempt 5 -MaxAttempts 18 -ConfirmAbsentAttempts 3 -AbsentPolls 1 -Active:$false -SoftDeleted:$false -WasPresent |
+            Should -Be 'Wait'
+    }
+
+    It 'is done right away when no vault existed in this run and none is soft-deleted' {
+        Resolve-KeyVaultPurgeStep @common -Active:$false -SoftDeleted:$false | Should -Be 'Done'
+    }
+
+    It 'times out when the vault is still active after the last attempt' {
+        Resolve-KeyVaultPurgeStep -Attempt 18 -MaxAttempts 18 -ConfirmAbsentAttempts 3 -Active:$true -SoftDeleted:$false -WasPresent |
+            Should -Be 'TimedOut'
+    }
+
+    It 'still purges on the last attempt when the vault is soft-deleted' {
+        Resolve-KeyVaultPurgeStep -Attempt 18 -MaxAttempts 18 -ConfirmAbsentAttempts 3 -Active:$false -SoftDeleted:$true |
+            Should -Be 'Purge'
+    }
+}

@@ -107,5 +107,34 @@ function Resolve-NeonProjectTarget {
     }
 }
 
+function Resolve-KeyVaultPurgeStep {
+    # Next step of the Key Vault purge loop (T142). Key Vault names are globally unique and a deleted
+    # vault stays soft-deleted (blocking a redeploy under the same name) until purged, so the vault
+    # must end up purged, whichever way it was deleted:
+    #   - soft-deleted          -> 'Purge' (also one left behind by an earlier run);
+    #   - still active          -> 'Wait' (its resource group is still being deleted);
+    #   - absent from both lists -> if it existed in this run, 'Wait' until it has been absent for
+    #     ConfirmAbsentAttempts consecutive polls (AbsentPolls, this one included: the soft-deleted
+    #     listing can lag the deletion), then 'Done'
+    #     (already purged, e.g. by terraform destroy); if it never existed, 'Done' right away.
+    # After MaxAttempts polls, anything but a purge or a confirmed absence is 'TimedOut'.
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)] [int] $Attempt,
+        [Parameter(Mandatory = $true)] [int] $MaxAttempts,
+        [Parameter(Mandatory = $true)] [int] $ConfirmAbsentAttempts,
+        [int] $AbsentPolls = 0,
+        [switch] $Active,
+        [switch] $SoftDeleted,
+        [switch] $WasPresent
+    )
+    if ($SoftDeleted) { return 'Purge' }
+    if (-not $Active) {
+        if (-not $WasPresent -or $AbsentPolls -ge $ConfirmAbsentAttempts) { return 'Done' }
+    }
+    if ($Attempt -ge $MaxAttempts) { return 'TimedOut' }
+    'Wait'
+}
+
 Export-ModuleMember -Function Test-TeardownConfirmation, Select-NeonProjectToDelete, Get-DestroyArgument,
-    Read-StateOutput, Resolve-NeonProjectTarget
+    Read-StateOutput, Resolve-NeonProjectTarget, Resolve-KeyVaultPurgeStep

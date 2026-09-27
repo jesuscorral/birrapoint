@@ -420,8 +420,10 @@ including the state. Idempotent, with a direct sweep (`az group delete`, Neon AP
 id from the state; by exact name only without a state, refusing duplicates) when the destroy fails
 or the state is gone; the names to remove are read from the state blob, not parameters (the state
 itself is located from `-Environment`). Log Analytics and Key Vault are purged on destroy
-(`permanently_delete_on_destroy`, `purge_soft_delete_on_destroy`; a vault left soft-deleted by a
-direct `az group delete` is purged explicitly), since the vault name is globally unique. Pure decisions in
+(`permanently_delete_on_destroy`, `purge_soft_delete_on_destroy`), since the vault name is
+globally unique; whichever way the vault was deleted, `teardown.ps1` then polls (≤ 3 min,
+`Resolve-KeyVaultPurgeStep`) until it is soft-deleted and purges it (`az keyvault purge`), and its
+final verification fails while the vault is active or soft-deleted. Pure decisions in
 `infra/Teardown.psm1` (Pester-tested). Because Keycloak imports its realm only once while a
 recreated environment gets a new random domain, every full `deploy.ps1` run ends by making the
 `birrapoint-spa` client allow the current web URL via the Keycloak Admin API

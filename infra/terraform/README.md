@@ -215,9 +215,14 @@ several projects share that name.
 Both modes are idempotent: if `terraform destroy` fails or the state is missing, the script sweeps
 leftovers directly (`az group delete` after purging Log Analytics; the Neon project by id) and ends
 by verifying nothing remains. Log Analytics and Key Vault are purged, not soft-deleted
-(`permanently_delete_on_destroy`, `purge_soft_delete_on_destroy`, and an explicit
-`az keyvault purge` after a direct resource-group delete), so a redeploy never collides with
-them — the vault's name is globally unique. Note that the same
+(`permanently_delete_on_destroy`, `purge_soft_delete_on_destroy`), so a redeploy never collides
+with them — the vault's name is globally unique. **The Key Vault is always purged once deleted**:
+whichever way it went (Terraform, a direct resource-group delete, or an earlier run), the script
+polls for up to 3 minutes until the vault is no longer active and shows up as soft-deleted, then
+runs `az keyvault purge`; a vault that stays absent for three polls in a row counts as already
+purged. The final verification fails if the vault is still active or soft-deleted. Purging needs
+`Microsoft.KeyVault/locations/deletedVaults/purge/action` on the subscription (Owner or
+Contributor have it). Note that the same
 provider setting also applies if Terraform ever *replaces* the workspace during a normal apply:
 its logs are then purged immediately instead of being recoverable for 14 days.
 

@@ -145,6 +145,18 @@ function Get-StateJson {
     }
 }
 
+function Get-KeyVaultState([string] $Name) {
+    # Whether a vault of that name exists (active) and/or is soft-deleted in the subscription.
+    $active = @(az keyvault list --resource-type vault --query "[?name=='$Name'].name" --output tsv)
+    if ($LASTEXITCODE -ne 0) { throw 'Listing Key Vaults failed.' }
+    $deleted = @(az keyvault list-deleted --resource-type vault --query "[?name=='$Name'].name" --output tsv)
+    if ($LASTEXITCODE -ne 0) { throw 'Listing soft-deleted Key Vaults failed (needs subscription-level read).' }
+    [pscustomobject]@{
+        Active      = [bool] ($active | Where-Object { $_ })
+        SoftDeleted = [bool] ($deleted | Where-Object { $_ })
+    }
+}
+
 function Test-NeonProject([string] $ProjectId) {
     try {
         Invoke-RestMethod -Uri "$neonApi/projects/$ProjectId" -Headers $neonHeaders -TimeoutSec 30 | Out-Null
@@ -194,6 +206,8 @@ $appResourceGroup = if ($outputs.resource_group_name) { $outputs.resource_group_
 $keyVault = if ($outputs.key_vault_name) { $outputs.key_vault_name } else { Get-ResourceName -Environment $environmentName -Resource KeyVault }
 $neonProjectName = Get-ResourceName -Environment $environmentName -Resource NeonProject
 $appExists = Test-ResourceGroup $appResourceGroup
+$vaultAtStart = Get-KeyVaultState $keyVault
+$vaultPresentAtStart = $vaultAtStart.Active -or $vaultAtStart.SoftDeleted
 
 $neonTarget = $null
 if ($IncludeNeon) {
@@ -209,6 +223,8 @@ Write-Host "Azure subscription: $($account.name) ($subscriptionId)"
 Write-Host ("Terraform state: {0}" -f $(if ($stateExists) { "$StateResourceGroup/$StateStorageAccount" } else { 'none found' }))
 Write-Host 'Will remove:' -ForegroundColor Yellow
 Write-Host ("  - {0} (Container Apps, environment, Log Analytics, Key Vault){1}" -f $appResourceGroup, $(if ($appExists) { '' } else { ' - already absent' }))
+Write-Host ("  - Key Vault {0}: deleted, then PURGED (no soft-deleted copy is kept){1}" -f $keyVault,
+    $(if ($vaultAtStart.Active) { '' } elseif ($vaultAtStart.SoftDeleted) { ' - already deleted, purge pending' } else { ' - already absent' }))
 if ($IncludeNeon) {
     if ($neonTarget.Action -eq 'DeleteById') {
         Write-Host "  - Neon project $($neonTarget.ProjectId) (from the $($neonTarget.Source)) and ALL its data"
@@ -283,13 +299,31 @@ if (Test-ResourceGroup $appResourceGroup) {
     }
 }
 
-# A vault deleted with its resource group (not through Terraform, which purges it) stays
-# soft-deleted for its retention period and blocks a redeploy under the same, globally unique name.
-$deletedVault = @(az keyvault list-deleted --resource-type vault --query "[?name=='$keyVault'].name" --output tsv)
-if ($LASTEXITCODE -ne 0) { throw 'Listing soft-deleted Key Vaults failed.' }
-if (($deletedVault | Where-Object { $_ }) -and $PSCmdlet.ShouldProcess($keyVault, 'Purge the soft-deleted Key Vault')) {
-    Invoke-Native "Purge soft-deleted Key Vault '$keyVault'" {
-        az keyvault purge --name $keyVault --output none
+# Purge the Key Vault once it is deleted. A deleted vault stays soft-deleted for its retention period
+# and blocks a redeploy under the same, globally unique name. Terraform purges it on destroy, but
+# not when the resource group is deleted directly (the sweep above), and the soft-deleted listing
+# can lag the deletion - so poll until the vault is purged or confirmed gone (up to 3 minutes).
+if ($PSCmdlet.ShouldProcess($keyVault, 'Purge the Key Vault once deleted')) {
+    $maxAttempts = 18
+    $absentPolls = 0
+    for ($attempt = 1; ; $attempt++) {
+        $vault = Get-KeyVaultState $keyVault
+        $absentPolls = if ($vault.Active -or $vault.SoftDeleted) { 0 } else { $absentPolls + 1 }
+        $step = Resolve-KeyVaultPurgeStep -Attempt $attempt -MaxAttempts $maxAttempts -ConfirmAbsentAttempts 3 `
+            -AbsentPolls $absentPolls -Active:$vault.Active -SoftDeleted:$vault.SoftDeleted -WasPresent:$vaultPresentAtStart
+        if ($step -eq 'Purge') {
+            Invoke-Native "Purge soft-deleted Key Vault '$keyVault'" {
+                az keyvault purge --name $keyVault --output none
+            }
+            break
+        }
+        if ($step -eq 'Done') { break }
+        if ($step -eq 'TimedOut') {
+            $problems += "Key Vault '$keyVault' was not purged: it is still $(if ($vault.Active) { 'active' } else { 'not listed as soft-deleted' }). Re-run ./infra/teardown.ps1, or purge it with 'az keyvault purge --name $keyVault'."
+            break
+        }
+        Write-Host "    waiting for Key Vault '$keyVault' to be deleted before purging ($attempt/$maxAttempts)..."
+        Start-Sleep -Seconds 10
     }
 }
 
@@ -325,9 +359,9 @@ if ($WhatIfPreference) {
 
 $remaining = @()
 if (Test-ResourceGroup $appResourceGroup) { $remaining += "resource group $appResourceGroup" }
-$deletedVault = @(az keyvault list-deleted --resource-type vault --query "[?name=='$keyVault'].name" --output tsv)
-if ($LASTEXITCODE -ne 0) { throw 'Listing soft-deleted Key Vaults failed.' }
-if ($deletedVault | Where-Object { $_ }) { $remaining += "soft-deleted Key Vault $keyVault" }
+$vault = Get-KeyVaultState $keyVault
+if ($vault.Active) { $remaining += "Key Vault $keyVault" }
+if ($vault.SoftDeleted) { $remaining += "soft-deleted (not purged) Key Vault $keyVault" }
 if ($IncludeNeon) {
     if (Test-ResourceGroup $StateResourceGroup) { $remaining += "resource group $StateResourceGroup" }
     if ($neonTarget.Action -eq 'DeleteById' -and (Test-NeonProject $neonTarget.ProjectId)) {
