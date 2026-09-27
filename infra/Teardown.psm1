@@ -5,7 +5,7 @@
 $ErrorActionPreference = 'Stop'
 
 function Test-TeardownConfirmation {
-    # The operator must type the exact expected word (the name prefix); anything else - including
+    # The operator must type the exact expected word (the resource group name); anything else - including
     # "yes" or a different casing - aborts.
     [CmdletBinding()]
     param(
@@ -17,7 +17,7 @@ function Test-TeardownConfirmation {
 }
 
 function Select-NeonProjectToDelete {
-    # Only projects whose name is exactly the deployment's name prefix; never a prefix or
+    # Only projects whose name is exactly the deployment's Neon project name; never a prefix or
     # substring match, so no other Neon project of the account is ever selected.
     [CmdletBinding()]
     param(
@@ -29,17 +29,19 @@ function Select-NeonProjectToDelete {
 
 function Get-DestroyArgument {
     # `terraform destroy` arguments. By default only the application resource group - and with
-    # it every Container App, the environment and Log Analytics - is targeted: the Neon project
+    # it every Container App, the environment, Log Analytics and the Key Vault - is targeted: the Neon project
     # and the generated passwords stay in the state, so the next deploy reconnects to the same
     # database with matching secrets. -IncludeNeon destroys everything.
     # The var file comes first so the -var flags win, as in deploy.ps1. The per-apply variables
     # have no meaning for a destroy but are mandatory, so they get placeholders; so do the
-    # required SMTP variables when there is no var file. The location is passed only when given.
+    # required SMTP variables when there is no var file. The location and environment are passed
+    # only when given.
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)] [string] $TerraformDir,
         [Parameter(Mandatory = $true)] [string] $SubscriptionId,
         [string] $Location,
+        [string] $Environment,
         [string] $VarFile,
         [switch] $IncludeNeon
     )
@@ -56,6 +58,9 @@ function Get-DestroyArgument {
     )
     if ($Location) {
         $arguments += "-var=location=$Location"
+    }
+    if ($Environment) {
+        $arguments += "-var=environment=$Environment"
     }
     if (-not $VarFile) {
         $arguments += '-var=smtp_host=unused.invalid', '-var=smtp_from_address=unused@unused.invalid'

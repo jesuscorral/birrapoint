@@ -42,11 +42,13 @@ first push.
 ## 2. Azure identity for `deploy.yml` (OIDC, no stored password)
 
 The deploy identity only needs to update the Container Apps in the application resource group
-(`rg-<name_prefix>`, `rg-birrapoint` by default). It never touches Terraform state or Neon.
+(`birrapoint-<environment>-rg`, `birrapoint-prod-rg` by default). It never touches Terraform
+state, Key Vault or Neon: the apps read their secrets from Key Vault themselves, with their own
+managed identities, and an image rollout keeps each app's identity and Dapr settings.
 
 ```powershell
 $repo = "jesuscorral/birrapoint"
-$rg   = "rg-birrapoint"
+$rg   = "birrapoint-prod-rg"
 $sub  = az account show --query id --output tsv
 $tenant = az account show --query tenantId --output tsv
 
@@ -101,8 +103,8 @@ reviewers. With reviewers set, every deploy waits for an approval after its inpu
 existence of the release images) have been validated. Check that *Deployment branches and tags*
 shows only `main`. `deploy.yml` also refuses to run from any other branch.
 
-If you changed Terraform's `name_prefix`, set it for `deploy.yml` too:
-`gh variable set NAME_PREFIX --body "<prefix>"`.
+If you deploy an environment other than `PROD`, set it for `deploy.yml` too:
+`gh variable set BIRRAPOINT_ENVIRONMENT --body "<environment>"`.
 
 ## 4. The release bot and `main`
 

@@ -5,9 +5,6 @@
 
 $ErrorActionPreference = 'Stop'
 
-# Component -> Container App name suffix; must match the locals in infra/terraform/main.tf.
-$script:AppSuffixes = @{ api = 'api'; web = 'web'; keycloak = 'kc' }
-
 # Container Apps limit for a revision name (<app>--<suffix>).
 $script:MaxRevisionNameLength = 64
 
@@ -37,15 +34,6 @@ function Resolve-ImageReference {
         Reference  = "docker.io/$Namespace/${repository}:$tag"
         Pinned     = $pinned
     }
-}
-
-function Get-ContainerAppName {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)] [string] $NamePrefix,
-        [Parameter(Mandatory = $true)] [ValidateSet('api', 'web', 'keycloak')] [string] $Component
-    )
-    "$NamePrefix-$($script:AppSuffixes[$Component])"
 }
 
 function Get-HttpStatusCode {
@@ -161,5 +149,5 @@ function Get-RevisionOutcome {
     'Pending'
 }
 
-Export-ModuleMember -Function Resolve-ImageReference, Get-ContainerAppName, Get-HttpStatusCode,
+Export-ModuleMember -Function Resolve-ImageReference, Get-HttpStatusCode,
     Get-DockerHubAuthHeader, Test-DockerHubTag, New-RevisionSuffix, Test-RolloutNeeded, Get-RevisionOutcome

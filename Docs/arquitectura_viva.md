@@ -5,7 +5,8 @@
 > Decisions with trade-offs are recorded in `Docs/adrs/`; the approved design lives in
 > `specs/001-birrapoint-mvp/`. All documentation in this repository is written in English.
 
-**Last updated:** 2026-09-24 · after T095–T097 — **Phase 16 (Deployment & Operations) in progress**
+**Last updated:** 2026-09-27 · after T142 (resource naming `birrapoint-<env>-<acronym>`, Key Vault +
+managed identities + Dapr secret store) — **Phase 16 (Deployment & Operations) in progress**
 (images, Terraform + Neon, `infra/deploy.ps1` done; T098 telemetry/probes and T099 validated cloud
 deploy pending — see "Cloud topology")
 
@@ -358,8 +359,9 @@ every merge to `main`; release images `<ns>/birrapoint-<component>-release:X.Y.Z
 release pipeline, T135). Per component it resolves the image (`-ApiVersion`/`-WebVersion`/
 `-KeycloakVersion X.Y.Z` → release repository, omitted → `latest`; logic and Pester tests in
 `infra/DeployImages.psm1` / `infra/tests/`) and checks it exists on the Docker Hub API. It then
-bootstraps the Terraform remote state (`rg-birrapoint-tfstate`, storage account + `tfstate`
-container, created idempotently with `az`), runs `terraform init` + `apply` on the single root
+bootstraps the Terraform remote state (`birrapoint-<env>-tfstate-rg`, storage account
+`birrapoint<env>st<subscription>` + `tfstate` container, blob `birrapoint-<env>.tfstate`, created
+idempotently with `az`), runs `terraform init` + `apply` on the single root
 module `infra/terraform/`, and finally rolls each Container App to its image with
 `az containerapp update` (Keycloak → API → web, per-deploy revision suffix, waiting for a healthy
 revision before the next; the skip decision uses the image of the healthy serving revision, not
@@ -367,7 +369,20 @@ the app template). Terraform sets the image only when an app is created (`lifecy
 on the image), so infrastructure applies never roll an app back; each full apply passes a fresh
 `revision_suffix` (`infra-<timestamp>`), creating a new revision of every app. The running
 Container App, not the Terraform state, is the source of truth for the deployed version. `-AppsOnly` runs only the rollout (no Terraform, tfvars, Neon key or state —
-`az` rights on `rg-<prefix>` only), the mode the deploy pipeline (T136) uses. `-WhatIf` previews.
+`az` rights on `birrapoint-<env>-rg` only), the mode the deploy pipeline (T136) uses. `-WhatIf` previews.
+
+Naming and secrets (T142, ADR-0021): every deployed resource is named
+`birrapoint-<environment>-<acronym>` (Terraform `environment` variable / `-Environment` on both
+scripts, default `PROD`, lower-cased; helpers in `infra/ResourceNames.psm1`, Pester-tested). All
+application secrets live in Key Vault `birrapoint-<env>-kv` (Azure RBAC; written by Terraform).
+Each Container App has a **system-assigned managed identity**; `Key Vault Secrets User` is granted
+per secret to the app that uses it (API: its four, Keycloak: its five; the web app has none), and a
+Dapr secret store component (`secretstore`, `secretstores.azure.keyvault`, scoped to
+the API and Keycloak) reads it with the calling app's identity. The API loads its secrets at
+startup through the Dapr .NET configuration provider (`Common/Secrets/DaprSecrets.cs`, enabled by
+`Dapr__SecretStore`); Keycloak's image entrypoint loads its own from the sidecar
+(`infra/keycloak/dapr-secrets/`). No Container App receives a secret as a setting any more, except
+the Docker Hub pull token (registry secret, needed before any container starts).
 
 CI (`.github/workflows/ci.yml`, T133): PRs run the backend and frontend gates and a non-pushing
 build of the three images; runs on `main` also push `sha-<short>` and — only while the commit is
@@ -393,7 +408,7 @@ versions and checks the release images exist before approval; the `deploy` job r
 `production` GitHub environment (required reviewers, deployment branches restricted to `main` —
 the OIDC subject names the environment, so that policy is what binds the identity to `main`),
 gets only an optional read-only Docker Hub token, logs in to Azure with OIDC (federated
-credential for `environment:production`, Contributor on `rg-<prefix>` only)
+credential for `environment:production`, Contributor on `birrapoint-<env>-rg` only)
 and runs `infra/deploy.ps1 -AppsOnly` — image rollout only, no Terraform/state/Neon; the
 infrastructure is assumed to exist. `concurrency: deploy-production`; the run summary lists each
 app's serving revision and image. One-time configuration: `infra/github-actions-setup.md`.
@@ -403,8 +418,10 @@ which holds the Neon project and the generated secrets (the API admin-client sec
 Keycloak's database) — a redeploy reconnects to the same data. `-IncludeNeon` wipes everything
 including the state. Idempotent, with a direct sweep (`az group delete`, Neon API by exact project
 id from the state; by exact name only without a state, refusing duplicates) when the destroy fails
-or the state is gone; the names to remove are read from the state blob, not parameters. Log
-Analytics is purged on destroy (`permanently_delete_on_destroy`). Pure decisions in
+or the state is gone; the names to remove are read from the state blob, not parameters (the state
+itself is located from `-Environment`). Log Analytics and Key Vault are purged on destroy
+(`permanently_delete_on_destroy`, `purge_soft_delete_on_destroy`; a vault left soft-deleted by a
+direct `az group delete` is purged explicitly), since the vault name is globally unique. Pure decisions in
 `infra/Teardown.psm1` (Pester-tested). Because Keycloak imports its realm only once while a
 recreated environment gets a new random domain, every full `deploy.ps1` run ends by making the
 `birrapoint-spa` client allow the current web URL via the Keycloak Admin API
@@ -418,16 +435,18 @@ Prerequisites and the Neon PITR restore procedure (FR-047) are in `infra/terrafo
 
 | Resource | Implementation | Ingress | Notes |
 |---|---|---|---|
-| `rg-<prefix>`, `log-<prefix>`, `cae-<prefix>` | resource group, Log Analytics (30 d), ACA environment | — | console logs of every app go to Log Analytics; OpenTelemetry export is T098 |
-| `<prefix>-web` | `birrapoint-web` image: Node build → `nginxinc/nginx-unprivileged` (`frontend/Dockerfile`) | external | serves the PWA; `nginx/40-runtime-config.sh` writes `/config.json` from `KEYCLOAK_URL` (+ realm/client/`API_BASE_URL` defaults) at start; reverse-proxies `/api/` + `/hubs/` (WebSocket) to `API_UPSTREAM` (ADR-0017); security headers, `expires -1` on shell/ngsw files, 1-year cache on hashed assets |
-| `<prefix>-api` | `birrapoint-api` image: SDK → `aspnet:10.0`, non-root (`backend/src/BirraPoint.Api/Dockerfile`, context `backend/`) | **internal only** | exactly 1 replica (SignalR without backplane, single DispatchJob consumer); `ASPNETCORE_ENVIRONMENT=Production`; `ConnectionStrings__db` = Neon pooled endpoint, `ConnectionStrings__dbDirect` = direct endpoint used only by startup migrations (`Database__MigrateOnStartup=true`); Keycloak/SMTP/`Frontend__BaseUrl` via env + Container Apps secrets |
-| `<prefix>-kc` | `birrapoint-keycloak` image: optimized `kc.sh build` (postgres, health, metrics) + login theme + production realm (`infra/keycloak/Dockerfile`) | external | `start --optimized --import-realm`; `KC_PROXY_HEADERS=xforwarded`, `KC_HOSTNAME` = public URL; startup/readiness/liveness probes on management port 9000; realm placeholders `${SPA_URL}`, `${API_ADMIN_CLIENT_SECRET}`, `${SMTP_*}` resolved from env at first import |
-| Neon project `<prefix>` | `kislerdm/neon` provider, PG 16, branch `main` | — | databases `birrapoint` (role `birrapoint`) and `keycloak` (role `keycloak`) on one branch, so a PITR restores both consistently; history retention = `neon_history_retention_seconds` (default 21600 s = 6 h, the current free-plan cap) |
+| `birrapoint-<env>-rg`, `-log`, `-cae` | resource group, Log Analytics (30 d), ACA environment | — | console logs of every app go to Log Analytics; OpenTelemetry export is T098 |
+| `birrapoint-<env>-kv` | Key Vault (standard, Azure RBAC, soft-delete 7 d, no purge protection) + Dapr component `secretstore` on the environment | public endpoint, RBAC-only | secrets `ConnectionStrings--db`, `ConnectionStrings--dbDirect`, `Keycloak--AdminClientSecret`, `Smtp--Password` (only when set), `keycloak-db-password`, `keycloak-bootstrap-admin-password`, `keycloak-deploy-client-secret`; `Key Vault Secrets Officer` for Terraform's identity + `key_vault_secrets_officer_principal_ids` (90 s wait for RBAC propagation on first apply), `Key Vault Secrets User` per secret for the app that uses it (120 s wait after those assignments); name overridable with `key_vault_name` (globally unique) |
+| `birrapoint-<env>-web` | `birrapoint-web` image: Node build → `nginxinc/nginx-unprivileged` (`frontend/Dockerfile`) | external | serves the PWA; `nginx/40-runtime-config.sh` writes `/config.json` from `KEYCLOAK_URL` (+ realm/client/`API_BASE_URL` defaults) at start; reverse-proxies `/api/` + `/hubs/` (WebSocket) to `API_UPSTREAM` (ADR-0017); security headers, `expires -1` on shell/ngsw files, 1-year cache on hashed assets |
+| `birrapoint-<env>-api` | `birrapoint-api` image: SDK → `aspnet:10.0`, non-root (`backend/src/BirraPoint.Api/Dockerfile`, context `backend/`) | **internal only** | exactly 1 replica (SignalR without backplane, single DispatchJob consumer); `ASPNETCORE_ENVIRONMENT=Production`; Dapr sidecar (app id = app name) + `Dapr__SecretStore=secretstore`: `ConnectionStrings:db` (Neon pooled endpoint), `ConnectionStrings:dbDirect` (direct endpoint, used only by startup migrations, `Database__MigrateOnStartup=true`), `Keycloak:AdminClientSecret`, `Smtp:Password` come from Key Vault; the non-secret Keycloak/SMTP/`Frontend__BaseUrl` settings are env vars |
+| `birrapoint-<env>-kc` | `birrapoint-keycloak` image: optimized `kc.sh build` (postgres, health, metrics) + login theme + production realm + Dapr secret loader (`infra/keycloak/Dockerfile`) | external | entrypoint `docker-entrypoint.sh` loads `DAPR_SECRETS` (`KC_DB_PASSWORD`, `KC_BOOTSTRAP_ADMIN_PASSWORD`, `API_ADMIN_CLIENT_SECRET`, `DEPLOY_CLIENT_SECRET`, `SMTP_PASSWORD`) from the Dapr sidecar (retrying up to `DAPR_SECRETS_TIMEOUT_SECONDS` = 180 s), then `start --optimized --import-realm`; `KC_PROXY_HEADERS=xforwarded`, `KC_HOSTNAME` = public URL; startup/readiness/liveness probes on management port 9000; realm placeholders `${SPA_URL}`, `${API_ADMIN_CLIENT_SECRET}`, `${SMTP_*}` resolved from env at first import |
+| Neon project `birrapoint-<env>-neon` | `kislerdm/neon` provider, PG 16, branch `main` | — | databases `birrapoint` (role `birrapoint`) and `keycloak` (role `keycloak`) on one branch, so a PITR restores both consistently; history retention = `neon_history_retention_seconds` (default 21600 s = 6 h, the current free-plan cap) |
 
 Secrets never enter an image or the repo: Neon role passwords come from the provider, the Keycloak
-bootstrap admin password and the API admin-client secret from `random_password`, SMTP and the
-optional Docker Hub token from `terraform.tfvars` (gitignored); all land as Container Apps
-secrets. The production realm is derived from the local one at image build time: the seeded
+bootstrap admin password, the API admin-client secret and the deploy-client secret from
+`random_password`, SMTP and the optional Docker Hub token from `terraform.tfvars` (gitignored).
+All but the Docker Hub token are written to Key Vault and read by the apps through Dapr (above);
+the Docker Hub token is a Container Apps registry secret. The production realm is derived from the local one at image build time: the seeded
 `organizer`/`organizer` account and the admin-client secret's dev fallback are stripped (the build
 fails if either survives). Realm import placeholders use Keycloak's `${VAR:default}` syntax — the
 previous `${env.SMTP_HOST}` form was never substituted by Keycloak and is fixed.
@@ -442,6 +461,16 @@ previous `${env.SMTP_HOST}` form was never substituted by Keycloak and is fixed.
   live there (`ManagePackageVersionsCentrally`), csprojs carry version-less `PackageReference`s;
   the shared `$(BirraPointTargetFramework)` property (currently `net10.0`) defined in the same
   file is the single place to bump the target framework.
+- **Secrets from Dapr** (`Common/Secrets/DaprSecrets.cs`, T142, ADR-0021): the first thing
+  `Program.cs` does is `builder.Configuration.AddDaprSecrets()`. When `Dapr:SecretStore` names a
+  Dapr secret store component (Azure: `secretstore`, backed by Key Vault), it adds the Dapr
+  configuration provider (`Dapr.Extensions.Configuration`) for exactly `ConnectionStrings--db`,
+  `ConnectionStrings--dbDirect`, `Keycloak--AdminClientSecret` and the optional `Smtp--Password`,
+  mapping `--` to `:` so they land under their usual configuration keys — no consumer changes. It
+  waits up to 60 s for the sidecar and retries store errors (`DaprException`, e.g. a 403 while a
+  new identity's role propagates) 15 times, 10 s apart (`LoadWithRetry`); after that a missing or
+  unreadable required secret fails startup. Without the setting
+  (local AppHost, tests) nothing is added and plain settings apply.
 - **`BirraPoint.Api`**: `AddServiceDefaults()` + `MapDefaultEndpoints()`, plus (T009)
   `AddDbContext<AppDbContext>` wired to the `db` connection string and `Database.MigrateAsync()`
   run on startup in Development, or anywhere `Database:MigrateOnStartup=true` (production;

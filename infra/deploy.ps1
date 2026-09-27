@@ -26,6 +26,11 @@
          the realm only once, so without this a recreated environment - with a new random
          domain - would reject every login (redirect_uri). URIs added by hand are kept.
 
+    Every resource is named birrapoint-<environment>-<acronym> (-Environment, default PROD; T142,
+    ADR-0021), the Terraform state included (birrapoint-<env>-tfstate-rg). The apps read their
+    secrets from Key Vault through Dapr with their system-assigned managed identities, so a full
+    run needs rights to create role assignments (Owner or User Access Administrator + Contributor).
+
     -AppsOnly is the image-only deployment used by the deploy pipeline (deploy.yml): no Terraform,
     tfvars, NEON_API_KEY or state access - only `az login` with rights on the application
     resource group. Compatible with Windows PowerShell 5.1 and PowerShell 7. -WhatIf reads Azure
@@ -55,18 +60,19 @@ param(
     # Image rollout only: skip state bootstrap and Terraform.
     [switch] $AppsOnly,
 
-    # -AppsOnly only: must match Terraform's name_prefix (Container App and resource group names).
-    [string] $NamePrefix = 'birrapoint',
+    # Deployment environment: resources are named birrapoint-<environment>-<acronym> (lower-cased).
+    [string] $Environment = 'PROD',
 
     # Defaults to infra/terraform/terraform.tfvars.
     [string] $VarFile,
 
     [string] $Location = 'northeurope',
-    [string] $StateResourceGroup = 'rg-birrapoint-tfstate',
-    # Globally unique; derived from the subscription id when omitted.
+    # Terraform state location; derived from -Environment (and the subscription, for the globally
+    # unique storage account) when omitted - see Get-StateLocation in infra/ResourceNames.psm1.
+    [string] $StateResourceGroup,
     [string] $StateStorageAccount,
-    [string] $StateContainer = 'tfstate',
-    [string] $StateKey = 'birrapoint.tfstate',
+    [string] $StateContainer,
+    [string] $StateKey,
 
     # Per app: how long to wait for its new revision to become healthy.
     [int] $RevisionTimeoutSeconds = 600,
@@ -80,6 +86,9 @@ $terraformDir = Join-Path $PSScriptRoot 'terraform'
 # param defaults when the script is run with `powershell -File`.
 if (-not $VarFile) { $VarFile = Join-Path $terraformDir 'terraform.tfvars' }
 Import-Module (Join-Path $PSScriptRoot 'DeployImages.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'ResourceNames.psm1') -Force
+# Fails fast on an invalid environment, before anything touches Azure.
+$environmentName = ConvertTo-EnvironmentName $Environment
 Import-Module (Join-Path $PSScriptRoot 'KeycloakClient.psm1') -Force
 
 function Invoke-Native {
@@ -354,9 +363,9 @@ try {
     foreach ($image in $images) { $byComponent[$image.Component] = $image }
 
     # Default names (-AppsOnly, -WhatIf); a real apply reads them back from Terraform's outputs.
-    $resourceGroup = "rg-$NamePrefix"
+    $resourceGroup = Get-ResourceName -Environment $environmentName -Resource ResourceGroup
     $appNames = @{}
-    foreach ($image in $images) { $appNames[$image.Component] = Get-ContainerAppName -NamePrefix $NamePrefix -Component $image.Component }
+    foreach ($image in $images) { $appNames[$image.Component] = Get-ContainerAppName -Environment $environmentName -Component $image.Component }
 
     # --- 2. Infrastructure (Terraform) ---------------------------------------------------------
 
@@ -367,10 +376,11 @@ try {
         throw 'Infrastructure apply declined; nothing was changed. Use -AppsOnly to roll out images without Terraform.'
     }
     if ($applyInfrastructure) {
-        if (-not $StateStorageAccount) {
-            # 3-24 lowercase alphanumerics, globally unique: stable per subscription.
-            $StateStorageAccount = ('stbirrapointtf' + ($subscriptionId -replace '-', '').Substring(0, 10)).ToLower()
-        }
+        $stateLocation = Get-StateLocation -Environment $environmentName -SubscriptionId $subscriptionId
+        if (-not $StateResourceGroup) { $StateResourceGroup = $stateLocation.ResourceGroup }
+        if (-not $StateStorageAccount) { $StateStorageAccount = $stateLocation.StorageAccount }
+        if (-not $StateContainer) { $StateContainer = $stateLocation.Container }
+        if (-not $StateKey) { $StateKey = $stateLocation.Key }
 
         Invoke-Native "Ensure state resource group '$StateResourceGroup'" {
             az group create --name $StateResourceGroup --location $Location --output none
@@ -431,13 +441,15 @@ try {
 
         # A fresh suffix per apply: every apply creates a new revision of each app (a restart),
         # and never reuses a suffix a previous rollout left in state (ADR-0018). Its length
-        # against the real name_prefix is validated by Terraform.
+        # against the real environment is validated by Terraform.
         $infraSuffix = New-RevisionSuffix -Tag 'infra'
         $applyArgs = @(
             "-chdir=$terraformDir", 'apply', '-input=false',
             "-var-file=$((Resolve-Path $VarFile).Path)",
             "-var=subscription_id=$subscriptionId",
             "-var=location=$Location",
+            # Always from -Environment, so resource names and the state location stay in step.
+            "-var=environment=$environmentName",
             "-var=api_image=$($byComponent.api.Reference)",
             "-var=web_image=$($byComponent.web.Reference)",
             "-var=keycloak_image=$($byComponent.keycloak.Reference)",

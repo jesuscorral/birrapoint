@@ -1,8 +1,9 @@
 # Infrastructure checks (FR-064, T134): static validation of infra/ only — Terraform formatting
-# and validation (no backend, no credentials, no plan/apply) and the Pester tests of
-# infra/DeployImages.psm1, the image-resolution logic behind infra/deploy.ps1. Runs only when
-# infra/ changes. It never deploys: infrastructure is applied deliberately with infra/deploy.ps1,
-# and images are rolled out by deploy.yml.
+# and validation (no backend, no credentials, no plan/apply), the Pester tests of the pure logic
+# behind infra/deploy.ps1 and infra/teardown.ps1 (infra/tests), and the tests of the Keycloak
+# image's Dapr secret loader (T142). Runs only when infra/ changes. It never deploys:
+# infrastructure is applied deliberately with infra/deploy.ps1, and images are rolled out by
+# deploy.yml.
 name: Infra
 
 on:
@@ -34,8 +35,33 @@ jobs:
           terraform_version: 1.14.3
           terraform_wrapper: false
       - run: terraform -chdir=infra/terraform fmt -check -recursive
-      - run: terraform -chdir=infra/terraform init -backend=false -input=false
+      # Provider downloads (registry.terraform.io, releases.hashicorp.com) occasionally drop the
+      # connection from the runner ("connection reset by peer"). Retry the whole init with backoff:
+      # it is idempotent, and a real error (bad constraint, checksum mismatch) still fails after
+      # the last attempt.
+      - name: terraform init (with retries)
+        env:
+          TF_REGISTRY_DISCOVERY_RETRY: '5'
+        run: |
+          for attempt in 1 2 3 4; do
+            terraform -chdir=infra/terraform init -backend=false -input=false && exit 0
+            [ "$attempt" -eq 4 ] && break
+            delay=$((attempt * 15))
+            echo "::warning::terraform init failed (attempt $attempt/4); retrying in ${delay}s"
+            sleep "$delay"
+          done
+          exit 1
       - run: terraform -chdir=infra/terraform validate
+
+  # The Keycloak image's Dapr secret loader (T142): JDK 21 is preinstalled on the runner.
+  keycloak-dapr-secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: PATH="$JAVA_HOME_21_X64/bin:$PATH" bash infra/keycloak/dapr-secrets/DaprSecretsEnv.test.sh
 
   pester:
     runs-on: ubuntu-latest

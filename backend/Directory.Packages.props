@@ -11,6 +11,7 @@
     <PackageVersion Include="ClosedXML" Version="0.105.1"/>
     <PackageVersion Include="CommunityToolkit.Aspire.Hosting.MailPit" Version="13.5.0"/>
     <PackageVersion Include="coverlet.collector" Version="10.0.1"/>
+    <PackageVersion Include="Dapr.Extensions.Configuration" Version="1.18.10"/>
     <PackageVersion Include="EnvDTE" Version="17.14.40260"/>
     <PackageVersion Include="FluentValidation" Version="12.1.1"/>
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1"/>

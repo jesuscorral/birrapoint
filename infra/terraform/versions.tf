@@ -14,6 +14,10 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.6"
     }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.13"
+    }
   }
 
   # Remote state in Azure Storage (constitution v1.3.1 — never committed). Partial configuration:
@@ -28,6 +32,12 @@ provider "azurerm" {
     # fresh deploy never collides with a soft-deleted workspace of the same name.
     log_analytics_workspace {
       permanently_delete_on_destroy = true
+    }
+    # Same for Key Vault, whose name is globally unique (T142): purged on destroy so a redeploy
+    # can recreate it. infra/teardown.ps1 also purges it after a direct resource-group delete.
+    key_vault {
+      purge_soft_delete_on_destroy    = true
+      recover_soft_deleted_key_vaults = false
     }
   }
   subscription_id = var.subscription_id

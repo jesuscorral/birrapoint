@@ -1,5 +1,14 @@
-# The three Container Apps (FR-046). Configuration and secrets arrive only as environment
-# variables / Container Apps secrets; the images carry none (FR-043).
+# The three Container Apps (FR-046). The images carry no configuration or secrets (FR-043):
+# configuration arrives as environment variables, secrets are read from Key Vault through the Dapr
+# secret store with each app's system-assigned managed identity (secrets.tf; T142, ADR-0021).
+
+locals {
+  # Dapr app ids; the secret store component is scoped to these.
+  dapr_app_ids = {
+    api      = local.names.api
+    keycloak = local.names.keycloak
+  }
+}
 
 # --- Backend API: internal ingress only, reached through the web app's nginx reverse proxy -----
 
@@ -10,11 +19,18 @@ resource "azurerm_container_app" "api" {
     ignore_changes = [template[0].container[0].image]
   }
 
-  name                         = local.api_name
+  # The first revision must find its secrets in the vault.
+  depends_on = [azurerm_key_vault_secret.app]
+
+  name                         = local.names.api
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = azurerm_resource_group.main.name
   revision_mode                = "Single"
   tags                         = var.tags
+
+  identity {
+    type = "SystemAssigned"
+  }
 
   dynamic "registry" {
     for_each = local.private_registry
@@ -33,29 +49,11 @@ resource "azurerm_container_app" "api" {
     }
   }
 
-  secret {
-    name  = "db-pooled"
-    value = local.api_db_pooled
-  }
-
-  secret {
-    name  = "db-direct"
-    value = local.api_db_direct
-  }
-
-  secret {
-    name  = "keycloak-admin-client-secret"
-    value = random_password.api_admin_client_secret.result
-  }
-
-  # Container Apps rejects empty secret values, so the SMTP password secret (and the env var
-  # referencing it) only exist when a password is configured.
-  dynamic "secret" {
-    for_each = local.smtp_password_secret
-    content {
-      name  = "smtp-password"
-      value = var.smtp_password
-    }
+  # Secrets (ConnectionStrings:db/dbDirect, Keycloak:AdminClientSecret, Smtp:Password) are read
+  # from the Dapr secret store at startup (Dapr__SecretStore below). No app port: the sidecar only
+  # serves the app's own calls to it.
+  dapr {
+    app_id = local.dapr_app_ids.api
   }
 
   ingress {
@@ -91,12 +89,8 @@ resource "azurerm_container_app" "api" {
         value = "Production"
       }
       env {
-        name        = "ConnectionStrings__db"
-        secret_name = "db-pooled"
-      }
-      env {
-        name        = "ConnectionStrings__dbDirect"
-        secret_name = "db-direct"
+        name  = "Dapr__SecretStore"
+        value = azurerm_container_app_environment_dapr_component.secret_store.name
       }
       env {
         name  = "Database__MigrateOnStartup"
@@ -115,10 +109,6 @@ resource "azurerm_container_app" "api" {
         value = "birrapoint-api-admin"
       }
       env {
-        name        = "Keycloak__AdminClientSecret"
-        secret_name = "keycloak-admin-client-secret"
-      }
-      env {
         name  = "Smtp__Host"
         value = var.smtp_host
       }
@@ -129,13 +119,6 @@ resource "azurerm_container_app" "api" {
       env {
         name  = "Smtp__Username"
         value = var.smtp_username
-      }
-      dynamic "env" {
-        for_each = local.smtp_password_secret
-        content {
-          name        = "Smtp__Password"
-          secret_name = "smtp-password"
-        }
       }
       env {
         name  = "Smtp__UseStartTls"
@@ -162,11 +145,18 @@ resource "azurerm_container_app" "keycloak" {
     ignore_changes = [template[0].container[0].image]
   }
 
-  name                         = local.keycloak_name
+  # The first revision must find its secrets in the vault.
+  depends_on = [azurerm_key_vault_secret.app]
+
+  name                         = local.names.keycloak
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = azurerm_resource_group.main.name
   revision_mode                = "Single"
   tags                         = var.tags
+
+  identity {
+    type = "SystemAssigned"
+  }
 
   dynamic "registry" {
     for_each = local.private_registry
@@ -185,34 +175,10 @@ resource "azurerm_container_app" "keycloak" {
     }
   }
 
-  secret {
-    name  = "db-password"
-    value = neon_role.keycloak.password
-  }
-
-  secret {
-    name  = "bootstrap-admin-password"
-    value = random_password.keycloak_admin.result
-  }
-
-  secret {
-    name  = "api-admin-client-secret"
-    value = random_password.api_admin_client_secret.result
-  }
-
-  secret {
-    name  = "deploy-client-secret"
-    value = random_password.deploy_client_secret.result
-  }
-
-  # Container Apps rejects empty secret values, so the SMTP password secret (and the env var
-  # referencing it) only exist when a password is configured.
-  dynamic "secret" {
-    for_each = local.smtp_password_secret
-    content {
-      name  = "smtp-password"
-      value = var.smtp_password
-    }
+  # The image's entrypoint (infra/keycloak/dapr-secrets) loads the secrets listed in DAPR_SECRETS
+  # from the Dapr secret store into Keycloak's environment before starting it.
+  dapr {
+    app_id = local.dapr_app_ids.keycloak
   }
 
   ingress {
@@ -270,10 +236,6 @@ resource "azurerm_container_app" "keycloak" {
         value = neon_role.keycloak.name
       }
       env {
-        name        = "KC_DB_PASSWORD"
-        secret_name = "db-password"
-      }
-      env {
         name  = "KC_HOSTNAME"
         value = local.keycloak_url
       }
@@ -290,22 +252,10 @@ resource "azurerm_container_app" "keycloak" {
         name  = "KC_BOOTSTRAP_ADMIN_USERNAME"
         value = "admin"
       }
-      env {
-        name        = "KC_BOOTSTRAP_ADMIN_PASSWORD"
-        secret_name = "bootstrap-admin-password"
-      }
       # ${VAR:default} placeholders in the imported realm (infra/keycloak/birrapoint-realm.json).
       env {
         name  = "SPA_URL"
         value = local.web_url
-      }
-      env {
-        name        = "API_ADMIN_CLIENT_SECRET"
-        secret_name = "api-admin-client-secret"
-      }
-      env {
-        name        = "DEPLOY_CLIENT_SECRET"
-        secret_name = "deploy-client-secret"
       }
       env {
         name  = "SMTP_HOST"
@@ -331,12 +281,20 @@ resource "azurerm_container_app" "keycloak" {
         name  = "SMTP_USER"
         value = var.smtp_username
       }
-      dynamic "env" {
-        for_each = local.smtp_password_secret
-        content {
-          name        = "SMTP_PASSWORD"
-          secret_name = "smtp-password"
-        }
+      # Secrets: environment variable = Key Vault secret, read through Dapr at container start.
+      env {
+        name  = "DAPR_SECRET_STORE"
+        value = azurerm_container_app_environment_dapr_component.secret_store.name
+      }
+      env {
+        name  = "DAPR_SECRETS"
+        value = join(",", [for env, secret in local.keycloak_secret_env : "${env}=${secret}"])
+      }
+      # Below the startup probe's 300 s budget (10 s x 30), so a vault that stays unreadable fails
+      # the container cleanly instead of the probe killing Keycloak mid-boot.
+      env {
+        name  = "DAPR_SECRETS_TIMEOUT_SECONDS"
+        value = "180"
       }
     }
   }
@@ -351,11 +309,15 @@ resource "azurerm_container_app" "web" {
     ignore_changes = [template[0].container[0].image]
   }
 
-  name                         = local.web_name
+  name                         = local.names.web
   container_app_environment_id = azurerm_container_app_environment.main.id
   resource_group_name          = azurerm_resource_group.main.name
   revision_mode                = "Single"
   tags                         = var.tags
+
+  identity {
+    type = "SystemAssigned"
+  }
 
   dynamic "registry" {
     for_each = local.private_registry

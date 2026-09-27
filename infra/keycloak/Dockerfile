@@ -5,7 +5,9 @@
 # Bakes in the login theme and the realm definition only. The realm file carries no secrets:
 # the SPA URL, the API admin client secret and SMTP settings are ${VAR:default} placeholders resolved
 # at import time from container environment variables. Database, hostname and bootstrap admin
-# credentials are likewise runtime environment variables (KC_DB_URL, KC_HOSTNAME, ...).
+# credentials are likewise runtime environment variables (KC_DB_URL, KC_HOSTNAME, ...). In Azure the
+# secret ones are read at start from the Dapr secret store (Key Vault) by docker-entrypoint.sh
+# (T142, ADR-0021); without DAPR_SECRET_STORE the image behaves exactly like stock Keycloak.
 
 ARG KEYCLOAK_VERSION=26.2
 
@@ -25,6 +27,11 @@ RUN jq '.users |= map(select(.username != "organizer")) \
         /realm/birrapoint-realm.json > /realm/birrapoint-realm.prod.json \
     && ! grep -q -e '"value": "organizer"' -e 'dev-only-secret' /realm/birrapoint-realm.prod.json
 
+# Dapr secret loader (dapr-secrets/): compiled here, the runtime image only has a JRE.
+FROM eclipse-temurin:21-jdk-alpine AS dapr-secrets
+COPY dapr-secrets/DaprSecretsEnv.java /src/
+RUN javac --release 21 -d /out /src/DaprSecretsEnv.java
+
 FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION} AS builder
 ENV KC_DB=postgres \
     KC_HEALTH_ENABLED=true \
@@ -35,7 +42,9 @@ RUN /opt/keycloak/bin/kc.sh build
 FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}
 COPY --from=builder /opt/keycloak/ /opt/keycloak/
 COPY --from=realm /realm/birrapoint-realm.prod.json /opt/keycloak/data/import/birrapoint-realm.json
+COPY --from=dapr-secrets /out/ /opt/birrapoint/dapr-secrets/
+COPY --chmod=755 dapr-secrets/docker-entrypoint.sh /opt/birrapoint/docker-entrypoint.sh
 EXPOSE 8080 9000
-ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
+ENTRYPOINT ["/opt/birrapoint/docker-entrypoint.sh"]
 # --import-realm uses IGNORE_EXISTING: the realm is seeded on first start only.
 CMD ["start", "--optimized", "--import-realm"]

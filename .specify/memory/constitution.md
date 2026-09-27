@@ -1,6 +1,29 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 1.3.1 → 1.4.0 (MINOR — cloud secret management and resource naming added)
+Modified principles: none (Principle VII already allows "environment variables or secret stores")
+Modified sections:
+  - Technology & Architecture Constraints / Deployment (user decision 2026-09-27, ADR-0021):
+    * every deployed resource is named birrapoint-<environment>-<resource acronym> (environment
+      default PROD);
+    * production secrets live in Azure Key Vault; every Container App runs with a system-assigned
+      managed identity holding read-only access to it; apps read secrets at runtime through a
+      Dapr secret store component (Dapr sidecar on Azure Container Apps), never as Container Apps
+      secrets/settings — the Docker Hub pull token is the one registry-level exception.
+    * Dapr (`Dapr.Extensions.Configuration` for the API) joins the approved stack for this purpose
+      only; local development is unaffected (no sidecar, plain settings from the AppHost).
+Added sections: none
+Removed sections: none
+Templates:
+  - .specify/templates/*.md ✅ compatible (no deployment-tool references)
+  - CLAUDE.md ✅ updated (approved stack, commands, repository layout)
+  - specs/001-birrapoint-mvp/plan.md (Principle VII row), quickstart.md, tasks.md (T142) ✅ updated
+  - Docs/01-Definicion-Tecnologica.md ⚠ pending (legacy Spanish product definition; superseded
+    by the English spec)
+Follow-up TODOs: none
+
+Previous report (v1.3.1, 2026-09-24):
 Version change: 1.3.0 → 1.3.1 (PATCH — container registry swapped; no principle or topology change)
 Modified principles: none
 Modified sections:
@@ -207,8 +230,13 @@ The approved stack is defined in `Docs/01-Definicion-Tecnologica.md` and is bind
   registry is provisioned; private repositories are pulled with an access token injected as a
   registry secret). Production topology: one ACA environment hosting the frontend (public
   ingress) and the backend API as two separate Container Apps, Keycloak as a third in-environment
-  Container App, and PostgreSQL hosted externally on Neon — its pooled connection string injected
-  into the backend Container App as a secret, never baked into an image or committed to the repo.
+  Container App, and PostgreSQL hosted externally on Neon. Every deployed resource is named
+  `birrapoint-<environment>-<resource acronym>` (default environment `PROD`). Production secrets
+  (the Neon connection strings included) live in Azure Key Vault; every Container App runs with a
+  system-assigned managed identity holding read-only access to the vault, and apps read their
+  secrets at runtime through a Dapr secret store component (Dapr sidecar), never as Container Apps
+  secrets or settings, never baked into an image or committed to the repo. The only exception is
+  the registry pull token, which the platform needs before any container starts.
   Terraform state MUST live in a remote backend (e.g. an Azure Storage container), never
   committed to the repo.
 
@@ -243,4 +271,4 @@ be updated.
   Definition of Done above. Runtime development guidance for agents lives in `CLAUDE.md` and must
   stay consistent with this document.
 
-**Version**: 1.3.1 | **Ratified**: 2026-07-06 | **Last Amended**: 2026-09-24
+**Version**: 1.4.0 | **Ratified**: 2026-07-06 | **Last Amended**: 2026-09-27
