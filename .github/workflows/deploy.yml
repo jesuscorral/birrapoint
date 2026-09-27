@@ -44,7 +44,7 @@ jobs:
         run: |
           echo "::error::Run the Deploy workflow from main (\"Use workflow from: main\")."
           exit 1
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: .github/scripts
           persist-credentials: false
@@ -124,7 +124,7 @@ jobs:
       WEB_VERSION: ${{ needs.resolve.outputs.web }}
       KEYCLOAK_VERSION: ${{ needs.resolve.outputs.keycloak }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Azure login (OIDC)
