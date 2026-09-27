@@ -1,7 +1,17 @@
 ---
-description: Loop until all tests pass
+description: Loop until the backend and frontend unit/integration suites pass
+argument-hint: [backend|frontend|all]
 ---
 
-Run both suites: `dotnet test Birrapoint.sln --nologo` and `npm test --prefix src/birrapoint-web -- --watch=false`.
+Scope: $ARGUMENTS (empty means all).
 
-Loop: for each failure, read the failing test and the code under test, determine the real cause, fix it, re-run. Never skip, delete, or weaken a test to make it pass. Continue until both suites are fully green. If a failure requires a product decision, stop and ask me.
+Suites:
+- backend: `dotnet test backend/tests/BirraPoint.Api.UnitTests` and
+  `dotnet test backend/tests/BirraPoint.Api.IntegrationTests` (needs Docker running)
+- frontend: `cd frontend && npx jest`
+
+Loop: run the suite, and for each failure read the test and the code under test (use
+`codegraph_explore`), find the real cause, fix it, re-run only the failing tests
+(`--filter "FullyQualifiedName~Name"` / `npx jest <path>`), then the full suite. Never skip,
+delete or weaken a test. If a fix needs a product or spec decision, stop and ask. If Docker is not
+running, say so instead of skipping the integration suite silently.

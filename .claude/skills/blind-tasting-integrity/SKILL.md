@@ -19,6 +19,11 @@ The allowed judge-facing shape is defined in `specs/001-birrapoint-mvp/data-mode
 `contracts/signalr-hub.md`. Treat those as the source of truth for what's permitted — this audit
 checks the code matches them, not the other way around.
 
+**Documented exceptions (allowed, don't flag):** `EntryInstructions` (ADR-0011, FR-019) and
+`AbvPercent` (FR-062) on judge sample DTOs; tablemates' `DisplayName`/`BjcpRank` from
+`GET /me/tables/{tableId}/judges` (judge data, not entrant data). Judge DTOs live in
+`Features/TastingOrder/JudgeDtos.cs`; start there.
+
 ## Steps
 
 1. **Backend DTOs.** Grep `backend/src/BirraPoint.Api/Features/TastingOrder/`,
@@ -30,13 +35,15 @@ checks the code matches them, not the other way around.
 2. **SignalR payloads.** Grep `Realtime/` and every `.Clients.Group("table:{tableId}")` /
    judge-scoped hub emit for the event payload shape. Same field check as above — judges are
    members of `table:{tableId}` groups, so anything broadcast there is judge-visible.
-3. **Endpoint authorization.** For every judge-facing endpoint (`/me/**`, `/api/v1/tables/{id}/**`
-   from the judge side), confirm a `JUDGE` policy + membership/ownership check is present —
+3. **Endpoint authorization.** For every judge-facing endpoint (`/api/v1/me/tables/**`), confirm
+   a `JUDGE` policy + active-membership check (`JudgeTableAccess.FindActiveMembershipAsync`) is
+   present —
    deny-by-default per CLAUDE.md §Security. A judge must never be able to fetch another judge's
    table or a table outside their assignment (expect `404`, not `403`, per the "never reveal
    existence outside caller's scope" rule).
 4. **Frontend judge views.** Grep `frontend/src/app/features/judge-tables/`,
-   `features/evaluation-sheet/`, and `core/offline/` (Dexie schemas) for any field or API call
+   `features/evaluation-sheet/`, `features/discrepancy/` and `core/offline/` (Dexie schemas) for
+   any field or API call
    requesting entrant data. Check Dexie-cached judge data doesn't accidentally persist a field
    the backend never should have sent (defense in depth, but also a sign the backend leaked it).
 5. **Contract cross-check.** Confirm `contracts/rest-api.md` and `contracts/signalr-hub.md`

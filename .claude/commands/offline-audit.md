@@ -1,12 +1,10 @@
 ---
-description: Audit judge-facing flows for offline correctness and identity leaks
+description: Audit judge-facing flows for offline correctness and entrant-identity leaks
 ---
 
-Load the offline-sync and blind-tasting-integrity skills, then audit:
+Run the `offline-sync` and `blind-tasting-integrity` skills, one after the other, over the current
+code (`frontend/src/app/core/offline/`, `features/evaluation-sheet/`, `features/judge-tables/`,
+`features/discrepancy/`; backend `Features/TastingOrder/`, `Features/Evaluations/`, `Realtime/`).
 
-1. Grep judge-facing frontend flows for direct HttpClient calls that bypass SyncQueueService.
-2. Grep `Birrapoint.Contracts` judge DTOs and `/api/judge/*` endpoints for entrant identity fields (brewer, entrant, email, entry name).
-3. Check every judge endpoint has role + flight-assignment authorization.
-4. Verify pending ops persist in IndexedDB (not memory) and are idempotent.
-
-Report findings as a table: file:line, issue, severity, suggested fix. Fix [blocker] items after I confirm.
+Merge both reports into one table: `file:line | issue | severity (blocker/warning) | fix`.
+Report only; fix blockers after I confirm.
