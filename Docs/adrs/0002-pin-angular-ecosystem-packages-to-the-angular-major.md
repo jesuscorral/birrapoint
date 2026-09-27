@@ -5,29 +5,22 @@
 
 ## Context
 
-The workspace is pinned to Angular 20 (R-02: plans must pin versions for reproducibility).
-During task T003, installing companion packages at their npm `latest` tag failed with an npm
-`ERESOLVE` peer-dependency conflict: `@angular/cdk@latest` is already 22.x and requires
-`@angular/common@^22 || ^23`. Angular-ecosystem packages version in lockstep with Angular
-majors, so "latest" silently tracks a newer framework than the one this project uses.
-Overriding with `--force`/`--legacy-peer-deps` would accept broken resolutions and hide real
-incompatibilities.
+The workspace is pinned to Angular 20 (R-02). Installing companion packages at `latest` failed
+with `ERESOLVE`: `@angular/cdk@latest` already required Angular 22+. Packages that version in
+lockstep with Angular silently track a newer framework, and `--force`/`--legacy-peer-deps` would
+hide real incompatibilities.
 
 ## Decision
 
-Every package whose major version tracks the Angular major MUST be installed and kept on the
-line matching the workspace's Angular major — currently `@angular/cdk@^20` and
-`keycloak-angular@^20`. These packages are only upgraded together with an Angular major upgrade
-(`ng update`), never independently. Packages with independent versioning (`keycloak-js`,
-`dexie`, `@microsoft/signalr`, `tailwindcss`) follow their own latest stable.
+Packages whose major tracks Angular's (`@angular/cdk@^20`, `keycloak-angular@^20`, and any future
+one such as `@angular/material`) stay on the workspace's Angular major and are upgraded only
+together with Angular (`ng update`). Independently versioned packages (`keycloak-js`, `dexie`,
+`@microsoft/signalr`, `tailwindcss`) follow their own latest stable.
 
 ## Consequences
 
-- **Positive**: reproducible installs with no peer-dependency overrides; framework and
-  companion libraries stay API-compatible by construction.
-- **Negative**: security patches published only on newer majors of these packages require an
-  Angular major upgrade to consume; the pin must be remembered when Angular is upgraded
-  (grouping them in future Renovate/Dependabot config would automate this).
-- Applies to any future Angular-lockstep dependency (e.g. `@angular/material`,
-  `angular-eslint`, `jest-preset-angular` compatibility ranges must be checked against the
-  Angular major before adoption).
+- Reproducible installs with no peer-dependency overrides.
+- Security fixes shipped only on newer majors require an Angular upgrade to consume.
+- Check the Angular compatibility range of any new Angular-adjacent tool (angular-eslint,
+  jest-preset-angular) before adopting it; grouping these packages in Dependabot config keeps the
+  pin automatic.
