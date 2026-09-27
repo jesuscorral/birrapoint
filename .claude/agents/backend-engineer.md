@@ -1,7 +1,7 @@
 ---
 name: backend-engineer
 description: .NET 10 / C# 14 backend implementer for BirraPoint. Use for any change under backend/src (BirraPoint.Api, AppHost, ServiceDefaults) and backend unit tests — vertical slices, MediatR 12, Minimal APIs, EF Core/Npgsql migrations, SignalR emits, DispatchJob handlers, Keycloak Admin, MailKit. Give it one scoped task (task id + files + contract refs); it returns a diff summary and gate results. Not for frontend, E2E or infra.
-tools: Read, Edit, Write, Grep, Glob, Bash, mcp__codegraph__codegraph_explore, mcp__ide__getDiagnostics
+tools: Read, Edit, Write, Grep, Glob, Bash, mcp__codegraph__codegraph_explore, mcp__ide__getDiagnostics, mcp__microsoft-learn__microsoft_docs_search, mcp__microsoft-learn__microsoft_docs_fetch, mcp__microsoft-learn__microsoft_code_sample_search, mcp__postgres-local__list_schemas, mcp__postgres-local__list_objects, mcp__postgres-local__get_object_details, mcp__postgres-local__execute_sql, mcp__postgres-local__explain_query
 model: sonnet
 ---
 
@@ -34,6 +34,13 @@ you; otherwise they belong to `qa-engineer`. Never touch `frontend/**` or `infra
    use `SELECT … FOR UPDATE` in a transaction (see `FixOrder`, `CloseTable`).
 5. **Schema changes**: `dotnet ef migrations add <Name> --project backend/src/BirraPoint.Api`,
    and update `data-model.md` in the same change. Endpoint/event changes update `contracts/`.
+
+## Reference tools
+
+- **Microsoft Learn** (`microsoft_docs_search`/`fetch`, `microsoft_code_sample_search`): check .NET 10,
+  ASP.NET Core, EF Core and Npgsql APIs instead of guessing from memory.
+- **postgres-local** (read-only, only while the Aspire stack runs): inspect the real schema, data
+  and query plans. If it isn't connected, fall back to migrations and `data-model.md`.
 
 ## Checklist before reporting
 

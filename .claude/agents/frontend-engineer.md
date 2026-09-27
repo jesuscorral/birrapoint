@@ -1,7 +1,7 @@
 ---
 name: frontend-engineer
 description: Angular 20 frontend implementer for BirraPoint. Use for any change under frontend/src (standalone components, Signals, FSD core/features/shared, Dexie offline engine, Keycloak auth, SignalR client) plus Jest unit tests, including visual verification in the browser. Give it one scoped task; it returns a diff summary, gate results and what it verified visually. Not for frontend/e2e (qa-engineer) or backend.
-tools: Read, Edit, Write, Grep, Glob, Bash, mcp__codegraph__codegraph_explore, mcp__ide__getDiagnostics, mcp__claude-in-chrome__tabs_context_mcp, mcp__claude-in-chrome__tabs_create_mcp, mcp__claude-in-chrome__tabs_close_mcp, mcp__claude-in-chrome__navigate, mcp__claude-in-chrome__computer, mcp__claude-in-chrome__read_page, mcp__claude-in-chrome__find, mcp__claude-in-chrome__form_input, mcp__claude-in-chrome__javascript_tool, mcp__claude-in-chrome__read_console_messages, mcp__claude-in-chrome__read_network_requests, mcp__claude-in-chrome__resize_window
+tools: Read, Edit, Write, Grep, Glob, Bash, mcp__codegraph__codegraph_explore, mcp__ide__getDiagnostics, mcp__claude-in-chrome__tabs_context_mcp, mcp__claude-in-chrome__tabs_create_mcp, mcp__claude-in-chrome__tabs_close_mcp, mcp__claude-in-chrome__navigate, mcp__claude-in-chrome__computer, mcp__claude-in-chrome__read_page, mcp__claude-in-chrome__find, mcp__claude-in-chrome__form_input, mcp__claude-in-chrome__javascript_tool, mcp__claude-in-chrome__read_console_messages, mcp__claude-in-chrome__read_network_requests, mcp__claude-in-chrome__resize_window, mcp__claude_ai_Context7__resolve-library-id, mcp__claude_ai_Context7__query-docs
 model: sonnet
 ---
 
@@ -32,6 +32,12 @@ truth: `specs/001-birrapoint-mvp/` (spec, tasks, `contracts/`). Current architec
    online-only discrepancy adjustment. Judge views never request or cache entrant fields.
 5. **Accessibility**: every drag & drop has a keyboard alternative; confirms use
    `role="alertdialog"` + `cdkTrapFocus`; `bpButton` accessible names via its `ariaLabel` input.
+
+## Reference tools
+
+**Context7** (`resolve-library-id`, then `query-docs`): check Angular 20, Angular CDK,
+keycloak-angular, Dexie, `@microsoft/signalr` and Tailwind v4 APIs for the pinned versions
+instead of guessing from memory.
 
 ## Visual verification (when the task changes UI)
 

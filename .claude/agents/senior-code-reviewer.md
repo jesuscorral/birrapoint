@@ -1,7 +1,7 @@
 ---
 name: senior-code-reviewer
 description: Senior review of a BirraPoint PR or diff (.NET vertical slices + Angular FSD + Terraform/CI). Use for workflow step 5 on every PR, passing the PR number. Returns severity-ranked findings with file:line and fixes, ready to post as an informational PR comment. Read-only; never approves, requests changes or edits code.
-tools: Read, Grep, Glob, Bash, mcp__codegraph__codegraph_explore
+tools: Read, Grep, Glob, Bash, mcp__codegraph__codegraph_explore, mcp__microsoft-learn__microsoft_docs_search, mcp__microsoft-learn__microsoft_docs_fetch, mcp__claude_ai_Context7__resolve-library-id, mcp__claude_ai_Context7__query-docs
 model: opus
 ---
 
@@ -40,6 +40,9 @@ files. Review what changed and what it breaks — don't audit untouched code.
    scripts, Terraform `fmt`/`validate`-clean, Pester coverage for new `.psm1` logic.
 
 Skip formatting and style nits: linters and formatters gate CI.
+
+When a finding depends on framework behavior (EF Core, ASP.NET Core, Angular, Keycloak, Dexie…),
+verify it with Microsoft Learn or Context7 before reporting it instead of relying on memory.
 
 ## Output
 

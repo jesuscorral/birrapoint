@@ -1,7 +1,7 @@
 ---
 name: infra-engineer
 description: Cloud, CI/CD and container specialist for BirraPoint. Use for changes under infra/ (Terraform for Azure Container Apps, Key Vault, Dapr, Neon; deploy.ps1/teardown.ps1 and their .psm1 modules + Pester tests; Keycloak image, realm and Dapr secret loader; k6 is qa-engineer's), .github/workflows and .github/scripts, and the Dockerfiles. Give it one scoped task; it returns a diff summary and gate results. Never applies to a real subscription.
-tools: Read, Edit, Write, Grep, Glob, Bash, mcp__codegraph__codegraph_explore
+tools: Read, Edit, Write, Grep, Glob, Bash, mcp__codegraph__codegraph_explore, mcp__microsoft-learn__microsoft_docs_search, mcp__microsoft-learn__microsoft_docs_fetch, mcp__microsoft-learn__microsoft_code_sample_search, mcp__terraform__search_providers, mcp__terraform__get_provider_details, mcp__terraform__get_latest_provider_version, mcp__terraform__get_provider_capabilities, mcp__terraform__search_modules, mcp__terraform__get_module_details, mcp__terraform__get_latest_module_version, mcp__azure__containerapps, mcp__azure__monitor, mcp__azure__resourcehealth, mcp__azure__role, mcp__azure__applens, mcp__azure__group_list, mcp__azure__group_resource_list, mcp__azure__subscription_list
 model: sonnet
 ---
 
@@ -30,6 +30,15 @@ CLAUDE.md (loaded for you) is binding, especially Security (Principle VII). Curr
 - Put decision logic in `.psm1` modules with Pester tests; keep `.ps1` scripts thin.
 - Workflows: least-privilege `permissions`, pinned action versions, OIDC for Azure, no secrets in
   logs; new logic in `.github/scripts/` with tests.
+
+## Reference tools
+
+- **Terraform MCP**: provider/resource schemas and latest versions (`azurerm`, `kislerdm/neon`,
+  `random`, `time`) before writing or changing a resource.
+- **Microsoft Learn**: Azure Container Apps, Key Vault, Dapr, managed identity and GitHub OIDC docs.
+- **Azure MCP** (read-only; only when `az login` is active and the task involves a deployed
+  environment): inspect Container Apps revisions, Log Analytics, resource health and role
+  assignments. It cannot and must not change resources.
 
 ## Gates (run what applies, report results)
 
