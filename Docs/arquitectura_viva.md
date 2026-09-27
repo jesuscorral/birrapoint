@@ -375,8 +375,9 @@ Naming and secrets (T142, ADR-0021): every deployed resource is named
 `birrapoint-<environment>-<acronym>` (Terraform `environment` variable / `-Environment` on both
 scripts, default `PROD`, lower-cased; helpers in `infra/ResourceNames.psm1`, Pester-tested). All
 application secrets live in Key Vault `birrapoint-<env>-kv` (Azure RBAC; written by Terraform).
-Each Container App has a **system-assigned managed identity** with `Key Vault Secrets User` on the
-vault, and a Dapr secret store component (`secretstore`, `secretstores.azure.keyvault`, scoped to
+Each Container App has a **system-assigned managed identity**; `Key Vault Secrets User` is granted
+per secret to the app that uses it (API: its four, Keycloak: its five; the web app has none), and a
+Dapr secret store component (`secretstore`, `secretstores.azure.keyvault`, scoped to
 the API and Keycloak) reads it with the calling app's identity. The API loads its secrets at
 startup through the Dapr .NET configuration provider (`Common/Secrets/DaprSecrets.cs`, enabled by
 `Dapr__SecretStore`); Keycloak's image entrypoint loads its own from the sidecar
@@ -435,10 +436,10 @@ Prerequisites and the Neon PITR restore procedure (FR-047) are in `infra/terrafo
 | Resource | Implementation | Ingress | Notes |
 |---|---|---|---|
 | `birrapoint-<env>-rg`, `-log`, `-cae` | resource group, Log Analytics (30 d), ACA environment | — | console logs of every app go to Log Analytics; OpenTelemetry export is T098 |
-| `birrapoint-<env>-kv` | Key Vault (standard, Azure RBAC, soft-delete 7 d, no purge protection) + Dapr component `secretstore` on the environment | public endpoint, RBAC-only | secrets `ConnectionStrings--db`, `ConnectionStrings--dbDirect`, `Keycloak--AdminClientSecret`, `Smtp--Password` (only when set), `keycloak-db-password`, `keycloak-bootstrap-admin-password`, `keycloak-deploy-client-secret`; Terraform's identity is `Key Vault Secrets Officer` (90 s wait for RBAC propagation on first apply), each app's system-assigned identity `Key Vault Secrets User` |
+| `birrapoint-<env>-kv` | Key Vault (standard, Azure RBAC, soft-delete 7 d, no purge protection) + Dapr component `secretstore` on the environment | public endpoint, RBAC-only | secrets `ConnectionStrings--db`, `ConnectionStrings--dbDirect`, `Keycloak--AdminClientSecret`, `Smtp--Password` (only when set), `keycloak-db-password`, `keycloak-bootstrap-admin-password`, `keycloak-deploy-client-secret`; `Key Vault Secrets Officer` for Terraform's identity + `key_vault_secrets_officer_principal_ids` (90 s wait for RBAC propagation on first apply), `Key Vault Secrets User` per secret for the app that uses it (120 s wait after those assignments); name overridable with `key_vault_name` (globally unique) |
 | `birrapoint-<env>-web` | `birrapoint-web` image: Node build → `nginxinc/nginx-unprivileged` (`frontend/Dockerfile`) | external | serves the PWA; `nginx/40-runtime-config.sh` writes `/config.json` from `KEYCLOAK_URL` (+ realm/client/`API_BASE_URL` defaults) at start; reverse-proxies `/api/` + `/hubs/` (WebSocket) to `API_UPSTREAM` (ADR-0017); security headers, `expires -1` on shell/ngsw files, 1-year cache on hashed assets |
 | `birrapoint-<env>-api` | `birrapoint-api` image: SDK → `aspnet:10.0`, non-root (`backend/src/BirraPoint.Api/Dockerfile`, context `backend/`) | **internal only** | exactly 1 replica (SignalR without backplane, single DispatchJob consumer); `ASPNETCORE_ENVIRONMENT=Production`; Dapr sidecar (app id = app name) + `Dapr__SecretStore=secretstore`: `ConnectionStrings:db` (Neon pooled endpoint), `ConnectionStrings:dbDirect` (direct endpoint, used only by startup migrations, `Database__MigrateOnStartup=true`), `Keycloak:AdminClientSecret`, `Smtp:Password` come from Key Vault; the non-secret Keycloak/SMTP/`Frontend__BaseUrl` settings are env vars |
-| `birrapoint-<env>-kc` | `birrapoint-keycloak` image: optimized `kc.sh build` (postgres, health, metrics) + login theme + production realm + Dapr secret loader (`infra/keycloak/Dockerfile`) | external | entrypoint `docker-entrypoint.sh` loads `DAPR_SECRETS` (`KC_DB_PASSWORD`, `KC_BOOTSTRAP_ADMIN_PASSWORD`, `API_ADMIN_CLIENT_SECRET`, `DEPLOY_CLIENT_SECRET`, `SMTP_PASSWORD`) from the Dapr sidecar (retrying up to 300 s), then `start --optimized --import-realm`; `KC_PROXY_HEADERS=xforwarded`, `KC_HOSTNAME` = public URL; startup/readiness/liveness probes on management port 9000; realm placeholders `${SPA_URL}`, `${API_ADMIN_CLIENT_SECRET}`, `${SMTP_*}` resolved from env at first import |
+| `birrapoint-<env>-kc` | `birrapoint-keycloak` image: optimized `kc.sh build` (postgres, health, metrics) + login theme + production realm + Dapr secret loader (`infra/keycloak/Dockerfile`) | external | entrypoint `docker-entrypoint.sh` loads `DAPR_SECRETS` (`KC_DB_PASSWORD`, `KC_BOOTSTRAP_ADMIN_PASSWORD`, `API_ADMIN_CLIENT_SECRET`, `DEPLOY_CLIENT_SECRET`, `SMTP_PASSWORD`) from the Dapr sidecar (retrying up to `DAPR_SECRETS_TIMEOUT_SECONDS` = 180 s), then `start --optimized --import-realm`; `KC_PROXY_HEADERS=xforwarded`, `KC_HOSTNAME` = public URL; startup/readiness/liveness probes on management port 9000; realm placeholders `${SPA_URL}`, `${API_ADMIN_CLIENT_SECRET}`, `${SMTP_*}` resolved from env at first import |
 | Neon project `birrapoint-<env>-neon` | `kislerdm/neon` provider, PG 16, branch `main` | — | databases `birrapoint` (role `birrapoint`) and `keycloak` (role `keycloak`) on one branch, so a PITR restores both consistently; history retention = `neon_history_retention_seconds` (default 21600 s = 6 h, the current free-plan cap) |
 
 Secrets never enter an image or the repo: Neon role passwords come from the provider, the Keycloak
@@ -466,7 +467,9 @@ previous `${env.SMTP_HOST}` form was never substituted by Keycloak and is fixed.
   configuration provider (`Dapr.Extensions.Configuration`) for exactly `ConnectionStrings--db`,
   `ConnectionStrings--dbDirect`, `Keycloak--AdminClientSecret` and the optional `Smtp--Password`,
   mapping `--` to `:` so they land under their usual configuration keys — no consumer changes. It
-  waits up to 60 s for the sidecar; a missing required secret fails startup. Without the setting
+  waits up to 60 s for the sidecar and retries store errors (`DaprException`, e.g. a 403 while a
+  new identity's role propagates) 15 times, 10 s apart (`LoadWithRetry`); after that a missing or
+  unreadable required secret fails startup. Without the setting
   (local AppHost, tests) nothing is added and plain settings apply.
 - **`BirraPoint.Api`**: `AddServiceDefaults()` + `MapDefaultEndpoints()`, plus (T009)
   `AddDbContext<AppDbContext>` wired to the `db` connection string and `Database.MigrateAsync()`

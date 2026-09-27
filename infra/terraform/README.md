@@ -31,7 +31,9 @@ Constitution v1.4.0, research R-17/R-18/R-19, ADR-0016/ADR-0017/ADR-0021, FR-043
   `-kc` Container Apps, `-neon` Neon project; the Terraform state lives in
   `birrapoint-<env>-tfstate-rg` / storage account `birrapoint<env>st<subscription>` / blob
   `birrapoint-<env>.tfstate`. The environment is 2-10 letters/digits (Key Vault names are limited
-  to 24 characters and globally unique, as are storage account names).
+  to 24 characters and globally unique, as are storage account names). If `birrapoint-<env>-kv`
+  is already taken in another subscription, set `key_vault_name` in `terraform.tfvars`;
+  `teardown.ps1` reads the real name from the state.
 
 - **Images** come from Docker Hub and are never built by the deployment: CI publishes
   `<namespace>/birrapoint-api|web|keycloak:latest` on every merge to `main`, the release pipeline
@@ -48,9 +50,9 @@ Constitution v1.4.0, research R-17/R-18/R-19, ADR-0016/ADR-0017/ADR-0021, FR-043
   deploy-client secret, SMTP password) live in **Key Vault** `birrapoint-<env>-kv` (and in
   Terraform's remote state, which writes them; the generated ones come from `random_password`).
   No app receives a secret as a setting (ADR-0021):
-  - every Container App has a **system-assigned managed identity** with the read-only
-    `Key Vault Secrets User` role on the vault (the web app has no secret today but the same
-    access);
+  - every Container App has a **system-assigned managed identity**, and each identity holds the
+    read-only `Key Vault Secrets User` role **per secret**: only on the secrets its app uses
+    (`app_secret_names` in `secrets.tf`). The web app has no secret, so it has no grant;
   - a **Dapr secret store component** (`secretstore`, type `secretstores.azure.keyvault`, scoped to
     the API and Keycloak) reads the vault with the calling app's identity;
   - the **API** loads `ConnectionStrings--db`, `ConnectionStrings--dbDirect`,
@@ -68,7 +70,7 @@ Constitution v1.4.0, research R-17/R-18/R-19, ADR-0016/ADR-0017/ADR-0021, FR-043
 
 | What | How |
 |---|---|
-| Azure subscription + CLI | `az login` as **Owner** (or Contributor + User Access Administrator) of the subscription: Terraform creates role assignments on the Key Vault |
+| Azure subscription + CLI | `az login` as **Owner** (or Contributor + User Access Administrator) of the subscription: Terraform creates role assignments on the Key Vault. More than one operator (or a CI identity)? Put an Entra group with all of them in `key_vault_secrets_officer_principal_ids`: only identities with Secrets Officer on the vault can refresh its secrets, so anyone else's plan/apply/destroy fails with 403 |
 | Terraform ≥ 1.9 | <https://developer.hashicorp.com/terraform/install> |
 | Docker Hub images | Published by GitHub Actions (`ci.yml` for `latest`, `release.yml` for `X.Y.Z`); no local Docker needed |
 | Neon account + API key | Neon console → Account settings → API keys; `$env:NEON_API_KEY = "..."` |
@@ -96,10 +98,13 @@ The script is idempotent. Each component's image is chosen independently: `-ApiV
 1. checks that every selected image exists on Docker Hub (fails before changing anything);
 2. creates the state storage (`birrapoint-<env>-tfstate-rg`) if missing and runs `terraform init` +
    `terraform apply` (with `environment` from `-Environment`, default `PROD`). On a first apply
-   Terraform waits ~90 s after granting itself `Key Vault Secrets Officer`, for the role to reach
-   the vault, before writing the secrets. The apps' own role assignments can only be created
-   once the apps (and so their identities) exist, so a brand-new app's first revision may fail to
-   read its secrets; step 3 replaces any revision that is not healthy;
+   Terraform waits ~90 s after granting `Key Vault Secrets Officer`, for the role to reach the
+   vault, before writing the secrets. The apps' own role assignments can only be created once the
+   apps (and so their identities) exist, so a brand-new app's first revision may start before it
+   can read its secrets. Terraform then waits another ~120 s for those roles to propagate. The
+   API retries refused reads for ~2.5 min and Keycloak's loader for 180 s, and step 3 replaces
+   any revision that is not healthy. A brand-new environment's first apply therefore takes
+   several minutes longer;
 3. rolls each Container App to its image with `az containerapp update` — Keycloak, then the API
    (which migrates the database on startup), then the web app — waiting for each new revision
    to become healthy before the next (the web app may scale to zero, so for it "provisioned with

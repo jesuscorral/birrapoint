@@ -6,8 +6,9 @@
 set -euo pipefail
 
 if [[ -n "${DAPR_SECRET_STORE:-}" ]]; then
-    # Fails the container (and so the revision) when a secret cannot be read in time.
-    secret_exports="$(java -Xmx32m -cp /opt/birrapoint/dapr-secrets DaprSecretsEnv)"
+    # Fails the container (and so the revision) when a secret cannot be read in time. Only the
+    # loader's own output may reach stdout (it is eval'd): JVM warnings go to stderr.
+    secret_exports="$(java -XX:+DisplayVMOutputToStderr -Xmx32m -cp /opt/birrapoint/dapr-secrets DaprSecretsEnv)"
     eval "$secret_exports"
     unset secret_exports
 fi

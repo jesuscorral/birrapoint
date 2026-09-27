@@ -7,7 +7,7 @@ locals {
     resource_group            = "${local.name_prefix}-rg"
     log_analytics_workspace   = "${local.name_prefix}-log"
     container_app_environment = "${local.name_prefix}-cae"
-    key_vault                 = "${local.name_prefix}-kv"
+    key_vault                 = coalesce(var.key_vault_name, "${local.name_prefix}-kv")
     api                       = "${local.name_prefix}-api"
     web                       = "${local.name_prefix}-web"
     keycloak                  = "${local.name_prefix}-kc"

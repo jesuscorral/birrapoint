@@ -2,8 +2,11 @@
 # web_image and keycloak_image are passed by infra/deploy.ps1 and do not belong here.
 # NEON_API_KEY is read from the environment by the Neon provider — never put it in this file.
 
-# environment = "PROD"   # resources are named birrapoint-<environment>-<acronym>; deploy.ps1
-#                        # passes its -Environment (default PROD), which wins over this file
+# The environment (resource names birrapoint-<environment>-<acronym>) is NOT set here: it comes
+# from deploy.ps1 / teardown.ps1 -Environment (default PROD), which also picks the state location.
+
+# key_vault_name = "birrapoint-prod-kv-x7"    # only if birrapoint-<env>-kv is taken (globally unique)
+# key_vault_secrets_officer_principal_ids = ["<entra-group-object-id>"]   # every operator identity
 
 # Private Docker Hub repositories only — leave both empty for public ones.
 # dockerhub_username = "myhubuser"

@@ -21,6 +21,23 @@ variable "environment" {
   }
 }
 
+variable "key_vault_name" {
+  description = "Overrides the Key Vault name (default birrapoint-<environment>-kv). Key Vault names are globally unique across Azure: set this only when the default is taken by another subscription."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.key_vault_name == null || can(regex("^[a-zA-Z][a-zA-Z0-9-]{1,22}[a-zA-Z0-9]$", var.key_vault_name))
+    error_message = "key_vault_name must be 3-24 letters, digits or hyphens, starting with a letter and not ending with a hyphen."
+  }
+}
+
+variable "key_vault_secrets_officer_principal_ids" {
+  description = "Object ids (ideally one Entra group) of every identity besides the current one that runs Terraform for this environment; they get Key Vault Secrets Officer on the vault so they can refresh and write its secrets."
+  type        = list(string)
+  default     = []
+}
+
 variable "dapr_secret_store_name" {
   description = "Name of the Dapr secret store component (Key Vault) the apps read their secrets from."
   type        = string

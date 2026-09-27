@@ -287,16 +287,14 @@ resource "azurerm_container_app" "keycloak" {
         value = azurerm_container_app_environment_dapr_component.secret_store.name
       }
       env {
-        name = "DAPR_SECRETS"
-        value = join(",", concat(
-          [
-            "KC_DB_PASSWORD=keycloak-db-password",
-            "KC_BOOTSTRAP_ADMIN_PASSWORD=keycloak-bootstrap-admin-password",
-            "API_ADMIN_CLIENT_SECRET=Keycloak--AdminClientSecret",
-            "DEPLOY_CLIENT_SECRET=keycloak-deploy-client-secret",
-          ],
-          local.has_smtp_password ? ["SMTP_PASSWORD=Smtp--Password"] : [],
-        ))
+        name  = "DAPR_SECRETS"
+        value = join(",", [for env, secret in local.keycloak_secret_env : "${env}=${secret}"])
+      }
+      # Below the startup probe's 300 s budget (10 s x 30), so a vault that stays unreadable fails
+      # the container cleanly instead of the probe killing Keycloak mid-boot.
+      env {
+        name  = "DAPR_SECRETS_TIMEOUT_SECONDS"
+        value = "180"
       }
     }
   }

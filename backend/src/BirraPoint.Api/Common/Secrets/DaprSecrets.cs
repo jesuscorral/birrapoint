@@ -1,3 +1,4 @@
+using Dapr;
 using Dapr.Client;
 using Dapr.Extensions.Configuration;
 using Dapr.Extensions.Configuration.DaprSecretStore;
@@ -35,6 +36,12 @@ public static class DaprSecrets
     // The sidecar starts alongside the app container; give it time before failing startup.
     private static readonly TimeSpan SidecarWaitTimeout = TimeSpan.FromSeconds(60);
 
+    // A brand-new app's identity gets its Key Vault role only after the app exists, so the first
+    // reads can be refused (403) until the assignment propagates. Worst case ~60 s sidecar wait +
+    // 14 x 10 s, inside Container Apps' default 240 s startup probe.
+    private const int LoadAttempts = 15;
+    private static readonly TimeSpan LoadRetryDelay = TimeSpan.FromSeconds(10);
+
     public static string? ResolveStore(IConfiguration configuration)
     {
         var store = configuration[SecretStoreKey];
@@ -53,9 +60,9 @@ public static class DaprSecrets
     }
 
     /// <summary>
-    /// Adds the Dapr secret store as the last (highest-precedence) configuration source when
-    /// <c>Dapr:SecretStore</c> is set. The sidecar address comes from the DAPR_HTTP_PORT /
-    /// DAPR_GRPC_PORT variables Container Apps injects.
+    /// Adds the Dapr secret store's values as the last (highest-precedence) configuration source
+    /// when <c>Dapr:SecretStore</c> is set. The sidecar address comes from the DAPR_HTTP_PORT /
+    /// DAPR_GRPC_PORT variables Container Apps injects. The secrets are read once, at startup.
     /// </summary>
     public static ConfigurationManager AddDaprSecrets(this ConfigurationManager configuration)
     {
@@ -65,9 +72,49 @@ public static class DaprSecrets
             return configuration;
         }
 
-        // Lives for the application's lifetime: the configuration provider keeps using it.
+        // Owned by the loaded configuration for the application's lifetime (never disposed: the
+        // provider keeps the reference, and the process ends with it).
         var client = new DaprClientBuilder().Build();
-        configuration.AddDaprSecretStore(source => Configure(source, store, client));
+        var secrets = LoadWithRetry(
+            () => new ConfigurationBuilder().AddDaprSecretStore(source => Configure(source, store, client)).Build(),
+            LoadAttempts,
+            LoadRetryDelay);
+        configuration.AddConfiguration(secrets);
         return configuration;
+    }
+
+    /// <summary>
+    /// Runs <paramref name="load"/> until it succeeds, retrying only errors raised by the Dapr
+    /// store (<see cref="DaprException"/>, possibly wrapped by the configuration provider); the
+    /// last error is rethrown after <paramref name="maxAttempts"/>. Messages name the secret, never
+    /// its value.
+    /// </summary>
+    public static IConfigurationRoot LoadWithRetry(Func<IConfigurationRoot> load, int maxAttempts, TimeSpan delay)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return load();
+            }
+            catch (Exception ex) when (attempt < maxAttempts && IsStoreError(ex))
+            {
+                Console.Error.WriteLine(
+                    $"Dapr secret store not readable yet (attempt {attempt}/{maxAttempts}): {ex.GetBaseException().Message}");
+                Thread.Sleep(delay);
+            }
+        }
+    }
+
+    private static bool IsStoreError(Exception ex)
+    {
+        for (Exception? current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is DaprException)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }

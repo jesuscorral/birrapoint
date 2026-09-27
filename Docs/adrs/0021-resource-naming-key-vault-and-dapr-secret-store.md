@@ -32,14 +32,23 @@ request of 2026-09-27:
    `deploy.yml`. Both scripts take `-Environment`, and `deploy.ps1` always passes it to Terraform,
    so names and state location cannot drift apart.
 2. **Key Vault holds every application secret.** Vault `birrapoint-<env>-kv` uses Azure RBAC, not
-   access policies. Terraform writes the secrets into it; the identity running Terraform is given
-   `Key Vault Secrets Officer`, and a `time_sleep` of 90 s lets that assignment reach the data
-   plane on a first apply. The vault has no purge protection and a 7-day soft-delete retention.
-   Its name is globally unique, so a destroy purges it (provider feature) and `teardown.ps1`
-   purges a vault left soft-deleted by a direct resource-group delete.
-3. **Every Container App has a system-assigned managed identity** with read-only
-   `Key Vault Secrets User` on the vault. The web app has no secret today, but it gets the same
-   access as requested, so it can adopt the store without an infrastructure change.
+   access policies. Terraform writes the secrets into it. `Key Vault Secrets Officer` goes to the
+   identity running Terraform and to `key_vault_secrets_officer_principal_ids` (ideally one Entra
+   group of every operator or CI identity). Without that list, only whoever applied last could
+   even refresh the secrets. A `time_sleep` of 90 s lets the assignment reach the data plane on a
+   first apply. The vault has no purge protection and a 7-day soft-delete retention. Its name is
+   globally unique across Azure, so `key_vault_name` can override `birrapoint-<env>-kv` when
+   another subscription already holds it. A destroy purges the vault (provider feature), and
+   `teardown.ps1` purges a vault left soft-deleted by a direct resource-group delete.
+3. **Every Container App has a system-assigned managed identity. Each identity can read only the
+   secrets its app uses:** `Key Vault Secrets User` is assigned per secret, not on the vault.
+   - Dapr component `scopes` decide which apps may use the component, not which secrets they get.
+     An identity can also call Key Vault directly, bypassing Dapr. A vault-wide grant would
+     therefore let Keycloak, which has external ingress, read the API's database credentials.
+   - The web app has an identity but no secret, so it gets no grant. This departs from the
+     original request ("all apps can read the vault") on least-privilege grounds (Principle VII),
+     after review (PR #57). Adopting the store later means adding its secrets to
+     `app_secret_names` in `secrets.tf`.
 4. **Apps read secrets through Dapr, never as settings.** A Dapr secret store component
    (`secretstore`, `secretstores.azure.keyvault`) on the Container Apps environment points at the
    vault. It has no client id, so the sidecar authenticates with the calling app's
@@ -55,7 +64,8 @@ request of 2026-09-27:
    - **Keycloak** is a third-party Java image, so no Dapr SDK can be used. The image's entrypoint
      (`infra/keycloak/dapr-secrets/docker-entrypoint.sh`) runs a small standard-library Java
      program. It reads the `ENV_VAR=secret-name` pairs in `DAPR_SECRETS` from the sidecar's
-     secrets API, retrying for up to 300 s, and prints shell-quoted `export` lines. The entrypoint
+     secrets API, retrying for up to `DAPR_SECRETS_TIMEOUT_SECONDS` (180 s in Azure, below the
+     300 s startup-probe budget), and prints shell-quoted `export` lines. The entrypoint
      evaluates them and `exec`s `kc.sh`. The program is compiled in a build stage, because the
      runtime image only has a JRE, and tested by `DaprSecretsEnv.test.sh` in `infra.yml`. Without
      `DAPR_SECRET_STORE` the image behaves exactly like stock Keycloak.
@@ -71,17 +81,30 @@ in place when a revision starts.
 
 ## Consequences
 
-- **Secrets leave the Container App definition.** Contributor on the resource group no longer
-  reveals them, which includes the `deploy.yml` identity. Reading them needs a Key Vault data-plane
-  role, and access is auditable in one place.
+- **Secrets leave the Container App definition.** They can no longer be read from the app's
+  template or through `listSecrets`, and direct reads need a Key Vault data-plane role, auditable
+  in one place. This is **not** a boundary against a resource-group Contributor, including the
+  `deploy.yml` identity:
+  - it can roll out any image, which then runs with the app's identity and its secrets;
+  - it can `az containerapp exec` into Keycloak, whose process environment holds the exported
+    secrets.
+
+  The deploy identity must therefore stay as trusted as before (a protected `production`
+  environment with required reviewers).
 - **Terraform needs more rights.** A full `deploy.ps1` run needs Owner, or Contributor plus User
   Access Administrator, because Terraform creates role assignments. The image-only pipeline
   (`-AppsOnly`) is unchanged: an image rollout keeps each app's identity and Dapr settings.
-- **First start of a new app can race RBAC.** An app's role assignment can only be created after
-  the app, so the first revision of a brand-new app may start before its identity can read the
-  vault. Keycloak's loader retries for 300 s. The API fails startup and is restarted, and the
-  rollout step of `deploy.ps1` replaces any revision that is not healthy. Existing apps are
-  unaffected.
+- **First start of a new app can race RBAC.** An app's role assignments can only be created after
+  the app, because they need its identity. The first revision of a brand-new app may therefore
+  start before it can read its secrets. Three things cover this:
+  - Terraform waits 120 s after the app assignments (`time_sleep.app_rbac_propagation`), so
+    `deploy.ps1`'s rollout, which comes after the apply, starts revisions whose roles have
+    propagated.
+  - The API retries refused reads (15 attempts, 10 s apart, inside the default 240 s startup
+    probe).
+  - Keycloak's loader retries for 180 s.
+
+  Existing apps are unaffected.
 - **Secrets are read once at startup.** A rotation reaches an app on its next revision or restart
   (as before, a rotated Keycloak admin-client secret must also be changed in the realm).
 - **New dependencies.** `Dapr.Extensions.Configuration` (plus `Dapr.Client` and gRPC, transitively)
