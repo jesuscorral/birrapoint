@@ -74,7 +74,8 @@ public sealed class ChangeCompetitionStateCommandHandler(
         await eventPublisher.PublishToOrganizersAsync(
             competition.Id,
             "CompetitionStateChanged",
-            new { competitionId = competition.Id, state = competition.State });
+            new { competitionId = competition.Id, state = competition.State },
+            cancellationToken);
 
         if (request.Target == CompetitionState.Finalized)
         {
