@@ -39,7 +39,7 @@ you; otherwise they belong to `qa-engineer`. Never touch `frontend/**` or `infra
 
 - **Microsoft Learn** (`microsoft_docs_search`/`fetch`, `microsoft_code_sample_search`): check .NET 10,
   ASP.NET Core, EF Core and Npgsql APIs instead of guessing from memory.
-- **postgres-local** (read-only, only while the Aspire stack runs): inspect the real schema, data
+- **postgres-local** (read-only use, only while the Aspire stack runs; `execute_sql` always prompts, never run DDL/DML): inspect the real schema, data
   and query plans. If it isn't connected, fall back to migrations and `data-model.md`.
 
 ## Checklist before reporting

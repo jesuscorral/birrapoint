@@ -36,7 +36,7 @@ CLAUDE.md (loaded for you) is binding. Acceptance bar: the story's scenario in
 ## Reference tools
 
 - **Context7**: Playwright, axe-core and xUnit/Testcontainers APIs for the pinned versions.
-- **postgres-local** (read-only, only while the Aspire stack runs): check the data an E2E left
+- **postgres-local** (read-only use, only while the Aspire stack runs; `execute_sql` always prompts, never run DDL/DML): check the data an E2E left
   behind or diagnose a failing scenario without `docker exec psql`.
 
 ## How to work efficiently

@@ -44,7 +44,10 @@
       "mcp__microsoft-learn",
       "mcp__terraform",
       "mcp__claude_ai_Context7",
-      "mcp__postgres-local"
+      "mcp__postgres-local__list_schemas",
+      "mcp__postgres-local__list_objects",
+      "mcp__postgres-local__get_object_details",
+      "mcp__postgres-local__explain_query"
     ],
     "deny": [
       "Bash(git push --force:*)",
