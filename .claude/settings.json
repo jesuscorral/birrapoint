@@ -9,10 +9,11 @@
       "Bash(dotnet run:*)",
       "Bash(dotnet format:*)",
       "Bash(dotnet ef migrations:*)",
+      "Bash(dotnet list:*)",
       "Bash(npm run:*)",
       "Bash(npm test:*)",
       "Bash(npm ci:*)",
-      "Bash(npm install:*)",
+      "Bash(npx jest:*)",
       "Bash(npx ng:*)",
       "Bash(npx playwright:*)",
       "Bash(npx prettier:*)",
@@ -20,10 +21,33 @@
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git fetch:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git checkout:*)",
-      "Bash(git branch:*)"
+      "Bash(git switch:*)",
+      "Bash(git branch:*)",
+      "Bash(git stash:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(codegraph:*)",
+      "Bash(terraform -chdir=infra/terraform fmt:*)",
+      "Bash(terraform -chdir=infra/terraform validate:*)",
+      "Bash(docker info:*)",
+      "Bash(docker ps:*)",
+      "mcp__codegraph__codegraph_explore",
+      "mcp__microsoft-learn",
+      "mcp__terraform",
+      "mcp__claude_ai_Context7",
+      "mcp__postgres-local__list_schemas",
+      "mcp__postgres-local__list_objects",
+      "mcp__postgres-local__get_object_details",
+      "mcp__postgres-local__explain_query"
     ],
     "deny": [
       "Bash(git push --force:*)",
@@ -31,15 +55,19 @@
       "Read(./.env)",
       "Read(./.env.*)",
       "Read(**/appsettings.Production.json)",
-      "Read(**/secrets.json)"
+      "Read(**/secrets.json)",
+      "Read(**/terraform.tfvars)",
+      "Read(**/*.tfstate)",
+      "Read(**/*.tfstate.backup)"
     ]
   },
+  "enabledMcpjsonServers": ["microsoft-learn", "terraform"],
   "hooks": {
     "PreToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "node .claude/hooks/guard.js" }
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.js\"", "timeout": 10 }
         ]
       }
     ],
@@ -47,14 +75,14 @@
       {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
-          { "type": "command", "command": "node .claude/hooks/post-edit.js", "timeout": 60 }
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-edit.js\"", "timeout": 30 }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "node .claude/hooks/stop-check.js", "timeout": 180 }
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-check.js\"", "timeout": 180 }
         ]
       }
     ]

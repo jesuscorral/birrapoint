@@ -19,7 +19,9 @@ worked when I tested it online."
 1. **No bypass.** Grep judge-facing frontend flows (`features/evaluation-sheet/`,
    `features/judge-tables/`) for direct `HttpClient`/`fetch` calls that write data without going
    through the offline sync layer in `core/offline/`. Any judge-facing write must go
-   draft → outbox → sync, never straight to the API.
+   draft → outbox → sync, never straight to the API. **Documented exceptions (don't flag):** the
+   discrepancy adjustment (`features/discrepancy/`, online-only by spec), fixing the tasting order
+   and closing a table (one-shot online actions with explicit `409` handling).
 2. **Draft debounce.** Confirm draft persistence to the Dexie `drafts` store happens ≤300 ms
    after each change (performance budget, Principle IX) and is debounced, not fired on every
    keystroke uncoordinated.
@@ -32,7 +34,9 @@ worked when I tested it online."
    by R-08).
 5. **Replay semantics.** Confirm a replayed submit that gets a `200` (idempotent replay,
    already-stored evaluation) is treated as success and removed from the outbox — not retried
-   forever, not treated as an error.
+   forever, not treated as an error. Expected handling in `SyncService`: `200/201` clear the row,
+   `400/409` surface to the judge, `404` means the judge was removed (purge that table's outbox and
+   drafts, eject), anything else stays queued with capped backoff; requests time out after 15 s.
 6. **IndexedDB is not truth.** Confirm the UI reconciles against server state after sync/reconnect
    rather than trusting the local Dexie copy indefinitely — especially after a `TableClosed` or
    `JudgeRemoved` SignalR event, which must reject/surface stale outbox items rather than

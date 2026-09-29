@@ -33,14 +33,28 @@ first, never silently into code.
      replies "Approved, proceed".
   3. TDD: tests first, verified failing, then code; build + test both stacks locally.
   4. Semantic commit, push, PR to `main` via `gh`.
-  5. Run `senior-code-reviewer` on the PR diff; post findings as an informational PR comment
-     (never approve/request changes — a human merges).
-  6. Docs in the same change: ADR in `Docs/adrs/NNNN-kebab-title.md` (per `template.md`) for
-     significant decisions; update `Docs/arquitectura_viva.md`. All docs in English.
-- Delegate implementation to subagents: `backend-engineer` (backend src + unit tests),
-  `frontend-engineer` (`frontend/src/app` + Jest), `qa-engineer` (integration/contract tests,
-  `frontend/e2e`, `infra/perf`). Orchestration (branch/tollgate/PR) stays in the main session.
-- CodeGraph (`.codegraph/`, local-only): use `codegraph_explore` before grep/read.
+  5. `/review-pr <n>`: runs `senior-code-reviewer` and posts its findings as an informational PR
+     comment (never approve/request changes — a human merges).
+  6. Docs in the same change (`docs-keeper` agent): ADR in `Docs/adrs/NNNN-kebab-title.md` (per
+     `template.md`) for significant decisions; update `Docs/arquitectura_viva.md`. All docs in
+     English.
+- Delegate work to subagents (`.claude/agents/`); orchestration (branch/tollgate/PR) stays in
+  the main session:
+
+  | Agent | Owns |
+  |---|---|
+  | `backend-engineer` | `backend/src/**` + unit tests |
+  | `frontend-engineer` | `frontend/src/**` + Jest, visual check in Chrome |
+  | `qa-engineer` | integration/contract tests, `frontend/e2e`, `infra/perf` |
+  | `infra-engineer` | `infra/**`, `.github/**`, Dockerfiles (never applies to Azure) |
+  | `docs-keeper` | step 6: living doc, ADRs, doc drift |
+  | `senior-code-reviewer` | step 5 review (read-only) |
+
+- Commands: `/review-pr <n>`, `/review-and-commit`, `/fix-tests [backend|frontend]`,
+  `/offline-audit`. Hooks (`.claude/hooks/`): `guard.js` blocks destructive/cloud commands,
+  `post-edit.js` formats edited files, `stop-check.js` builds/lints/type-checks changed stacks.
+- CodeGraph (`.codegraph/`, local-only): call `codegraph_explore` when you need to locate code or
+  see callers, before grep/read loops.
 
 ## Commands
 
