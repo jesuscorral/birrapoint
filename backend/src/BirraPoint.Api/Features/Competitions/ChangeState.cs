@@ -69,20 +69,23 @@ public sealed class ChangeCompetitionStateCommandHandler(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        // Everything below runs after the commit, so it must not observe the request token: an
+        // aborted request would otherwise leave a Finalized competition with no dispatch job.
+        if (request.Target == CompetitionState.Finalized)
+        {
+            // FR-036's actual trigger: background PDF/ZIP/email dispatch starts once the
+            // competition is Finalized. Enqueued before the emit so a failed send cannot skip it.
+            await dispatchJobQueue.EnqueueAsync(
+                competition.Id, DispatchJobType.GeneratePdfs, new { }, CancellationToken.None);
+        }
+
         // Emitted only after the transaction above commits (contracts/signalr-hub.md §Delivery
         // semantics) — never before, to avoid phantom events from a rolled-back change.
         await eventPublisher.PublishToOrganizersAsync(
             competition.Id,
             "CompetitionStateChanged",
             new { competitionId = competition.Id, state = competition.State },
-            cancellationToken);
-
-        if (request.Target == CompetitionState.Finalized)
-        {
-            // FR-036's actual trigger: background PDF/ZIP/email dispatch starts once the
-            // competition is Finalized, same after-commit timing as the event above.
-            await dispatchJobQueue.EnqueueAsync(competition.Id, DispatchJobType.GeneratePdfs, new { }, cancellationToken);
-        }
+            CancellationToken.None);
 
         return new ChangeCompetitionStateResult(competition.State);
     }
