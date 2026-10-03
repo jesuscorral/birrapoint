@@ -55,7 +55,7 @@ jobs:
       - name: Resolve versions
         id: versions
         env:
-          VERSION: ${{ needs.resolve.outputs.release }}
+          VERSION: ${{ inputs.version }}
           API_VERSION: ${{ inputs.api_version }}
           WEB_VERSION: ${{ inputs.web_version }}
           KEYCLOAK_VERSION: ${{ inputs.keycloak_version }}
@@ -134,7 +134,7 @@ jobs:
     env:
       # Resources are named birrapoint-<environment>-<acronym> (ADR-0021); PROD unless overridden.
       BIRRAPOINT_ENVIRONMENT: ${{ vars.BIRRAPOINT_ENVIRONMENT || 'PROD' }}
-      VERSION: ${{ inputs.version }}
+      VERSION: ${{ needs.resolve.outputs.release }}
       API_VERSION: ${{ needs.resolve.outputs.api }}
       WEB_VERSION: ${{ needs.resolve.outputs.web }}
       KEYCLOAK_VERSION: ${{ needs.resolve.outputs.keycloak }}

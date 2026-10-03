@@ -109,7 +109,9 @@ function Get-DestroyArgument {
     }
     $arguments += @(
         "-var=environment=$Environment",
-        '-var=image_namespace=unused'
+        '-var=image_namespace=unused',
+        # Required with no default (ADR-0022); meaningless for a destroy.
+        '-var=release_version=latest'
     )
     if ($Location) {
         $arguments += "-var=location=$Location"

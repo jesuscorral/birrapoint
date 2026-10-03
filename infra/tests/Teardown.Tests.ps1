@@ -120,6 +120,12 @@ Describe 'Get-DestroyArgument' {
         }
     }
 
+    It 'passes a placeholder for the mandatory release version, which has no default' {
+        $arguments = Get-DestroyArgument @common -VarFile 'x.tfvars'
+
+        ($arguments | Where-Object { $_ -eq '-var=release_version=latest' }).Count | Should -Be 1
+    }
+
     It 'uses the var file when there is one' {
         $arguments = Get-DestroyArgument @common -VarFile 'C:/repo/infra/terraform/terraform.tfvars'
 
