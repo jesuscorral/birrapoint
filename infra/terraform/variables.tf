@@ -131,9 +131,9 @@ variable "neon_region" {
 }
 
 variable "neon_org_id" {
-  description = "Neon organization id to create the project in. Null uses the API key's default."
+  description = "Neon organization id to create the project in (an account identifier: never committed). Null or empty uses the API key's default organization; set TF_VAR_neon_org_id when the key spans several organizations."
   type        = string
-  default     = "org-plain-cloud-73738163"
+  default     = null
 }
 
 variable "neon_history_retention_seconds" {

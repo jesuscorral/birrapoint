@@ -71,7 +71,7 @@ Constitution v1.4.0, research R-17/R-18/R-19, ADR-0016/ADR-0017/ADR-0021/ADR-002
 | Terraform ≥ 1.9 | <https://developer.hashicorp.com/terraform/install> |
 | HCP Terraform workspace | One workspace per environment, **execution mode Local** (HCP only stores the state). `export TF_CLOUD_ORGANIZATION=<org> TF_WORKSPACE=<workspace>`, then `terraform login` (or `TF_TOKEN_app_terraform_io`) |
 | Docker Hub images | Published by GitHub Actions (`ci.yml` for `latest`, `release.yml` for `X.Y.Z`); no local Docker needed |
-| Neon account + API key | Neon console → Account settings → API keys; `export NEON_API_KEY=...` |
+| Neon account + API key | Neon console → Account settings → API keys; `export NEON_API_KEY=...`. If the key spans several Neon organizations also `export TF_VAR_neon_org_id=org-...` (an account identifier, deliberately not committed; unset = the key's default organization) |
 | SMTP relay | Any provider with SMTP credentials and a verified sender address |
 | Environment file | `infra/terraform/environments/<env>.tfvars` is committed and holds every non-secret input (shared with `deploy.yml`): set `image_namespace` and the `smtp_*` placeholders before the first deploy |
 | Secrets file | `cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars` (gitignored): `smtp_password`, optionally `dockerhub_*`; or `TF_VAR_*` environment variables |

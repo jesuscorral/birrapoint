@@ -125,8 +125,16 @@ if (-not $account) { throw 'Not logged in to Azure. Run `az login` first.' }
 # terraform init is read-only for the infrastructure, so it also runs under -WhatIf: the guard
 # below needs the workspace state before anything is shown or confirmed.
 Invoke-Native 'terraform init' { terraform -chdir="$terraformDir" init -input=false }
-$stateEnvironment = ((Invoke-Probe { terraform -chdir="$terraformDir" output -raw environment }) -join '').Trim()
-if ($LASTEXITCODE -ne 0) { $stateEnvironment = '' }
+$stateList = @(Invoke-Probe { terraform -chdir="$terraformDir" state list })
+$stateListExit = $LASTEXITCODE
+$stateOutput = ''
+$outputExit = 0
+if ($stateListExit -eq 0 -and @($stateList | Where-Object { $_ }).Count -gt 0) {
+    $stateOutput = (Invoke-Probe { terraform -chdir="$terraformDir" output -raw environment }) -join ''
+    $outputExit = $LASTEXITCODE
+}
+$stateEnvironment = Resolve-StateEnvironment -StateListExitCode $stateListExit -StateList $stateList `
+    -OutputExitCode $outputExit -Output $stateOutput
 $workspaceLabel = if ($env:TF_WORKSPACE) { $env:TF_WORKSPACE } else { '(default)' }
 Write-Host ("HCP workspace {0} holds environment {1}" -f $workspaceLabel, $(if ($stateEnvironment) { $stateEnvironment } else { '(empty state)' }))
 if (-not (Test-StateEnvironment -Expected $environmentName -StateEnvironment $stateEnvironment)) {

@@ -37,11 +37,16 @@ state. The environment is disposable, so none of that continuity is needed.
 8. **`release_version` is required** (no default); `latest` is accepted only when passed explicitly.
 9. **Environment/workspace guard**: `deploy.yml` and `teardown.ps1` read
    `terraform output -raw environment` after `init` and refuse to continue when the HCP workspace
-   holds a different environment (empty state allowed).
+   holds a different environment. Only a successful, empty `terraform state list` counts as an
+   empty state (first deploy); any error reading the state, or a non-empty state without a readable
+   `environment` output, aborts.
 10. **CI revision health gate**: after the apply, `deploy.yml` runs
     `.github/scripts/wait-revisions.sh` (up to 10 min): latest revision ready, not Failed, Degraded
     tolerated briefly, Healthy (or scaled to zero with `minReplicas` 0). Local applies have no such
-    gate.
+    gate. Three consecutive `az` errors for an app fail the gate immediately.
+11. **Account identifiers are not committed**: `neon_org_id` defaults to null (the API key's default
+    organization); set `TF_VAR_neon_org_id` locally or the `NEON_ORG_ID` GitHub variable (empty is
+    treated as null).
 
 ## Consequences
 

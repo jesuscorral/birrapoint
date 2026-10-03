@@ -57,6 +57,29 @@ function Test-StateEnvironment {
     $StateEnvironment.Trim().ToLowerInvariant() -ceq $Expected.Trim().ToLowerInvariant()
 }
 
+function Resolve-StateEnvironment {
+    # Decides what the HCP workspace holds from the results of `terraform state list` and
+    # `terraform output -raw environment`. Returns the environment, or '' for an empty state
+    # (nothing deployed yet). Any error reading a non-empty state throws: an unreadable state must
+    # never be mistaken for an empty one.
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)] [int] $StateListExitCode,
+        [AllowNull()] [AllowEmptyCollection()] [AllowEmptyString()] [string[]] $StateList,
+        [Parameter(Mandatory = $true)] [int] $OutputExitCode,
+        [AllowNull()] [AllowEmptyString()] [string] $Output
+    )
+    if ($StateListExitCode -ne 0) {
+        throw "Error reading the Terraform state (terraform state list exit code $StateListExitCode); nothing was changed."
+    }
+    $resources = @($StateList | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($resources.Count -eq 0) { return '' }
+    if ($OutputExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($Output)) {
+        throw 'The Terraform state has resources but no readable environment output; refusing to guess which environment it holds. Nothing was changed.'
+    }
+    $Output.Trim()
+}
+
 function Get-EnvironmentVarFile {
     # The committed, non-secret inputs of an environment, shared with deploy.yml (ADR-0022).
     [CmdletBinding()]
@@ -124,4 +147,4 @@ function Get-DestroyArgument {
 
 Export-ModuleMember -Function Test-TeardownConfirmation, ConvertTo-EnvironmentName, Get-TeardownResourceName,
     Select-NeonProjectToDelete, Resolve-NeonProjectTarget, Get-DestroyArgument,
-    Test-StateEnvironment, Get-EnvironmentVarFile
+    Test-StateEnvironment, Resolve-StateEnvironment, Get-EnvironmentVarFile

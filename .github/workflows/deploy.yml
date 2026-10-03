@@ -151,6 +151,9 @@ jobs:
       TF_IN_AUTOMATION: 'true'
       # Secret Terraform inputs only: every non-secret one comes from the committed
       # environments/<environment>.tfvars, shared with local applies (ADR-0022).
+      # Optional: only when the Neon API key spans several organizations. Empty means the key's
+      # default organization (main.tf turns "" into null).
+      TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID }}
       TF_VAR_smtp_password: ${{ secrets.SMTP_PASSWORD }}
       # Optional read-only token so the apps can pull private repositories; this job never gets
       # the read/write token CI and releases push with.
@@ -179,8 +182,19 @@ jobs:
       - name: Check the workspace environment
         run: |
           expected="${BIRRAPOINT_ENVIRONMENT,,}"
-          actual="$(terraform -chdir=infra/terraform output -raw environment 2>/dev/null || true)"
-          actual="${actual,,}"
+          # An unreadable state aborts: only a successful, empty `state list` means a first deploy.
+          if ! resources="$(terraform -chdir=infra/terraform state list)"; then
+            echo "::error::Could not read the state of HCP workspace $TF_WORKSPACE."
+            exit 1
+          fi
+          actual=""
+          if [ -n "$resources" ]; then
+            if ! actual="$(terraform -chdir=infra/terraform output -raw environment)" || [ -z "${actual// /}" ]; then
+              echo "::error::HCP workspace $TF_WORKSPACE has resources but no readable environment output."
+              exit 1
+            fi
+            actual="${actual,,}"
+          fi
           if [ -z "$actual" ]; then
             echo "HCP workspace $TF_WORKSPACE has no deployed environment yet (first deploy)."
           elif [ "$actual" != "$expected" ]; then

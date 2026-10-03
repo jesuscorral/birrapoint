@@ -189,3 +189,27 @@ Describe 'Get-EnvironmentVarFile' {
         $file | Should -Be (Join-Path 'C:/repo/infra/terraform' 'environments/prod.tfvars')
     }
 }
+
+Describe 'Resolve-StateEnvironment' {
+    It 'aborts when the state cannot be listed' {
+        { Resolve-StateEnvironment -StateListExitCode 1 -StateList @() -OutputExitCode 0 -Output 'prod' } | Should -Throw '*reading*state*'
+    }
+
+    It 'treats a successful, empty state list as nothing deployed' -ForEach @(
+        @{ list = @() }, @{ list = @('') }, @{ list = $null }
+    ) {
+        Resolve-StateEnvironment -StateListExitCode 0 -StateList $list -OutputExitCode 1 -Output '' | Should -Be ''
+    }
+
+    It 'returns the environment output of a non-empty state, trimmed' {
+        Resolve-StateEnvironment -StateListExitCode 0 -StateList @('azurerm_resource_group.main') -OutputExitCode 0 -Output " PROD`n" | Should -Be 'PROD'
+    }
+
+    It 'aborts when a non-empty state has no readable environment output' {
+        { Resolve-StateEnvironment -StateListExitCode 0 -StateList @('a.b') -OutputExitCode 1 -Output '' } | Should -Throw '*environment*'
+    }
+
+    It 'aborts when a non-empty state has an empty environment output' {
+        { Resolve-StateEnvironment -StateListExitCode 0 -StateList @('a.b') -OutputExitCode 0 -Output '  ' } | Should -Throw '*environment*'
+    }
+}

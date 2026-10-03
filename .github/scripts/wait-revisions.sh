@@ -14,6 +14,7 @@ timeout="${TIMEOUT_SECONDS:-600}"
 interval="${INTERVAL_SECONDS:-10}"
 grace="${DEGRADED_GRACE_SECONDS:-60}"
 sleeper="${SLEEP_COMMAND:-sleep}"
+max_az_errors=3
 
 if [ "$#" -lt 2 ]; then
   echo "usage: $0 <resource-group> <container-app>..." >&2
@@ -27,7 +28,7 @@ check_app() {
   local app="$1" degraded_for="$2" show latest ready min detail state health replicas
   if ! show="$(az containerapp show --name "$app" --resource-group "$group" --output tsv \
     --query '[properties.latestRevisionName, properties.latestReadyRevisionName, properties.template.scale.minReplicas]' 2>&1)"; then
-    echo "pending: could not read the app (${show//$'\n'/ })"
+    echo "azerror: could not read the app: (${show//$'\n'/ })"
     return
   fi
   latest="$(echo "$show" | sed -n 1p)"
@@ -43,7 +44,7 @@ check_app() {
   fi
   if ! detail="$(az containerapp revision show --name "$app" --resource-group "$group" --revision "$latest" --output tsv \
     --query '[properties.runningState, properties.healthState, properties.replicas]' 2>&1)"; then
-    echo "pending: could not read revision $latest (${detail//$'\n'/ })"
+    echo "azerror: could not read revision $latest: (${detail//$'\n'/ })"
     return
   fi
   state="$(echo "$detail" | sed -n 1p)"
@@ -74,8 +75,8 @@ check_app() {
   echo "pending: revision $latest runningState ${state:-unknown}, healthState ${health:-unknown}"
 }
 
-declare -A done_apps degraded_secs last_reason
-for app in "$@"; do degraded_secs[$app]=0; done
+declare -A done_apps degraded_secs last_reason az_errors
+for app in "$@"; do degraded_secs[$app]=0; az_errors[$app]=0; done
 
 elapsed=0
 while true; do
@@ -83,6 +84,22 @@ while true; do
   for app in "$@"; do
     [ -n "${done_apps[$app]:-}" ] && continue
     result="$(check_app "$app" "${degraded_secs[$app]}")"
+    case "$result" in
+      azerror:*)
+        # A flaky az call is retried, but repeated errors are a real problem (auth, wrong names):
+        # fail fast with the az error instead of waiting out the timeout.
+        az_errors[$app]=$((az_errors[$app] + 1))
+        if [ "${az_errors[$app]}" -ge "$max_az_errors" ]; then
+          echo "::error::$app: ${result#azerror: } (${max_az_errors} consecutive az errors)" >&2
+          echo "$app: ${result#azerror: } (${max_az_errors} consecutive az errors)" >&2
+          exit 1
+        fi
+        remaining=$((remaining + 1))
+        last_reason[$app]="${result#azerror: }"
+        continue
+        ;;
+    esac
+    az_errors[$app]=0
     case "$result" in
       ok)
         done_apps[$app]=1

@@ -174,3 +174,29 @@ run "placeholder_image_namespace_is_rejected" {
 
   expect_failures = [var.image_namespace]
 }
+
+run "empty_neon_org_id_means_the_api_key_default" {
+  command = plan
+
+  variables {
+    neon_org_id = ""
+  }
+
+  assert {
+    condition     = local.neon_org_id == null
+    error_message = "TF_VAR_neon_org_id empty must become null (the API key's default organization)"
+  }
+}
+
+run "neon_org_id_is_used_when_set" {
+  command = plan
+
+  variables {
+    neon_org_id = "org-test-1"
+  }
+
+  assert {
+    condition     = local.neon_org_id == "org-test-1"
+    error_message = "a set neon_org_id must be passed to the project"
+  }
+}

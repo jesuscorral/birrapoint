@@ -21,6 +21,10 @@ counter="$STUB_DIR/.count.$app.$kind"
 n=$(( $(cat "$counter" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$counter"
 file="$STUB_DIR/$app.$kind.$n"
 [ -f "$file" ] || file="$(ls "$STUB_DIR/$app.$kind."* | sort -V | tail -n 1)"
+if head -n 1 "$file" | grep -q '^__ERROR__'; then
+  echo "az: simulated failure" >&2
+  exit 1
+fi
 cat "$file"
 STUB
 chmod +x "$work/bin/az"
@@ -84,5 +88,22 @@ new zero-but-min1; healthy_all
 show web 1 web--r1 web--r1 1; rev web 1 Running None 0
 out="$(run kc api web)"; code=$?
 [ "$code" -ne 0 ] && pass "rejects 0 replicas when minReplicas is 1" || fail "zero-but-min1: exit $code: $out"
+
+err() { echo "__ERROR__" > "$STUB_DIR/$1.$2.$3"; }
+
+new az-errors; healthy_all
+err api show 1; err api show 2; err api show 3; show api 4 api--r1 api--r1 1
+out="$(run kc api web)"; code=$?
+{ [ "$code" -ne 0 ] && echo "$out" | grep -q "simulated failure"; } && pass "fails fast after 3 consecutive az errors" || fail "az-errors: exit $code: $out"
+
+new az-errors-revision; healthy_all
+err kc revision 1; err kc revision 2; err kc revision 3; rev kc 4 Running Healthy 1
+out="$(run kc api web)"; code=$?
+[ "$code" -ne 0 ] && pass "counts az errors of the revision call too" || fail "az-errors-revision: exit $code: $out"
+
+new az-blip; healthy_all
+err api show 1; err api show 2; show api 3 api--r1 api--r1 1
+out="$(run kc api web)"; code=$?
+[ "$code" -eq 0 ] && pass "tolerates two az errors followed by success" || fail "az-blip: exit $code: $out"
 
 [ "$failures" -eq 0 ] && echo "all tests passed" || { echo "$failures test(s) failed"; exit 1; }

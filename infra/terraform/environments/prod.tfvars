@@ -21,8 +21,9 @@ smtp_from_address = "no-reply@example.com"
 web_min_replicas = 1
 
 neon_region                    = "aws-eu-central-1"
-neon_org_id                    = "org-plain-cloud-73738163"
 neon_history_retention_seconds = 21600
+# Neon organization: an account identifier, not committed. Only needed when the API key spans
+# several organizations: export TF_VAR_neon_org_id=org-... locally, or set the NEON_ORG_ID GitHub variable.
 
 key_vault_secrets_officer_principal_ids = []
 # key_vault_name = "birrapoint-prod-kv-x7"   # only if birrapoint-prod-kv is taken (globally unique)
