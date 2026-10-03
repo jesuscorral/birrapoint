@@ -52,18 +52,22 @@ One-time prerequisites: Azure CLI logged in as Owner (or Contributor + User Acce
 Terraform ≥ 1.9, a Neon API key, SMTP credentials and `infra/terraform/terraform.tfvars` (copy
 `terraform.tfvars.example`). Images are built by CI; no local Docker is needed.
 
-```powershell
-$env:NEON_API_KEY = "<key>"
-./infra/deploy.ps1 -ImageNamespace <dockerhub-namespace>            # infrastructure + latest images
-./infra/deploy.ps1 -ImageNamespace <ns> -ApiVersion 1.2.3 -WebVersion 1.2.3 -KeycloakVersion 1.2.3
-./infra/teardown.ps1                                                 # remove Azure resources, keep data
+Deployment is Terraform only (ADR-0022); state is in HCP Terraform (workspace in Local execution
+mode: `TF_CLOUD_ORGANIZATION`, `TF_WORKSPACE`, `terraform login`).
+
+```bash
+export NEON_API_KEY=<key>
+terraform -chdir=infra/terraform init
+terraform -chdir=infra/terraform apply -var image_namespace=<dockerhub-namespace>                    # latest images
+terraform -chdir=infra/terraform apply -var image_namespace=<ns> -var release_version=1.2.3          # release images
+./infra/teardown.ps1 [-WhatIf]                                       # removes everything, data included
 ```
 
-Releases and production rollouts run from GitHub Actions:
+Releases and production deployments run from GitHub Actions:
 
 ```bash
 gh workflow run release.yml -f ref=main -f bump=patch   # publish version.txt's X.Y.Z
-gh workflow run deploy.yml -f version=X.Y.Z             # roll production to it (approval required)
+gh workflow run deploy.yml -f version=X.Y.Z             # apply it to production (approval required)
 ```
 
 Details: [`infra/terraform/README.md`](./infra/terraform/README.md) and

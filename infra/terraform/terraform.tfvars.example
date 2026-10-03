@@ -1,14 +1,28 @@
-# Copy to terraform.tfvars (gitignored) and fill in. subscription_id, location, api_image,
-# web_image and keycloak_image are passed by infra/deploy.ps1 and do not belong here.
-# NEON_API_KEY is read from the environment by the Neon provider — never put it in this file.
+# Copy to terraform.tfvars (gitignored) and fill in. Nothing account-specific or secret is
+# committed; where each value comes from:
+#   - state:        HCP Terraform, workspace in Local execution mode - TF_CLOUD_ORGANIZATION and
+#                   TF_WORKSPACE environment variables, `terraform login` or TF_TOKEN_app_terraform_io
+#   - subscription: ARM_SUBSCRIPTION_ID environment variable (or the `az login` default)
+#   - Neon:         NEON_API_KEY environment variable - never put it in this file
+#   - images:       image_namespace below, versions on the command line (-var release_version=1.2.3)
 
-# The environment (resource names birrapoint-<environment>-<acronym>) is NOT set here: it comes
-# from deploy.ps1 / teardown.ps1 -Environment (default PROD), which also picks the state location.
+# Docker Hub user/org that owns the birrapoint-* repositories (required).
+image_namespace = "myhubuser"
+
+# "latest" (CI images, birrapoint-<c>:latest) or a release X.Y.Z (birrapoint-<c>-release:X.Y.Z).
+# release_version = "latest"
+# api_version      = "1.2.3"   # per-component overrides; default to release_version
+# web_version      = "1.2.3"
+# keycloak_version = "1.2.3"
+
+# Resource names are birrapoint-<environment>-<acronym>; the deploy workflow passes
+# BIRRAPOINT_ENVIRONMENT as TF_VAR_environment.
+# environment = "PROD"
 
 # key_vault_name = "birrapoint-prod-kv-x7"    # only if birrapoint-<env>-kv is taken (globally unique)
 # key_vault_secrets_officer_principal_ids = ["<entra-group-object-id>"]   # every operator identity
 
-# Private Docker Hub repositories only — leave both empty for public ones.
+# Private Docker Hub repositories only - leave both empty for public ones.
 # dockerhub_username = "myhubuser"
 # dockerhub_token    = "dckr_pat_..."   # read-only access token
 

@@ -44,19 +44,19 @@ direct endpoint for migrations; ADR-0021). The PWA reads `/config.json` at start
 
 ## Cloud deployment (SC-011)
 
-```powershell
-# One-time: az login; copy infra/terraform/terraform.tfvars.example → terraform.tfvars.
+```bash
+# One-time: az login; terraform login; copy infra/terraform/terraform.tfvars.example → terraform.tfvars.
+# State: HCP Terraform workspace in Local execution mode (ADR-0022).
 # Images are published to Docker Hub by GitHub Actions (ci.yml: latest; release.yml: X.Y.Z).
-$env:NEON_API_KEY = "<neon api key>"
-./infra/deploy.ps1 -ImageNamespace <dockerhub-user-or-org> [-AutoApprove] `
-    [-ApiVersion X.Y.Z] [-WebVersion X.Y.Z] [-KeycloakVersion X.Y.Z]
-# Idempotent: checks the selected images exist on Docker Hub (omitted version = latest), creates
-# the Terraform state storage if missing, terraform init + apply (ACA environment, the three
-# Container Apps — web public, API internal-only, Keycloak public — and the Neon project with
-# databases `birrapoint` + `keycloak`), then rolls each app to its image (keycloak → api → web,
-# waiting for healthy revisions). Prints web_url / keycloak_url.
-# Later version deploys without touching infrastructure (ADR-0018):
-./infra/deploy.ps1 -ImageNamespace <ns> -AppsOnly -ApiVersion X.Y.Z -WebVersion X.Y.Z -KeycloakVersion X.Y.Z
+export TF_CLOUD_ORGANIZATION=<org> TF_WORKSPACE=<workspace> NEON_API_KEY=<neon api key>
+terraform -chdir=infra/terraform init
+terraform -chdir=infra/terraform apply -var image_namespace=<dockerhub-user-or-org> \
+    [-var release_version=X.Y.Z] [-var api_version=X.Y.Z] [-var web_version=X.Y.Z] [-var keycloak_version=X.Y.Z]
+# Creates the ACA environment, the three Container Apps (web public, API internal-only, Keycloak
+# public) and the Neon project with databases `birrapoint` + `keycloak`. Prints web_url /
+# keycloak_url. Omitted version = latest; `latest` does not re-pull on an existing environment, so
+# later deployments use release versions (the same apply with new versions, or deploy.yml).
+./infra/teardown.ps1 [-WhatIf]   # removes everything, data included
 ```
 
 Restore: Neon point-in-time recovery, procedure in `infra/terraform/README.md` (FR-047).

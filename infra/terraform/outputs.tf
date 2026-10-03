@@ -29,7 +29,7 @@ output "key_vault_name" {
 }
 
 output "container_app_names" {
-  description = "Container App name per component; infra/deploy.ps1 rolls the images out to these."
+  description = "Container App name per component; used by the deploy workflow summary."
   value = {
     api      = azurerm_container_app.api.name
     web      = azurerm_container_app.web.name
@@ -40,12 +40,6 @@ output "container_app_names" {
 output "neon_project_id" {
   description = "Neon project id (point-in-time restore is done against this project — see README)."
   value       = neon_project.main.id
-}
-
-output "keycloak_deploy_client_secret" {
-  description = "Secret of the birrapoint-deploy service-account client that infra/deploy.ps1 uses to keep birrapoint-spa's URLs in step with the web app."
-  value       = random_password.deploy_client_secret.result
-  sensitive   = true
 }
 
 output "keycloak_admin_password" {
