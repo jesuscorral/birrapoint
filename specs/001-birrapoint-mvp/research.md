@@ -188,10 +188,10 @@ Alternatives considered.
 ## R-17: Deployment — Terraform to Azure Container Apps *(added 2026-07-07, superseded 2026-09-23)*
 
 - **Decision**: `infra/terraform/` provisions the ACA environment and container apps for
-  frontend (public ingress), backend, and Keycloak. A build/push step (CI, or `docker push`,
-  wrapped by `infra/deploy.ps1`) publishes images to Docker Hub ahead of `terraform apply` — no
-  registry is provisioned (user decision 2026-09-24, constitution v1.3.1) — since Terraform — unlike `azd up` — does not
-  build images itself. Remote state lives in Azure Storage (FR-045/046).
+  frontend (public ingress), backend, and Keycloak. A build/push step (CI) publishes images to
+  Docker Hub ahead of `terraform apply` — no registry is provisioned (user decision 2026-09-24,
+  constitution v1.3.1) — since Terraform — unlike `azd up` — does not build images itself. Remote
+  state lives in HCP Terraform with the workspace in Local execution mode (FR-045/046, ADR-0022).
 - **Rationale**: Constitution v1.3.0 fixes the target (user decision 2026-09-23, superseding the
   original Bicep/azd choice below) — Terraform's broader provider ecosystem lets the same tool
   also provision the Neon database (R-18), rather than splitting IaC across two tools.
@@ -203,9 +203,9 @@ Alternatives considered.
   publication and deployment move to three GitHub Actions pipelines — integration (`ci.yml`:
   gates, then `latest` images on `main`), release (`release.yml`: immutable semver images in
   separate `*-release` Docker Hub repositories, version read from `version.txt`), and deploy
-  (`deploy.yml`: approval-gated, runs `infra/deploy.ps1 -SkipBuild` for a released version via
-  Azure OIDC). `infra/deploy.ps1` stays the single deploy entry point, from a workstation or
-  from CI. Full rationale lands in the T137 ADR.
+  (`deploy.yml`: approval-gated, runs `terraform init` + `apply` for a released version via
+  Azure OIDC). `terraform apply` is the single deploy entry point, from a workstation or from CI
+  (ADR-0022, T143; the former `deploy.ps1` is removed).
 - **Superseded decision (v1.2.0, kept for audit trail)**: `azure.yaml` + `infra/bicep/`
   (generated/extended from the AppHost model) so that a single `azd up` built the multi-stage
   images, pushed to Azure Container Registry, provisioned the ACA environment, and deployed

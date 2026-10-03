@@ -1,6 +1,6 @@
 # 0018 - Image rollout decoupled from Terraform (`az containerapp update`, `deploy.ps1 -AppsOnly`)
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0022
 **Date:** 2026-09-26
 
 ## Context

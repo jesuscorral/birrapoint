@@ -23,7 +23,7 @@ resource "azurerm_key_vault" "main" {
 }
 
 # Who may write the secrets: the identity running Terraform plus key_vault_secrets_officer_principal_ids
-# (an Entra group of every operator/CI identity that runs deploy.ps1). Without the latter, an
+# (an Entra group of every operator/CI identity that runs Terraform). Without the latter, an
 # identity other than the last one to apply cannot even refresh the secrets (403), so plan, apply
 # and destroy fail for it until it is granted Secrets Officer on the vault.
 resource "azurerm_role_assignment" "key_vault_secrets_officer" {
@@ -58,7 +58,6 @@ locals {
       "Keycloak--AdminClientSecret",
       "keycloak-db-password",
       "keycloak-bootstrap-admin-password",
-      "keycloak-deploy-client-secret",
     ],
     # Key Vault rejects empty values: stored only when a password is configured.
     local.has_smtp_password ? ["Smtp--Password"] : [],
@@ -70,7 +69,6 @@ locals {
     "Keycloak--AdminClientSecret"       = random_password.api_admin_client_secret.result
     "keycloak-db-password"              = neon_role.keycloak.password
     "keycloak-bootstrap-admin-password" = random_password.keycloak_admin.result
-    "keycloak-deploy-client-secret"     = random_password.deploy_client_secret.result
     "Smtp--Password"                    = var.smtp_password
   }
 
@@ -80,7 +78,6 @@ locals {
       KC_DB_PASSWORD              = "keycloak-db-password"
       KC_BOOTSTRAP_ADMIN_PASSWORD = "keycloak-bootstrap-admin-password"
       API_ADMIN_CLIENT_SECRET     = "Keycloak--AdminClientSecret"
-      DEPLOY_CLIENT_SECRET        = "keycloak-deploy-client-secret"
     },
     local.has_smtp_password ? { SMTP_PASSWORD = "Smtp--Password" } : {},
   )
@@ -132,8 +129,7 @@ resource "azurerm_role_assignment" "app_key_vault_secrets_user" {
 
 # An app's first revision starts before its identity has these roles (they need the identity,
 # which exists only with the app). Waiting here makes `terraform apply` return only once they
-# have propagated, so the rollout that follows it in deploy.ps1 starts revisions that can read
-# their secrets; the apps also retry on their own (DaprSecrets.cs, DaprSecretsEnv.java).
+# have propagated, so the revisions it started can read their secrets; the apps also retry on their own (DaprSecrets.cs, DaprSecretsEnv.java).
 resource "time_sleep" "app_rbac_propagation" {
   create_duration = "120s"
 

@@ -1,6 +1,6 @@
 # 0020 - Keycloak deploy service-account client for post-deploy client reconciliation
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0022
 **Date:** 2026-09-27
 
 ## Context

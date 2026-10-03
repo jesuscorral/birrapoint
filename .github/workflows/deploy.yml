@@ -1,8 +1,9 @@
-# Deploy pipeline (FR-064c, T136). Manually triggered, approval-gated: rolls the production
-# Container Apps to a released version (<ns>/birrapoint-<component>-release:X.Y.Z, published by
-# release.yml) with `infra/deploy.ps1 -AppsOnly` — image rollout only. No Terraform, no state, no
-# Neon key: the infrastructure is assumed to exist (created with a full infra/deploy.ps1 run).
-# Rollback = run it again with the previous version. Only runs when dispatched from main (the
+# Deploy pipeline (FR-064c, T136, T143). Manually triggered, approval-gated: runs the full
+# Terraform apply (infra/terraform) for the production environment with the released image
+# versions (<ns>/birrapoint-<component>-release:X.Y.Z, published by release.yml). Terraform owns
+# the running image, so a rollout is an apply with other versions; rollback = run it again with the
+# previous version. State lives in HCP Terraform (Local execution mode: it only stores state; the
+# apply runs here with the Azure OIDC identity). Only runs when dispatched from main (the
 # `production` environment is also restricted to main). Setup: infra/github-actions-setup.md.
 name: 3.-Deploy
 
@@ -35,6 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
+      release: ${{ steps.versions.outputs.release }}
       api: ${{ steps.versions.outputs.api }}
       web: ${{ steps.versions.outputs.web }}
       keycloak: ${{ steps.versions.outputs.keycloak }}
@@ -46,20 +48,24 @@ jobs:
           exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          sparse-checkout: .github/scripts
+          sparse-checkout: |
+            .github/scripts
+            infra/terraform/environments
           persist-credentials: false
       - name: Resolve versions
         id: versions
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ needs.resolve.outputs.release }}
           API_VERSION: ${{ inputs.api_version }}
           WEB_VERSION: ${{ inputs.web_version }}
           KEYCLOAK_VERSION: ${{ inputs.keycloak_version }}
         run: |
+          release="$(.github/scripts/version.sh validate "$VERSION")"
           api="$(.github/scripts/version.sh validate "${API_VERSION:-$VERSION}")"
           web="$(.github/scripts/version.sh validate "${WEB_VERSION:-$VERSION}")"
           keycloak="$(.github/scripts/version.sh validate "${KEYCLOAK_VERSION:-$VERSION}")"
           {
+            echo "release=$release"
             echo "api=$api"
             echo "web=$web"
             echo "keycloak=$keycloak"
@@ -75,7 +81,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Check the release images exist
         env:
-          IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE }}
+          BIRRAPOINT_ENVIRONMENT: ${{ vars.BIRRAPOINT_ENVIRONMENT || 'PROD' }}
           API: ${{ steps.versions.outputs.api }}
           WEB: ${{ steps.versions.outputs.web }}
           KEYCLOAK: ${{ steps.versions.outputs.keycloak }}
@@ -83,8 +89,15 @@ jobs:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_READ_TOKEN }}
         run: |
-          if [ -z "$IMAGE_NAMESPACE" ]; then
-            echo "::error::Repository variable IMAGE_NAMESPACE (Docker Hub user/org) is not set."
+          # Same file, same image_namespace as the apply below (ADR-0022): no separate variable.
+          varfile="infra/terraform/environments/${BIRRAPOINT_ENVIRONMENT,,}.tfvars"
+          if [ ! -f "$varfile" ]; then
+            echo "::error::$varfile does not exist (BIRRAPOINT_ENVIRONMENT=$BIRRAPOINT_ENVIRONMENT)."
+            exit 1
+          fi
+          IMAGE_NAMESPACE="$(sed -n 's/^image_namespace[[:space:]]*=[[:space:]]*"\([^"]*\)".*$/\1/p' "$varfile")"
+          if [ -z "$IMAGE_NAMESPACE" ] || [ "${IMAGE_NAMESPACE^^}" = "CHANGE-ME" ]; then
+            echo "::error::image_namespace in $varfile is unset or still the CHANGE-ME placeholder."
             exit 1
           fi
           missing=0
@@ -106,44 +119,96 @@ jobs:
     # identity trusts the `production` environment, so no other branch may reach this job.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 70
     # One production rollout at a time, never cancelled halfway; held only once approved.
     concurrency:
       group: deploy-production
       cancel-in-progress: false
     # Required reviewers are configured on this environment (infra/github-actions-setup.md); its
-    # secrets hold the Azure OIDC identity, scoped to the application resource group.
+    # secrets hold the Azure OIDC identity, which needs Contributor plus User Access Administrator
+    # (or RBAC Administrator) on the subscription or resource group, since it runs the whole apply.
     environment: production
     permissions:
       contents: read
       id-token: write
     env:
-      IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE }}
       # Resources are named birrapoint-<environment>-<acronym> (ADR-0021); PROD unless overridden.
       BIRRAPOINT_ENVIRONMENT: ${{ vars.BIRRAPOINT_ENVIRONMENT || 'PROD' }}
+      VERSION: ${{ inputs.version }}
       API_VERSION: ${{ needs.resolve.outputs.api }}
       WEB_VERSION: ${{ needs.resolve.outputs.web }}
       KEYCLOAK_VERSION: ${{ needs.resolve.outputs.keycloak }}
+      # azurerm authenticates with the OIDC token of this job (no client secret).
+      ARM_USE_OIDC: 'true'
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      # HCP Terraform state backend (cloud {} block in versions.tf).
+      TF_CLOUD_ORGANIZATION: ${{ vars.TF_CLOUD_ORGANIZATION }}
+      TF_WORKSPACE: ${{ vars.TF_WORKSPACE }}
+      TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      TF_IN_AUTOMATION: 'true'
+      # Secret Terraform inputs only: every non-secret one comes from the committed
+      # environments/<environment>.tfvars, shared with local applies (ADR-0022).
+      TF_VAR_smtp_password: ${{ secrets.SMTP_PASSWORD }}
+      # Optional read-only token so the apps can pull private repositories; this job never gets
+      # the read/write token CI and releases push with.
+      TF_VAR_dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+      TF_VAR_dockerhub_token: ${{ secrets.DOCKERHUB_READ_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The azure/login session is for the az calls of the summary step; Terraform authenticates
+      # through the ARM_* variables.
       - name: Azure login (OIDC)
         uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - name: Roll out images
-        shell: pwsh
-        env:
-          # Optional read-only token so deploy.ps1 can check private repositories; this job never
-          # gets the read/write token CI and releases push with.
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_READ_TOKEN }}
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.14.3
+          terraform_wrapper: false
+      - name: terraform init
+        run: terraform -chdir=infra/terraform init -input=false
+      # The HCP workspace behind TF_WORKSPACE must hold the requested environment (or be empty on a
+      # first deploy): a mismatch would apply one environment over another.
+      - name: Check the workspace environment
         run: |
-          ./infra/deploy.ps1 -AppsOnly -ImageNamespace $env:IMAGE_NAMESPACE -Environment $env:BIRRAPOINT_ENVIRONMENT `
-            -ApiVersion $env:API_VERSION -WebVersion $env:WEB_VERSION -KeycloakVersion $env:KEYCLOAK_VERSION
+          expected="${BIRRAPOINT_ENVIRONMENT,,}"
+          actual="$(terraform -chdir=infra/terraform output -raw environment 2>/dev/null || true)"
+          actual="${actual,,}"
+          if [ -z "$actual" ]; then
+            echo "HCP workspace $TF_WORKSPACE has no deployed environment yet (first deploy)."
+          elif [ "$actual" != "$expected" ]; then
+            echo "::error::HCP workspace $TF_WORKSPACE holds environment '$actual' but BIRRAPOINT_ENVIRONMENT is '$expected'."
+            exit 1
+          else
+            echo "HCP workspace $TF_WORKSPACE holds environment $actual."
+          fi
+      - name: terraform apply
+        run: |
+          varfile="environments/${BIRRAPOINT_ENVIRONMENT,,}.tfvars"
+          if [ ! -f "infra/terraform/$varfile" ]; then
+            echo "::error::infra/terraform/$varfile does not exist (BIRRAPOINT_ENVIRONMENT=$BIRRAPOINT_ENVIRONMENT)."
+            exit 1
+          fi
+          terraform -chdir=infra/terraform apply -input=false -auto-approve \
+            -var-file="$varfile" \
+            -var "release_version=$VERSION" \
+            -var "api_version=$API_VERSION" \
+            -var "web_version=$WEB_VERSION" \
+            -var "keycloak_version=$KEYCLOAK_VERSION"
+      # Terraform returns when the platform accepted the revisions; this waits until they run.
+      - name: Revision health gate
+        env:
+          AZURE_EXTENSION_USE_DYNAMIC_INSTALL: yes_without_prompt
+        run: |
+          prefix="birrapoint-${BIRRAPOINT_ENVIRONMENT,,}"
+          bash .github/scripts/wait-revisions.sh "$prefix-rg" "$prefix-kc" "$prefix-api" "$prefix-web"
       - name: Summary
         if: always()
         env:

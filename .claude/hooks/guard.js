@@ -22,7 +22,7 @@ process.stdin.on('end', () => {
     [/^git\s+clean\s+-[a-z]*f/i, 'Blocked: git clean -f deletes untracked files. Ask the user first.'],
     [/^dotnet\s+ef\s+database\s+drop/i, 'Blocked: database drop. Ask the user to run this manually.'],
     [/^(docker\s+exec\s.*)?psql\b.*\bdrop\s+(database|table|schema)\s/i, 'Blocked: destructive SQL. Ask the user to run this manually.'],
-    [/^terraform\b(\s+-chdir=\S+)?\s+(apply|destroy)\b/i, 'Blocked: terraform apply/destroy changes real cloud resources. Ask the user to run it (or use deploy.ps1 -WhatIf).'],
+    [/^terraform\b(\s+-chdir=\S+)?\s+(apply|destroy)\b/i, 'Blocked: terraform apply/destroy changes real cloud resources. Ask the user to run it (or use terraform plan).'],
     [/^((pwsh|powershell)(\.exe)?\s+(-\S+\s+)*)?\S*teardown\.ps1\b(?!.*-WhatIf)/i, 'Blocked: teardown.ps1 deletes the Azure environment. Run with -WhatIf or ask the user.'],
     [/^az\s+(group|keyvault|containerapp)\s+delete\b/i, 'Blocked: deleting Azure resources. Ask the user to run it manually.'],
     [/^docker\s+(volume\s+(rm|prune)|system\s+prune)/i, 'Blocked: removing Docker volumes wipes local Postgres/Keycloak data. Ask the user first.']

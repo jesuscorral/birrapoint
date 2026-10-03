@@ -14,16 +14,14 @@ ARG KEYCLOAK_VERSION=26.2
 # Derive the production realm from the local-dev one so a production realm never ships a known
 # credential:
 #  - strip the seeded `organizer`/`organizer` account (E2E-only); the service-account user stays;
-#  - drop the local-dev fallbacks of the API admin client and deploy client secrets, so the
-#    import takes them from API_ADMIN_CLIENT_SECRET / DEPLOY_CLIENT_SECRET or not at all.
+#  - drop the local-dev fallback of the API admin client secret, so the import takes it from
+#    API_ADMIN_CLIENT_SECRET or not at all.
 FROM alpine:3.22 AS realm
 RUN apk add --no-cache jq
 COPY birrapoint-realm.json /realm/birrapoint-realm.json
 RUN jq '.users |= map(select(.username != "organizer")) \
         | .clients |= map(if .clientId == "birrapoint-api-admin" \
-                          then .secret = "${API_ADMIN_CLIENT_SECRET}" \
-                          elif .clientId == "birrapoint-deploy" \
-                          then .secret = "${DEPLOY_CLIENT_SECRET}" else . end)' \
+                          then .secret = "${API_ADMIN_CLIENT_SECRET}" else . end)' \
         /realm/birrapoint-realm.json > /realm/birrapoint-realm.prod.json \
     && ! grep -q -e '"value": "organizer"' -e 'dev-only-secret' /realm/birrapoint-realm.prod.json
 

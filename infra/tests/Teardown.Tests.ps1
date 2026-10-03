@@ -1,4 +1,4 @@
-# Pester 5+ tests for infra/Teardown.psm1 - the pure decisions behind infra/teardown.ps1 (T140).
+# Pester 5+ tests for infra/Teardown.psm1 - the pure decisions behind infra/teardown.ps1 (T140, T143).
 # Run: Invoke-Pester infra/tests
 # (Windows PowerShell 5.1 ships Pester 3.4: Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser)
 
@@ -51,53 +51,73 @@ Describe 'Select-NeonProjectToDelete' {
     }
 }
 
-Describe 'Get-DestroyArgument' {
-    BeforeAll {
-        $common = @{ TerraformDir = 'C:/repo/infra/terraform'; SubscriptionId = 'sub-1' }
+Describe 'ConvertTo-EnvironmentName' {
+    It 'lower-cases a valid environment' {
+        ConvertTo-EnvironmentName 'PROD' | Should -Be 'prod'
     }
 
-    It 'targets only the application resource group by default (Neon and its state survive)' {
+    It 'rejects <value>' -ForEach @(
+        @{ value = '' }, @{ value = 'a' }, @{ value = '1prod' }, @{ value = 'prod-eu' }, @{ value = 'abcdefghijk' }
+    ) {
+        { ConvertTo-EnvironmentName $value } | Should -Throw
+    }
+}
+
+Describe 'Get-TeardownResourceName' {
+    It 'follows birrapoint-<environment>-<acronym> (ADR-0021)' {
+        Get-TeardownResourceName -Environment 'PROD' -Resource ResourceGroup | Should -Be 'birrapoint-prod-rg'
+        Get-TeardownResourceName -Environment 'Dev' -Resource KeyVault | Should -Be 'birrapoint-dev-kv'
+        Get-TeardownResourceName -Environment 'prod' -Resource NeonProject | Should -Be 'birrapoint-prod-neon'
+    }
+
+    It 'rejects an invalid environment' {
+        { Get-TeardownResourceName -Environment 'x' -Resource ResourceGroup } | Should -Throw
+    }
+}
+
+Describe 'Get-DestroyArgument' {
+    BeforeAll {
+        $common = @{ TerraformDir = 'C:/repo/infra/terraform'; Environment = 'prod' }
+    }
+
+    It 'always destroys everything: never a -target' {
         $arguments = Get-DestroyArgument @common -VarFile 'C:/repo/infra/terraform/terraform.tfvars'
 
-        $arguments | Should -Contain '-target=azurerm_resource_group.main'
+        ($arguments | Where-Object { $_ -like '-target*' }) | Should -BeNullOrEmpty
         $arguments[0..1] | Should -Be @('-chdir=C:/repo/infra/terraform', 'destroy')
         $arguments | Should -Contain '-input=false'
         $arguments | Should -Contain '-auto-approve'
     }
 
-    It 'destroys everything with -IncludeNeon (no -target)' {
-        $arguments = Get-DestroyArgument @common -VarFile 'x.tfvars' -IncludeNeon
-
-        ($arguments | Where-Object { $_ -like '-target=*' }) | Should -BeNullOrEmpty
+    It 'passes the environment so the destroy resolves the same resource names' {
+        Get-DestroyArgument @common -VarFile 'x.tfvars' | Should -Contain '-var=environment=prod'
     }
 
-    It 'passes the location only when given (tfvars or the variable default apply otherwise)' {
+    It 'does not pass the subscription (ARM_SUBSCRIPTION_ID or the az default apply)' {
+        (Get-DestroyArgument @common -VarFile 'x.tfvars' | Where-Object { $_ -like '*subscription_id*' }) | Should -BeNullOrEmpty
+    }
+
+    It 'passes the location only when given' {
         (Get-DestroyArgument @common -VarFile 'x.tfvars' | Where-Object { $_ -like '-var=location=*' }) | Should -BeNullOrEmpty
         Get-DestroyArgument @common -VarFile 'x.tfvars' -Location 'northeurope' | Should -Contain '-var=location=northeurope'
     }
 
-    It 'passes the environment only when given, so the destroy resolves the same resource names' {
-        (Get-DestroyArgument @common -VarFile 'x.tfvars' | Where-Object { $_ -like '-var=environment=*' }) | Should -BeNullOrEmpty
-        Get-DestroyArgument @common -VarFile 'x.tfvars' -Environment 'prod' | Should -Contain '-var=environment=prod'
-    }
-
-    It 'puts the var file before the -var flags, so the script values win (same order as deploy.ps1)' {
+    It 'puts the var file before the -var flags' {
         $arguments = @(Get-DestroyArgument @common -VarFile 'x.tfvars')
         $varFileIndex = [array]::IndexOf($arguments, '-var-file=x.tfvars')
-        $firstVarIndex = [array]::IndexOf($arguments, '-var=subscription_id=sub-1')
+        $firstVarIndex = [array]::IndexOf($arguments, '-var=environment=prod')
 
         $varFileIndex | Should -BeGreaterThan -1
         $varFileIndex | Should -BeLessThan $firstVarIndex
     }
 
-    It 'passes the subscription and placeholders for the per-apply variables' {
+    It 'passes a placeholder for the mandatory image namespace and none of the removed image variables' {
         $arguments = Get-DestroyArgument @common -VarFile 'x.tfvars'
 
-        $arguments | Should -Contain '-var=subscription_id=sub-1'
-        foreach ($name in 'api_image', 'web_image', 'keycloak_image') {
-            ($arguments | Where-Object { $_ -like "-var=$name=*" }).Count | Should -Be 1
+        ($arguments | Where-Object { $_ -like '-var=image_namespace=*' }).Count | Should -Be 1
+        foreach ($name in 'api_image', 'web_image', 'keycloak_image', 'revision_suffix') {
+            ($arguments | Where-Object { $_ -like "-var=$name=*" }) | Should -BeNullOrEmpty
         }
-        $arguments | Should -Contain '-var=revision_suffix=teardown'
     }
 
     It 'uses the var file when there is one' {
@@ -116,58 +136,50 @@ Describe 'Get-DestroyArgument' {
     }
 }
 
-Describe 'Read-StateOutput' {
-    It 'returns the outputs of a Terraform state document' {
-        $state = @{
-            version = 4
-            outputs = @{
-                resource_group_name = @{ value = 'rg-custom'; type = 'string' }
-                neon_project_id     = @{ value = 'young-sun-123'; type = 'string' }
-            }
-        } | ConvertTo-Json -Depth 5
-
-        $outputs = Read-StateOutput -StateJson $state
-        $outputs.resource_group_name | Should -Be 'rg-custom'
-        $outputs.neon_project_id | Should -Be 'young-sun-123'
-    }
-
-    It 'returns an empty result for a state without outputs (nothing applied yet)' {
-        $outputs = Read-StateOutput -StateJson '{"version":4,"outputs":{}}'
-        $outputs.resource_group_name | Should -BeNullOrEmpty
-    }
-
-    It 'returns an empty result for no state at all' {
-        (Read-StateOutput -StateJson '').resource_group_name | Should -BeNullOrEmpty
-    }
-}
-
 Describe 'Resolve-NeonProjectTarget' {
-    It 'uses the project id recorded in the state' {
-        $target = Resolve-NeonProjectTarget -StateProjectId 'young-sun-123' -NameMatches @()
-        $target.Action | Should -Be 'DeleteById'
-        $target.ProjectId | Should -Be 'young-sun-123'
-    }
-
-    It 'prefers the state id over name matches' {
-        $found = @([pscustomobject]@{ id = 'other-1'; name = 'birrapoint' })
-        (Resolve-NeonProjectTarget -StateProjectId 'young-sun-123' -NameMatches $found).ProjectId | Should -Be 'young-sun-123'
-    }
-
-    It 'falls back to a single exact-name match when there is no state' {
-        $found = @([pscustomobject]@{ id = 'p-1'; name = 'birrapoint' })
-        $target = Resolve-NeonProjectTarget -StateProjectId $null -NameMatches $found
+    It 'deletes the single exact-name match' {
+        $found = @([pscustomobject]@{ id = 'p-1'; name = 'birrapoint-prod-neon' })
+        $target = Resolve-NeonProjectTarget -NameMatches $found
         $target.Action | Should -Be 'DeleteById'
         $target.ProjectId | Should -Be 'p-1'
     }
 
     It 'refuses to guess between several projects with the same name' {
-        $found = @([pscustomobject]@{ id = 'p-1'; name = 'birrapoint' }, [pscustomobject]@{ id = 'p-2'; name = 'birrapoint' })
-        $target = Resolve-NeonProjectTarget -StateProjectId $null -NameMatches $found
+        $found = @([pscustomobject]@{ id = 'p-1'; name = 'x' }, [pscustomobject]@{ id = 'p-2'; name = 'x' })
+        $target = Resolve-NeonProjectTarget -NameMatches $found
         $target.Action | Should -Be 'Refuse'
         $target.ProjectId | Should -BeNullOrEmpty
     }
 
-    It 'has nothing to do when neither the state nor a name match knows a project' {
-        (Resolve-NeonProjectTarget -StateProjectId $null -NameMatches @()).Action | Should -Be 'None'
+    It 'has nothing to do when no project has the name' {
+        (Resolve-NeonProjectTarget -NameMatches @()).Action | Should -Be 'None'
+    }
+}
+
+Describe 'Test-StateEnvironment' {
+    It 'accepts an empty state (nothing deployed yet)' -ForEach @(
+        @{ state = $null }, @{ state = '' }, @{ state = '  ' }
+    ) {
+        Test-StateEnvironment -Expected 'PROD' -StateEnvironment $state | Should -BeTrue
+    }
+
+    It 'accepts the same environment regardless of casing' {
+        Test-StateEnvironment -Expected 'PROD' -StateEnvironment 'prod' | Should -BeTrue
+        Test-StateEnvironment -Expected 'prod' -StateEnvironment ' PROD ' | Should -BeTrue
+    }
+
+    It 'rejects a workspace that holds another environment' {
+        Test-StateEnvironment -Expected 'dev' -StateEnvironment 'prod' | Should -BeFalse
+    }
+
+    It 'does not accept a prefix of the environment' {
+        Test-StateEnvironment -Expected 'prod' -StateEnvironment 'prod2' | Should -BeFalse
+    }
+}
+
+Describe 'Get-EnvironmentVarFile' {
+    It 'is environments/ENV.tfvars (lower-cased) under the Terraform directory' {
+        $file = Get-EnvironmentVarFile -TerraformDir 'C:/repo/infra/terraform' -Environment 'PROD'
+        $file | Should -Be (Join-Path 'C:/repo/infra/terraform' 'environments/prod.tfvars')
     }
 }

@@ -1,6 +1,6 @@
 # BirraPoint — cloud deployment (Terraform → Azure Container Apps + Neon)
 
-Constitution v1.4.0, research R-17/R-18/R-19, ADR-0016/ADR-0017/ADR-0021, FR-043–FR-047, SC-011.
+Constitution v1.4.0, research R-17/R-18/R-19, ADR-0016/ADR-0017/ADR-0021/ADR-0022, FR-043–FR-047, SC-011.
 
 ## Topology
 
@@ -26,14 +26,11 @@ Constitution v1.4.0, research R-17/R-18/R-19, ADR-0016/ADR-0017/ADR-0021, FR-043
 ```
 
 - **Naming** (ADR-0021): every resource is `birrapoint-<environment>-<acronym>`, the environment
-  lower-cased (`environment` variable / `-Environment`, default `PROD`): `-rg` resource group,
+  lower-cased (`environment` variable, default `PROD`): `-rg` resource group,
   `-log` Log Analytics, `-cae` Container Apps environment, `-kv` Key Vault, `-api` / `-web` /
-  `-kc` Container Apps, `-neon` Neon project; the Terraform state lives in
-  `birrapoint-<env>-tfstate-rg` / storage account `birrapoint<env>st<subscription>` / blob
-  `birrapoint-<env>.tfstate`. The environment is 2-10 letters/digits (Key Vault names are limited
-  to 24 characters and globally unique, as are storage account names). If `birrapoint-<env>-kv`
-  is already taken in another subscription, set `key_vault_name` in `terraform.tfvars`;
-  `teardown.ps1` reads the real name from the state.
+  `-kc` Container Apps, `-neon` Neon project. The environment is 2-10 letters/digits (Key Vault
+  names are limited to 24 characters and globally unique). If `birrapoint-<env>-kv` is already
+  taken in another subscription, set `key_vault_name` in `terraform.tfvars`.
 
 - **Images** come from Docker Hub and are never built by the deployment: CI publishes
   `<namespace>/birrapoint-api|web|keycloak:latest` on every merge to `main`, the release pipeline
@@ -47,8 +44,8 @@ Constitution v1.4.0, research R-17/R-18/R-19, ADR-0016/ADR-0017/ADR-0021, FR-043
 - **The API runs exactly one replica**: SignalR has no backplane and the `DispatchJob` worker is a
   single consumer (R-06). Scaling out requires a backplane first.
 - **Secrets** (Neon credentials, Keycloak bootstrap admin password, API admin-client secret,
-  deploy-client secret, SMTP password) live in **Key Vault** `birrapoint-<env>-kv` (and in
-  Terraform's remote state, which writes them; the generated ones come from `random_password`).
+  SMTP password) live in **Key Vault** `birrapoint-<env>-kv` (and in
+  Terraform's state in HCP, which writes them; the generated ones come from `random_password`).
   No app receives a secret as a setting (ADR-0021):
   - every Container App has a **system-assigned managed identity**, and each identity holds the
     read-only `Key Vault Secrets User` role **per secret**: only on the secrets its app uses
@@ -70,93 +67,70 @@ Constitution v1.4.0, research R-17/R-18/R-19, ADR-0016/ADR-0017/ADR-0021, FR-043
 
 | What | How |
 |---|---|
-| Azure subscription + CLI | `az login` as **Owner** (or Contributor + User Access Administrator) of the subscription: Terraform creates role assignments on the Key Vault. More than one operator (or a CI identity)? Put an Entra group with all of them in `key_vault_secrets_officer_principal_ids`: only identities with Secrets Officer on the vault can refresh its secrets, so anyone else's plan/apply/destroy fails with 403 |
+| Azure subscription + CLI | `az login` as **Owner** (or Contributor + User Access Administrator) of the subscription: Terraform creates role assignments on the Key Vault. The subscription is `ARM_SUBSCRIPTION_ID` or the `az login` default. More than one operator (or a CI identity)? Put an Entra group with all of them in `key_vault_secrets_officer_principal_ids`: only identities with Secrets Officer on the vault can refresh its secrets, so anyone else's plan/apply/destroy fails with 403 |
 | Terraform ≥ 1.9 | <https://developer.hashicorp.com/terraform/install> |
+| HCP Terraform workspace | One workspace per environment, **execution mode Local** (HCP only stores the state). `export TF_CLOUD_ORGANIZATION=<org> TF_WORKSPACE=<workspace>`, then `terraform login` (or `TF_TOKEN_app_terraform_io`) |
 | Docker Hub images | Published by GitHub Actions (`ci.yml` for `latest`, `release.yml` for `X.Y.Z`); no local Docker needed |
-| Neon account + API key | Neon console → Account settings → API keys; `$env:NEON_API_KEY = "..."` |
+| Neon account + API key | Neon console → Account settings → API keys; `export NEON_API_KEY=...` |
 | SMTP relay | Any provider with SMTP credentials and a verified sender address |
-| Variables file | `cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars`, fill in |
+| Environment file | `infra/terraform/environments/<env>.tfvars` is committed and holds every non-secret input (shared with `deploy.yml`): set `image_namespace` and the `smtp_*` placeholders before the first deploy |
+| Secrets file | `cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars` (gitignored): `smtp_password`, optionally `dockerhub_*`; or `TF_VAR_*` environment variables |
 
 Private Docker Hub repositories additionally need `dockerhub_username` + a **read-only** access
 token in `dockerhub_token`; with public repositories leave both empty.
 
-## Deploy (single command)
+## Deploy
 
-```powershell
-$env:NEON_API_KEY = "<key>"
-./infra/deploy.ps1 -ImageNamespace <dockerhub-user-or-org>          # latest images, interactive apply
-./infra/deploy.ps1 -ImageNamespace <dockerhub-user-or-org> -AutoApprove `
-    -ApiVersion 0.3.1 -WebVersion 0.3.1 -KeycloakVersion 0.3.0      # release images
-./infra/deploy.ps1 -ImageNamespace <dockerhub-user-or-org> -WhatIf  # preview, changes nothing
+```bash
+az login && terraform login
+export TF_CLOUD_ORGANIZATION=<org> TF_WORKSPACE=<workspace> NEON_API_KEY=<key>
+terraform -chdir=infra/terraform init
+terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=0.3.1
+terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=0.3.1 -var keycloak_version=0.3.0
+terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=latest   # CI images
+terraform -chdir=infra/terraform plan  -var-file=environments/prod.tfvars -var release_version=0.3.1    # preview
 ```
 
-The script is idempotent. Each component's image is chosen independently: `-ApiVersion`,
-`-WebVersion`, `-KeycloakVersion` take a release version `X.Y.Z` and deploy
-`<ns>/birrapoint-<component>-release:X.Y.Z`; an omitted version deploys
-`<ns>/birrapoint-<component>:latest`. It then:
+The environment file is the same one `deploy.yml` loads, so a local and a CI apply use identical
+non-secret inputs. `release_version` has no default (it must be explicit, so an apply never rolls
+to `latest` by accident); each component's image is chosen
+independently: `api_version`, `web_version`, `keycloak_version` override it. `X.Y.Z` deploys `<ns>/birrapoint-<component>-release:X.Y.Z`, `latest` deploys
+`<ns>/birrapoint-<component>:latest`.
 
-1. checks that every selected image exists on Docker Hub (fails before changing anything);
-2. creates the state storage (`birrapoint-<env>-tfstate-rg`) if missing and runs `terraform init` +
-   `terraform apply` (with `environment` from `-Environment`, default `PROD`). On a first apply
-   Terraform waits ~90 s after granting `Key Vault Secrets Officer`, for the role to reach the
-   vault, before writing the secrets. The apps' own role assignments can only be created once the
-   apps (and so their identities) exist, so a brand-new app's first revision may start before it
-   can read its secrets. Terraform then waits another ~120 s for those roles to propagate. The
-   API retries refused reads for ~2.5 min and Keycloak's loader for 180 s, and step 3 replaces
-   any revision that is not healthy. A brand-new environment's first apply therefore takes
-   several minutes longer;
-3. rolls each Container App to its image with `az containerapp update` — Keycloak, then the API
-   (which migrates the database on startup), then the web app — waiting for each new revision
-   to become healthy before the next (the web app may scale to zero, so for it "provisioned with
-   no replicas" also counts). An app whose latest revision is healthy and already serves the
-   target release is skipped; `latest` always gets a new revision so the moved tag is re-pulled
-   (usually skipped right after the apply created one that pulled it).
+Terraform owns the running image (ADR-0022): changing a version and applying creates a new
+revision of that app; rollback is an apply with the previous version. **`latest` on an existing
+environment does not re-pull**, because the template does not change; use release versions to
+update. The API migrates the database on startup. A local apply has no revision health gate;
+`deploy.yml` adds one after its apply (`.github/scripts/wait-revisions.sh`), so check the
+revisions yourself (`az containerapp revision list`) after a local rollout.
 
-It prints `web_url` and `keycloak_url` at the end.
+Environment guard: the HCP workspace (`TF_WORKSPACE`) must hold the environment you deploy or
+tear down. `deploy.yml` and `teardown.ps1` read `terraform output -raw environment` after `init`
+and stop when it differs (an empty state is allowed).
 
-**Terraform owns the infrastructure, not the running image.** The image variables
-(`api_image`, `web_image`, `keycloak_image`) are used only when a Container App is first
-created; `lifecycle.ignore_changes` makes later applies leave the image alone, so an
-infrastructure change never rolls an app back to an older version.
+On a first apply Terraform waits ~90 s after granting `Key Vault Secrets Officer`, for the role to
+reach the vault, before writing the secrets. The apps' own role assignments can only be created
+once the apps (and so their identities) exist, so a brand-new app's first revision may start
+before it can read its secrets. Terraform then waits another ~120 s for those roles to propagate.
+The API retries refused reads for ~2.5 min and Keycloak's loader for 180 s. A brand-new
+environment's first apply therefore takes several minutes longer.
 
-Every full run passes a fresh `revision_suffix` (`infra-<UTC timestamp>`), so **each apply
-creates a new revision of all three apps (a short restart)** — a rollout leaves its own suffix in
-the state, and Container Apps rejects a template change that reuses one (ADR-0018). Always apply
-through `deploy.ps1`; a bare `terraform apply` asks for `revision_suffix`. A full run refuses to
-start while an app's latest revision is not its serving one (a failed earlier rollout would
-otherwise be re-created from the failed image): recover that app with `-AppsOnly` first.
-Answering *No* to `-Confirm`'s apply prompt aborts the run.
+Outputs: `web_url`, `keycloak_url`.
 
-`-WhatIf` checks the images and reads the apps' current state but changes nothing (no state
-bootstrap, `terraform init`/`apply` or rollout).
+### Tests
 
-### Tests of the deploy logic
-
-The image-resolution and rollout decisions live in `infra/DeployImages.psm1`, resource names in
-`infra/ResourceNames.psm1`, with Pester tests
-in `infra/tests/` (run by the `infra.yml` workflow when `infra/**` changes). Windows PowerShell
-5.1 ships Pester 3.4, which cannot run them:
+`terraform -chdir=infra/terraform test` (mocked providers, no credentials) covers image resolution,
+version validation, naming and the absence of a deploy-client secret. Teardown logic is covered by
+Pester (`infra/tests`, Pester 5+; Windows PowerShell 5.1 ships 3.4, which cannot run them):
 
 ```powershell
 Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -SkipPublisherCheck   # once
 Invoke-Pester infra/tests
 ```
 
-GitHub Actions publishes the images and deploys releases (`deploy.yml` runs the `-AppsOnly` mode
-below); its one-time setup — Docker Hub token, Azure OIDC identity, `production` environment — is
-in [`infra/github-actions-setup.md`](../github-actions-setup.md).
-
-### Image-only deployment (`-AppsOnly`)
-
-```powershell
-./infra/deploy.ps1 -ImageNamespace <ns> -AppsOnly -ApiVersion 0.3.1 -WebVersion 0.3.1 -KeycloakVersion 0.3.1
-```
-
-Skips step 2 entirely: no Terraform, `terraform.tfvars`, `NEON_API_KEY` or state access —
-only `az login` with rights on the application resource group (`birrapoint-<env>-rg`; pass
-`-Environment` for an environment other than `PROD`). This is how the deploy pipeline releases a version,
-and how to roll back: re-run with the previous versions. The environment must already exist
-(created once by a full run).
+Both run in `infra.yml` when `infra/**` changes. `deploy.yml` runs the same `init` + `apply` with
+the release versions through Azure OIDC; its one-time setup (HCP token, Azure identity, secrets,
+`production` environment) is in [`infra/github-actions-setup.md`](../github-actions-setup.md).
 
 First start takes a few minutes: Keycloak creates its schema on Neon and imports the realm, and
 the API applies EF Core migrations (including the BJCP catalog seed) before serving.
@@ -179,7 +153,10 @@ and can restore any moment inside that window:
 3. Both databases (`birrapoint` and `keycloak`) live on that branch and are restored together,
    which keeps application data and Keycloak user ids consistent.
 4. Restart the API and Keycloak revisions so they drop pooled connections:
-   `az containerapp revision restart` for `birrapoint-prod-api` and `birrapoint-prod-kc`, or redeploy.
+   `az containerapp revision restart` for `birrapoint-prod-api` and `birrapoint-prod-kc`.
+
+PITR only works while the Neon project exists: `teardown.ps1` deletes it, so nothing can be
+restored afterwards.
 
 For a non-destructive check first, create a branch from a past timestamp (Neon console →
 Branches → New branch → "Past data") and inspect it with `psql` before restoring `main`.
@@ -187,80 +164,40 @@ Branches → New branch → "Past data") and inspect it with `psql` before resto
 ## Tear down
 
 ```powershell
-$env:NEON_API_KEY = "<key>"
-./infra/teardown.ps1            # stop all Azure costs; keep Neon data + state (asks to type the resource group name)
-./infra/teardown.ps1 -WhatIf    # preview, changes nothing
-./infra/teardown.ps1 -IncludeNeon   # full wipe, production data included (second confirmation)
+$env:NEON_API_KEY = "<key>"   # plus TF_CLOUD_ORGANIZATION, TF_WORKSPACE and a Terraform login
+./infra/teardown.ps1 -WhatIf  # preview, changes nothing
+./infra/teardown.ps1          # wipes everything; asks to type the resource group name (-Force skips it)
 ```
 
-**Default** — removes only what Azure bills for: `birrapoint-prod-rg` with the three Container
-Apps, the environment, Log Analytics and the Key Vault
-(`terraform destroy -target=azurerm_resource_group.main`; pass `-Environment` for another one). It
-**keeps** the Neon project and its data (free plan; its compute suspends when idle) and the
-Terraform state. The state must stay: it remembers the Neon project and the generated
-passwords — the API admin-client secret among them is already stored in Keycloak's database — so
-the next `deploy.ps1` recreates only the Azure part and reconnects to the same data with matching
-secrets. Deleting the state while keeping Neon would leave a redeploy with mismatched secrets.
+Always a full wipe, **data included**; the next deploy starts from scratch (ADR-0022):
 
-**`-IncludeNeon`** — destroys everything Terraform manages (the Neon project too), deletes
-`birrapoint-<env>-tfstate-rg` and the local `infra/terraform/.terraform`, for a fresh start with empty
-data.
+1. `terraform init` against the HCP workspace and a guard (the workspace must hold the requested
+   environment or be empty, otherwise nothing is changed), then, after the confirmation,
+   `terraform destroy` of everything Terraform
+   manages: Container Apps, environment, Log Analytics, Key Vault (purged), role assignments and the
+   Neon project;
+2. a sweep of whatever remains, found by name: Log Analytics purge and `az group delete` of
+   `birrapoint-<env>-rg`, purge of the soft-deleted Key Vault, deletion of the Neon project with
+   exactly that name (refused when several match);
+3. removal of the local `infra/terraform/.terraform` and a final verification.
 
-The resource group and the Neon project to remove are read from the Terraform state blob itself
-(read-only, before you confirm), not from parameters, so a custom `neon_org_id` in
-`terraform.tfvars` is honoured (the state itself is found from `-Environment`). With `-IncludeNeon` the Neon project is deleted **by the id in
-the state**; only without a state does the script look it up by exact name, and it refuses when
-several projects share that name.
+Pass `-Environment` for an environment other than `PROD` (its `environments/<env>.tfvars` is used), `-NeonOrgId` when the API key belongs to
+several Neon organizations. Docker Hub images, GitHub secrets and the HCP workspace itself are not
+touched. The script is idempotent: re-run it after a partial failure. Log Analytics and Key Vault
+are purged, not soft-deleted (`permanently_delete_on_destroy`, `purge_soft_delete_on_destroy`), so
+a redeploy never collides with them (the vault's name is globally unique). The same provider
+setting purges Log Analytics immediately if Terraform ever *replaces* the workspace during a
+normal apply.
 
-Both modes are idempotent: if `terraform destroy` fails or the state is missing, the script sweeps
-leftovers directly (`az group delete` after purging Log Analytics; the Neon project by id) and ends
-by verifying nothing remains. Log Analytics and Key Vault are purged, not soft-deleted
-(`permanently_delete_on_destroy`, `purge_soft_delete_on_destroy`, and an explicit
-`az keyvault purge` after a direct resource-group delete), so a redeploy never collides with
-them — the vault's name is globally unique. Note that the same
-provider setting also applies if Terraform ever *replaces* the workspace during a normal apply:
-its logs are then purged immediately instead of being recoverable for 14 days.
+The realm is imported on the first start of a brand-new environment with the right `SPA_URL`, so
+no Keycloak client needs fixing after a redeploy.
 
-**Redeploying after a default teardown.** The recreated Container Apps environment gets a new
-random domain, while Keycloak keeps its realm in Neon (the realm is imported only on first
-start). `deploy.ps1` therefore ends every full run by making Keycloak's `birrapoint-spa` client
-allow the current web URL through the Keycloak Admin API (ADR-0020):
+## State from before ADR-0022
 
-- it authenticates as the **`birrapoint-deploy`** service-account client (secret generated by
-  Terraform, `terraform output -raw keycloak_deploy_client_secret`), which can manage clients in
-  the `birrapoint` realm and has no rights in `master`. Treat its secret like the API admin
-  secret, and **never copy it into CI**: through the clients it manages it can indirectly reach
-  user management and the SPA's allowed URLs (ADR-0020). `deploy.yml` never needs it;
-- redirect URIs, web origins and post-logout URIs are **merged**: the current URL is added and only
-  the web app's previous Container Apps domains are dropped, so URIs you add by hand (a custom
-  domain, localhost) are kept; root/base URL are set to the current URL; nothing is written when
-  already in sync;
-- on a realm imported before that client existed (or with a drifted secret) it creates/resets the
-  client **once** with the bootstrap admin. If Keycloak rejects both, the deploy stops with
-  instructions: create client `birrapoint-deploy` in the admin console (confidential, service
-  accounts only, `realm-management` roles `view-clients` + `manage-clients`) with the secret from
-  the output above, then re-run. After that the bootstrap admin may be removed.
-Docker Hub images, GitHub secrets and the deploy identity are never touched.
-
-## Migrating an environment deployed before ADR-0021
-
-Deployments made with the old names (`rg-birrapoint`, `birrapoint-api`...) keep their state in
-`rg-birrapoint-tfstate` / `stbirrapointtf<subscription>` / `birrapoint.tfstate`, which the new
-default state location does not find. Either:
-
-- **start clean** — remove the old environment with the previous version of `teardown.ps1`
-  (`git show <old-commit>:infra/teardown.ps1`), then run `deploy.ps1`; or
-- **keep Neon and the generated secrets** — point one run at the old state:
-  `./infra/deploy.ps1 -ImageNamespace <ns> -StateResourceGroup rg-birrapoint-tfstate
-  -StateStorageAccount stbirrapointtf<first 10 hex of the subscription id> -StateKey birrapoint.tfstate`.
-  Terraform replaces every Azure resource under its new name (new URLs; `deploy.ps1` re-syncs
-  Keycloak's `birrapoint-spa` client), renames the Neon project in place and keeps its data.
-  Keep passing those three parameters for that environment, or copy the blob to the new location
-  (`birrapoint-prod-tfstate-rg` / `birrapointprodst<subscription>` / `birrapoint-prod.tfstate`)
-  and delete the old state resource group.
-
-The deploy identity of `deploy.yml` has rights on the old resource group only: re-grant them on
-`birrapoint-prod-rg` (`infra/github-actions-setup.md` step 2).
+Environments deployed with `deploy.ps1` keep their state in an Azure Storage account
+(`birrapoint-<env>-tfstate-rg`). Either remove them with the previous version of `teardown.ps1`
+(`git show <old-commit>:infra/teardown.ps1`) and deploy fresh, or move the state with
+`terraform init -migrate-state` after pointing a local `backend "azurerm"` block at it.
 
 ## Known limitations
 

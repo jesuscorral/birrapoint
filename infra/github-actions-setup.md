@@ -6,14 +6,14 @@ in the repository.
 | Workflow | Trigger | Does | Needs |
 |---|---|---|---|
 | `ci.yml` | PRs and pushes to `main` | Quality gates; on `main`, pushes `<ns>/birrapoint-*:latest` + `:sha-<short>` | Docker Hub |
-| `infra.yml` | Changes to `infra/**` | `terraform fmt`/`validate` (no backend), Pester | nothing |
+| `infra.yml` | Changes to `infra/**` | `terraform fmt`/`validate`/`test` (no backend), Pester (teardown) | nothing |
 | `workflows.yml` | Changes to `.github/**` | actionlint, release script tests | nothing |
 | `release.yml` | Manual | Publishes `<ns>/birrapoint-*-release:X.Y.Z`, tag, GitHub Release, bumps `version.txt` | Docker Hub |
-| `deploy.yml` | Manual, approval | Rolls production to a release (`infra/deploy.ps1 -AppsOnly`) | Docker Hub, Azure OIDC, `production` environment |
+| `deploy.yml` | Manual, approval | Applies Terraform with a release version (`terraform init` + `apply`, ADR-0022), then waits for healthy revisions | Azure OIDC, HCP Terraform, Neon, SMTP, `production` environment |
 
-No workflow creates or changes infrastructure. That is a deliberate, local, full
-`infra/deploy.ps1` run (see `infra/terraform/README.md`). `deploy.yml` assumes the environment
-already exists.
+Only `deploy.yml` creates or changes infrastructure: it runs the same `terraform apply` as a
+workstation (see `infra/terraform/README.md`), so it can also create a brand-new environment.
+State lives in HCP Terraform (workspace in **Local** execution mode).
 
 Commands below are PowerShell. Run them from the repository root, logged in with `az login` and
 `gh auth login`.
@@ -34,21 +34,43 @@ gh variable set IMAGE_NAMESPACE --body "<docker hub user or org>"
 gh secret set DOCKERHUB_READ_TOKEN
 ```
 
-`IMAGE_NAMESPACE` must be a **variable**, not a secret. The workflows read `vars.IMAGE_NAMESPACE`,
+`IMAGE_NAMESPACE` is used by `ci.yml` and `release.yml` only (`deploy.yml` reads the namespace from
+`infra/terraform/environments/<env>.tfvars`; keep the two equal). It must be a **variable**, not a
+secret. The workflows read `vars.IMAGE_NAMESPACE`,
 and a secret would also mask every image name in the logs as `***`. The six repositories
 (`birrapoint-{api,web,keycloak}` and `birrapoint-{api,web,keycloak}-release`) are created by the
 first push.
 
-## 2. Azure identity for `deploy.yml` (OIDC, no stored password)
+## 2. HCP Terraform, Neon and SMTP (state and apply inputs)
 
-The deploy identity only needs to update the Container Apps in the application resource group
-(`birrapoint-<environment>-rg`, `birrapoint-prod-rg` by default). It never touches Terraform
-state, Key Vault or Neon: the apps read their secrets from Key Vault themselves, with their own
-managed identities, and an image rollout keeps each app's identity and Dapr settings.
+1. In HCP Terraform create an organization and a workspace, set its execution mode to **Local**
+   (HCP stores the state only), and create a team/user API token.
+2. Store the settings. Values marked *secret* go to the `production` environment, see step 4.
+
+| Kind | Name | Value |
+|---|---|---|
+| secret | `TF_API_TOKEN` | HCP Terraform API token |
+| secret | `NEON_API_KEY` | Neon API key |
+| secret | `SMTP_PASSWORD` | SMTP relay password |
+| variable | `TF_CLOUD_ORGANIZATION`, `TF_WORKSPACE` | HCP organization and workspace |
+| variable (optional) | `BIRRAPOINT_ENVIRONMENT` | environment name, default `PROD`; selects `infra/terraform/environments/<env>.tfvars` |
+
+Non-secret inputs (`image_namespace`, `smtp_host`, `smtp_port`, `smtp_username`,
+`smtp_from_address`, Neon and sizing settings) are **not** GitHub variables any more: they live in
+the committed `infra/terraform/environments/<env>.tfvars`, which `deploy.yml` and a local apply
+share. Edit that file (and commit it) before the first deploy; `image_namespace` there is also what
+the Docker Hub existence check in `deploy.yml` uses. The HCP workspace must hold the same
+environment as `BIRRAPOINT_ENVIRONMENT`; the workflow stops when it does not.
+
+## 3. Azure identity for `deploy.yml` (OIDC, no stored password)
+
+The deploy identity runs the whole Terraform apply: it creates the resource group, Container Apps,
+Key Vault and role assignments. It therefore needs **Contributor and User Access Administrator**
+(or RBAC Administrator) on the subscription; a resource-group scope is not enough for a brand-new
+environment, because the group does not exist yet.
 
 ```powershell
 $repo = "jesuscorral/birrapoint"
-$rg   = "birrapoint-prod-rg"
 $sub  = az account show --query id --output tsv
 $tenant = az account show --query tenantId --output tsv
 
@@ -68,25 +90,24 @@ $federated = @{
 az ad app federated-credential create --id $appId --parameters "@federated.json"
 Remove-Item federated.json
 
-# Rights on the application resource group only (Contributor includes the Container Apps
-# `listSecrets` action that `az containerapp update` needs). Using the object id avoids a Graph
-# lookup that can fail while the new service principal is still replicating.
+# Using the object id avoids a Graph lookup that can fail while the new service principal is
+# still replicating.
 $spObjectId = az ad sp show --id $appId --query id --output tsv
-az role assignment create --assignee-object-id $spObjectId --assignee-principal-type ServicePrincipal `
-  --role Contributor --scope "/subscriptions/$sub/resourceGroups/$rg"
+foreach ($role in "Contributor", "User Access Administrator") {
+  az role assignment create --assignee-object-id $spObjectId --assignee-principal-type ServicePrincipal `
+    --role $role --scope "/subscriptions/$sub"
+}
 ```
 
-The OIDC subject names the environment, not a branch. The environment's main-only branch
-policy in step 3 is what ties this identity to `main`. It is mandatory.
+Also add this identity to `key_vault_secrets_officer_principal_ids` if an operator group is used
+(`infra/terraform/README.md`). The OIDC subject names the environment, not a branch. The environment's main-only branch
+policy in step 4 is what ties this identity to `main`. It is mandatory, and more so now that the
+identity is broad.
 
-A narrower custom role instead of Contributor is possible, but it must include more than the
-Container Apps actions: `Microsoft.App/managedEnvironments/read` and `join/action`, and the
-operation-status reads. Validate it with a real deploy before relying on it.
-
-## 3. GitHub `production` environment
+## 4. GitHub `production` environment
 
 ```powershell
-# Create the environment, restricted to deployments from main (MANDATORY: see step 2)
+# Create the environment, restricted to deployments from main (MANDATORY: see step 3)
 @{ deployment_branch_policy = @{ protected_branches = $false; custom_branch_policies = $true } } |
   ConvertTo-Json | gh api --method PUT "repos/$repo/environments/production" --input - | Out-Null
 gh api --method POST "repos/$repo/environments/production/deployment-branch-policies" `
@@ -96,6 +117,13 @@ gh api --method POST "repos/$repo/environments/production/deployment-branch-poli
 gh secret set AZURE_CLIENT_ID       --env production --body $appId
 gh secret set AZURE_TENANT_ID       --env production --body $tenant
 gh secret set AZURE_SUBSCRIPTION_ID --env production --body $sub
+
+# Terraform inputs from step 2 (values prompted)
+gh secret set TF_API_TOKEN  --env production
+gh secret set NEON_API_KEY  --env production
+gh secret set SMTP_PASSWORD --env production
+gh variable set TF_CLOUD_ORGANIZATION --body "<org>"
+gh variable set TF_WORKSPACE          --body "<workspace>"
 ```
 
 Then add **required reviewers** in Settings → Environments → `production` → Required
@@ -106,7 +134,7 @@ shows only `main`. `deploy.yml` also refuses to run from any other branch.
 If you deploy an environment other than `PROD`, set it for `deploy.yml` too:
 `gh variable set BIRRAPOINT_ENVIRONMENT --body "<environment>"`.
 
-## 4. The release bot and `main`
+## 5. The release bot and `main`
 
 `release.yml` pushes the `vX.Y.Z` tag and the `version.txt` bump with the workflow's own
 `GITHUB_TOKEN` (`contents: write`). This works as long as `main` is **not protected**, which is
@@ -138,6 +166,6 @@ gh workflow run release.yml -f ref=main -f bump=patch
 # Deploy it to production (then approve in the Actions tab)
 gh workflow run deploy.yml -f version=0.1.0
 
-# Mixed versions / rollback: override single components
+# Mixed versions / rollback: override single components (rollback = apply the previous version)
 gh workflow run deploy.yml -f version=0.1.1 -f keycloak_version=0.1.0
 ```

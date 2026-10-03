@@ -1,6 +1,7 @@
 variable "subscription_id" {
-  description = "Azure subscription to deploy into (infra/deploy.ps1 passes the `az account show` one)."
+  description = "Azure subscription to deploy into. Null (default) uses ARM_SUBSCRIPTION_ID, or the az CLI's current subscription."
   type        = string
+  default     = null
 }
 
 variable "location" {
@@ -46,41 +47,65 @@ variable "dapr_secret_store_name" {
 
 # --- Images (Docker Hub, constitution v1.3.1) ---------------------------------------------------
 
-# Full image references, e.g. docker.io/<ns>/birrapoint-api-release:0.3.0 (resolved by
-# infra/deploy.ps1). Used only when a Container App is first created: afterwards the image is
-# owned by the deployment rollout (`az containerapp update`, via infra/deploy.ps1 or the deploy
-# pipeline) and Terraform ignores it (see `lifecycle` in apps.tf), so infrastructure applies never
-# roll an app back to an older image (FR-064, T134).
+# Terraform owns the running image (T143, ADR-0022): changing a version here and applying rolls the
+# Container App to a new revision. "latest" is the CI image docker.io/<ns>/birrapoint-<c>:latest;
+# X.Y.Z is the release image docker.io/<ns>/birrapoint-<c>-release:X.Y.Z (release.yml, ADR-0019).
 
-variable "api_image" {
-  description = "Initial image of the API Container App (ignored after creation)."
-  type        = string
-}
-
-variable "web_image" {
-  description = "Initial image of the web Container App (ignored after creation)."
-  type        = string
-}
-
-variable "keycloak_image" {
-  description = "Initial image of the Keycloak Container App (ignored after creation)."
-  type        = string
-}
-
-variable "revision_suffix" {
-  description = "Revision suffix for every Container App, unique per apply (infra/deploy.ps1 passes infra-<UTC timestamp>). Each apply therefore creates a new revision of all three apps (a restart); never run Terraform directly with a reused value."
+variable "image_namespace" {
+  description = "Docker Hub user or organization that owns the birrapoint-* repositories."
   type        = string
 
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]*[a-z0-9]$", var.revision_suffix)) && !strcontains(var.revision_suffix, "--")
-    error_message = "revision_suffix must be lowercase alphanumerics and single hyphens, starting with a letter."
+    condition     = upper(var.image_namespace) != "CHANGE-ME"
+    error_message = "image_namespace is still the CHANGE-ME placeholder: set it in the environment's tfvars file."
   }
 
-  # Container Apps limits a revision name (<app>--<suffix>) to 64 characters; -api/-web are the
-  # longest app names.
   validation {
-    condition     = length("birrapoint-${lower(var.environment)}-api--${var.revision_suffix}") <= 64
-    error_message = "environment + revision_suffix give a revision name longer than 64 characters."
+    condition     = can(regex("^[a-z0-9][a-z0-9_.-]{1,254}$", var.image_namespace))
+    error_message = "image_namespace must be a lowercase Docker Hub namespace."
+  }
+}
+
+variable "release_version" {
+  description = "Image version for all three components, always explicit: \"latest\" (CI images) or a release X.Y.Z. No default, so an apply never rolls to latest by accident."
+  type        = string
+
+  validation {
+    condition     = var.release_version == "latest" || can(regex("^[0-9]+[.][0-9]+[.][0-9]+$", var.release_version))
+    error_message = "release_version must be \"latest\" or X.Y.Z (e.g. 1.2.3)."
+  }
+}
+
+variable "api_version" {
+  description = "Overrides release_version for the API. Null uses release_version."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.api_version == null || var.api_version == "latest" || can(regex("^[0-9]+[.][0-9]+[.][0-9]+$", var.api_version))
+    error_message = "api_version must be \"latest\" or X.Y.Z."
+  }
+}
+
+variable "web_version" {
+  description = "Overrides release_version for the web app. Null uses release_version."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.web_version == null || var.web_version == "latest" || can(regex("^[0-9]+[.][0-9]+[.][0-9]+$", var.web_version))
+    error_message = "web_version must be \"latest\" or X.Y.Z."
+  }
+}
+
+variable "keycloak_version" {
+  description = "Overrides release_version for Keycloak. Null uses release_version."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.keycloak_version == null || var.keycloak_version == "latest" || can(regex("^[0-9]+[.][0-9]+[.][0-9]+$", var.keycloak_version))
+    error_message = "keycloak_version must be \"latest\" or X.Y.Z."
   }
 }
 
