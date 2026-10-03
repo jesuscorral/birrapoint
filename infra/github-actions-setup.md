@@ -9,7 +9,7 @@ in the repository.
 | `infra.yml` | Changes to `infra/**` | `terraform fmt`/`validate`/`test` (no backend), Pester (teardown) | nothing |
 | `workflows.yml` | Changes to `.github/**` | actionlint, release script tests | nothing |
 | `release.yml` | Manual | Publishes `<ns>/birrapoint-*-release:X.Y.Z`, tag, GitHub Release, bumps `version.txt` | Docker Hub |
-| `deploy.yml` | Manual, approval | Applies Terraform with a release version (`terraform init` + `apply`, ADR-0022) | Azure OIDC, HCP Terraform, Neon, SMTP, `production` environment |
+| `deploy.yml` | Manual, approval | Applies Terraform with a release version (`terraform init` + `apply`, ADR-0022), then waits for healthy revisions | Azure OIDC, HCP Terraform, Neon, SMTP, `production` environment |
 
 Only `deploy.yml` creates or changes infrastructure: it runs the same `terraform apply` as a
 workstation (see `infra/terraform/README.md`), so it can also create a brand-new environment.
@@ -34,7 +34,9 @@ gh variable set IMAGE_NAMESPACE --body "<docker hub user or org>"
 gh secret set DOCKERHUB_READ_TOKEN
 ```
 
-`IMAGE_NAMESPACE` must be a **variable**, not a secret. The workflows read `vars.IMAGE_NAMESPACE`,
+`IMAGE_NAMESPACE` is used by `ci.yml` and `release.yml` only (`deploy.yml` reads the namespace from
+`infra/terraform/environments/<env>.tfvars`; keep the two equal). It must be a **variable**, not a
+secret. The workflows read `vars.IMAGE_NAMESPACE`,
 and a secret would also mask every image name in the logs as `***`. The six repositories
 (`birrapoint-{api,web,keycloak}` and `birrapoint-{api,web,keycloak}-release`) are created by the
 first push.
@@ -51,8 +53,14 @@ first push.
 | secret | `NEON_API_KEY` | Neon API key |
 | secret | `SMTP_PASSWORD` | SMTP relay password |
 | variable | `TF_CLOUD_ORGANIZATION`, `TF_WORKSPACE` | HCP organization and workspace |
-| variable | `SMTP_HOST`, `SMTP_FROM_ADDRESS` | relay host, verified sender |
-| variable (optional) | `SMTP_USERNAME`, `SMTP_PORT` | default port 587 |
+| variable (optional) | `BIRRAPOINT_ENVIRONMENT` | environment name, default `PROD`; selects `infra/terraform/environments/<env>.tfvars` |
+
+Non-secret inputs (`image_namespace`, `smtp_host`, `smtp_port`, `smtp_username`,
+`smtp_from_address`, Neon and sizing settings) are **not** GitHub variables any more: they live in
+the committed `infra/terraform/environments/<env>.tfvars`, which `deploy.yml` and a local apply
+share. Edit that file (and commit it) before the first deploy; `image_namespace` there is also what
+the Docker Hub existence check in `deploy.yml` uses. The HCP workspace must hold the same
+environment as `BIRRAPOINT_ENVIRONMENT`; the workflow stops when it does not.
 
 ## 3. Azure identity for `deploy.yml` (OIDC, no stored password)
 
@@ -116,8 +124,6 @@ gh secret set NEON_API_KEY  --env production
 gh secret set SMTP_PASSWORD --env production
 gh variable set TF_CLOUD_ORGANIZATION --body "<org>"
 gh variable set TF_WORKSPACE          --body "<workspace>"
-gh variable set SMTP_HOST             --body "<host>"
-gh variable set SMTP_FROM_ADDRESS     --body "<sender>"
 ```
 
 Then add **required reviewers** in Settings → Environments → `production` → Required

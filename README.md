@@ -49,7 +49,8 @@ Tests: `dotnet test backend/BirraPoint.sln` · `cd frontend && npx jest` · `cd 
 ## Deploy to Azure
 
 One-time prerequisites: Azure CLI logged in as Owner (or Contributor + User Access Administrator),
-Terraform ≥ 1.9, a Neon API key, SMTP credentials and `infra/terraform/terraform.tfvars` (copy
+Terraform ≥ 1.9, a Neon API key, the non-secret inputs in `infra/terraform/environments/prod.tfvars`
+(set `image_namespace` and the SMTP host/sender) and the secrets in `infra/terraform/terraform.tfvars` (copy
 `terraform.tfvars.example`). Images are built by CI; no local Docker is needed.
 
 Deployment is Terraform only (ADR-0022); state is in HCP Terraform (workspace in Local execution
@@ -58,8 +59,8 @@ mode: `TF_CLOUD_ORGANIZATION`, `TF_WORKSPACE`, `terraform login`).
 ```bash
 export NEON_API_KEY=<key>
 terraform -chdir=infra/terraform init
-terraform -chdir=infra/terraform apply -var image_namespace=<dockerhub-namespace>                    # latest images
-terraform -chdir=infra/terraform apply -var image_namespace=<ns> -var release_version=1.2.3          # release images
+terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=1.2.3   # release images
+terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=latest   # CI images
 ./infra/teardown.ps1 [-WhatIf]                                       # removes everything, data included
 ```
 

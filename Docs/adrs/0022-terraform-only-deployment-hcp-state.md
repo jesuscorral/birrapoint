@@ -30,6 +30,18 @@ state. The environment is disposable, so none of that continuity is needed.
 5. **`infra/teardown.ps1` always wipes everything** (destroy incl. Neon, sweep by name, Key Vault
    and Log Analytics purge, local `.terraform`). No data is kept.
 6. `terraform test` (mocked providers, `infra/terraform/tests/`) runs in `infra.yml`.
+7. **Committed, non-secret environment files** (`infra/terraform/environments/<env>.tfvars`) hold
+   every non-secret input and are loaded by both local applies and `deploy.yml`, so the two never
+   diverge. Secrets stay in the gitignored `terraform.tfvars` or `TF_VAR_*`. `image_namespace`
+   ships as `CHANGE-ME` and is rejected by a validation until set.
+8. **`release_version` is required** (no default); `latest` is accepted only when passed explicitly.
+9. **Environment/workspace guard**: `deploy.yml` and `teardown.ps1` read
+   `terraform output -raw environment` after `init` and refuse to continue when the HCP workspace
+   holds a different environment (empty state allowed).
+10. **CI revision health gate**: after the apply, `deploy.yml` runs
+    `.github/scripts/wait-revisions.sh` (up to 10 min): latest revision ready, not Failed, Degraded
+    tolerated briefly, Healthy (or scaled to zero with `minReplicas` 0). Local applies have no such
+    gate.
 
 ## Consequences
 

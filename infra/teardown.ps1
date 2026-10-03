@@ -5,10 +5,11 @@
 
 .DESCRIPTION
     Always a full wipe, no data is kept:
-      1. confirmation: type the resource group name (-Force skips it; -WhatIf changes nothing);
-      2. `terraform init` against the HCP Terraform workspace, then `terraform destroy` of
-         everything Terraform manages (Container Apps, environment, Log Analytics, Key Vault -
-         purged -, role assignments and the Neon project);
+      1. `terraform init` against the HCP Terraform workspace, and a guard: the workspace must hold
+         the requested environment (or be empty), otherwise nothing is changed;
+      2. confirmation: type the resource group name (-Force skips it; -WhatIf changes nothing),
+         then `terraform destroy` of everything Terraform manages (Container Apps, environment,
+         Log Analytics, Key Vault - purged -, role assignments and the Neon project);
       3. sweep of whatever the destroy left behind, found by name: Log Analytics purge and
          `az group delete` of birrapoint-<environment>-rg, purge of the soft-deleted Key Vault,
          deletion of the Neon project of exactly that name (refused when several match);
@@ -35,7 +36,8 @@ param(
     # Deployment environment (resources are named birrapoint-<environment>-<acronym>).
     [string] $Environment = 'PROD',
 
-    # Defaults to infra/terraform/terraform.tfvars when it exists.
+    # Defaults to infra/terraform/environments/<environment>.tfvars when it exists; Terraform also
+    # loads the gitignored infra/terraform/terraform.tfvars on its own.
     [string] $VarFile,
 
     # Passed to Terraform only when given; otherwise tfvars or the variable default apply.
@@ -50,14 +52,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $terraformDir = Join-Path $PSScriptRoot 'terraform'
+Import-Module (Join-Path $PSScriptRoot 'Teardown.psm1') -Force
+$environmentName = ConvertTo-EnvironmentName $Environment
 # Resolved here, not as a param default: Windows PowerShell 5.1 leaves $PSScriptRoot empty in
 # param defaults when the script is run with `powershell -File`.
 if (-not $VarFile) {
-    $defaultVarFile = Join-Path $terraformDir 'terraform.tfvars'
+    $defaultVarFile = Get-EnvironmentVarFile -TerraformDir $terraformDir -Environment $environmentName
     if (Test-Path $defaultVarFile) { $VarFile = $defaultVarFile }
 }
-Import-Module (Join-Path $PSScriptRoot 'Teardown.psm1') -Force
-$environmentName = ConvertTo-EnvironmentName $Environment
 
 $neonApi = 'https://console.neon.tech/api/v2'
 $neonHeaders = @{ Authorization = "Bearer $env:NEON_API_KEY"; Accept = 'application/json' }
@@ -120,6 +122,17 @@ $accountJson = (Invoke-Probe { az account show --output json }) -join "`n"
 $account = if ($accountJson) { $accountJson | ConvertFrom-Json } else { $null }
 if (-not $account) { throw 'Not logged in to Azure. Run `az login` first.' }
 
+# terraform init is read-only for the infrastructure, so it also runs under -WhatIf: the guard
+# below needs the workspace state before anything is shown or confirmed.
+Invoke-Native 'terraform init' { terraform -chdir="$terraformDir" init -input=false }
+$stateEnvironment = ((Invoke-Probe { terraform -chdir="$terraformDir" output -raw environment }) -join '').Trim()
+if ($LASTEXITCODE -ne 0) { $stateEnvironment = '' }
+$workspaceLabel = if ($env:TF_WORKSPACE) { $env:TF_WORKSPACE } else { '(default)' }
+Write-Host ("HCP workspace {0} holds environment {1}" -f $workspaceLabel, $(if ($stateEnvironment) { $stateEnvironment } else { '(empty state)' }))
+if (-not (Test-StateEnvironment -Expected $environmentName -StateEnvironment $stateEnvironment)) {
+    throw "HCP workspace $workspaceLabel holds environment '$stateEnvironment', not '$environmentName'. Fix TF_WORKSPACE or -Environment; nothing was changed."
+}
+
 $appResourceGroup = Get-TeardownResourceName -Environment $environmentName -Resource ResourceGroup
 $keyVault = Get-TeardownResourceName -Environment $environmentName -Resource KeyVault
 $neonProjectName = Get-TeardownResourceName -Environment $environmentName -Resource NeonProject
@@ -156,9 +169,8 @@ $problems = @()
 
 # --- 3. terraform destroy ---------------------------------------------------------------------
 
-if ($PSCmdlet.ShouldProcess('infra/terraform', 'terraform init + terraform destroy (everything)')) {
+if ($PSCmdlet.ShouldProcess('infra/terraform', 'terraform destroy (everything)')) {
     try {
-        Invoke-Native 'terraform init' { terraform -chdir="$terraformDir" init -input=false }
         $resolvedVarFile = if ($VarFile) { (Resolve-Path $VarFile).Path } else { $null }
         $destroyArgs = Get-DestroyArgument -TerraformDir $terraformDir -Environment $environmentName `
             -Location $Location -VarFile $resolvedVarFile

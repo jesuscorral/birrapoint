@@ -155,3 +155,31 @@ Describe 'Resolve-NeonProjectTarget' {
         (Resolve-NeonProjectTarget -NameMatches @()).Action | Should -Be 'None'
     }
 }
+
+Describe 'Test-StateEnvironment' {
+    It 'accepts an empty state (nothing deployed yet)' -ForEach @(
+        @{ state = $null }, @{ state = '' }, @{ state = '  ' }
+    ) {
+        Test-StateEnvironment -Expected 'PROD' -StateEnvironment $state | Should -BeTrue
+    }
+
+    It 'accepts the same environment regardless of casing' {
+        Test-StateEnvironment -Expected 'PROD' -StateEnvironment 'prod' | Should -BeTrue
+        Test-StateEnvironment -Expected 'prod' -StateEnvironment ' PROD ' | Should -BeTrue
+    }
+
+    It 'rejects a workspace that holds another environment' {
+        Test-StateEnvironment -Expected 'dev' -StateEnvironment 'prod' | Should -BeFalse
+    }
+
+    It 'does not accept a prefix of the environment' {
+        Test-StateEnvironment -Expected 'prod' -StateEnvironment 'prod2' | Should -BeFalse
+    }
+}
+
+Describe 'Get-EnvironmentVarFile' {
+    It 'is environments/ENV.tfvars (lower-cased) under the Terraform directory' {
+        $file = Get-EnvironmentVarFile -TerraformDir 'C:/repo/infra/terraform' -Environment 'PROD'
+        $file | Should -Be (Join-Path 'C:/repo/infra/terraform' 'environments/prod.tfvars')
+    }
+}

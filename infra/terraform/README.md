@@ -73,7 +73,8 @@ Constitution v1.4.0, research R-17/R-18/R-19, ADR-0016/ADR-0017/ADR-0021/ADR-002
 | Docker Hub images | Published by GitHub Actions (`ci.yml` for `latest`, `release.yml` for `X.Y.Z`); no local Docker needed |
 | Neon account + API key | Neon console → Account settings → API keys; `export NEON_API_KEY=...` |
 | SMTP relay | Any provider with SMTP credentials and a verified sender address |
-| Variables file | `cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars`, fill in |
+| Environment file | `infra/terraform/environments/<env>.tfvars` is committed and holds every non-secret input (shared with `deploy.yml`): set `image_namespace` and the `smtp_*` placeholders before the first deploy |
+| Secrets file | `cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars` (gitignored): `smtp_password`, optionally `dockerhub_*`; or `TF_VAR_*` environment variables |
 
 Private Docker Hub repositories additionally need `dockerhub_username` + a **read-only** access
 token in `dockerhub_token`; with public repositories leave both empty.
@@ -84,21 +85,28 @@ token in `dockerhub_token`; with public repositories leave both empty.
 az login && terraform login
 export TF_CLOUD_ORGANIZATION=<org> TF_WORKSPACE=<workspace> NEON_API_KEY=<key>
 terraform -chdir=infra/terraform init
-terraform -chdir=infra/terraform apply -var image_namespace=<dockerhub-user-or-org>           # latest images
-terraform -chdir=infra/terraform apply -var image_namespace=<ns> -var release_version=0.3.1   # release images
-terraform -chdir=infra/terraform apply -var image_namespace=<ns> -var release_version=0.3.1 -var keycloak_version=0.3.0
-terraform -chdir=infra/terraform plan  -var image_namespace=<ns>                              # preview
+terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=0.3.1
+terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=0.3.1 -var keycloak_version=0.3.0
+terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=latest   # CI images
+terraform -chdir=infra/terraform plan  -var-file=environments/prod.tfvars -var release_version=0.3.1    # preview
 ```
 
-`image_namespace` can also live in `terraform.tfvars`. Each component's image is chosen
-independently: `api_version`, `web_version`, `keycloak_version` override `release_version`
-(default `latest`). `X.Y.Z` deploys `<ns>/birrapoint-<component>-release:X.Y.Z`, `latest` deploys
+The environment file is the same one `deploy.yml` loads, so a local and a CI apply use identical
+non-secret inputs. `release_version` has no default (it must be explicit, so an apply never rolls
+to `latest` by accident); each component's image is chosen
+independently: `api_version`, `web_version`, `keycloak_version` override it. `X.Y.Z` deploys `<ns>/birrapoint-<component>-release:X.Y.Z`, `latest` deploys
 `<ns>/birrapoint-<component>:latest`.
 
 Terraform owns the running image (ADR-0022): changing a version and applying creates a new
 revision of that app; rollback is an apply with the previous version. **`latest` on an existing
 environment does not re-pull**, because the template does not change; use release versions to
-update. The API migrates the database on startup.
+update. The API migrates the database on startup. A local apply has no revision health gate;
+`deploy.yml` adds one after its apply (`.github/scripts/wait-revisions.sh`), so check the
+revisions yourself (`az containerapp revision list`) after a local rollout.
+
+Environment guard: the HCP workspace (`TF_WORKSPACE`) must hold the environment you deploy or
+tear down. `deploy.yml` and `teardown.ps1` read `terraform output -raw environment` after `init`
+and stop when it differs (an empty state is allowed).
 
 On a first apply Terraform waits ~90 s after granting `Key Vault Secrets Officer`, for the role to
 reach the vault, before writing the secrets. The apps' own role assignments can only be created
@@ -163,7 +171,9 @@ $env:NEON_API_KEY = "<key>"   # plus TF_CLOUD_ORGANIZATION, TF_WORKSPACE and a T
 
 Always a full wipe, **data included**; the next deploy starts from scratch (ADR-0022):
 
-1. `terraform init` against the HCP workspace, then `terraform destroy` of everything Terraform
+1. `terraform init` against the HCP workspace and a guard (the workspace must hold the requested
+   environment or be empty, otherwise nothing is changed), then, after the confirmation,
+   `terraform destroy` of everything Terraform
    manages: Container Apps, environment, Log Analytics, Key Vault (purged), role assignments and the
    Neon project;
 2. a sweep of whatever remains, found by name: Log Analytics purge and `az group delete` of
@@ -171,7 +181,7 @@ Always a full wipe, **data included**; the next deploy starts from scratch (ADR-
    exactly that name (refused when several match);
 3. removal of the local `infra/terraform/.terraform` and a final verification.
 
-Pass `-Environment` for an environment other than `PROD`, `-NeonOrgId` when the API key belongs to
+Pass `-Environment` for an environment other than `PROD` (its `environments/<env>.tfvars` is used), `-NeonOrgId` when the API key belongs to
 several Neon organizations. Docker Hub images, GitHub secrets and the HCP workspace itself are not
 touched. The script is idempotent: re-run it after a partial failure. Log Analytics and Key Vault
 are purged, not soft-deleted (`permanently_delete_on_destroy`, `purge_soft_delete_on_destroy`), so

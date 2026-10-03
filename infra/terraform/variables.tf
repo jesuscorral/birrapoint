@@ -56,15 +56,19 @@ variable "image_namespace" {
   type        = string
 
   validation {
+    condition     = upper(var.image_namespace) != "CHANGE-ME"
+    error_message = "image_namespace is still the CHANGE-ME placeholder: set it in the environment's tfvars file."
+  }
+
+  validation {
     condition     = can(regex("^[a-z0-9][a-z0-9_.-]{1,254}$", var.image_namespace))
     error_message = "image_namespace must be a lowercase Docker Hub namespace."
   }
 }
 
 variable "release_version" {
-  description = "Image version for all three components: \"latest\" (CI images) or a release X.Y.Z."
+  description = "Image version for all three components, always explicit: \"latest\" (CI images) or a release X.Y.Z. No default, so an apply never rolls to latest by accident."
   type        = string
-  default     = "latest"
 
   validation {
     condition     = var.release_version == "latest" || can(regex("^[0-9]+[.][0-9]+[.][0-9]+$", var.release_version))

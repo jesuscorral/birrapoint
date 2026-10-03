@@ -33,9 +33,10 @@ variables {
   smtp_from_address = "no-reply@example.com"
   smtp_password     = "not-a-real-password"
   environment       = "PROD"
+  release_version   = "latest"
 }
 
-run "latest_images_by_default" {
+run "latest_images_when_requested" {
   command = plan
 
   assert {
@@ -152,4 +153,24 @@ run "no_deploy_client_secret_in_key_vault" {
     condition     = !contains(values(local.keycloak_secret_env), "keycloak-deploy-client-secret")
     error_message = "Keycloak must not be told to load a deploy client secret"
   }
+}
+
+run "release_version_is_required" {
+  command = plan
+
+  variables {
+    release_version = null
+  }
+
+  expect_failures = [var.release_version]
+}
+
+run "placeholder_image_namespace_is_rejected" {
+  command = plan
+
+  variables {
+    image_namespace = "CHANGE-ME"
+  }
+
+  expect_failures = [var.image_namespace]
 }

@@ -45,6 +45,28 @@ function Get-TeardownResourceName {
     "birrapoint-$(ConvertTo-EnvironmentName $Environment)-$($script:ResourceAcronyms[$Resource])"
 }
 
+function Test-StateEnvironment {
+    # Guards against destroying the wrong environment: the HCP workspace behind TF_WORKSPACE may
+    # hold another environment than the one asked for. An empty state (nothing deployed) is fine.
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)] [string] $Expected,
+        [AllowNull()] [AllowEmptyString()] [string] $StateEnvironment
+    )
+    if ([string]::IsNullOrWhiteSpace($StateEnvironment)) { return $true }
+    $StateEnvironment.Trim().ToLowerInvariant() -ceq $Expected.Trim().ToLowerInvariant()
+}
+
+function Get-EnvironmentVarFile {
+    # The committed, non-secret inputs of an environment, shared with deploy.yml (ADR-0022).
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)] [string] $TerraformDir,
+        [Parameter(Mandatory = $true)] [string] $Environment
+    )
+    Join-Path $TerraformDir ('environments/{0}.tfvars' -f (ConvertTo-EnvironmentName $Environment))
+}
+
 function Select-NeonProjectToDelete {
     # Only projects whose name is exactly the deployment's Neon project name; never a prefix or
     # substring match, so no other Neon project of the account is ever selected.
@@ -99,4 +121,5 @@ function Get-DestroyArgument {
 }
 
 Export-ModuleMember -Function Test-TeardownConfirmation, ConvertTo-EnvironmentName, Get-TeardownResourceName,
-    Select-NeonProjectToDelete, Resolve-NeonProjectTarget, Get-DestroyArgument
+    Select-NeonProjectToDelete, Resolve-NeonProjectTarget, Get-DestroyArgument,
+    Test-StateEnvironment, Get-EnvironmentVarFile

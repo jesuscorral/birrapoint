@@ -44,3 +44,4 @@ jobs:
           tar -xzf "actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" actionlint
       - run: '"$RUNNER_TEMP/actionlint" -color'
       - run: bash .github/scripts/version.test.sh
+      - run: bash .github/scripts/wait-revisions.test.sh

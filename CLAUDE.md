@@ -76,12 +76,13 @@ npm run e2e                           # Playwright + axe; plain `npx playwright 
 k6 run infra/perf/api-budgets.js      # needs bearer token, see script header
 
 terraform -chdir=infra/terraform init   # state in HCP Terraform: TF_CLOUD_ORGANIZATION, TF_WORKSPACE, terraform login
-terraform -chdir=infra/terraform apply -var image_namespace=<ns> [-var release_version=X.Y.Z] [-var api_version=X.Y.Z ...]  # ADR-0022
+terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=X.Y.Z   # ADR-0022
 terraform -chdir=infra/terraform test   # mocked providers, no credentials
-./infra/teardown.ps1 [-WhatIf] [-Force]   # wipes everything incl. Neon data
+./infra/teardown.ps1 [-Environment X] [-WhatIf] [-Force]   # wipes everything incl. Neon data
 gh workflow run release.yml -f ref=main -f bump=patch   # ADR-0019
 gh workflow run deploy.yml -f version=X.Y.Z             # terraform apply; see infra/github-actions-setup.md
 bash .github/scripts/version.test.sh
+bash .github/scripts/wait-revisions.test.sh
 bash infra/keycloak/dapr-secrets/DaprSecretsEnv.test.sh
 Invoke-Pester infra/tests             # Pester 5+
 docker build -f backend/src/BirraPoint.Api/Dockerfile backend | docker build frontend | docker build infra/keycloak
