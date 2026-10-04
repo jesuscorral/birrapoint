@@ -87,7 +87,7 @@ function Get-EnvironmentVarFile {
         [Parameter(Mandatory = $true)] [string] $TerraformDir,
         [Parameter(Mandatory = $true)] [string] $Environment
     )
-    Join-Path $TerraformDir ('environments/{0}.tfvars' -f (ConvertTo-EnvironmentName $Environment))
+    [System.IO.Path]::Combine($TerraformDir, 'environments', ('{0}.tfvars' -f (ConvertTo-EnvironmentName $Environment)))
 }
 
 function Select-NeonProjectToDelete {
