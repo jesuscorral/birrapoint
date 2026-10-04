@@ -16,7 +16,7 @@ Added sections: none
 Removed sections: none
 Templates:
   - CLAUDE.md ✅ updated (commands, layout, infra stack)
-  - specs/001-birrapoint-mvp/spec.md (clarification), plan.md, research.md (R-20), tasks.md
+  - specs/001-birrapoint-mvp/spec.md (clarification), plan.md, research.md (R-21), tasks.md
     (T144–T146), quickstart.md ✅ updated
 Follow-up TODOs: AWS stack itself is pending (T145, T146)
 
@@ -257,7 +257,7 @@ The approved stack is defined in `Docs/01-Definicion-Tecnologica.md` and is bind
     the vault.
   - **AWS**: ECS Fargate in a dedicated VPC, frontend and Keycloak published through an ALB
     fronted by CloudFront (HTTPS), the API internal and reached over ECS Service Connect.
-    Secrets live in AWS Secrets Manager; every service has its own IAM task role limited to
+    Secrets live in AWS Secrets Manager; the API and Keycloak each have an IAM task role limited to
     reading its own secrets.
   - **Both**: apps read their secrets at runtime through a Dapr secret store component (Dapr
     sidecar), never as platform secrets or settings, never baked into an image or committed to

@@ -5,7 +5,7 @@
 # previous version. State lives in HCP Terraform (Local execution mode: it only stores state; the
 # apply runs here with the Azure OIDC identity). Only runs when dispatched from main (the
 # `azure-production` environment is also restricted to main). Setup: infra/github-actions-setup.md.
-name: Deploy (Azure)
+name: 3.-Deploy (Azure)
 
 on:
   workflow_dispatch:

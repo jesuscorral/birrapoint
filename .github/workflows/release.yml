@@ -266,7 +266,7 @@ jobs:
           {
             echo '## Images'
             echo
-            echo "Deploy with the **Deploy** workflow (\`deploy-azure.yml\`), version \`$VERSION\`."
+            echo "Deploy with the **3.-Deploy (Azure)** workflow (\`deploy-azure.yml\`), version \`$VERSION\`."
             echo
             echo '| Component | Image | Digest |'
             echo '|---|---|---|'

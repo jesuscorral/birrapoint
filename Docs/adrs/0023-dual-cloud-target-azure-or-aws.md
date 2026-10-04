@@ -29,8 +29,8 @@ already cloud-agnostic, and ADR-0021 already routes secrets through a Dapr secre
    certificates, WebSockets, caching disabled. The ALB accepts only CloudFront (managed
    origin-facing prefix list) and routes web vs Keycloak by a secret origin custom header.
 5. **AWS secrets**: Secrets Manager (`recovery_window_in_days = 0` so redeploys do not collide),
-   read through a Dapr sidecar per task (`secretstores.aws.secretmanager`; an init container
-   writes the component YAML to a shared volume). Each service has an IAM task role with
+   read through a Dapr sidecar in the API and Keycloak tasks (`secretstores.aws.secretmanager`; an init container
+   writes the component YAML to a shared volume). The API and Keycloak each have an IAM task role with
    `GetSecretValue` on its own secrets only. Same mechanism as ADR-0021, so images are unchanged.
 6. Logs in CloudWatch; Neon unchanged (one project per deployment, `aws-eu-central-1`); naming
    `birrapoint-<env>-<acronym>`.
@@ -42,7 +42,7 @@ research R-21.
 
 - Two stacks to build, test and maintain; changes to shared behavior (Keycloak image, env vars,
   Dapr secret names) must be checked against both.
-- Cost: AWS is roughly 85–100 USD/month (ALB ~18, Fargate incl. 3 daprd sidecars ~60, public IPv4
+- Cost: AWS is roughly 85–100 USD/month (ALB ~18, Fargate incl. 2 daprd sidecars ~55, public IPv4
   ~15, CloudFront ~0); Azure ACA is cheaper.
 - AWS URLs are `*.cloudfront.net` until a custom domain is added (a later ADR).
 - Public task IPs without NAT trade network isolation for cost; the security groups are the only

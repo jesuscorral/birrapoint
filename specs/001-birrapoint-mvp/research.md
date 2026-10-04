@@ -205,7 +205,8 @@ Alternatives considered.
   separate `*-release` Docker Hub repositories, version read from `version.txt`), and deploy
   (`deploy.yml`: approval-gated, runs `terraform init` + `apply` for a released version via
   Azure OIDC). `terraform apply` is the single deploy entry point, from a workstation or from CI
-  (ADR-0022, T143; the former `deploy.ps1` is removed).
+  (ADR-0022, T143; the former `deploy.ps1` is removed). Since T144 (ADR-0023) the Azure stack
+  lives in `infra/azure/` and the deploy workflow is `deploy-azure.yml`.
 - **Superseded decision (v1.2.0, kept for audit trail)**: `azure.yaml` + `infra/bicep/`
   (generated/extended from the AppHost model) so that a single `azd up` built the multi-stage
   images, pushed to Azure Container Registry, provisioned the ACA environment, and deployed
@@ -216,7 +217,7 @@ Alternatives considered.
 - **Decision**: Production PostgreSQL is a Neon project/branch, reached over its pooled connection
   string, injected into the backend Container App as a secret (FR-047). No in-environment
   container, no self-managed backup job — Neon's own point-in-time recovery is the restore path,
-  documented in `infra/terraform/README.md` (or equivalent) in place of the old
+  documented in `infra/azure/terraform/README.md` (or equivalent) in place of the old
   `infra/backup/RESTORE.md`.
 - **Rationale**: User decision 2026-09-23, superseding the original v1.2.0 choice below —
   offloads backup/PITR/HA to a managed service instead of a hand-rolled `pg_dump` job, at the cost
@@ -319,9 +320,10 @@ Numbered R-21 because R-20 was already taken by the judge-roster decision.
     certificates, WebSockets, caching disabled. The ALB admits only CloudFront (managed
     origin-facing prefix list) and routes web vs Keycloak by a secret origin custom header.
   - Secrets: AWS Secrets Manager (`recovery_window_in_days = 0`, so redeploys do not collide),
-    read through a Dapr sidecar (`secretstores.aws.secretmanager`; an init container writes the
-    component YAML into a shared volume); one IAM task role per service with `GetSecretValue` on
-    its own secrets only. Same mechanism as Azure (ADR-0021), so the images stay unchanged.
+    read through a Dapr sidecar in the API and Keycloak tasks only (`secretstores.aws.secretmanager`;
+    an init container writes the component YAML into a shared volume; the web reads no secrets,
+    as on Azure); the API and Keycloak each have an IAM task role with `GetSecretValue` on their
+    own secrets only. Same mechanism as Azure (ADR-0021), so the images stay unchanged.
   - Logs in CloudWatch; Neon unchanged (one project per deployment, `aws-eu-central-1`); naming
     `birrapoint-<env>-<acronym>`.
   - Independence: own teardown, Pester tests, `terraform test`, HCP workspace (Local execution),
@@ -330,7 +332,7 @@ Numbered R-21 because R-20 was already taken by the judge-roster decision.
 - **Rationale**: user decision 2026-10-04. Fargate runs the existing images and supports
   WebSockets (SignalR). CloudFront gives HTTPS without owning a domain. Dapr keeps secret access
   identical on both clouds. No NAT gateway avoids ~32 USD/month per NAT. Rough cost 85–100
-  USD/month (ALB ~18, Fargate incl. 3 daprd sidecars ~60, public IPv4 ~15, CloudFront ~0); Azure
+  USD/month (ALB ~18, Fargate incl. 2 daprd sidecars ~55, public IPv4 ~15, CloudFront ~0); Azure
   ACA is cheaper.
 - **Alternatives considered**: App Runner (rejected: no WebSockets); EKS (rejected: cost and
   operational complexity); own domain + ACM (rejected for now: no domain available, CloudFront

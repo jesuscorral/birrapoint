@@ -1,7 +1,8 @@
 # 0021 - Resource naming convention, Key Vault with managed identities and the Dapr secret store
 
 **Status:** Accepted — the `tfstate-rg` state naming and `ResourceNames.psm1` no longer apply
-(state is in HCP Terraform, ADR-0022); the resource naming rule itself stands
+(state is in HCP Terraform, ADR-0022); the resource naming rule itself stands; paths below
+moved to `infra/azure/` (ADR-0023)
 **Date:** 2026-09-27
 
 ## Context

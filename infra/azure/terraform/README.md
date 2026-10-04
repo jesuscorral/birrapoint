@@ -1,8 +1,8 @@
 # BirraPoint — cloud deployment (Terraform → Azure Container Apps + Neon)
 
-Constitution v1.4.0, research R-17/R-18/R-19, ADR-0016/ADR-0017/ADR-0021/ADR-0022, FR-043–FR-047, SC-011.
+Constitution v1.5.0, research R-17/R-18/R-19/R-21, ADR-0016/ADR-0017/ADR-0021/ADR-0022/ADR-0023, FR-043–FR-047, SC-011.
 
-First deploy from scratch? Follow the end-to-end checklist in [`../deployment-runbook.md`](../../deployment-runbook.md) (accounts, keys, order).
+First deploy from scratch? Follow the end-to-end checklist in [`infra/deployment-runbook.md`](../../deployment-runbook.md) (accounts, keys, order).
 
 ## Topology
 
