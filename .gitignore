@@ -50,5 +50,6 @@ Thumbs.db
 *.tfvars
 !*.tfvars.example
 !infra/azure/terraform/environments/*.tfvars
+!infra/aws/terraform/environments/*.tfvars
 crash.log
 *.tfplan

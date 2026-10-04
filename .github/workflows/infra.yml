@@ -1,6 +1,6 @@
 # Infrastructure checks (FR-064, T134, T143, T144): static validation of infra/ only - Terraform
 # formatting, validation and the plan-level `terraform test` suite (mocked providers: no backend,
-# no credentials, no plan/apply against Azure), the Pester tests of the pure logic behind
+# no credentials, no plan/apply against Azure or AWS), the Pester tests of the pure logic behind
 # infra/<cloud>/teardown.ps1 (infra/<cloud>/tests), and the tests of the Keycloak image's Dapr secret loader
 # (T142). Runs only when infra/ changes. It never deploys: infrastructure is applied by
 # deploy-<cloud>.yml or locally with `terraform apply`.
@@ -29,8 +29,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # One entry per independent cloud root (infra/<cloud>/terraform, infra/<cloud>/tests).
-        cloud: [azure]
+        # One entry per independent cloud root (infra/<cloud>/terraform).
+        cloud: [azure, aws]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

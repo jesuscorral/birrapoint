@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars (gitignored, loaded automatically) and fill in. SECRETS ONLY: every
+# non-secret input lives in the committed environments/<env>.tfvars, shared with deploy-aws.yml.
+#   - state:   HCP Terraform (Local execution mode, this root's own workspace): TF_CLOUD_ORGANIZATION
+#              and TF_WORKSPACE environment variables, `terraform login` or TF_TOKEN_app_terraform_io
+#   - AWS:     the standard credential chain (`aws configure sso`, AWS_PROFILE, or AWS_* variables)
+#   - Neon:    NEON_API_KEY environment variable - never put it in this file
+# These secrets can equally be supplied as TF_VAR_<name> environment variables.
+
+smtp_password = "change-me"
+
+# Private Docker Hub repositories only - leave both unset for public ones.
+# dockerhub_username = "myhubuser"
+# dockerhub_token    = "dckr_pat_..."   # read-only access token

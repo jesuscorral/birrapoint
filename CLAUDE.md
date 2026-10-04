@@ -9,12 +9,12 @@ dispatch. Judge: offline-first evaluation, shared fixed tasting order, BJCP scor
 discrepancy consensus. Out of scope: Best of Show, tie-breaks (only `NotValidForBos` flag).
 
 Status: US1–US14 done. Pending work lives in `specs/001-birrapoint-mvp/tasks.md` (T092 usability
-study; Phase 16 deploy/ops: T098, T099, T129–T132, T137, T139, T145–T146 AWS target). Current system state: `Docs/arquitectura_viva.md`.
+study; Phase 16 deploy/ops: T098, T099, T129–T132, T137, T139, T146 AWS deploy/teardown). Current system state: `Docs/arquitectura_viva.md`.
 `Docs/` product definition is Spanish and superseded by the English spec.
 
 ## Source of truth (priority order)
 
-1. `.specify/memory/constitution.md` (v1.5.0) — overrides everything; stack changes need an amendment.
+1. `.specify/memory/constitution.md` (v1.5.1) — overrides everything; stack changes need an amendment.
 2. `specs/001-birrapoint-mvp/`: `spec.md` (US/FR/SC) → `plan.md` → `tasks.md`; supporting
    `research.md` (R-01–R-21), `data-model.md`, `contracts/` (`rest-api.md`, `signalr-hub.md`,
    `import-file.md`), `quickstart.md` (one validation scenario per story).
@@ -75,10 +75,12 @@ npx jest | npx ng lint | npm run format:check | npm run build:budget   # (from f
 npm run e2e                           # Playwright + axe; plain `npx playwright test` fails
 k6 run infra/perf/api-budgets.js      # needs bearer token, see script header
 
-# Azure (AWS: infra/aws/, planned T145/T146 — one cloud per deployment, ADR-0023)
+# Azure (one cloud per deployment, ADR-0023)
 terraform -chdir=infra/azure/terraform init   # state in HCP Terraform: TF_CLOUD_ORGANIZATION, TF_WORKSPACE, terraform login
 terraform -chdir=infra/azure/terraform apply -var-file=environments/prod.tfvars -var release_version=X.Y.Z   # ADR-0022
 terraform -chdir=infra/azure/terraform test   # mocked providers, no credentials
+terraform -chdir=infra/aws/terraform init && terraform -chdir=infra/aws/terraform apply -var-file=environments/prod.tfvars -var release_version=X.Y.Z   # AWS, local apply (see its README)
+terraform -chdir=infra/aws/terraform test   # mocked providers, no credentials
 ./infra/azure/teardown.ps1 [-Environment X] [-WhatIf] [-Force]   # wipes everything incl. Neon data
 gh workflow run release.yml -f ref=main -f bump=patch   # ADR-0019
 gh workflow run deploy-azure.yml -f version=X.Y.Z       # terraform apply; see infra/github-actions-setup.md
@@ -101,7 +103,7 @@ backend/tests/   UnitTests + IntegrationTests
 frontend/src/app/  FSD: core/ (auth, api, realtime, offline, layout), features/, shared/
 frontend/e2e/    Playwright (+ e2e/a11y axe)
 infra/           azure/ (teardown.ps1 + Teardown.psm1, tests/ Pester, terraform/ ACA, Key Vault, Dapr,
-                 Neon), aws/ (planned, same shape: ECS Fargate, ALB, CloudFront, Secrets Manager),
+                 Neon), aws/ (terraform: ECS Fargate, ALB, CloudFront, Secrets Manager; teardown + deploy in T146),
                  keycloak/ (realm, theme, Dockerfile, dapr-secrets), perf/ (k6)
 ```
 
