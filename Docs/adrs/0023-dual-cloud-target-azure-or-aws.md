@@ -68,4 +68,5 @@ research R-21.
 - `infra/aws/teardown.ps1` sweeps leftovers by exact name and the `application` + `environment` default tags, so another environment's or application's resources are never touched; the final check uses the tagging API.
 - `.claude/hooks/guard.js` also blocks destructive `aws` CLI commands.
 - Setup docs are split per cloud (`infra/azure/`, `infra/aws/`: setup guide + runbook); shared CI setup (Docker Hub, release bot) is `infra/ci-setup.md`.
-- `deploy-aws.yml` uses the `aws-production` environment and an OIDC role (`AWS_ROLE_ARN`); health gate is `aws ecs wait services-stable`.
+- `deploy-aws.yml` uses the `aws-production` environment and an OIDC role (`AWS_ROLE_ARN`); health gate `.github/scripts/ecs-health.sh`: `aws ecs wait services-stable`, then fail unless every service's PRIMARY deployment is `COMPLETED` on the applied task definition (`ecs_task_definition_arns` output) and none is `FAILED`, so a circuit-breaker rollback is not reported as success.
+- Neon is shared by both clouds, so the project names differ (`birrapoint-<env>-neon` on Azure, `birrapoint-<env>-aws-neon` on AWS) and both teardowns delete only the project id held in their Terraform state after checking its exact name; with an empty state they only report a name match unless `-NeonProjectId` is given (PR #63 review B1).

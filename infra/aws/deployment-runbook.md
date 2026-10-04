@@ -217,7 +217,8 @@ gh workflow run deploy-aws.yml -f version=X.Y.Z -f keycloak_version=X.Y.W   # pe
 
 The workflow validates the version and checks that the images exist on Docker Hub. It waits for
 approval, then guards that the HCP workspace holds the same environment. It then applies and
-waits until every ECS service is stable.
+waits until every ECS service is stable and runs the task definition Terraform applied (a rollback
+by the circuit breaker fails the job).
 
 ## Tear down (wipes everything, data included)
 
@@ -229,7 +230,9 @@ $env:NEON_API_KEY = "<key>"   # plus TF_CLOUD_ORGANIZATION, TF_WORKSPACE, terraf
 
 The script runs `terraform destroy`, then sweeps what is left (found by exact name **and** the tags
 `application=birrapoint`, `environment=<env>`, so nothing of another environment or application is
-touched), deletes the Neon project and verifies through the tagging API that nothing remains.
+touched), deletes the Neon project of the Terraform state (by id, after checking its name; with
+an empty state pass `-NeonProjectId`) and verifies that nothing remains (tagging API plus direct IAM
+and Neon probes).
 Removing the CloudFront distributions takes about 15 minutes. Accounts, tokens, Docker Hub images,
 GitHub secrets, the IAM OIDC provider and deploy role, and the HCP workspace survive a teardown. The
 next deploy is just step A6 (or B4) again. The Azure environment has its own `infra/azure/teardown.ps1`.

@@ -88,6 +88,8 @@ gh workflow run deploy-azure.yml -f version=X.Y.Z       # terraform apply; see i
 gh workflow run deploy-aws.yml -f version=X.Y.Z         # AWS apply; see infra/aws/github-actions-setup.md
 bash .github/scripts/version.test.sh
 bash .github/scripts/wait-revisions.test.sh
+bash .github/scripts/ecs-health.test.sh
+node .claude/hooks/guard.test.js
 bash infra/keycloak/dapr-secrets/DaprSecretsEnv.test.sh
 Invoke-Pester infra/azure/tests       # Pester 5+
 Invoke-Pester infra/aws/tests

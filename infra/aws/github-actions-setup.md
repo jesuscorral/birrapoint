@@ -162,7 +162,9 @@ gh workflow run deploy-aws.yml -f version=0.1.0
 gh workflow run deploy-aws.yml -f version=0.1.1 -f keycloak_version=0.1.0
 ```
 
-The job ends with a health gate (`aws ecs wait services-stable`, up to three 10-minute attempts)
+The job ends with a health gate (`.github/scripts/ecs-health.sh`: `aws ecs wait services-stable`, up
+to three 10-minute attempts, then a check that every service's PRIMARY deployment is `COMPLETED` on
+the task definition Terraform applied, so a circuit-breaker rollback fails the job)
 and a summary with the PWA and Keycloak URLs and the deployed versions. If the gate fails it
 prints the services' latest events; the same details are in the ECS console and in the
 `/birrapoint/<env>/<service>` log groups.

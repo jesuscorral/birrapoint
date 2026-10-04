@@ -67,7 +67,7 @@ Describe 'Get-TeardownResourceName' {
         @{ resource = 'ResponseHeadersPolicy'; expected = 'birrapoint-prod-security' },
         @{ resource = 'LogGroupPrefix'; expected = '/birrapoint/prod/' },
         @{ resource = 'DockerHubSecret'; expected = 'birrapoint-prod-dockerhub' },
-        @{ resource = 'NeonProject'; expected = 'birrapoint-prod-neon' }
+        @{ resource = 'NeonProject'; expected = 'birrapoint-prod-aws-neon' }
     ) {
         Get-TeardownResourceName -Environment 'PROD' -Resource $resource | Should -Be $expected
     }
@@ -343,9 +343,13 @@ Describe 'Get-DestroyArgument' {
         Get-DestroyArgument @common -VarFile 'x.tfvars' | Should -Contain '-var=environment=prod'
     }
 
-    It 'passes the region only when given' {
+    It 'passes an explicit region even with a var file' {
         (Get-DestroyArgument @common -VarFile 'x.tfvars' | Where-Object { $_ -like '-var=region=*' }) | Should -BeNullOrEmpty
         Get-DestroyArgument @common -VarFile 'x.tfvars' -Region 'eu-west-3' | Should -Contain '-var=region=eu-west-3'
+    }
+
+    It 'always passes the region when there is no var file, so the provider targets the swept region' {
+        Get-DestroyArgument @common -Region 'eu-west-3' | Should -Contain '-var=region=eu-west-3'
     }
 
     It 'puts the var file before the -var flags' {
@@ -372,7 +376,7 @@ Describe 'Get-DestroyArgument' {
     }
 
     It 'supplies placeholders for the required SMTP variables when there is no var file' {
-        $arguments = Get-DestroyArgument @common
+        $arguments = Get-DestroyArgument @common -Region 'eu-central-1'
 
         ($arguments | Where-Object { $_ -like '-var-file=*' }) | Should -BeNullOrEmpty
         ($arguments | Where-Object { $_ -like '-var=smtp_host=*' }).Count | Should -Be 1
@@ -405,21 +409,72 @@ Describe 'Select-NeonProjectToDelete' {
     }
 }
 
-Describe 'Resolve-NeonProjectTarget' {
-    It 'deletes the single exact-name match' {
-        $target = Resolve-NeonProjectTarget -NameMatches @([pscustomobject]@{ id = 'p-1'; name = 'x' })
-        $target.Action | Should -Be 'DeleteById'
-        $target.ProjectId | Should -Be 'p-1'
+Describe 'Resolve-NeonDeletionTarget' {
+    BeforeAll {
+        $expected = 'birrapoint-prod-aws-neon'
+        $other = 'birrapoint-prod-neon'
+        $mine = [pscustomobject]@{ id = 'p-mine'; name = $expected }
+        $dup = [pscustomobject]@{ id = 'p-dup'; name = $expected }
+        $foreign = [pscustomobject]@{ id = 'p-foreign'; name = $other }
     }
 
-    It 'refuses to guess between several projects with the same name' {
-        $target = Resolve-NeonProjectTarget -NameMatches @([pscustomobject]@{ id = 'p-1' }, [pscustomobject]@{ id = 'p-2' })
+    It 'deletes the state project id when its name matches' {
+        $target = Resolve-NeonDeletionTarget -StateProjectId 'p-mine' -ProjectsFound @($mine, $dup) -ExpectedName $expected
+        $target.Action | Should -Be 'DeleteById'
+        $target.ProjectId | Should -Be 'p-mine'
+    }
+
+    It 'refuses when the state project id carries another name' {
+        $target = Resolve-NeonDeletionTarget -StateProjectId 'p-foreign' -ProjectsFound @($foreign, $mine) -ExpectedName $expected
         $target.Action | Should -Be 'Refuse'
         $target.ProjectId | Should -BeNullOrEmpty
     }
 
-    It 'has nothing to do when no project has the name' {
-        (Resolve-NeonProjectTarget -NameMatches @()).Action | Should -Be 'None'
+    It 'has nothing to delete when the state project id no longer exists' {
+        $target = Resolve-NeonDeletionTarget -StateProjectId 'p-gone' -ProjectsFound @($dup) -ExpectedName $expected
+        $target.Action | Should -Be 'None'
+    }
+
+    It 'only reports a name match when the state is empty and no id is given' {
+        $target = Resolve-NeonDeletionTarget -ProjectsFound @($mine) -ExpectedName $expected
+        $target.Action | Should -Be 'ReportOnly'
+        $target.ProjectId | Should -BeNullOrEmpty
+        @($target.Candidates).id | Should -Be @('p-mine')
+    }
+
+    It 'has nothing to do when the state is empty and nothing matches' {
+        (Resolve-NeonDeletionTarget -ProjectsFound @($foreign) -ExpectedName $expected).Action | Should -Be 'None'
+        (Resolve-NeonDeletionTarget -ProjectsFound @() -ExpectedName $expected).Action | Should -Be 'None'
+    }
+
+    It 'deletes an explicit id whose name matches' {
+        $target = Resolve-NeonDeletionTarget -ExplicitProjectId 'p-mine' -ProjectsFound @($mine, $dup) -ExpectedName $expected
+        $target.Action | Should -Be 'DeleteById'
+        $target.ProjectId | Should -Be 'p-mine'
+    }
+
+    It 'refuses an explicit id with another name' {
+        $target = Resolve-NeonDeletionTarget -ExplicitProjectId 'p-foreign' -ProjectsFound @($foreign, $mine) -ExpectedName $expected
+        $target.Action | Should -Be 'Refuse'
+    }
+
+    It 'refuses when the explicit id and the state id differ' {
+        $target = Resolve-NeonDeletionTarget -StateProjectId 'p-mine' -ExplicitProjectId 'p-dup' -ProjectsFound @($mine, $dup) -ExpectedName $expected
+        $target.Action | Should -Be 'Refuse'
+    }
+
+    It 'never selects a project named for the other cloud, whatever the id source' {
+        foreach ($parameters in @{ StateProjectId = 'p-foreign' }, @{ ExplicitProjectId = 'p-foreign' }) {
+            $target = Resolve-NeonDeletionTarget @parameters -ProjectsFound @($foreign) -ExpectedName $expected
+            $target.Action | Should -Not -Be 'DeleteById'
+            $target.ProjectId | Should -BeNullOrEmpty
+        }
+        (Resolve-NeonDeletionTarget -ProjectsFound @($foreign) -ExpectedName $expected).Action | Should -Not -Be 'DeleteById'
+    }
+
+    It 'matches names case-sensitively and exactly' {
+        $near = [pscustomobject]@{ id = 'p-near'; name = $expected.ToUpperInvariant() }
+        (Resolve-NeonDeletionTarget -StateProjectId 'p-near' -ProjectsFound @($near) -ExpectedName $expected).Action | Should -Be 'Refuse'
     }
 }
 

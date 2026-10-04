@@ -32,6 +32,15 @@ output "ecs_service_names" {
   }
 }
 
+output "ecs_task_definition_arns" {
+  description = "Task definition ARN each ECS service runs after this apply; the deploy workflow's health gate (ecs-health.sh) fails when a service's PRIMARY deployment is another one (circuit-breaker rollback)."
+  value = {
+    api      = aws_ecs_service.api.task_definition
+    web      = aws_ecs_service.web.task_definition
+    keycloak = aws_ecs_service.keycloak.task_definition
+  }
+}
+
 output "neon_project_id" {
   description = "Neon project id (point-in-time restore is done against this project — see README)."
   value       = neon_project.main.id

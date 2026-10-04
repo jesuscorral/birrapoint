@@ -179,8 +179,11 @@ Always a full wipe, **data included**; the next deploy starts from scratch (ADR-
    manages: Container Apps, environment, Log Analytics, Key Vault (purged), role assignments and the
    Neon project;
 2. a sweep of whatever remains, found by name: Log Analytics purge and `az group delete` of
-   `birrapoint-<env>-rg`, purge of the soft-deleted Key Vault, deletion of the Neon project with
-   exactly that name (refused when several match);
+   `birrapoint-<env>-rg`, purge of the soft-deleted Key Vault, deletion of the Neon project whose
+   id is in the Terraform state (`terraform output neon_project_id`), after the Neon API confirms
+   its name is exactly `birrapoint-<env>-neon`. Neon is never selected by name alone, because the
+   account is shared with the AWS deployment (`birrapoint-<env>-aws-neon`): with an empty state the
+   script only reports name matches, and `-NeonProjectId <id>` deletes one (its name must still match);
 3. removal of the local `infra/azure/terraform/.terraform` and a final verification.
 
 Pass `-Environment` for an environment other than `PROD` (its `environments/<env>.tfvars` is used), `-NeonOrgId` for the Neon organization (default:

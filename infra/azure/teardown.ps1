@@ -12,7 +12,8 @@
          Log Analytics, Key Vault - purged -, role assignments and the Neon project);
       3. sweep of whatever the destroy left behind, found by name: Log Analytics purge and
          `az group delete` of birrapoint-<environment>-rg, purge of the soft-deleted Key Vault,
-         deletion of the Neon project of exactly that name (refused when several match);
+         deletion of the Neon project whose id is in the Terraform state (its name must be
+         birrapoint-<environment>-neon; never chosen by name alone, see -NeonProjectId);
       4. removal of the local infra/azure/terraform/.terraform folder; final verification.
     Docker Hub images, GitHub secrets/variables and the HCP Terraform workspace itself are not
     touched.
@@ -46,6 +47,12 @@ param(
     # Neon organization id. Defaults to TF_VAR_neon_org_id, then to the API key's only organization.
     [string] $NeonOrgId,
 
+    # Neon project id to delete when the Terraform state is empty (e.g. after a destroy that failed
+    # half way). Without it an empty state deletes no Neon project: name matches are only reported.
+    # The project's name must still be birrapoint-<environment>-neon.
+    [ValidatePattern('^[a-z0-9-]*$')]
+    [string] $NeonProjectId,
+
     # Skips the typed confirmation. For deliberate, scripted use only.
     [switch] $Force
 )
@@ -61,6 +68,7 @@ if (-not $VarFile) {
     if (Test-Path $defaultVarFile) { $VarFile = $defaultVarFile }
 }
 
+$script:StateNeonProjectId = ''
 $neonApi = 'https://console.neon.tech/api/v2'
 $neonHeaders = @{ Authorization = "Bearer $env:NEON_API_KEY"; Accept = 'application/json' }
 
@@ -105,11 +113,35 @@ function Get-NeonOrganization {
     }
 }
 
-function Find-NeonProjectByName([string] $Name) {
-    $uri = "$neonApi/projects?limit=400&search=$([uri]::EscapeDataString($Name))"
+function Get-NeonProjectById([string] $Id) {
+    # The project with that id, or $null when Neon answers 404; any other failure throws.
+    try {
+        $response = Invoke-RestMethod -Uri "$neonApi/projects/$([uri]::EscapeDataString($Id))" -Headers $neonHeaders -TimeoutSec 30
+        $response.project
+    }
+    catch {
+        $status = $null
+        if ($_.Exception.Response) { $status = [int] $_.Exception.Response.StatusCode }
+        if ($status -eq 404) { return $null }
+        throw
+    }
+}
+
+function Get-NeonDeletionTarget {
+    # What the teardown may do with Neon right now (see Resolve-NeonDeletionTarget): the project id
+    # comes from the Terraform state or -NeonProjectId, its name is verified against the Neon API,
+    # and a name match alone never selects anything (the Neon account is shared with the AWS
+    # deployment).
+    $uri = "$neonApi/projects?limit=400&search=$([uri]::EscapeDataString($neonProjectName))"
     if ($NeonOrgId) { $uri += "&org_id=$([uri]::EscapeDataString($NeonOrgId))" }
-    $response = Invoke-RestMethod -Uri $uri -Headers $neonHeaders -TimeoutSec 30
-    Select-NeonProjectToDelete -Projects @($response.projects) -Name $Name
+    $found = @((Invoke-RestMethod -Uri $uri -Headers $neonHeaders -TimeoutSec 30).projects)
+    $targetId = if ($script:StateNeonProjectId) { $script:StateNeonProjectId } else { $NeonProjectId }
+    if ($targetId -and -not ($found | Where-Object { $_.id -ceq $targetId })) {
+        $byId = Get-NeonProjectById $targetId
+        if ($byId) { $found += $byId }
+    }
+    Resolve-NeonDeletionTarget -StateProjectId $script:StateNeonProjectId -ExplicitProjectId $NeonProjectId `
+        -ProjectsFound $found -ExpectedName $neonProjectName
 }
 
 function Read-Confirmation([string] $Prompt, [string] $Expected) {
@@ -153,6 +185,14 @@ if (-not (Test-StateEnvironment -Expected $environmentName -StateEnvironment $st
     throw "HCP workspace $workspaceLabel holds environment '$stateEnvironment', not '$environmentName'. Fix TF_WORKSPACE or -Environment; nothing was changed."
 }
 
+# The Neon project of THIS deployment, by id: the account is shared with the AWS deployment, so a
+# project is never chosen by name alone. An unreadable output (e.g. the project is already gone from
+# the state) just leaves the id empty: then nothing is deleted without -NeonProjectId.
+if ($stateEnvironment) {
+    $stateNeonOutput = (Invoke-Probe { terraform -chdir="$terraformDir" output -raw neon_project_id }) -join ''
+    if ($LASTEXITCODE -eq 0 -and $stateNeonOutput.Trim()) { $script:StateNeonProjectId = $stateNeonOutput.Trim() }
+}
+
 $appResourceGroup = Get-TeardownResourceName -Environment $environmentName -Resource ResourceGroup
 $keyVault = Get-TeardownResourceName -Environment $environmentName -Resource KeyVault
 $neonProjectName = Get-TeardownResourceName -Environment $environmentName -Resource NeonProject
@@ -166,10 +206,9 @@ else {
 }
 if ($NeonOrgId) { Write-Host "Neon organization $NeonOrgId" }
 
-$neonMatches = @(Find-NeonProjectByName $neonProjectName)
-$neonTarget = Resolve-NeonProjectTarget -NameMatches $neonMatches
+$neonTarget = Get-NeonDeletionTarget
 if ($neonTarget.Action -eq 'Refuse') {
-    throw "Several Neon projects are named '$neonProjectName' ($(($neonMatches | ForEach-Object { $_.id }) -join ', ')). Delete the right one in the Neon console, or pass -NeonOrgId; nothing was changed."
+    throw "$($neonTarget.Reason) Nothing was changed."
 }
 
 Write-Host ''
@@ -179,8 +218,11 @@ Write-Host ("  - {0} (Container Apps, environment, Log Analytics, Key Vault){1}"
 if ($neonTarget.Action -eq 'DeleteById') {
     Write-Host "  - Neon project $neonProjectName ($($neonTarget.ProjectId)) and ALL its data"
 }
+elseif ($neonTarget.Action -eq 'ReportOnly') {
+    Write-Host "  - Neon project: NOT deleted. $($neonTarget.Reason) Found: $((@($neonTarget.Candidates) | ForEach-Object { $_.id }) -join ', ')" -ForegroundColor Yellow
+}
 else {
-    Write-Host "  - Neon project $neonProjectName - none found"
+    Write-Host "  - Neon project $neonProjectName - none to delete"
 }
 Write-Host '  - everything Terraform manages in the HCP Terraform workspace (terraform destroy)'
 Write-Host '  - local infra/azure/terraform/.terraform'
@@ -238,18 +280,15 @@ if ((Find-DeletedKeyVault $keyVault) -and $PSCmdlet.ShouldProcess($keyVault, 'Pu
     }
 }
 
-# Only the project of exactly that name, and only if the destroy left it behind.
-$neonLeft = @(Find-NeonProjectByName $neonProjectName)
-if ($neonLeft.Count -gt 0) {
-    $leftTarget = Resolve-NeonProjectTarget -NameMatches $neonLeft
-    if ($leftTarget.Action -eq 'Refuse') {
-        throw "Several Neon projects are named '$neonProjectName'; delete the right one in the Neon console."
-    }
-    if ($PSCmdlet.ShouldProcess("Neon project $($leftTarget.ProjectId)", 'Delete')) {
-        Write-Host "==> Delete Neon project $($leftTarget.ProjectId)" -ForegroundColor Cyan
-        Invoke-RestMethod -Method Delete -Uri "$neonApi/projects/$($leftTarget.ProjectId)" `
-            -Headers $neonHeaders -TimeoutSec 60 | Out-Null
-    }
+# Only the project id of the state (or -NeonProjectId), verified by name, and only if the destroy
+# left it behind. Never by name alone.
+$leftTarget = Get-NeonDeletionTarget
+if ($leftTarget.Action -eq 'Refuse') { throw $leftTarget.Reason }
+if ($leftTarget.Action -eq 'ReportOnly') { Write-Warning $leftTarget.Reason }
+if ($leftTarget.Action -eq 'DeleteById' -and $PSCmdlet.ShouldProcess("Neon project $($leftTarget.ProjectId)", 'Delete')) {
+    Write-Host "==> Delete Neon project $($leftTarget.ProjectId)" -ForegroundColor Cyan
+    Invoke-RestMethod -Method Delete -Uri "$neonApi/projects/$([uri]::EscapeDataString($leftTarget.ProjectId))" `
+        -Headers $neonHeaders -TimeoutSec 60 | Out-Null
 }
 
 $localTerraform = Join-Path $terraformDir '.terraform'
@@ -268,7 +307,9 @@ if ($WhatIfPreference) {
 $remaining = @()
 if (Test-ResourceGroup $appResourceGroup) { $remaining += "resource group $appResourceGroup" }
 if (Find-DeletedKeyVault $keyVault) { $remaining += "soft-deleted Key Vault $keyVault" }
-foreach ($project in @(Find-NeonProjectByName $neonProjectName)) { $remaining += "Neon project $($project.id)" }
+# Verified by id: a name match alone proves nothing (the AWS deployment shares the Neon account).
+$neonId = if ($script:StateNeonProjectId) { $script:StateNeonProjectId } else { $NeonProjectId }
+if ($neonId -and (Get-NeonProjectById $neonId)) { $remaining += "Neon project $neonId" }
 
 foreach ($problem in $problems) { Write-Warning $problem }
 if ($remaining.Count -gt 0) {

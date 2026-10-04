@@ -222,33 +222,30 @@ jobs:
             -var "api_version=$API_VERSION" \
             -var "web_version=$WEB_VERSION" \
             -var "keycloak_version=$KEYCLOAK_VERSION"
-      # Terraform returns when ECS accepted the new task definitions; this waits until the services
-      # are stable (new tasks running and healthy behind the load balancer, old ones drained). The
-      # AWS waiter gives up after 10 minutes, so it is retried a bounded number of times (3 x 10).
+      # Terraform returns when ECS accepted the new task definitions. ecs-health.sh waits until the
+      # services are stable (retrying the 10-minute AWS waiter 3 times) and then verifies that each
+      # service's PRIMARY deployment is COMPLETED on the task definition Terraform applied: the
+      # circuit breaker rolls a failed deployment back, and the services are then "stable" on the
+      # OLD version.
       - name: ECS health gate
         run: |
           tf() { terraform -chdir=infra/aws/terraform "$@"; }
           cluster="$(tf output -raw ecs_cluster_name)"
           region="$(tf output -raw region)"
-          mapfile -t services < <(tf output -json ecs_service_names | jq -r '.[]')
-          if [ -z "$cluster" ] || [ "${#services[@]}" -eq 0 ]; then
+          names="$(tf output -json ecs_service_names)"
+          arns="$(tf output -json ecs_task_definition_arns)"
+          pairs=()
+          mapfile -t components < <(echo "$names" | jq -r 'keys[]')
+          for component in "${components[@]}"; do
+            service="$(echo "$names" | jq -r --arg c "$component" '.[$c]')"
+            arn="$(echo "$arns" | jq -r --arg c "$component" '.[$c] // empty')"
+            pairs+=("$service=$arn")
+          done
+          if [ -z "$cluster" ] || [ "${#pairs[@]}" -eq 0 ]; then
             echo "::error::The ecs_cluster_name / ecs_service_names outputs are empty."
             exit 1
           fi
-          stable=0
-          for attempt in 1 2 3; do
-            echo "Waiting for ${services[*]} in $cluster to be stable (attempt $attempt/3)..."
-            if aws ecs wait services-stable --region "$region" --cluster "$cluster" --services "${services[@]}"; then
-              stable=1
-              break
-            fi
-          done
-          if [ "$stable" -ne 1 ]; then
-            echo "::error::ECS services in $cluster did not become stable."
-            aws ecs describe-services --region "$region" --cluster "$cluster" --services "${services[@]}"               --query 'services[].{service:serviceName,desired:desiredCount,running:runningCount,pending:pendingCount,events:events[0:5].message}'               --output json || true
-            exit 1
-          fi
-          echo "All services are stable."
+          bash .github/scripts/ecs-health.sh "$region" "$cluster" "${pairs[@]}"
       - name: Summary
         if: always()
         run: |

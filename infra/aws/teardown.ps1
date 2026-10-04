@@ -15,11 +15,11 @@
          log groups, ECS services and cluster, the ALB with its listeners and target groups, Cloud Map
          services and namespace, IAM roles, CloudFront distributions (disabled, then deleted: ~15
          minutes) and the response headers policy, the VPC with its subnets, route tables, internet
-         gateway and security groups, and the Neon project of exactly that name (refused when several
-         match);
+         gateway and security groups, and the Neon project whose id is in the Terraform state (its name
+         must be birrapoint-<environment>-aws-neon; never chosen by name alone, see -NeonProjectId);
       4. removal of the local infra/aws/terraform/.terraform folder, then a verification through the
-         resource groups tagging API: anything still tagged for the deployment is listed and the script
-         exits with an error.
+         resource groups tagging API and direct probes of the IAM roles: anything still there for the
+         deployment is listed and the script exits with an error.
     Docker Hub images, GitHub secrets/variables, the IAM OIDC provider and deploy role, and the HCP
     Terraform workspace itself are not touched.
 
@@ -48,11 +48,17 @@ param(
     [string] $VarFile,
 
     # AWS region of the deployment. Defaults to AWS_REGION / AWS_DEFAULT_REGION, then the var file.
-    # Passed to Terraform only when given.
+    # The resolved region is always passed to Terraform, so the destroy and the sweep agree.
     [string] $Region,
 
     # Neon organization id. Defaults to TF_VAR_neon_org_id, then to the API key's only organization.
     [string] $NeonOrgId,
+
+    # Neon project id to delete when the Terraform state is empty (e.g. after a destroy that failed
+    # half way). Without it an empty state deletes no Neon project: name matches are only reported.
+    # The project's name must still be birrapoint-<environment>-aws-neon.
+    [ValidatePattern('^[a-z0-9-]*$')]
+    [string] $NeonProjectId,
 
     # Skips the typed confirmation. For deliberate, scripted use only.
     [switch] $Force
@@ -72,6 +78,7 @@ if (-not $VarFile) {
 # The functions below call ShouldProcess through the script's own cmdlet context so -WhatIf applies.
 $script:ScriptCmdlet = $PSCmdlet
 $script:AwsRegion = $null
+$script:StateNeonProjectId = ''
 
 $neonApi = 'https://console.neon.tech/api/v2'
 $neonHeaders = @{ Authorization = "Bearer $env:NEON_API_KEY"; Accept = 'application/json' }
@@ -159,11 +166,34 @@ function Get-NeonOrganization {
     }
 }
 
-function Find-NeonProjectByName([string] $Name) {
-    $uri = "$neonApi/projects?limit=400&search=$([uri]::EscapeDataString($Name))"
+function Get-NeonProjectById([string] $Id) {
+    # The project with that id, or $null when Neon answers 404; any other failure throws.
+    try {
+        $response = Invoke-RestMethod -Uri "$neonApi/projects/$([uri]::EscapeDataString($Id))" -Headers $neonHeaders -TimeoutSec 30
+        $response.project
+    }
+    catch {
+        $status = $null
+        if ($_.Exception.Response) { $status = [int] $_.Exception.Response.StatusCode }
+        if ($status -eq 404) { return $null }
+        throw
+    }
+}
+
+function Get-NeonDeletionTarget {
+    # What the teardown may do with Neon right now (see Resolve-NeonDeletionTarget): the project id
+    # comes from the Terraform state or -NeonProjectId, its name is verified against the Neon API,
+    # and a name match alone never selects anything.
+    $uri = "$neonApi/projects?limit=400&search=$([uri]::EscapeDataString($neonProjectName))"
     if ($NeonOrgId) { $uri += "&org_id=$([uri]::EscapeDataString($NeonOrgId))" }
-    $response = Invoke-RestMethod -Uri $uri -Headers $neonHeaders -TimeoutSec 30
-    Select-NeonProjectToDelete -Projects @($response.projects) -Name $Name
+    $found = @((Invoke-RestMethod -Uri $uri -Headers $neonHeaders -TimeoutSec 30).projects)
+    $targetId = if ($script:StateNeonProjectId) { $script:StateNeonProjectId } else { $NeonProjectId }
+    if ($targetId -and -not ($found | Where-Object { $_.id -ceq $targetId })) {
+        $byId = Get-NeonProjectById $targetId
+        if ($byId) { $found += $byId }
+    }
+    Resolve-NeonDeletionTarget -StateProjectId $script:StateNeonProjectId -ExplicitProjectId $NeonProjectId `
+        -ProjectsFound $found -ExpectedName $neonProjectName
 }
 
 function Read-Confirmation([string] $Prompt, [string] $Expected) {
@@ -208,8 +238,9 @@ function Get-AwsInventory {
     if ($ownedClusters.Count -gt 0) {
         $serviceResponse = Invoke-Aws -Probe (@('ecs', 'describe-services', '--cluster', $clusterName, '--services') + $serviceNames + @('--include', 'TAGS'))
         $services = foreach ($s in (ConvertTo-List $serviceResponse.services)) {
-            if ($s.status -eq 'INACTIVE') { continue }
-            [pscustomobject]@{ Name = $s.serviceName; Id = $s.serviceArn; Tags = $s.tags }
+            # ACTIVE ones are deleted; DRAINING ones (a partial destroy) only awaited.
+            if ($s.status -notin 'ACTIVE', 'DRAINING') { continue }
+            [pscustomobject]@{ Name = $s.serviceName; Id = $s.serviceArn; Status = $s.status; Tags = $s.tags }
         }
     }
 
@@ -307,6 +338,25 @@ function Write-Inventory($Inventory) {
 
 # --- Removal steps (each one is idempotent and guarded by ShouldProcess) --------------------------
 
+function New-PrivateDirectory {
+    # A new temp directory readable only by the current user (an NTFS ACL without inherited rules on
+    # Windows, mode 700 elsewhere).
+    $path = Join-Path ([System.IO.Path]::GetTempPath()) ('birrapoint-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $path | Out-Null
+    if ($PSVersionTable.PSEdition -eq 'Desktop' -or $IsWindows) {
+        $acl = Get-Acl -LiteralPath $path
+        $acl.SetAccessRuleProtection($true, $false)
+        foreach ($rule in @($acl.Access)) { [void] $acl.RemoveAccessRule($rule) }
+        $user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+        $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($user, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
+        Set-Acl -LiteralPath $path -AclObject $acl
+    }
+    else {
+        & chmod 700 $path
+    }
+    $path
+}
+
 function Start-DistributionDisable($Distribution) {
     # Disabling takes ~15 minutes to deploy, so it starts first and runs while the rest is removed.
     if ($Distribution.Enabled -eq $false) { return }
@@ -314,13 +364,16 @@ function Start-DistributionDisable($Distribution) {
     Write-Host "==> Disable CloudFront distribution $($Distribution.Id)" -ForegroundColor Cyan
     $current = Invoke-Aws @('cloudfront', 'get-distribution-config', '--id', $Distribution.Id)
     $current.DistributionConfig.Enabled = $false
-    $file = [System.IO.Path]::GetTempFileName()
+    # The configuration holds the secret origin-verify header value: it goes into a directory only the
+    # current user can read, removed right after the call.
+    $directory = New-PrivateDirectory
+    $file = Join-Path $directory 'distribution-config.json'
     try {
         [System.IO.File]::WriteAllText($file, ($current.DistributionConfig | ConvertTo-Json -Depth 30), (New-Object System.Text.UTF8Encoding($false)))
         Invoke-Aws @('cloudfront', 'update-distribution', '--id', $Distribution.Id, '--if-match', $current.ETag,
             '--distribution-config', ('file://' + ($file -replace '\\', '/'))) | Out-Null
     }
-    finally { Remove-Item -Force $file -ErrorAction SilentlyContinue }
+    finally { Remove-Item -Recurse -Force $directory -ErrorAction SilentlyContinue }
 }
 
 function Remove-Distribution($Distribution) {
@@ -341,16 +394,21 @@ function Remove-ResponseHeadersPolicy($Policy) {
 
 function Remove-EcsServices($Inventory) {
     $clusterName = $Inventory.EcsCluster[0].Name
+    # Services still draining (left by a partial destroy) cannot be updated or deleted again, but the
+    # cluster cannot be deleted until they are inactive: they are only awaited. Services the operator
+    # declined (-Confirm) are not awaited either.
+    $awaited = @()
     foreach ($service in $Inventory.EcsServices) {
+        if ($service.Status -eq 'DRAINING') { $awaited += $service.Name; continue }
         if (-not (Confirm-Action "ECS service $($service.Name)" 'Scale to 0 and delete')) { continue }
         Write-Host "==> Delete ECS service $($service.Name)" -ForegroundColor Cyan
         Invoke-Aws @('ecs', 'update-service', '--cluster', $clusterName, '--service', $service.Name, '--desired-count', '0') | Out-Null
         Invoke-Aws @('ecs', 'delete-service', '--cluster', $clusterName, '--service', $service.Name, '--force') | Out-Null
+        $awaited += $service.Name
     }
-    if (@($Inventory.EcsServices).Count -gt 0 -and -not $WhatIfPreference) {
-        $names = @($Inventory.EcsServices | ForEach-Object { $_.Name })
+    if ($awaited.Count -gt 0 -and -not $WhatIfPreference) {
         Write-Host '==> Wait for the ECS services to become inactive' -ForegroundColor Cyan
-        Invoke-Aws (@('ecs', 'wait', 'services-inactive', '--cluster', $clusterName, '--services') + $names) | Out-Null
+        Invoke-Aws (@('ecs', 'wait', 'services-inactive', '--cluster', $clusterName, '--services') + $awaited) | Out-Null
     }
 }
 
@@ -399,7 +457,9 @@ function Remove-Namespaces($Inventory) {
         foreach ($service in (ConvertTo-List $services.Services)) {
             $instances = Invoke-Aws @('servicediscovery', 'list-instances', '--service-id', $service.Id)
             foreach ($instance in (ConvertTo-List $instances.Instances)) {
-                Invoke-Aws @('servicediscovery', 'deregister-instance', '--service-id', $service.Id, '--instance-id', $instance.Id) | Out-Null
+                $deregistration = Invoke-Aws @('servicediscovery', 'deregister-instance', '--service-id', $service.Id, '--instance-id', $instance.Id)
+                # Asynchronous: delete-service fails with ResourceInUse until the operation finishes.
+                if ($deregistration -and $deregistration.OperationId) { Wait-CloudMapOperation $deregistration.OperationId }
             }
             Invoke-Aws @('servicediscovery', 'delete-service', '--id', $service.Id) | Out-Null
         }
@@ -503,8 +563,19 @@ function Remove-Vpc($Vpc) {
 }
 
 function Get-TaggedLeftover {
-    # Anything still tagged for the deployment, from the resource groups tagging API. CloudFront and
-    # IAM are global and indexed in us-east-1.
+    # Anything still tagged for the deployment, from the resource groups tagging API (CloudFront is
+    # global and indexed in us-east-1), plus the IAM roles probed directly.
+    # IAM roles are probed by name as well: it is not certain that the tagging API indexes them.
+    foreach ($roleKey in @('ExecutionRole', 'TaskRoleApi', 'TaskRoleKeycloak')) {
+        $exactName = Get-TeardownResourceName -Environment $environmentName -Resource $roleKey
+        $roleResponse = Invoke-Aws -Probe @('iam', 'get-role', '--role-name', $exactName)
+        if ($roleResponse) {
+            $role = [pscustomobject]@{ Name = $roleResponse.Role.RoleName; Tags = $roleResponse.Role.Tags }
+            if (@(Select-OwnedResource -Resources @($role) -Names $exactName -Environment $environmentName).Count -gt 0) {
+                $roleResponse.Role.Arn
+            }
+        }
+    }
     $regions = @($script:AwsRegion)
     if ($script:AwsRegion -ne 'us-east-1') { $regions += 'us-east-1' }
     foreach ($queryRegion in $regions) {
@@ -555,6 +626,14 @@ if (-not (Test-StateEnvironment -Expected $environmentName -StateEnvironment $st
     throw "HCP workspace $workspaceLabel holds environment '$stateEnvironment', not '$environmentName'. Fix TF_WORKSPACE or -Environment; nothing was changed."
 }
 
+# The Neon project of THIS deployment, by id: the account is shared with other deployments, so a
+# project is never chosen by name alone. An unreadable output (e.g. the project is already gone from
+# the state) just leaves the id empty: then nothing is deleted without -NeonProjectId.
+if ($stateEnvironment) {
+    $stateNeonOutput = (Invoke-Probe { terraform -chdir="$terraformDir" output -raw neon_project_id }) -join ''
+    if ($LASTEXITCODE -eq 0 -and $stateNeonOutput.Trim()) { $script:StateNeonProjectId = $stateNeonOutput.Trim() }
+}
+
 $deploymentName = Get-TeardownResourceName -Environment $environmentName -Resource Deployment
 $neonProjectName = Get-TeardownResourceName -Environment $environmentName -Resource NeonProject
 
@@ -566,10 +645,9 @@ else {
 }
 if ($NeonOrgId) { Write-Host "Neon organization $NeonOrgId" }
 
-$neonMatches = @(Find-NeonProjectByName $neonProjectName)
-$neonTarget = Resolve-NeonProjectTarget -NameMatches $neonMatches
+$neonTarget = Get-NeonDeletionTarget
 if ($neonTarget.Action -eq 'Refuse') {
-    throw "Several Neon projects are named '$neonProjectName' ($(($neonMatches | ForEach-Object { $_.id }) -join ', ')). Delete the right one in the Neon console, or pass -NeonOrgId; nothing was changed."
+    throw "$($neonTarget.Reason) Nothing was changed."
 }
 
 $inventory = Get-AwsInventory
@@ -582,8 +660,11 @@ Write-Inventory $inventory
 if ($neonTarget.Action -eq 'DeleteById') {
     Write-Host "  - Neon project $neonProjectName ($($neonTarget.ProjectId)) and ALL its data"
 }
+elseif ($neonTarget.Action -eq 'ReportOnly') {
+    Write-Host "  - Neon project: NOT deleted. $($neonTarget.Reason) Found: $((@($neonTarget.Candidates) | ForEach-Object { $_.id }) -join ', ')" -ForegroundColor Yellow
+}
 else {
-    Write-Host "  - Neon project $neonProjectName - none found"
+    Write-Host "  - Neon project $neonProjectName - none to delete"
 }
 Write-Host '  - everything Terraform manages in the HCP Terraform workspace (terraform destroy)'
 Write-Host '  - local infra/aws/terraform/.terraform'
@@ -604,7 +685,7 @@ if ($PSCmdlet.ShouldProcess('infra/aws/terraform', 'terraform destroy (everythin
     try {
         $resolvedVarFile = if ($VarFile) { (Resolve-Path $VarFile).Path } else { $null }
         $destroyArgs = Get-DestroyArgument -TerraformDir $terraformDir -Environment $environmentName `
-            -Region $Region -VarFile $resolvedVarFile
+            -Region $script:AwsRegion -VarFile $resolvedVarFile
         Invoke-Native 'terraform destroy' { terraform @destroyArgs }
     }
     catch {
@@ -635,19 +716,16 @@ Invoke-Step 'Delete CloudFront distributions' { foreach ($d in $leftover.Distrib
 Invoke-Step 'Delete CloudFront response headers policy' { foreach ($p in $leftover.Policies) { Remove-ResponseHeadersPolicy $p } }
 Invoke-Step 'Delete VPC' { foreach ($v in $leftover.Vpcs) { Remove-Vpc $v } }
 
-# Only the project of exactly that name, and only if the destroy left it behind.
+# Only the project id of the state (or -NeonProjectId), verified by name, and only if the destroy
+# left it behind. Never by name alone.
 Invoke-Step 'Delete Neon project' {
-    $neonLeft = @(Find-NeonProjectByName $neonProjectName)
-    if ($neonLeft.Count -gt 0) {
-        $leftTarget = Resolve-NeonProjectTarget -NameMatches $neonLeft
-        if ($leftTarget.Action -eq 'Refuse') {
-            throw "Several Neon projects are named '$neonProjectName'; delete the right one in the Neon console."
-        }
-        if (Confirm-Action "Neon project $($leftTarget.ProjectId)" 'Delete') {
-            Write-Host "==> Delete Neon project $($leftTarget.ProjectId)" -ForegroundColor Cyan
-            Invoke-RestMethod -Method Delete -Uri "$neonApi/projects/$($leftTarget.ProjectId)" `
-                -Headers $neonHeaders -TimeoutSec 60 | Out-Null
-        }
+    $leftTarget = Get-NeonDeletionTarget
+    if ($leftTarget.Action -eq 'Refuse') { throw $leftTarget.Reason }
+    if ($leftTarget.Action -eq 'ReportOnly') { Write-Warning $leftTarget.Reason }
+    if ($leftTarget.Action -eq 'DeleteById' -and (Confirm-Action "Neon project $($leftTarget.ProjectId)" 'Delete')) {
+        Write-Host "==> Delete Neon project $($leftTarget.ProjectId)" -ForegroundColor Cyan
+        Invoke-RestMethod -Method Delete -Uri "$neonApi/projects/$([uri]::EscapeDataString($leftTarget.ProjectId))" `
+            -Headers $neonHeaders -TimeoutSec 60 | Out-Null
     }
 }
 
@@ -671,7 +749,10 @@ for ($attempt = 0; $attempt -lt 4; $attempt++) {
     if ($remaining.Count -eq 0) { break }
     if ($attempt -lt 3) { Start-Sleep -Seconds 20 }
 }
-$neonRemaining = @(Find-NeonProjectByName $neonProjectName | ForEach-Object { "Neon project $($_.id)" })
+# Verified by id: a name match alone proves nothing (other deployments share the Neon account).
+$neonRemaining = @()
+$neonId = if ($script:StateNeonProjectId) { $script:StateNeonProjectId } else { $NeonProjectId }
+if ($neonId -and (Get-NeonProjectById $neonId)) { $neonRemaining += "Neon project $neonId" }
 
 foreach ($problem in $script:Problems) { Write-Warning $problem }
 $allRemaining = @($remaining) + $neonRemaining

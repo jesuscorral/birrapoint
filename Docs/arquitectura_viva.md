@@ -49,7 +49,7 @@ AWS (`infra/aws/terraform/`; deploy via local `terraform apply` or `deploy-aws.y
 - API is internal (no target group), exactly 1 replica, reached by the web through a Cloud Map private DNS namespace (`api.birrapoint-<env>.local`).
 - Secrets Manager read through Dapr sidecars on API and Keycloak only; Neon for Postgres; CloudWatch logs; dedicated VPC, public subnets, no NAT. One environment per AWS account and region.
 - Open risks for the first apply: security-group rule quota with the CloudFront prefix list; Keycloak honoring the `Forwarded` header; API sees forwarded proto `http` (HSTS comes from a CloudFront response headers policy); daprd on Fargate (loopback only); Cloud Map registration; Docker Hub pull limits. Each API deploy stops the old task first (short outage).
-- **AWS teardown** (`infra/aws/teardown.ps1 [-WhatIf] [-Force]`): same full wipe as Azure (`terraform destroy`, Neon project, local `.terraform`) plus a sweep of leftovers found by exact name and the `application`/`environment` tags (Secrets Manager force-delete, ECS, ALB, Cloud Map, IAM, CloudFront, VPC), then a tagging-API check. Pester tests in `infra/aws/tests/`.
+- **AWS teardown** (`infra/aws/teardown.ps1 [-WhatIf] [-Force]`): same full wipe as Azure (`terraform destroy`, Neon project `birrapoint-<env>-aws-neon` by state id, local `.terraform`) plus a sweep of leftovers found by exact name and the `application`/`environment` tags (Secrets Manager force-delete, ECS, ALB, Cloud Map, IAM, CloudFront, VPC), then a tagging-API check. Pester tests in `infra/aws/tests/`.
 - Rationale and refinements: research R-21, ADR-0023.
 
 Azure: every resource is named `birrapoint-<env>-<acronym>` (default env `PROD`, lower-cased;
@@ -82,7 +82,8 @@ caller's Azure identity). Every deployment starts from scratch: the realm is imp
 right `SPA_URL`, there is no post-deploy Keycloak sync.
 
 **Teardown** (`infra/azure/teardown.ps1 [-WhatIf] [-Force]`): always wipes everything — `terraform destroy`
-including the Neon project, sweep by name, Key Vault and Log Analytics purge, local `.terraform`.
+including the Neon project (only the id in the state, name-checked; empty state: report only unless
+`-NeonProjectId`), sweep by name, Key Vault and Log Analytics purge, local `.terraform`.
 No data is kept. Idempotent, with a direct sweep fallback when the destroy fails.
 
 **Pipelines** (`.github/workflows/`):

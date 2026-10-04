@@ -36,7 +36,7 @@ is in [`infra/aws/github-actions-setup.md`](../github-actions-setup.md); what is
              ┌───────────▼────────────┐               │
              │ ECS service -prod-api  │──▶ Secrets    │      ┌────────────────────────┐
              │ 1 task + daprd         │    Manager    └─────▶│ Neon project           │
-             └───────────┬────────────┘                      │ birrapoint-prod-neon   │
+             └───────────┬────────────┘                      │ prod-aws-neon          │
                          └─ pooled endpoint (migrations: direct) ▶ db birrapoint /     │
    birrapoint-prod-ecs cluster, birrapoint-prod-vpc: 2 public subnets,│ keycloak       │
    no NAT gateway; tasks get a public IP for egress only      └────────────────────────┘
@@ -44,7 +44,8 @@ is in [`infra/aws/github-actions-setup.md`](../github-actions-setup.md); what is
 
 - **Naming** (ADR-0021): every resource is `birrapoint-<environment>-<acronym>`, the environment
   lower-cased (`environment`, default `PROD`): `-vpc`, `-alb`, `-ecs` cluster, `-api` / `-web` /
-  `-kc` services, `-web` / `-kc` CloudFront comments, `-neon`. Cloud Map namespace
+  `-kc` services, `-web` / `-kc` CloudFront comments, `-aws-neon` (the Neon account is shared with
+  the Azure root, whose project is `-neon`: the AWS name differs so the two never collide). Cloud Map namespace
   `birrapoint-<env>.local`, log groups `/birrapoint/<env>/<service>` (30 days).
 - **Images** come from Docker Hub, never built by the deployment (`image_namespace`,
   `release_version`, `api_version`/`web_version`/`keycloak_version`; ADR-0022): `latest` →
@@ -120,8 +121,11 @@ terraform -chdir=infra/aws/terraform apply -var-file=environments/prod.tfvars -v
 (each CloudFront distribution takes 5-10 minutes to deploy); Keycloak's first start also imports
 the realm and creates its schema on Neon (health check grace period 10 minutes). Check progress with
 `aws ecs describe-services --cluster birrapoint-prod-ecs --services birrapoint-prod-api birrapoint-prod-web birrapoint-prod-kc`
-or `aws ecs wait services-stable ...` (`deploy-aws.yml` uses the same gate, retried up to three times
-because the waiter gives up after 10 minutes).
+or `aws ecs wait services-stable ...` (`deploy-aws.yml` runs `.github/scripts/ecs-health.sh`: the
+same waiter, retried up to three times because it gives up after 10 minutes, followed by a check that
+each service's PRIMARY deployment is `COMPLETED` on the task definition in the
+`ecs_task_definition_arns` output; a deployment the circuit breaker rolled back leaves the services
+"stable" on the old version, and the gate fails on it).
 
 `deploy-aws.yml` runs the same `init` + `apply` with the release versions through an OIDC role
 (no stored AWS key), in the `aws-production` GitHub environment, then waits for the ECS services
@@ -153,26 +157,35 @@ Always a full wipe, Neon data included, independent from `infra/azure/teardown.p
 `infra/aws/tests`):
 
 1. runs `terraform init` and **guards** the HCP workspace: it must hold the requested environment
-   (or be empty); an unreadable state aborts;
+   (or be empty); an unreadable state aborts. It also reads `terraform output -raw neon_project_id`
+   from the state;
 2. shows what exists, asks for the typed confirmation, runs `terraform destroy` (no `-target`; the
-   image variables get placeholders, the region is passed only with `-Region`);
+   image variables get placeholders, the resolved region is always passed);
 3. **sweeps** what the destroy left behind (it also continues when the destroy fails): Secrets
    Manager secrets (deleted without a recovery window), log groups `/birrapoint/<env>/`, ECS
    services and cluster, the ALB with listeners and target groups, the Cloud Map services and
    namespace, IAM roles, CloudFront distributions (disabled, then deleted: about 15 minutes) and the
    response headers policy, the VPC with its subnets, route tables, internet gateway and security
-   groups, and the Neon project of exactly that name. Everything is selected by **exact name and the
+   groups, and the Neon project. Everything else is selected by **exact name and the
    tags `application=birrapoint`, `environment=<env>`**: a secret such as `ConnectionStrings--db`
    without those tags (another environment or application) is never touched. A VPC that contains
-   VPC endpoints or NAT gateways is left in place and reported;
+   VPC endpoints or NAT gateways is left in place and reported. **Neon is never selected by name
+   alone** (the Neon account is shared with the Azure deployment): only the project id read from
+   the state is deleted, after the Neon API confirms that its name is exactly
+   `birrapoint-<env>-aws-neon`; another name (for example Azure's `birrapoint-<env>-neon`) is refused.
+   With an empty state the script only reports name matches; to delete one, pass
+   `-NeonProjectId <id>` (its name must still match);
 4. removes the local `.terraform` folder and verifies through the resource groups tagging API
    (`aws resourcegroupstaggingapi get-resources`, in the region and in `us-east-1` for the global
-   CloudFront and IAM) that nothing tagged for the deployment is left; otherwise it lists it and
+   CloudFront), probes the three IAM roles with `aws iam get-role` (it is not certain that the
+   tagging API indexes IAM roles) and checks the Neon project by id, so that nothing of the
+   deployment is left; otherwise it lists it and
    exits non-zero. The tagging index can lag a few minutes behind a deletion, so re-run the script
    (it is idempotent). Deregistered ECS task definitions stay visible forever and are ignored.
 
 Region: `-Region`, then `AWS_REGION` / `AWS_DEFAULT_REGION`, then `region` in the var file (a
-mismatch with the var file's region aborts, unless `-Region` is given). Not touched: Docker Hub
+mismatch with the var file's region aborts, unless `-Region` is given); the resolved region is always
+passed to `terraform destroy`. Not touched: Docker Hub
 images, GitHub secrets, the IAM OIDC provider and deploy role, the HCP workspace itself.
 Manual alternative: `terraform -chdir=infra/aws/terraform destroy "-var-file=environments/prod.tfvars" "-var=release_version=latest"`.
 

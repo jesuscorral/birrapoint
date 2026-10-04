@@ -12,7 +12,12 @@ process.stdin.on('end', () => {
   // Quoted strings are blanked first, so their content (commit messages, PR bodies, echo text)
   // never matches a rule.
   const unquoted = cmd.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, '""');
-  const segments = unquoted.split(/\r?\n|;|&&|\|\||\|/).map(s => s.trim().replace(/^(sudo|time|env\s+\S+=\S+)\s+/, ''));
+  // Leading wrappers are stripped repeatedly: sudo / time / env and NAME=value assignments
+  // (AWS_PROFILE=x aws ...), so a prefix never hides the command.
+  const segments = unquoted.split(/\r?\n|;|&&|\|\||\|/)
+    .map(s => s.trim().replace(/^((sudo|time|env)\s+|[A-Za-z_][A-Za-z0-9_]*=\S*\s+)+/, ''));
+  // aws, optionally .exe, then any global flags (with an optional value) before the service.
+  const aws = String.raw`^aws(\.exe)?(\s+--?[\w-]+(\s+(?!-)\S+)?)*`;
   const rules = [
     [/^rm\s+(-[a-z]*r[a-z]*f|-[a-z]*f[a-z]*r)\s+["']?[\/~]/i, 'Blocked: recursive force delete on root/home path.'],
     [/^git\s+push\b.*(--force(?!-with-lease)|\s-f\b)/i, 'Blocked: force push. Use --force-with-lease on a feature branch only if truly needed.'],
@@ -23,10 +28,12 @@ process.stdin.on('end', () => {
     [/^dotnet\s+ef\s+database\s+drop/i, 'Blocked: database drop. Ask the user to run this manually.'],
     [/^(docker\s+exec\s.*)?psql\b.*\bdrop\s+(database|table|schema)\s/i, 'Blocked: destructive SQL. Ask the user to run this manually.'],
     [/^terraform\b(\s+-chdir=\S+)?\s+(apply|destroy)\b/i, 'Blocked: terraform apply/destroy changes real cloud resources. Ask the user to run it (or use terraform plan).'],
-    [/^((pwsh|powershell)(\.exe)?\s+(-\S+\s+)*)?\S*teardown\.ps1\b(?!.*-WhatIf)/i, 'Blocked: teardown.ps1 deletes the whole cloud environment (Azure or AWS). Run with -WhatIf or ask the user.'],
+    [/^((pwsh|powershell)(\.exe)?\s+(-\S+\s+)*)?\S*teardown\.ps1\b(?!.*-WhatIf(?!:\$?false))/i, 'Blocked: teardown.ps1 deletes the whole cloud environment (Azure or AWS). Run with -WhatIf or ask the user.'],
+    [/^((pwsh|powershell)(\.exe)?\s+(-\S+\s+)*)?\S*teardown\.ps1\b.*-WhatIf:\$?false/i, 'Blocked: teardown.ps1 with -WhatIf switched off deletes the whole cloud environment. Ask the user.'],
     [/^az\s+(group|keyvault|containerapp)\s+delete\b/i, 'Blocked: deleting Azure resources. Ask the user to run it manually.'],
-    [/^aws(\s+--?[\w-]+(\s+(?!-)\S+)?)*\s+[\w-]+\s+(delete|terminate|remove|deregister)-/i, 'Blocked: deleting AWS resources. Ask the user to run it manually.'],
-    [/^aws(\s+--?[\w-]+(\s+(?!-)\S+)?)*\s+s3\s+(rm|rb)\b/i, 'Blocked: deleting S3 objects or buckets. Ask the user to run it manually.'],
+    [new RegExp(aws + String.raw`\s+[\w-]+\s+(batch-)?(delete|terminate|remove|deregister|detach|revoke|purge)-`, 'i'), 'Blocked: deleting or detaching AWS resources. Ask the user to run it manually.'],
+    [new RegExp(aws + String.raw`\s+s3\s+(rm|rb)\b`, 'i'), 'Blocked: deleting S3 objects or buckets. Ask the user to run it manually.'],
+    [new RegExp(aws + String.raw`\s+s3\s+sync\b.*\s--delete\b`, 'i'), 'Blocked: aws s3 sync --delete removes objects. Ask the user to run it manually.'],
     [/^docker\s+(volume\s+(rm|prune)|system\s+prune)/i, 'Blocked: removing Docker volumes wipes local Postgres/Keycloak data. Ask the user first.']
   ];
   for (const seg of segments) {
