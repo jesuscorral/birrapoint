@@ -4,8 +4,13 @@ Constitution v1.5.1, research R-17/R-18/R-19/R-21, ADR-0016/ADR-0021/ADR-0022/AD
 
 This root is independent of `infra/azure/terraform`: a deployment targets one cloud, with its own
 HCP Terraform workspace, `environments/<env>.tfvars` and tests. Only the Docker Hub images,
-`infra/keycloak` and the Neon account are shared. The teardown script, Pester tests and
-`deploy-aws.yml` arrive with T146; until then deploy and destroy by hand as described below.
+`infra/keycloak` and the Neon account are shared. Deploys run from a workstation (below) or through
+`deploy-aws.yml`; `infra/aws/teardown.ps1` removes everything.
+
+First deploy from scratch? Follow the end-to-end checklist in [`infra/aws/deployment-runbook.md`](../deployment-runbook.md)
+(accounts, keys, order). The one-time GitHub setup (OIDC role, `aws-production` environment, secrets)
+is in [`infra/aws/github-actions-setup.md`](../github-actions-setup.md); what is shared with Azure
+(Docker Hub, release bot) is in [`infra/ci-setup.md`](../../ci-setup.md).
 
 ## Topology
 
@@ -115,20 +120,61 @@ terraform -chdir=infra/aws/terraform apply -var-file=environments/prod.tfvars -v
 (each CloudFront distribution takes 5-10 minutes to deploy); Keycloak's first start also imports
 the realm and creates its schema on Neon (health check grace period 10 minutes). Check progress with
 `aws ecs describe-services --cluster birrapoint-prod-ecs --services birrapoint-prod-api birrapoint-prod-web birrapoint-prod-kc`
-or `aws ecs wait services-stable ...` (the T146 workflow uses the same gate).
+or `aws ecs wait services-stable ...` (`deploy-aws.yml` uses the same gate, retried up to three times
+because the waiter gives up after 10 minutes).
+
+`deploy-aws.yml` runs the same `init` + `apply` with the release versions through an OIDC role
+(no stored AWS key), in the `aws-production` GitHub environment, then waits for the ECS services
+and writes a summary with the URLs and versions.
 
 Outputs: `web_url`, `keycloak_url` (CloudFront domains), `environment`, `region`,
 `ecs_cluster_name`, `ecs_service_names`, `neon_project_id`, and the sensitive
 `keycloak_admin_password` (`terraform output -raw keycloak_admin_password`; user `admin`).
 
 Tests, with no credentials: `terraform -chdir=infra/aws/terraform init -backend=false`, then
-`terraform -chdir=infra/aws/terraform test` (mocked providers).
+`terraform -chdir=infra/aws/terraform test` (mocked providers), and the Pester tests of the teardown
+logic: `Invoke-Pester infra/aws/tests` (Pester 5+). Both run in `infra.yml` when `infra/**` changes.
+
+**Tags.** Every resource carries the provider `default_tags`: `var.tags` (`application=birrapoint`,
+`managed-by=terraform`) plus `environment=<lower-cased environment>`, which cannot be overridden
+through `var.tags`. The teardown sweep selects resources by tag, so applying this change to an
+existing deployment adds the `environment` tag in place (no replacement).
 
 ## Teardown
 
-`infra/aws/teardown.ps1` and the deploy workflow arrive with T146. Until then:
-`terraform -chdir=infra/aws/terraform destroy "-var-file=environments/prod.tfvars" "-var=release_version=latest"`
-(destroys the Neon project and its data too; secrets are deleted without a recovery window).
+```powershell
+$env:NEON_API_KEY = "<key>"   # plus TF_CLOUD_ORGANIZATION, TF_WORKSPACE (the AWS workspace), terraform login, aws sso login
+./infra/aws/teardown.ps1 -WhatIf   # preview, changes nothing
+./infra/aws/teardown.ps1           # wipes everything; type birrapoint-<env> to confirm (-Force skips it)
+```
+
+Always a full wipe, Neon data included, independent from `infra/azure/teardown.ps1`. The script
+(Windows PowerShell 5.1 and PowerShell 7; the decisions are in `Teardown.psm1`, tested in
+`infra/aws/tests`):
+
+1. runs `terraform init` and **guards** the HCP workspace: it must hold the requested environment
+   (or be empty); an unreadable state aborts;
+2. shows what exists, asks for the typed confirmation, runs `terraform destroy` (no `-target`; the
+   image variables get placeholders, the region is passed only with `-Region`);
+3. **sweeps** what the destroy left behind (it also continues when the destroy fails): Secrets
+   Manager secrets (deleted without a recovery window), log groups `/birrapoint/<env>/`, ECS
+   services and cluster, the ALB with listeners and target groups, the Cloud Map services and
+   namespace, IAM roles, CloudFront distributions (disabled, then deleted: about 15 minutes) and the
+   response headers policy, the VPC with its subnets, route tables, internet gateway and security
+   groups, and the Neon project of exactly that name. Everything is selected by **exact name and the
+   tags `application=birrapoint`, `environment=<env>`**: a secret such as `ConnectionStrings--db`
+   without those tags (another environment or application) is never touched. A VPC that contains
+   VPC endpoints or NAT gateways is left in place and reported;
+4. removes the local `.terraform` folder and verifies through the resource groups tagging API
+   (`aws resourcegroupstaggingapi get-resources`, in the region and in `us-east-1` for the global
+   CloudFront and IAM) that nothing tagged for the deployment is left; otherwise it lists it and
+   exits non-zero. The tagging index can lag a few minutes behind a deletion, so re-run the script
+   (it is idempotent). Deregistered ECS task definitions stay visible forever and are ignored.
+
+Region: `-Region`, then `AWS_REGION` / `AWS_DEFAULT_REGION`, then `region` in the var file (a
+mismatch with the var file's region aborts, unless `-Region` is given). Not touched: Docker Hub
+images, GitHub secrets, the IAM OIDC provider and deploy role, the HCP workspace itself.
+Manual alternative: `terraform -chdir=infra/aws/terraform destroy "-var-file=environments/prod.tfvars" "-var=release_version=latest"`.
 
 ## Known limitations and risks
 

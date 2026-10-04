@@ -1,11 +1,12 @@
-# Deploy pipeline (FR-064c, T136, T143). Manually triggered, approval-gated: runs the full
-# Terraform apply (infra/azure/terraform) for the azure-production environment with the released image
-# versions (<ns>/birrapoint-<component>-release:X.Y.Z, published by release.yml). Terraform owns
-# the running image, so a rollout is an apply with other versions; rollback = run it again with the
-# previous version. State lives in HCP Terraform (Local execution mode: it only stores state; the
-# apply runs here with the Azure OIDC identity). Only runs when dispatched from main (the
-# `azure-production` environment is also restricted to main). Setup: infra/azure/github-actions-setup.md.
-name: 3.-Deploy (Azure)
+# Deploy pipeline for AWS (FR-064c, T146, ADR-0023). Manually triggered, approval-gated: runs the
+# full Terraform apply (infra/aws/terraform) for the aws-production environment with the released
+# image versions (<ns>/birrapoint-<component>-release:X.Y.Z, published by release.yml). Terraform
+# owns the running image, so a rollout is an apply with other versions; rollback = run it again with
+# the previous version. State lives in HCP Terraform, in the AWS root's own workspace (Local
+# execution mode: it only stores state; the apply runs here with the AWS OIDC role). Only runs when
+# dispatched from main (the `aws-production` environment is also restricted to main). Independent
+# from deploy-azure.yml. Setup: infra/aws/github-actions-setup.md.
+name: 3.-Deploy (AWS)
 
 on:
   workflow_dispatch:
@@ -50,7 +51,7 @@ jobs:
         with:
           sparse-checkout: |
             .github/scripts
-            infra/azure/terraform/environments
+            infra/aws/terraform/environments
           persist-credentials: false
       - name: Resolve versions
         id: versions
@@ -90,7 +91,7 @@ jobs:
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_READ_TOKEN }}
         run: |
           # Same file, same image_namespace as the apply below (ADR-0022): no separate variable.
-          varfile="infra/azure/terraform/environments/${BIRRAPOINT_ENVIRONMENT,,}.tfvars"
+          varfile="infra/aws/terraform/environments/${BIRRAPOINT_ENVIRONMENT,,}.tfvars"
           if [ ! -f "$varfile" ]; then
             echo "::error::$varfile does not exist (BIRRAPOINT_ENVIRONMENT=$BIRRAPOINT_ENVIRONMENT)."
             exit 1
@@ -115,19 +116,19 @@ jobs:
 
   deploy:
     needs: resolve
-    # Defence in depth next to the environment's main-only branch policy: the production Azure
-    # identity trusts the `azure-production` environment, so no other branch may reach this job.
+    # Defence in depth next to the environment's main-only branch policy: the production AWS role
+    # trusts the `aws-production` environment, so no other branch may reach this job.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 70
+    timeout-minutes: 75
     # One production rollout at a time, never cancelled halfway; held only once approved.
     concurrency:
-      group: deploy-azure-production
+      group: deploy-aws-production
       cancel-in-progress: false
-    # Required reviewers are configured on this environment (infra/azure/github-actions-setup.md); its
-    # secrets hold the Azure OIDC identity, which needs Contributor plus User Access Administrator
-    # (or RBAC Administrator) on the subscription or resource group, since it runs the whole apply.
-    environment: azure-production
+    # Required reviewers are configured on this environment (infra/aws/github-actions-setup.md); its
+    # secrets hold the role the job assumes through OIDC. It runs the whole apply (VPC, ECS, ALB,
+    # CloudFront, IAM roles, Secrets Manager), so it needs broad permissions on a dedicated account.
+    environment: aws-production
     permissions:
       contents: read
       id-token: write
@@ -138,11 +139,9 @@ jobs:
       API_VERSION: ${{ needs.resolve.outputs.api }}
       WEB_VERSION: ${{ needs.resolve.outputs.web }}
       KEYCLOAK_VERSION: ${{ needs.resolve.outputs.keycloak }}
-      # azurerm authenticates with the OIDC token of this job (no client secret).
-      ARM_USE_OIDC: 'true'
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      # Region of the AWS CLI session; the Terraform provider takes its region from the var file
+      # (the health gate reads it back from the `region` output).
+      AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
       # HCP Terraform state backend (cloud {} block in versions.tf).
       TF_CLOUD_ORGANIZATION: ${{ vars.TF_CLOUD_ORGANIZATION }}
       TF_WORKSPACE: ${{ vars.TF_WORKSPACE }}
@@ -154,6 +153,8 @@ jobs:
       # Optional: only when the Neon API key spans several organizations. Empty means the key's
       # default organization (main.tf turns "" into null).
       TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID }}
+      # Lowest-precedence fallback: environments/<environment>.tfvars sets the region.
+      TF_VAR_region: ${{ vars.AWS_REGION || 'eu-central-1' }}
       TF_VAR_smtp_password: ${{ secrets.SMTP_PASSWORD }}
       # Optional read-only token so the apps can pull private repositories; this job never gets
       # the read/write token CI and releases push with.
@@ -163,33 +164,38 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # The azure/login session is for the az calls of the summary step; Terraform authenticates
-      # through the ARM_* variables.
-      - name: Azure login (OIDC)
-        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+      # Short-lived credentials from the job's OIDC token (no access keys): the role trusts only this
+      # repository's `aws-production` environment. They serve both Terraform (the AWS provider reads
+      # the standard environment variables) and the AWS CLI of the health gate.
+      # configure-aws-credentials v6.3.0 (commit verified against the upstream tag).
+      - name: AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-central-1' }}
+          role-session-name: birrapoint-deploy-${{ github.run_id }}
+          # Apply (CloudFront takes ~15 min) + health gate (up to 30 min) can outlast the 1 h default;
+          # the role's maximum session duration is set to 2 h (infra/aws/github-actions-setup.md).
+          role-duration-seconds: 7200
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: 1.14.3
           terraform_wrapper: false
       - name: terraform init
-        run: terraform -chdir=infra/azure/terraform init -input=false
+        run: terraform -chdir=infra/aws/terraform init -input=false
       # The HCP workspace behind TF_WORKSPACE must hold the requested environment (or be empty on a
       # first deploy): a mismatch would apply one environment over another.
       - name: Check the workspace environment
         run: |
           expected="${BIRRAPOINT_ENVIRONMENT,,}"
           # An unreadable state aborts: only a successful, empty `state list` means a first deploy.
-          if ! resources="$(terraform -chdir=infra/azure/terraform state list)"; then
+          if ! resources="$(terraform -chdir=infra/aws/terraform state list)"; then
             echo "::error::Could not read the state of HCP workspace $TF_WORKSPACE."
             exit 1
           fi
           actual=""
           if [ -n "$resources" ]; then
-            if ! actual="$(terraform -chdir=infra/azure/terraform output -raw environment)" || [ -z "${actual// /}" ]; then
+            if ! actual="$(terraform -chdir=infra/aws/terraform output -raw environment)" || [ -z "${actual// /}" ]; then
               echo "::error::HCP workspace $TF_WORKSPACE has resources but no readable environment output."
               exit 1
             fi
@@ -206,47 +212,60 @@ jobs:
       - name: terraform apply
         run: |
           varfile="environments/${BIRRAPOINT_ENVIRONMENT,,}.tfvars"
-          if [ ! -f "infra/azure/terraform/$varfile" ]; then
-            echo "::error::infra/azure/terraform/$varfile does not exist (BIRRAPOINT_ENVIRONMENT=$BIRRAPOINT_ENVIRONMENT)."
+          if [ ! -f "infra/aws/terraform/$varfile" ]; then
+            echo "::error::infra/aws/terraform/$varfile does not exist (BIRRAPOINT_ENVIRONMENT=$BIRRAPOINT_ENVIRONMENT)."
             exit 1
           fi
-          terraform -chdir=infra/azure/terraform apply -input=false -auto-approve \
+          terraform -chdir=infra/aws/terraform apply -input=false -auto-approve \
             -var-file="$varfile" \
             -var "release_version=$VERSION" \
             -var "api_version=$API_VERSION" \
             -var "web_version=$WEB_VERSION" \
             -var "keycloak_version=$KEYCLOAK_VERSION"
-      # Terraform returns when the platform accepted the revisions; this waits until they run.
-      - name: Revision health gate
-        env:
-          AZURE_EXTENSION_USE_DYNAMIC_INSTALL: yes_without_prompt
+      # Terraform returns when ECS accepted the new task definitions; this waits until the services
+      # are stable (new tasks running and healthy behind the load balancer, old ones drained). The
+      # AWS waiter gives up after 10 minutes, so it is retried a bounded number of times (3 x 10).
+      - name: ECS health gate
         run: |
-          prefix="birrapoint-${BIRRAPOINT_ENVIRONMENT,,}"
-          bash .github/scripts/wait-revisions.sh "$prefix-rg" "$prefix-kc" "$prefix-api" "$prefix-web"
+          tf() { terraform -chdir=infra/aws/terraform "$@"; }
+          cluster="$(tf output -raw ecs_cluster_name)"
+          region="$(tf output -raw region)"
+          mapfile -t services < <(tf output -json ecs_service_names | jq -r '.[]')
+          if [ -z "$cluster" ] || [ "${#services[@]}" -eq 0 ]; then
+            echo "::error::The ecs_cluster_name / ecs_service_names outputs are empty."
+            exit 1
+          fi
+          stable=0
+          for attempt in 1 2 3; do
+            echo "Waiting for ${services[*]} in $cluster to be stable (attempt $attempt/3)..."
+            if aws ecs wait services-stable --region "$region" --cluster "$cluster" --services "${services[@]}"; then
+              stable=1
+              break
+            fi
+          done
+          if [ "$stable" -ne 1 ]; then
+            echo "::error::ECS services in $cluster did not become stable."
+            aws ecs describe-services --region "$region" --cluster "$cluster" --services "${services[@]}"               --query 'services[].{service:serviceName,desired:desiredCount,running:runningCount,pending:pendingCount,events:events[0:5].message}'               --output json || true
+            exit 1
+          fi
+          echo "All services are stable."
       - name: Summary
         if: always()
-        env:
-          AZURE_EXTENSION_USE_DYNAMIC_INSTALL: yes_without_prompt
         run: |
-          prefix="birrapoint-${BIRRAPOINT_ENVIRONMENT,,}"
-          rg="$prefix-rg"
+          tf() { terraform -chdir=infra/aws/terraform "$@"; }
           {
             echo '## Production after this run'
             echo
-            echo '| App | Latest revision | Serving revision | Serving image |'
-            echo '|---|---|---|---|'
-            for app in "$prefix-kc" "$prefix-api" "$prefix-web"; do
-              if ! state="$(az containerapp show --name "$app" --resource-group "$rg" --output tsv \
-                --query '[properties.latestRevisionName, properties.latestReadyRevisionName]' 2>&1)"; then
-                echo "| $app | (could not read: ${state//$'\n'/ }) | | |"
-                continue
-              fi
-              latest="$(echo "$state" | sed -n 1p)" ready="$(echo "$state" | sed -n 2p)"
-              image='(none)'
-              if [ -n "$ready" ]; then
-                image="$(az containerapp revision show --name "$app" --resource-group "$rg" --revision "$ready" \
-                  --query 'properties.template.containers[0].image' --output tsv 2>&1)" || image="(could not read)"
-              fi
-              echo "| $app | $latest | ${ready:-(none)} | \`$image\` |"
-            done
+            echo '| Component | Version |'
+            echo '|---|---|'
+            echo "| keycloak | $KEYCLOAK_VERSION |"
+            echo "| api | $API_VERSION |"
+            echo "| web | $WEB_VERSION |"
+            echo
+            if web="$(tf output -raw web_url 2>/dev/null)" && keycloak="$(tf output -raw keycloak_url 2>/dev/null)"; then
+              echo "- PWA: $web"
+              echo "- Keycloak: $keycloak"
+            else
+              echo '(outputs not available: the apply did not complete)'
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

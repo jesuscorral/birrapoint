@@ -2,7 +2,7 @@
 
 Constitution v1.5.1, research R-17/R-18/R-19/R-21, ADR-0016/ADR-0017/ADR-0021/ADR-0022/ADR-0023, FR-043–FR-047, SC-011.
 
-First deploy from scratch? Follow the end-to-end checklist in [`infra/deployment-runbook.md`](../../deployment-runbook.md) (accounts, keys, order).
+First deploy from scratch? Follow the end-to-end checklist in [`infra/azure/deployment-runbook.md`](../deployment-runbook.md) (accounts, keys, order).
 
 ## Topology
 
@@ -132,7 +132,7 @@ Invoke-Pester infra/azure/tests
 
 Both run in `infra.yml` when `infra/**` changes. `deploy-azure.yml` runs the same `init` + `apply` with
 the release versions through Azure OIDC; its one-time setup (HCP token, Azure identity, secrets,
-`azure-production` environment) is in [`infra/github-actions-setup.md`](../../github-actions-setup.md).
+`azure-production` environment) is in [`infra/azure/github-actions-setup.md`](../github-actions-setup.md).
 
 First start takes a few minutes: Keycloak creates its schema on Neon and imports the realm, and
 the API applies EF Core migrations (including the BJCP catalog seed) before serving.

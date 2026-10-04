@@ -77,7 +77,7 @@ jobs:
       fail-fast: false
       matrix:
         # One entry per independent cloud root (infra/<cloud>/terraform, infra/<cloud>/tests).
-        cloud: [azure]
+        cloud: [azure, aws]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

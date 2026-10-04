@@ -53,7 +53,7 @@ research R-21.
   The workflow `deploy.yml` becomes `deploy-azure.yml`.
 - Paths move (`infra/terraform` → `infra/azure/terraform`, etc.); existing HCP workspaces and state
   are unaffected, but local clones need `terraform init` again.
-- The AWS stack is delivered by T145 and T146; until then only Azure is deployable.
+- The AWS stack is delivered by T145 and T146; T146 completed it (below).
 
 **Update 2026-10-04 (T145)** — implementation refinements, not a change of decision:
 
@@ -62,3 +62,10 @@ research R-21.
 - **One environment per AWS account and region**: `secretstores.aws.secretmanager` reads exact secret names (no prefix lookup), so names cannot be namespaced per environment.
 - **daprd 1.16 listens on 127.0.0.1 only**; the init container and app reach it over the task's loopback.
 - **API rollouts stop the old task first** (deployment minimum 0% / maximum 100%) because of the single SignalR and job consumer: each API deploy causes a short outage.
+
+**Update (T146)** - operations tooling:
+
+- `infra/aws/teardown.ps1` sweeps leftovers by exact name and the `application` + `environment` default tags, so another environment's or application's resources are never touched; the final check uses the tagging API.
+- `.claude/hooks/guard.js` also blocks destructive `aws` CLI commands.
+- Setup docs are split per cloud (`infra/azure/`, `infra/aws/`: setup guide + runbook); shared CI setup (Docker Hub, release bot) is `infra/ci-setup.md`.
+- `deploy-aws.yml` uses the `aws-production` environment and an OIDC role (`AWS_ROLE_ARN`); health gate is `aws ecs wait services-stable`.

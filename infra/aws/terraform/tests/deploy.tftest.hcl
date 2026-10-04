@@ -585,3 +585,39 @@ run "neon_org_id_is_used_when_set" {
     error_message = "a set neon_org_id must be passed to the project"
   }
 }
+
+# --- Tags: the teardown sweep finds a deployment's resources by tag (T146) -------------------------
+
+run "provider_default_tags_include_the_lower_cased_environment" {
+  command = plan
+
+  variables {
+    environment = "STAGING"
+  }
+
+  assert {
+    condition     = local.default_tags["environment"] == "staging"
+    error_message = "every resource must carry environment=<lower-cased environment> (teardown.ps1 selects by it)"
+  }
+  assert {
+    condition     = local.default_tags["application"] == "birrapoint"
+    error_message = "every resource must keep the application=birrapoint tag from var.tags"
+  }
+}
+
+run "environment_tag_wins_over_a_custom_tags_variable" {
+  command = plan
+
+  variables {
+    tags = {
+      application = "birrapoint"
+      environment = "somethingelse"
+      team        = "beer"
+    }
+  }
+
+  assert {
+    condition     = local.default_tags["environment"] == "prod" && local.default_tags["team"] == "beer"
+    error_message = "the environment tag derives from var.environment and cannot be overridden through var.tags; other tags are kept"
+  }
+}

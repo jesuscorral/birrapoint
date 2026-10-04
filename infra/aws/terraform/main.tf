@@ -3,6 +3,12 @@ locals {
   # environment is lower-cased to match the Azure root's names.
   environment = lower(var.environment)
   name_prefix = "birrapoint-${local.environment}"
+
+  # Provider default_tags (versions.tf): var.tags plus the environment, which always derives from
+  # var.environment. infra/aws/teardown.ps1 selects a deployment's resources by exact name AND
+  # application=birrapoint + environment=<environment>, so several environments can share an account
+  # without the sweep ever touching another one's resources.
+  default_tags = merge(var.tags, { environment = local.environment })
   names = {
     vpc          = "${local.name_prefix}-vpc"
     igw          = "${local.name_prefix}-igw"

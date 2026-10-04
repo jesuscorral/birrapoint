@@ -23,8 +23,10 @@ process.stdin.on('end', () => {
     [/^dotnet\s+ef\s+database\s+drop/i, 'Blocked: database drop. Ask the user to run this manually.'],
     [/^(docker\s+exec\s.*)?psql\b.*\bdrop\s+(database|table|schema)\s/i, 'Blocked: destructive SQL. Ask the user to run this manually.'],
     [/^terraform\b(\s+-chdir=\S+)?\s+(apply|destroy)\b/i, 'Blocked: terraform apply/destroy changes real cloud resources. Ask the user to run it (or use terraform plan).'],
-    [/^((pwsh|powershell)(\.exe)?\s+(-\S+\s+)*)?\S*teardown\.ps1\b(?!.*-WhatIf)/i, 'Blocked: teardown.ps1 deletes the Azure environment. Run with -WhatIf or ask the user.'],
+    [/^((pwsh|powershell)(\.exe)?\s+(-\S+\s+)*)?\S*teardown\.ps1\b(?!.*-WhatIf)/i, 'Blocked: teardown.ps1 deletes the whole cloud environment (Azure or AWS). Run with -WhatIf or ask the user.'],
     [/^az\s+(group|keyvault|containerapp)\s+delete\b/i, 'Blocked: deleting Azure resources. Ask the user to run it manually.'],
+    [/^aws(\s+--?[\w-]+(\s+(?!-)\S+)?)*\s+[\w-]+\s+(delete|terminate|remove|deregister)-/i, 'Blocked: deleting AWS resources. Ask the user to run it manually.'],
+    [/^aws(\s+--?[\w-]+(\s+(?!-)\S+)?)*\s+s3\s+(rm|rb)\b/i, 'Blocked: deleting S3 objects or buckets. Ask the user to run it manually.'],
     [/^docker\s+(volume\s+(rm|prune)|system\s+prune)/i, 'Blocked: removing Docker volumes wipes local Postgres/Keycloak data. Ask the user first.']
   ];
   for (const seg of segments) {

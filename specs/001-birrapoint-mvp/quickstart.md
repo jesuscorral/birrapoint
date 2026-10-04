@@ -13,7 +13,7 @@ This is the end-to-end validation guide for the feature. Commands mirror `CLAUDE
 - Node.js 24+ / npm 10+ (Jest loads `jest.config.ts` via Node's native TS type stripping — no ts-node)
 - Cloud deployment only (Azure or AWS, one per deployment): Azure CLI (`az login`), Terraform ≥ 1.9,
   a Docker Hub account (`docker login`), a Neon API key in `NEON_API_KEY`, SMTP relay credentials —
-  details in `infra/azure/terraform/README.md` (AWS guide: T146)
+  details in `infra/azure/terraform/README.md` (AWS: `infra/aws/deployment-runbook.md`)
 
 ## Environment up
 
@@ -44,8 +44,8 @@ direct endpoint for migrations; ADR-0021). The PWA reads `/config.json` at start
 
 ## Cloud deployment (SC-011)
 
-Azure shown; the AWS target (`infra/aws/`, T145/T146, ADR-0023) will mirror it with its own root,
-workspace, workflow (`deploy-aws.yml`) and teardown.
+Azure shown; the AWS target (`infra/aws/`, ADR-0023) mirrors it with its own root, workspace,
+workflow and teardown (commands below).
 
 ```bash
 # One-time: az login; terraform login; set image_namespace + smtp_* in infra/azure/terraform/environments/prod.tfvars
@@ -61,6 +61,15 @@ terraform -chdir=infra/azure/terraform apply -var-file=environments/prod.tfvars 
 # keycloak_url. release_version is required (`latest` allowed explicitly); `latest` does not re-pull on an existing environment, so
 # later deployments use release versions (the same apply with new versions, or deploy-azure.yml).
 ./infra/azure/teardown.ps1 [-WhatIf]   # removes everything, data included
+```
+
+AWS equivalent (AWS CLI signed in, `TF_WORKSPACE` = the AWS workspace; guide `infra/aws/deployment-runbook.md`):
+
+```bash
+terraform -chdir=infra/aws/terraform init
+terraform -chdir=infra/aws/terraform apply -var-file=environments/prod.tfvars -var release_version=X.Y.Z
+gh workflow run deploy-aws.yml -f version=X.Y.Z   # CI path (aws-production approval)
+./infra/aws/teardown.ps1 [-WhatIf]                # removes everything, data included
 ```
 
 Restore: Neon point-in-time recovery, procedure in `infra/azure/terraform/README.md` (FR-047).
