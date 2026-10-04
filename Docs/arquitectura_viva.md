@@ -48,7 +48,7 @@ AWS (`infra/aws/terraform/`, Terraform only; deploy workflow and teardown arrive
 - Two CloudFront distributions (web, Keycloak) → one ALB (admits only the CloudFront prefix list plus a secret origin header; routes web vs Keycloak by that header) → ECS Fargate web / Keycloak.
 - API is internal (no target group), exactly 1 replica, reached by the web through a Cloud Map private DNS namespace (`api.birrapoint-<env>.local`).
 - Secrets Manager read through Dapr sidecars on API and Keycloak only; Neon for Postgres; CloudWatch logs; dedicated VPC, public subnets, no NAT. One environment per AWS account and region.
-- Open risks for the first apply: security-group rule quota with the CloudFront prefix list; Keycloak honoring the `Forwarded` header; API sees forwarded proto `http`; daprd on Fargate (loopback only); Cloud Map registration; Docker Hub pull limits. Each API deploy stops the old task first (short outage).
+- Open risks for the first apply: security-group rule quota with the CloudFront prefix list; Keycloak honoring the `Forwarded` header; API sees forwarded proto `http` (HSTS comes from a CloudFront response headers policy); daprd on Fargate (loopback only); Cloud Map registration; Docker Hub pull limits. Each API deploy stops the old task first (short outage).
 - Rationale and refinements: research R-21, ADR-0023.
 
 Azure: every resource is named `birrapoint-<env>-<acronym>` (default env `PROD`, lower-cased;

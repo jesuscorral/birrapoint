@@ -79,6 +79,7 @@ locals {
           "--dapr-grpc-port", tostring(local.dapr_grpc_port),
           "--dapr-listen-addresses", "127.0.0.1",
           "--log-level", "warn",
+          "--enable-metrics=false",
         ]
         dependsOn        = [{ containerName = "dapr-init", condition = "SUCCESS" }]
         mountPoints      = [{ sourceVolume = "dapr-components", containerPath = "/components", readOnly = true }]

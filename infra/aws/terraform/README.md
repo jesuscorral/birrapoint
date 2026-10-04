@@ -1,6 +1,6 @@
 # BirraPoint — cloud deployment on AWS (Terraform → ECS Fargate + CloudFront + Neon)
 
-Constitution v1.5.0, research R-17/R-18/R-19/R-21, ADR-0016/ADR-0021/ADR-0022/ADR-0023, FR-043–FR-047.
+Constitution v1.5.1, research R-17/R-18/R-19/R-21, ADR-0016/ADR-0021/ADR-0022/ADR-0023, FR-043–FR-047.
 
 This root is independent of `infra/azure/terraform`: a deployment targets one cloud, with its own
 HCP Terraform workspace, `environments/<env>.tfvars` and tests. Only the Docker Hub images,
@@ -142,7 +142,18 @@ Tests, with no credentials: `terraform -chdir=infra/aws/terraform init -backend=
 - **`Forwarded` header**: Keycloak builds its URLs from `KC_HOSTNAME` and the scheme from
   `Forwarded: proto=https`; verify login redirects on the first real apply. The web nginx forwards
   the ALB's `X-Forwarded-Proto: http` to the API, so the API sees `http` for the original scheme
-  (the public URLs it needs come from `Frontend__BaseUrl` and `Keycloak__Authority`).
+  and ASP.NET's `UseHsts` never emits `Strict-Transport-Security`. HSTS is therefore added by
+  CloudFront: a `birrapoint-<env>-security` response headers policy (max-age one year, no
+  subdomains, override) on both distributions. The public URLs the API needs come from
+  `Frontend__BaseUrl` and `Keycloak__Authority`.
+- **60 s limit at the edge**: both CloudFront origins use `origin_read_timeout = 60`, the maximum
+  without a quota increase (default 30 s). nginx allows 120 s on `/api/`, so a request that takes
+  longer than 60 s (a very large `.xlsx` import) gets a 504 from CloudFront; request an increase
+  of the "Response timeout per origin" quota (Service Quotas) if that happens.
+- **daprd on Fargate (first apply check)**: the sidecar runs with `--enable-metrics=false` and
+  loopback-only listeners. Flags to disable the placement/scheduler connection in standalone mode
+  could not be confirmed for Dapr 1.16, so none are set: on the first real apply, check the
+  `daprd` log group for placement or scheduler connection retries and add the flags if present.
 - **One environment per AWS account and region**: the Dapr component reads the exact secret names
   the apps ask for (`ConnectionStrings--db`, `keycloak-db-password`, ...) and has no name prefix
   option, so the application secrets are not environment-qualified.

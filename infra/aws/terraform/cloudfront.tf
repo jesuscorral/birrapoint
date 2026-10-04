@@ -10,6 +10,22 @@ data "aws_cloudfront_origin_request_policy" "all_viewer" {
   name = "Managed-AllViewer"
 }
 
+# HSTS is added at the edge: the ALB makes the API see plain http (X-Forwarded-Proto), so
+# ASP.NET's UseHsts never emits the header on AWS. include_subdomains stays off because
+# cloudfront.net is a shared domain. Other security headers come from nginx / the API unchanged.
+resource "aws_cloudfront_response_headers_policy" "security" {
+  name = "${local.name_prefix}-security"
+
+  security_headers_config {
+    strict_transport_security {
+      access_control_max_age_sec = 31536000
+      include_subdomains         = false
+      preload                    = false
+      override                   = true
+    }
+  }
+}
+
 locals {
   distributions = {
     web = {
@@ -38,6 +54,10 @@ resource "aws_cloudfront_distribution" "web" {
       https_port             = 443
       origin_protocol_policy = "http-only"
       origin_ssl_protocols   = ["TLSv1.2"]
+      # 60 s is the most CloudFront allows without a quota increase (default 30 s): nginx allows
+      # 120 s on /api/ (large .xlsx imports) and SignalR long polling holds ~90 s; see README.
+      origin_read_timeout      = 60
+      origin_keepalive_timeout = 5
     }
 
     custom_header {
@@ -54,13 +74,14 @@ resource "aws_cloudfront_distribution" "web" {
   }
 
   default_cache_behavior {
-    target_origin_id         = "alb"
-    viewer_protocol_policy   = "redirect-to-https"
-    allowed_methods          = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
-    cached_methods           = ["GET", "HEAD"]
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
-    compress                 = true
+    target_origin_id           = "alb"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods             = ["GET", "HEAD"]
+    cache_policy_id            = data.aws_cloudfront_cache_policy.caching_disabled.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
+    origin_request_policy_id   = data.aws_cloudfront_origin_request_policy.all_viewer.id
+    compress                   = true
   }
 
   restrictions {
@@ -91,6 +112,10 @@ resource "aws_cloudfront_distribution" "keycloak" {
       https_port             = 443
       origin_protocol_policy = "http-only"
       origin_ssl_protocols   = ["TLSv1.2"]
+      # 60 s is the most CloudFront allows without a quota increase (default 30 s): nginx allows
+      # 120 s on /api/ (large .xlsx imports) and SignalR long polling holds ~90 s; see README.
+      origin_read_timeout      = 60
+      origin_keepalive_timeout = 5
     }
 
     custom_header {
@@ -105,13 +130,14 @@ resource "aws_cloudfront_distribution" "keycloak" {
   }
 
   default_cache_behavior {
-    target_origin_id         = "alb"
-    viewer_protocol_policy   = "redirect-to-https"
-    allowed_methods          = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
-    cached_methods           = ["GET", "HEAD"]
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
-    compress                 = true
+    target_origin_id           = "alb"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods             = ["GET", "HEAD"]
+    cache_policy_id            = data.aws_cloudfront_cache_policy.caching_disabled.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
+    origin_request_policy_id   = data.aws_cloudfront_origin_request_policy.all_viewer.id
+    compress                   = true
   }
 
   restrictions {

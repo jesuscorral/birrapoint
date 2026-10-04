@@ -14,7 +14,7 @@ study; Phase 16 deploy/ops: T098, T099, T129–T132, T137, T139, T146 AWS deploy
 
 ## Source of truth (priority order)
 
-1. `.specify/memory/constitution.md` (v1.5.0) — overrides everything; stack changes need an amendment.
+1. `.specify/memory/constitution.md` (v1.5.1) — overrides everything; stack changes need an amendment.
 2. `specs/001-birrapoint-mvp/`: `spec.md` (US/FR/SC) → `plan.md` → `tasks.md`; supporting
    `research.md` (R-01–R-21), `data-model.md`, `contracts/` (`rest-api.md`, `signalr-hub.md`,
    `import-file.md`), `quickstart.md` (one validation scenario per story).

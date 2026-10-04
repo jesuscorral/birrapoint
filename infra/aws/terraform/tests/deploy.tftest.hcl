@@ -372,13 +372,26 @@ run "optional_smtp_password_secret" {
 run "task_roles_read_only_their_own_secrets" {
   command = apply
 
+  # Literal sets: backend DaprSecrets.cs (API) and infra/azure/terraform/secrets.tf (Keycloak).
   assert {
-    condition     = jsondecode(aws_iam_role_policy.task_secrets["api"].policy).Statement[0].Resource == [for n in local.app_secret_names.api : aws_secretsmanager_secret.app[n].arn]
+    condition     = toset(local.app_secret_names.api) == toset(["ConnectionStrings--db", "ConnectionStrings--dbDirect", "Keycloak--AdminClientSecret", "Smtp--Password"])
+    error_message = "the API reads exactly the secrets DaprSecrets.cs asks for"
+  }
+  assert {
+    condition     = toset(local.app_secret_names.keycloak) == toset(["keycloak-db-password", "keycloak-bootstrap-admin-password", "Keycloak--AdminClientSecret", "Smtp--Password"])
+    error_message = "Keycloak reads exactly the secrets its DAPR_SECRETS mapping lists"
+  }
+  assert {
+    condition     = toset(jsondecode(aws_iam_role_policy.task_secrets["api"].policy).Statement[0].Resource) == toset([for n in ["ConnectionStrings--db", "ConnectionStrings--dbDirect", "Keycloak--AdminClientSecret", "Smtp--Password"] : aws_secretsmanager_secret.app[n].arn])
     error_message = "the API role must reference exactly the API's secrets"
   }
   assert {
-    condition     = jsondecode(aws_iam_role_policy.task_secrets["keycloak"].policy).Statement[0].Resource == [for n in local.app_secret_names.keycloak : aws_secretsmanager_secret.app[n].arn]
+    condition     = toset(jsondecode(aws_iam_role_policy.task_secrets["keycloak"].policy).Statement[0].Resource) == toset([for n in ["keycloak-db-password", "keycloak-bootstrap-admin-password", "Keycloak--AdminClientSecret", "Smtp--Password"] : aws_secretsmanager_secret.app[n].arn])
     error_message = "the Keycloak role must reference exactly Keycloak's secrets"
+  }
+  assert {
+    condition     = jsondecode(aws_iam_role_policy.task_secrets["api"].policy).Statement[0].Action == ["secretsmanager:GetSecretValue"]
+    error_message = "task roles may only GetSecretValue"
   }
   assert {
     condition     = !contains(local.app_secret_names.api, "keycloak-db-password") && !contains(local.app_secret_names.keycloak, "ConnectionStrings--db")
@@ -391,6 +404,35 @@ run "task_roles_read_only_their_own_secrets" {
   assert {
     condition     = alltrue([for k, p in aws_iam_role_policy.task_secrets : alltrue([for r in jsondecode(p.policy).Statement[0].Resource : r != "*"])])
     error_message = "no wildcard resources in the secret policies"
+  }
+  assert {
+    condition     = [for e in [for c in jsondecode(aws_ecs_task_definition.keycloak.container_definitions) : c if c.name == "keycloak"][0].environment : e.value if e.name == "DAPR_SECRETS"][0] == "API_ADMIN_CLIENT_SECRET=Keycloak--AdminClientSecret,KC_BOOTSTRAP_ADMIN_PASSWORD=keycloak-bootstrap-admin-password,KC_DB_PASSWORD=keycloak-db-password,SMTP_PASSWORD=Smtp--Password"
+    error_message = "Keycloak's DAPR_SECRETS must map each variable to its secret name"
+  }
+}
+
+run "task_roles_without_smtp_password" {
+  command = apply
+
+  variables {
+    smtp_password = ""
+  }
+
+  assert {
+    condition     = toset(local.app_secret_names.api) == toset(["ConnectionStrings--db", "ConnectionStrings--dbDirect", "Keycloak--AdminClientSecret"])
+    error_message = "without an SMTP password the API reads three secrets"
+  }
+  assert {
+    condition     = toset(local.app_secret_names.keycloak) == toset(["keycloak-db-password", "keycloak-bootstrap-admin-password", "Keycloak--AdminClientSecret"])
+    error_message = "without an SMTP password Keycloak reads three secrets"
+  }
+  assert {
+    condition     = length(jsondecode(aws_iam_role_policy.task_secrets["api"].policy).Statement[0].Resource) == 3 && length(jsondecode(aws_iam_role_policy.task_secrets["keycloak"].policy).Statement[0].Resource) == 3
+    error_message = "the policies must not reference a missing Smtp--Password secret"
+  }
+  assert {
+    condition     = [for e in [for c in jsondecode(aws_ecs_task_definition.keycloak.container_definitions) : c if c.name == "keycloak"][0].environment : e.value if e.name == "DAPR_SECRETS"][0] == "API_ADMIN_CLIENT_SECRET=Keycloak--AdminClientSecret,KC_BOOTSTRAP_ADMIN_PASSWORD=keycloak-bootstrap-admin-password,KC_DB_PASSWORD=keycloak-db-password"
+    error_message = "DAPR_SECRETS must omit SMTP_PASSWORD when there is no password"
   }
 }
 
@@ -417,6 +459,105 @@ run "dockerhub_credentials_when_configured" {
   }
 }
 
+# --- Origin secret wiring (ALB rule <-> CloudFront header) -----------------------------------------
+
+run "origin_secrets_match_between_alb_and_cloudfront" {
+  command = apply
+
+  assert {
+    condition     = one(one(aws_lb_listener_rule.web.condition).http_header).values == toset([random_password.origin_verify_web.result])
+    error_message = "the web rule must require the web origin secret"
+  }
+  assert {
+    condition     = one(one(aws_lb_listener_rule.keycloak.condition).http_header).values == toset([random_password.origin_verify_keycloak.result])
+    error_message = "the Keycloak rule must require the Keycloak origin secret"
+  }
+  assert {
+    condition     = [for x in one(aws_cloudfront_distribution.web.origin).custom_header : x.value if x.name == "X-Origin-Verify"] == [random_password.origin_verify_web.result]
+    error_message = "the web distribution must send the web origin secret"
+  }
+  assert {
+    condition     = [for x in one(aws_cloudfront_distribution.keycloak.origin).custom_header : x.value if x.name == "X-Origin-Verify"] == [random_password.origin_verify_keycloak.result]
+    error_message = "the Keycloak distribution must send the Keycloak origin secret"
+  }
+  assert {
+    condition     = random_password.origin_verify_web.result != random_password.origin_verify_keycloak.result
+    error_message = "web and Keycloak must use different origin secrets"
+  }
+}
+
+# --- HSTS at the edge (the ALB makes the API see http, so ASP.NET UseHsts stays silent) -------------
+
+run "cloudfront_adds_hsts" {
+  command = apply
+
+  assert {
+    condition     = aws_cloudfront_response_headers_policy.security.name == "birrapoint-prod-security"
+    error_message = "the response headers policy must be birrapoint-prod-security"
+  }
+  assert {
+    condition     = one(aws_cloudfront_response_headers_policy.security.security_headers_config).strict_transport_security[0].access_control_max_age_sec >= 31536000 && one(aws_cloudfront_response_headers_policy.security.security_headers_config).strict_transport_security[0].override == true
+    error_message = "HSTS max-age must be at least one year and override the origin"
+  }
+  assert {
+    condition     = one(aws_cloudfront_response_headers_policy.security.security_headers_config).strict_transport_security[0].include_subdomains == false
+    error_message = "HSTS must not include subdomains (cloudfront.net is shared)"
+  }
+  assert {
+    condition     = aws_cloudfront_distribution.web.default_cache_behavior[0].response_headers_policy_id == aws_cloudfront_response_headers_policy.security.id && aws_cloudfront_distribution.keycloak.default_cache_behavior[0].response_headers_policy_id == aws_cloudfront_response_headers_policy.security.id
+    error_message = "both distributions must attach the security headers policy"
+  }
+}
+
+run "cloudfront_origin_timeouts" {
+  command = plan
+
+  assert {
+    condition     = one(one(aws_cloudfront_distribution.web.origin).custom_origin_config).origin_read_timeout == 60 && one(one(aws_cloudfront_distribution.keycloak.origin).custom_origin_config).origin_read_timeout == 60
+    error_message = "origin_read_timeout must be 60 s (the maximum without a quota increase)"
+  }
+  assert {
+    condition     = one(one(aws_cloudfront_distribution.web.origin).custom_origin_config).origin_keepalive_timeout == 5 && one(one(aws_cloudfront_distribution.keycloak.origin).custom_origin_config).origin_keepalive_timeout == 5
+    error_message = "origin_keepalive_timeout must be explicit (5 s)"
+  }
+}
+
+# --- No secret in plain environment, daprd hardening ----------------------------------------------
+
+run "no_secret_value_in_container_environment" {
+  command = apply
+
+  assert {
+    condition     = length(setintersection(toset(flatten([for td in [aws_ecs_task_definition.api, aws_ecs_task_definition.keycloak, aws_ecs_task_definition.web] : [for c in jsondecode(td.container_definitions) : [for e in try(c.environment, []) : e.value]]])), toset(nonsensitive(values(local.secret_values))))) == 0
+    error_message = "no secret value may appear in a container environment"
+  }
+  assert {
+    condition     = length(setintersection(toset(flatten([for td in [aws_ecs_task_definition.api, aws_ecs_task_definition.keycloak, aws_ecs_task_definition.web] : [for c in jsondecode(td.container_definitions) : [for e in try(c.environment, []) : e.value]]])), toset([nonsensitive(random_password.origin_verify_web.result), nonsensitive(random_password.origin_verify_keycloak.result), nonsensitive(random_password.api_admin_client_secret.result), nonsensitive(random_password.keycloak_admin.result), nonsensitive(neon_role.keycloak.password)]))) == 0
+    error_message = "origin secrets and passwords must not reach any container environment"
+  }
+}
+
+run "daprd_is_hardened" {
+  command = apply
+
+  assert {
+    condition     = alltrue([for td in [aws_ecs_task_definition.api, aws_ecs_task_definition.keycloak] : [for c in jsondecode(td.container_definitions) : c.command[index(c.command, "--dapr-listen-addresses") + 1] == "127.0.0.1" if c.name == "daprd"][0]])
+    error_message = "daprd must listen on 127.0.0.1 only"
+  }
+  assert {
+    condition     = alltrue([for td in [aws_ecs_task_definition.api, aws_ecs_task_definition.keycloak] : [for c in jsondecode(td.container_definitions) : contains(c.command, "--enable-metrics=false") if c.name == "daprd"][0]])
+    error_message = "daprd metrics must be disabled"
+  }
+  assert {
+    condition     = contains([for c in jsondecode(aws_ecs_task_definition.keycloak.container_definitions) : c.name], "dapr-init")
+    error_message = "the Keycloak task needs the init container that writes the Dapr component"
+  }
+  assert {
+    condition     = [for e in [for c in jsondecode(aws_ecs_task_definition.api.container_definitions) : c if c.name == "api"][0].environment : e.value if e.name == "Dapr__SecretStore"] == [var.dapr_secret_store_name]
+    error_message = "the API must name the Dapr secret store component"
+  }
+}
+
 # --- Neon (same as Azure) ------------------------------------------------------------------------
 
 run "empty_neon_org_id_means_the_api_key_default" {
@@ -427,7 +568,7 @@ run "empty_neon_org_id_means_the_api_key_default" {
   }
 
   assert {
-    condition     = local.neon_org_id == null
+    condition     = local.neon_org_id == null && neon_project.main.org_id == null
     error_message = "TF_VAR_neon_org_id empty must become null (the API key's default organization)"
   }
 }
@@ -440,7 +581,7 @@ run "neon_org_id_is_used_when_set" {
   }
 
   assert {
-    condition     = local.neon_org_id == "org-test-1"
+    condition     = local.neon_org_id == "org-test-1" && neon_project.main.org_id == "org-test-1"
     error_message = "a set neon_org_id must be passed to the project"
   }
 }

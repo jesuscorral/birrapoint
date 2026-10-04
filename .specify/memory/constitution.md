@@ -1,6 +1,16 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 1.5.0 → 1.5.1 (PATCH — wording aligned with the T145 implementation; no rule change)
+Modified sections:
+  - Technology & Architecture Constraints / Deployment / AWS: the API is reached through a private
+    service-discovery DNS name (Cloud Map) instead of ECS Service Connect — the web's nginx
+    resolves its upstream per request through `resolver`, which ignores the /etc/hosts entries
+    Service Connect relies on (ADR-0023 update, R-21, PR #62 review M2).
+Templates: ADR-0023 and research R-21 already record the change ✅
+Follow-up TODOs: none
+
+Previous report (v1.5.0, 2026-10-04):
 Version change: 1.4.0 → 1.5.0 (MINOR — alternative cloud deployment target added; no principle removed)
 Modified principles: none
 Modified sections:
@@ -256,7 +266,7 @@ The approved stack is defined in `Docs/01-Definicion-Tecnologica.md` and is bind
     every Container App runs with a system-assigned managed identity holding read-only access to
     the vault.
   - **AWS**: ECS Fargate in a dedicated VPC, frontend and Keycloak published through an ALB
-    fronted by CloudFront (HTTPS), the API internal and reached over ECS Service Connect.
+    fronted by CloudFront (HTTPS), the API internal and reached through a private service-discovery DNS name (Cloud Map).
     Secrets live in AWS Secrets Manager; the API and Keycloak each have an IAM task role limited to
     reading its own secrets.
   - **Both**: apps read their secrets at runtime through a Dapr secret store component (Dapr
@@ -297,4 +307,4 @@ be updated.
   Definition of Done above. Runtime development guidance for agents lives in `CLAUDE.md` and must
   stay consistent with this document.
 
-**Version**: 1.5.0 | **Ratified**: 2026-07-06 | **Last Amended**: 2026-10-04
+**Version**: 1.5.1 | **Ratified**: 2026-07-06 | **Last Amended**: 2026-10-04
