@@ -46,10 +46,10 @@ This starts the whole stack. The PWA runs at <http://localhost:4200> (seeded log
 Tests: `dotnet test backend/BirraPoint.sln` · `cd frontend && npx jest` · `cd frontend && npm run e2e`
 (E2E needs the running stack).
 
-## Deploy to Azure
+## Deploy to Azure or AWS
 
-BirraPoint deploys to Azure or to AWS, one cloud per deployment (ADR-0023). Azure is available now
-(`infra/azure/`); the AWS Terraform root exists (`infra/aws/terraform/`); deploy it with a local `terraform apply` for now (see [`infra/aws/terraform/README.md`](./infra/aws/terraform/README.md)); the workflow and teardown arrive with T146.
+BirraPoint deploys to Azure or to AWS, one cloud per deployment (ADR-0023). Both are implemented
+(`infra/azure/`, `infra/aws/`); the sections below cover Azure, then AWS.
 
 One-time prerequisites: Azure CLI logged in as Owner (or Contributor + User Access Administrator),
 Terraform ≥ 1.9, a Neon API key, the non-secret inputs in `infra/azure/terraform/environments/prod.tfvars`
@@ -75,7 +75,26 @@ gh workflow run deploy-azure.yml -f version=X.Y.Z       # apply it to Azure (app
 ```
 
 Details: [`infra/azure/terraform/README.md`](./infra/azure/terraform/README.md) and
-[`infra/github-actions-setup.md`](./infra/github-actions-setup.md).
+[`infra/azure/github-actions-setup.md`](./infra/azure/github-actions-setup.md)
+(shared CI setup: [`infra/ci-setup.md`](./infra/ci-setup.md)).
+
+### AWS
+
+Same flow with its own Terraform root, HCP workspace and workflow. Prerequisites: AWS CLI signed in,
+Terraform >= 1.9, a Neon API key; inputs in `infra/aws/terraform/environments/prod.tfvars` and
+`terraform.tfvars`.
+
+```bash
+terraform -chdir=infra/aws/terraform init
+terraform -chdir=infra/aws/terraform apply -var-file=environments/prod.tfvars -var release_version=X.Y.Z
+gh workflow run deploy-aws.yml -f version=X.Y.Z   # apply from GitHub Actions (approval required)
+./infra/aws/teardown.ps1 [-WhatIf]                # removes everything, data included
+```
+
+Details: [`infra/aws/deployment-runbook.md`](./infra/aws/deployment-runbook.md),
+[`infra/aws/github-actions-setup.md`](./infra/aws/github-actions-setup.md) and
+[`infra/aws/terraform/README.md`](./infra/aws/terraform/README.md). Not yet applied to a real
+account.
 
 ## Documentation
 

@@ -165,7 +165,7 @@ variable "web_min_replicas" {
 }
 
 variable "tags" {
-  description = "Tags applied to every AWS resource (provider default_tags)."
+  description = "Tags applied to every AWS resource (provider default_tags); the environment tag is added from var.environment and cannot be overridden here."
   type        = map(string)
   default = {
     application = "birrapoint"

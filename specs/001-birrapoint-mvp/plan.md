@@ -52,7 +52,7 @@ providers) for the Terraform variables (T143, ADR-0022).
 Azure Container Apps **or** AWS ECS Fargate, one per deployment (constitution v1.5.0, ADR-0023,
 R-21; images on Docker Hub + Terraform; Keycloak runs as a container beside the API and web,
 per Clarifications 2026-07-07; PostgreSQL is hosted externally on Neon, constitution v1.3.0).
-The AWS target is planned (T145, T146).
+The AWS target is implemented (T145, T146).
 Frontend: multi-stage Node→Nginx image;
 evergreen mobile/desktop browsers as an installable PWA; judge flow designed for mid-range
 Android/iOS devices on flaky venue networks.
@@ -214,7 +214,7 @@ infra/
 │                                       #   provider; images from Docker Hub; state in HCP
 │                                       #   Terraform; deploy is `terraform apply` (ADR-0022);
 │                                       #   tests/ = `terraform test`
-├── aws/                                # AWS target (planned, T145/T146, ADR-0023): same shape
+├── aws/                                # AWS target (T145/T146, ADR-0023): same shape
 │   ├── teardown.ps1 + Teardown.psm1    #   as azure/ (own tests/, own state, own workflow)
 │   └── terraform/                      #   VPC, ALB, 2 CloudFront distributions, ECS Fargate +
 │                                       #   Dapr, Secrets Manager, IAM, Neon

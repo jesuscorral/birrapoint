@@ -142,23 +142,72 @@ Describe 'Get-DestroyArgument' {
     }
 }
 
-Describe 'Resolve-NeonProjectTarget' {
-    It 'deletes the single exact-name match' {
-        $found = @([pscustomobject]@{ id = 'p-1'; name = 'birrapoint-prod-neon' })
-        $target = Resolve-NeonProjectTarget -NameMatches $found
-        $target.Action | Should -Be 'DeleteById'
-        $target.ProjectId | Should -Be 'p-1'
+Describe 'Resolve-NeonDeletionTarget' {
+    BeforeAll {
+        $expected = 'birrapoint-prod-neon'
+        $other = 'birrapoint-prod-aws-neon'
+        $mine = [pscustomobject]@{ id = 'p-mine'; name = $expected }
+        $dup = [pscustomobject]@{ id = 'p-dup'; name = $expected }
+        $foreign = [pscustomobject]@{ id = 'p-foreign'; name = $other }
     }
 
-    It 'refuses to guess between several projects with the same name' {
-        $found = @([pscustomobject]@{ id = 'p-1'; name = 'x' }, [pscustomobject]@{ id = 'p-2'; name = 'x' })
-        $target = Resolve-NeonProjectTarget -NameMatches $found
+    It 'deletes the state project id when its name matches' {
+        $target = Resolve-NeonDeletionTarget -StateProjectId 'p-mine' -ProjectsFound @($mine, $dup) -ExpectedName $expected
+        $target.Action | Should -Be 'DeleteById'
+        $target.ProjectId | Should -Be 'p-mine'
+    }
+
+    It 'refuses when the state project id carries another name' {
+        $target = Resolve-NeonDeletionTarget -StateProjectId 'p-foreign' -ProjectsFound @($foreign, $mine) -ExpectedName $expected
         $target.Action | Should -Be 'Refuse'
         $target.ProjectId | Should -BeNullOrEmpty
     }
 
-    It 'has nothing to do when no project has the name' {
-        (Resolve-NeonProjectTarget -NameMatches @()).Action | Should -Be 'None'
+    It 'has nothing to delete when the state project id no longer exists' {
+        $target = Resolve-NeonDeletionTarget -StateProjectId 'p-gone' -ProjectsFound @($dup) -ExpectedName $expected
+        $target.Action | Should -Be 'None'
+    }
+
+    It 'only reports a name match when the state is empty and no id is given' {
+        $target = Resolve-NeonDeletionTarget -ProjectsFound @($mine) -ExpectedName $expected
+        $target.Action | Should -Be 'ReportOnly'
+        $target.ProjectId | Should -BeNullOrEmpty
+        @($target.Candidates).id | Should -Be @('p-mine')
+    }
+
+    It 'has nothing to do when the state is empty and nothing matches' {
+        (Resolve-NeonDeletionTarget -ProjectsFound @($foreign) -ExpectedName $expected).Action | Should -Be 'None'
+        (Resolve-NeonDeletionTarget -ProjectsFound @() -ExpectedName $expected).Action | Should -Be 'None'
+    }
+
+    It 'deletes an explicit id whose name matches' {
+        $target = Resolve-NeonDeletionTarget -ExplicitProjectId 'p-mine' -ProjectsFound @($mine, $dup) -ExpectedName $expected
+        $target.Action | Should -Be 'DeleteById'
+        $target.ProjectId | Should -Be 'p-mine'
+    }
+
+    It 'refuses an explicit id with another name' {
+        $target = Resolve-NeonDeletionTarget -ExplicitProjectId 'p-foreign' -ProjectsFound @($foreign, $mine) -ExpectedName $expected
+        $target.Action | Should -Be 'Refuse'
+    }
+
+    It 'refuses when the explicit id and the state id differ' {
+        $target = Resolve-NeonDeletionTarget -StateProjectId 'p-mine' -ExplicitProjectId 'p-dup' -ProjectsFound @($mine, $dup) -ExpectedName $expected
+        $target.Action | Should -Be 'Refuse'
+    }
+
+    It 'never selects a project named for the other cloud, whatever the id source' {
+        foreach ($parameters in @{ StateProjectId = 'p-foreign' }, @{ ExplicitProjectId = 'p-foreign' }) {
+            $target = Resolve-NeonDeletionTarget @parameters -ProjectsFound @($foreign) -ExpectedName $expected
+            $target.Action | Should -Not -Be 'DeleteById'
+            $target.ProjectId | Should -BeNullOrEmpty
+        }
+        (Resolve-NeonDeletionTarget -ProjectsFound @($foreign) -ExpectedName $expected).Action | Should -Not -Be 'DeleteById'
+    }
+
+    It 'matches names case-sensitively and exactly' {
+        $near = [pscustomobject]@{ id = 'p-near'; name = $expected.ToUpperInvariant() }
+        (Resolve-NeonDeletionTarget -StateProjectId 'p-near' -ProjectsFound @($near) -ExpectedName $expected).Action | Should -Be 'Refuse'
     }
 }
 

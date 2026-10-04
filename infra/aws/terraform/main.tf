@@ -3,15 +3,25 @@ locals {
   # environment is lower-cased to match the Azure root's names.
   environment = lower(var.environment)
   name_prefix = "birrapoint-${local.environment}"
+
+  # Provider default_tags (versions.tf): var.tags plus the environment, which always derives from
+  # var.environment. infra/aws/teardown.ps1 selects a deployment's resources by exact name AND
+  # application=birrapoint + environment=<environment>, so the sweep never touches another
+  # application's (or another environment's) resources. It is still ONE BirraPoint environment per
+  # AWS account and region: the generic secret names and the IAM role names would collide.
+  default_tags = merge(var.tags, { environment = local.environment })
   names = {
-    vpc          = "${local.name_prefix}-vpc"
-    igw          = "${local.name_prefix}-igw"
-    alb          = "${local.name_prefix}-alb"
-    cluster      = "${local.name_prefix}-ecs"
-    api          = "${local.name_prefix}-api"
-    web          = "${local.name_prefix}-web"
-    keycloak     = "${local.name_prefix}-kc"
-    neon_project = "${local.name_prefix}-neon"
+    vpc      = "${local.name_prefix}-vpc"
+    igw      = "${local.name_prefix}-igw"
+    alb      = "${local.name_prefix}-alb"
+    cluster  = "${local.name_prefix}-ecs"
+    api      = "${local.name_prefix}-api"
+    web      = "${local.name_prefix}-web"
+    keycloak = "${local.name_prefix}-kc"
+    # Cloud-specific: the Neon account is shared with the Azure root, whose project is
+    # birrapoint-<environment>-neon. teardown.ps1 deletes only the id from the state, after checking
+    # this name.
+    neon_project = "${local.name_prefix}-aws-neon"
     # Cloud Map private DNS namespace: the web nginx reaches the API at api.<namespace>.
     namespace = "${local.name_prefix}.local"
   }

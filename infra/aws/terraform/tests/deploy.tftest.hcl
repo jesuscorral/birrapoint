@@ -171,8 +171,8 @@ run "resource_names_follow_the_convention" {
     error_message = "distributions must be commented birrapoint-prod-web/-kc"
   }
   assert {
-    condition     = neon_project.main.name == "birrapoint-prod-neon"
-    error_message = "neon project must be birrapoint-prod-neon"
+    condition     = neon_project.main.name == "birrapoint-prod-aws-neon"
+    error_message = "neon project must be birrapoint-prod-aws-neon (the Azure root owns birrapoint-prod-neon in the shared Neon account; teardown.ps1 verifies the name)"
   }
   assert {
     condition     = aws_service_discovery_private_dns_namespace.main.name == "birrapoint-prod.local"
@@ -583,5 +583,60 @@ run "neon_org_id_is_used_when_set" {
   assert {
     condition     = local.neon_org_id == "org-test-1" && neon_project.main.org_id == "org-test-1"
     error_message = "a set neon_org_id must be passed to the project"
+  }
+}
+
+# --- Tags: the teardown sweep finds a deployment's resources by tag (T146) -------------------------
+
+run "provider_default_tags_include_the_lower_cased_environment" {
+  command = plan
+
+  variables {
+    environment = "STAGING"
+  }
+
+  assert {
+    condition     = local.default_tags["environment"] == "staging"
+    error_message = "every resource must carry environment=<lower-cased environment> (teardown.ps1 selects by it)"
+  }
+  assert {
+    condition     = local.default_tags["application"] == "birrapoint"
+    error_message = "every resource must keep the application=birrapoint tag from var.tags"
+  }
+}
+
+run "environment_tag_wins_over_a_custom_tags_variable" {
+  command = plan
+
+  variables {
+    tags = {
+      application = "birrapoint"
+      environment = "somethingelse"
+      team        = "beer"
+    }
+  }
+
+  assert {
+    condition     = local.default_tags["environment"] == "prod" && local.default_tags["team"] == "beer"
+    error_message = "the environment tag derives from var.environment and cannot be overridden through var.tags; other tags are kept"
+  }
+}
+
+# --- Outputs read by the deploy workflow's health gate (M1, ecs-health.sh) --------------------------
+
+run "task_definition_arns_output_matches_the_services" {
+  command = apply
+
+  assert {
+    condition     = output.ecs_task_definition_arns.api == aws_ecs_task_definition.api.arn && output.ecs_task_definition_arns.web == aws_ecs_task_definition.web.arn && output.ecs_task_definition_arns.keycloak == aws_ecs_task_definition.keycloak.arn
+    error_message = "ecs_task_definition_arns must map api/web/keycloak to the task definitions the services run"
+  }
+  assert {
+    condition     = output.ecs_task_definition_arns.api == aws_ecs_service.api.task_definition && output.ecs_task_definition_arns.web == aws_ecs_service.web.task_definition && output.ecs_task_definition_arns.keycloak == aws_ecs_service.keycloak.task_definition
+    error_message = "each ARN must equal its service's task_definition, which the health gate compares with the PRIMARY deployment"
+  }
+  assert {
+    condition     = toset(keys(output.ecs_task_definition_arns)) == toset(keys(output.ecs_service_names))
+    error_message = "ecs_task_definition_arns and ecs_service_names must have the same keys"
   }
 }

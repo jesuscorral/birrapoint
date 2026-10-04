@@ -1,19 +1,14 @@
 # GitHub Actions setup: Azure (FR-064)
 
-This page covers the one-time configuration behind the CI/CD pipelines of the **Azure** deployment
-(`deploy-azure.yml`, GitHub environment `azure-production`; each cloud has its own independent deploy target). Nothing in it is stored
-in the repository.
+This page covers the one-time configuration behind the CI/CD pipeline of the **Azure** deployment
+(`deploy-azure.yml`, GitHub environment `azure-production`; each cloud has its own independent
+deploy target, the AWS one is in [`../aws/github-actions-setup.md`](../aws/github-actions-setup.md)).
+Nothing in it is stored in the repository. The workflow overview and everything shared by both
+clouds (Docker Hub, `IMAGE_NAMESPACE`, the release bot and `main` protection) is in
+[`../ci-setup.md`](../ci-setup.md).
 
-| Workflow | Trigger | Does | Needs |
-|---|---|---|---|
-| `ci.yml` | PRs and pushes to `main` | Quality gates; on `main`, pushes `<ns>/birrapoint-*:latest` + `:sha-<short>` | Docker Hub |
-| `infra.yml` | Changes to `infra/**` | `terraform fmt`/`validate`/`test` (no backend), Pester (teardown) | nothing |
-| `workflows.yml` | Changes to `.github/**` | actionlint, release script tests | nothing |
-| `release.yml` | Manual | Publishes `<ns>/birrapoint-*-release:X.Y.Z`, tag, GitHub Release, bumps `version.txt` | Docker Hub |
-| `deploy-azure.yml` | Manual, approval | Applies Terraform with a release version (`terraform init` + `apply`, ADR-0022), then waits for healthy revisions | Azure OIDC, HCP Terraform, Neon, SMTP, `azure-production` environment |
-
-Only `deploy-azure.yml` creates or changes infrastructure: it runs the same `terraform apply` as a
-workstation (see `infra/azure/terraform/README.md`), so it can also create a brand-new environment.
+Only `deploy-azure.yml` creates or changes Azure infrastructure: it runs the same `terraform apply`
+as a workstation (see `terraform/README.md`), so it can also create a brand-new environment.
 State lives in HCP Terraform (workspace in **Local** execution mode).
 
 For the full from-scratch order (accounts, keys, first local apply) see [`deployment-runbook.md`](deployment-runbook.md).
@@ -23,26 +18,8 @@ Commands below are PowerShell. Run them from the repository root, logged in with
 
 ## 1. Docker Hub (CI, release and deploy)
 
-1. Create a Docker Hub **personal access token** with **Read & Write** scope: Docker Hub →
-   Account settings → Personal access tokens.
-2. Store it:
-
-```powershell
-gh secret set DOCKERHUB_USERNAME --body "<docker hub user>"
-gh secret set DOCKERHUB_TOKEN            # paste the token when prompted
-gh variable set IMAGE_NAMESPACE --body "<docker hub user or org>"
-
-# Optional, only needed for private repositories: a separate READ-ONLY token for deploy-azure.yml,
-# which never receives the read/write token above
-gh secret set DOCKERHUB_READ_TOKEN
-```
-
-`IMAGE_NAMESPACE` is used by `ci.yml` and `release.yml` only (`deploy-azure.yml` reads the namespace from
-`infra/azure/terraform/environments/<env>.tfvars`; keep the two equal). It must be a **variable**, not a
-secret. The workflows read `vars.IMAGE_NAMESPACE`,
-and a secret would also mask every image name in the logs as `***`. The six repositories
-(`birrapoint-{api,web,keycloak}` and `birrapoint-{api,web,keycloak}-release`) are created by the
-first push.
+Shared by both clouds: follow [`../ci-setup.md` §1](../ci-setup.md#1-docker-hub-ci-release-and-deploys).
+`DOCKERHUB_READ_TOKEN` (optional, private repositories) is read by `deploy-azure.yml`.
 
 ## 2. HCP Terraform, Neon and SMTP (state and apply inputs)
 
@@ -57,11 +34,11 @@ first push.
 | secret | `SMTP_PASSWORD` | SMTP relay password |
 | variable | `TF_CLOUD_ORGANIZATION`, `TF_WORKSPACE` | HCP organization and workspace |
 | variable (optional) | `NEON_ORG_ID` | Neon organization id (not committed); needed when the account uses organizations (Neon answers `org_id is required`) |
-| variable (optional) | `BIRRAPOINT_ENVIRONMENT` | environment name, default `PROD`; selects `infra/azure/terraform/environments/<env>.tfvars` |
+| variable (optional) | `BIRRAPOINT_ENVIRONMENT` | environment name, default `PROD`; selects `terraform/environments/<env>.tfvars` |
 
 Non-secret inputs (`image_namespace`, `smtp_host`, `smtp_port`, `smtp_username`,
 `smtp_from_address`, Neon and sizing settings) are **not** GitHub variables any more: they live in
-the committed `infra/azure/terraform/environments/<env>.tfvars`, which `deploy-azure.yml` and a local apply
+the committed `terraform/environments/<env>.tfvars`, which `deploy-azure.yml` and a local apply
 share. Edit that file (and commit it) before the first deploy; `image_namespace` there is also what
 the Docker Hub existence check in `deploy-azure.yml` uses. The HCP workspace must hold the same
 environment as `BIRRAPOINT_ENVIRONMENT`; the workflow stops when it does not.
@@ -104,7 +81,7 @@ foreach ($role in "Contributor", "User Access Administrator") {
 ```
 
 Also add this identity to `key_vault_secrets_officer_principal_ids` if an operator group is used
-(`infra/azure/terraform/README.md`). The OIDC subject names the environment, not a branch. The environment's main-only branch
+(`terraform/README.md`). The OIDC subject names the environment, not a branch. The environment's main-only branch
 policy in step 4 is what ties this identity to `main`. It is mandatory, and more so now that the
 identity is broad.
 
@@ -140,26 +117,8 @@ If you deploy an environment other than `PROD`, set it for `deploy-azure.yml` to
 
 ## 5. The release bot and `main`
 
-`release.yml` pushes the `vX.Y.Z` tag and the `version.txt` bump with the workflow's own
-`GITHUB_TOKEN` (`contents: write`). This works as long as `main` is **not protected**, which is
-the case today.
-
-If you protect `main` with a ruleset that requires pull requests, `GITHUB_TOKEN` can no longer
-push the bump. In that case:
-
-1. Create a GitHub App with *Contents: Read & write*, install it on the repository, and add it to
-   the ruleset's **bypass list**.
-2. In `release.yml`'s `finalize` job, mint a token with `actions/create-github-app-token`
-   (pinned by SHA), and use it for the checkout and pushes instead of `GITHUB_TOKEN`.
-
-A **tag ruleset** protecting `v*` tags would block the bot's tag push in the same way; the same
-GitHub App bypass applies.
-
-If CI later becomes a required check, remember that docs-only PRs never produce it, because of
-the path filters (T137). The reusable gates report as `gates / backend` and `gates / frontend`.
-
-`release.yml` and `deploy-azure.yml` refuse to run unless dispatched from `main` ("Use workflow from:
-main" in the Actions tab, the default).
+Shared by both clouds: see [`../ci-setup.md` §2](../ci-setup.md#2-the-release-bot-and-main).
+`deploy-azure.yml` refuses to run unless dispatched from `main`.
 
 ## Everyday use
 

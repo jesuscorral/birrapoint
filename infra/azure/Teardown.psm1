@@ -101,17 +101,50 @@ function Select-NeonProjectToDelete {
     @($Projects | Where-Object { $_.name -ceq $Name })
 }
 
-function Resolve-NeonProjectTarget {
-    # Which Neon project the teardown deletes: the one with the exact name. Neon names are not
-    # unique, so several matches are refused, never guessed between.
+function Resolve-NeonDeletionTarget {
+    # Which Neon project the teardown may delete. The Neon account is shared by the Azure and AWS
+    # deployments, so a project is NEVER chosen by name alone:
+    #   - the id comes from the Terraform state (-StateProjectId) or, when the state is empty, from
+    #     an explicit -ExplicitProjectId given by the operator;
+    #   - that project must exist in -ProjectsFound and carry exactly -ExpectedName (this cloud's
+    #     name); another name is refused, which is what keeps one cloud's teardown away from the
+    #     other cloud's database;
+    #   - with no id at all, name matches are only reported (Action ReportOnly), never deleted.
+    # Actions: DeleteById, Refuse, ReportOnly, None.
     [CmdletBinding()]
-    param([AllowEmptyCollection()] [object[]] $NameMatches = @())
-    $candidates = @($NameMatches)
-    switch ($candidates.Count) {
-        0 { return [pscustomobject]@{ Action = 'None'; ProjectId = $null } }
-        1 { return [pscustomobject]@{ Action = 'DeleteById'; ProjectId = $candidates[0].id } }
-        default { return [pscustomobject]@{ Action = 'Refuse'; ProjectId = $null } }
+    param(
+        [string] $StateProjectId,
+        [string] $ExplicitProjectId,
+        [AllowEmptyCollection()] [object[]] $ProjectsFound = @(),
+        [Parameter(Mandatory = $true)] [string] $ExpectedName
+    )
+    $projects = @($ProjectsFound | Where-Object { $null -ne $_ })
+    $result = { param($action, $id, $reason, $candidates)
+        [pscustomobject]@{ Action = $action; ProjectId = $id; Reason = $reason; Candidates = @($candidates) } }
+
+    $state = if ([string]::IsNullOrWhiteSpace($StateProjectId)) { $null } else { $StateProjectId.Trim() }
+    $explicit = if ([string]::IsNullOrWhiteSpace($ExplicitProjectId)) { $null } else { $ExplicitProjectId.Trim() }
+    if ($state -and $explicit -and $state -cne $explicit) {
+        return & $result 'Refuse' $null "The Terraform state holds Neon project '$state' but -NeonProjectId is '$explicit'." @()
     }
+    $targetId = if ($state) { $state } else { $explicit }
+
+    if (-not $targetId) {
+        $named = @($projects | Where-Object { $_.name -ceq $ExpectedName })
+        if ($named.Count -gt 0) {
+            return & $result 'ReportOnly' $null "No Neon project id in the Terraform state; '$ExpectedName' matches by name only. Pass -NeonProjectId <id> to delete it." $named
+        }
+        return & $result 'None' $null 'No Neon project id in the state and none matches by name.' @()
+    }
+
+    $project = @($projects | Where-Object { $_.id -ceq $targetId }) | Select-Object -First 1
+    if (-not $project) {
+        return & $result 'None' $null "Neon project '$targetId' does not exist (already deleted)." @()
+    }
+    if ($project.name -cne $ExpectedName) {
+        return & $result 'Refuse' $null "Neon project '$targetId' is named '$($project.name)', not '$ExpectedName'; refusing to delete another deployment's database." @($project)
+    }
+    & $result 'DeleteById' $targetId "Neon project '$targetId' ($ExpectedName)." @($project)
 }
 
 function Resolve-NeonOrgId {
@@ -170,5 +203,5 @@ function Get-DestroyArgument {
 }
 
 Export-ModuleMember -Function Test-TeardownConfirmation, ConvertTo-EnvironmentName, Get-TeardownResourceName,
-    Select-NeonProjectToDelete, Resolve-NeonProjectTarget, Get-DestroyArgument,
+    Select-NeonProjectToDelete, Resolve-NeonDeletionTarget, Get-DestroyArgument,
     Test-StateEnvironment, Resolve-StateEnvironment, Get-EnvironmentVarFile, Resolve-NeonOrgId

@@ -2,8 +2,10 @@
 
 This is the end-to-end checklist for deploying BirraPoint to **Azure** from scratch (ADR-0022). It lists every
 account, key and setting needed, in the order to create them. The details behind each step are in
-[`azure/terraform/README.md`](azure/terraform/README.md) (local apply) and
+[`terraform/README.md`](terraform/README.md) (local apply) and
 [`github-actions-setup.md`](github-actions-setup.md) (CI).
+The Docker Hub, release-bot and workflow overview shared by both clouds is in
+[`../ci-setup.md`](../ci-setup.md).
 
 There are two phases:
 
