@@ -64,7 +64,7 @@ Describe 'ConvertTo-EnvironmentName' {
 }
 
 Describe 'Get-TeardownResourceName' {
-    It 'follows birrapoint-<environment>-<acronym> (ADR-0021)' {
+    It 'follows birrapoint-ENVIRONMENT-ACRONYM (ADR-0021)' {
         Get-TeardownResourceName -Environment 'PROD' -Resource ResourceGroup | Should -Be 'birrapoint-prod-rg'
         Get-TeardownResourceName -Environment 'Dev' -Resource KeyVault | Should -Be 'birrapoint-dev-kv'
         Get-TeardownResourceName -Environment 'prod' -Resource NeonProject | Should -Be 'birrapoint-prod-neon'
@@ -185,8 +185,10 @@ Describe 'Test-StateEnvironment' {
 
 Describe 'Get-EnvironmentVarFile' {
     It 'is environments/ENV.tfvars (lower-cased) under the Terraform directory' {
-        $file = Get-EnvironmentVarFile -TerraformDir 'C:/repo/infra/terraform' -Environment 'PROD'
-        $file | Should -Be (Join-Path 'C:/repo/infra/terraform' 'environments/prod.tfvars')
+        # No drive letter: Join-Path throws DriveNotFound for a drive that does not exist (C: on
+        # Linux). Separators differ between platforms and PowerShell versions, so compare with '/'.
+        $file = Get-EnvironmentVarFile -TerraformDir 'repo/infra/terraform' -Environment 'PROD'
+        ($file -replace '\\', '/') | Should -Be 'repo/infra/terraform/environments/prod.tfvars'
     }
 }
 
