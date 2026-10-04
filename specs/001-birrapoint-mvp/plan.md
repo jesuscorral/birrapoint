@@ -45,7 +45,8 @@ Dexie.js on judge devices (drafts + offline outbox only, never the source of tru
 `WebApplicationFactory` + Testcontainers (PostgreSQL). Frontend: Jest (unit), Playwright (E2E,
 including offline simulation and `axe-core` accessibility checks). Deployment tooling: Pester 5+
 (PowerShell's de facto test framework, preinstalled on GitHub runners; test-only) for
-`infra/DeployImages.psm1` (T134, ADR-0018).
+`infra/Teardown.psm1`, and `terraform test` (mocked providers) for the Terraform variables
+(T143, ADR-0022).
 
 **Target Platform**: Backend: Linux containers — orchestrated locally by .NET Aspire, deployed to
 Azure Container Apps (images on Docker Hub + Terraform; Keycloak runs as a container in the same ACA environment,
@@ -203,12 +204,13 @@ frontend/
 └── tests/                              # Jest unit; e2e/ Playwright suites
 
 infra/
-├── deploy.ps1                          # single-command deploy: state bootstrap → docker push to
-│                                       #   Docker Hub → terraform apply (FR-045/SC-011)
+├── teardown.ps1 + Teardown.psm1        # full wipe, data included (FR-045; Pester in tests/)
 ├── terraform/                          # ACA environment + container apps: frontend (public
 │                                       #   ingress), backend (internal ingress), Keycloak; Neon
 │                                       #   project + databases via the Neon provider; images
-│                                       #   pulled from Docker Hub; remote state in Azure Storage
+│                                       #   pulled from Docker Hub; state in HCP Terraform; the
+│                                       #   deploy is `terraform apply` (ADR-0022); tests/ =
+│                                       #   `terraform test`
 └── keycloak/birrapoint-realm.json      # Realm import (roles, clients, seeded organizer)
 ```
 

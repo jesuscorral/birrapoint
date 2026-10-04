@@ -22,11 +22,19 @@ locals {
   # The API has internal ingress only: reachable from inside the environment, never publicly.
   api_internal_url = "https://${local.names.api}.internal.${local.default_domain}"
 
-  images = {
-    api      = var.api_image
-    web      = var.web_image
-    keycloak = var.keycloak_image
+  # Image per component: "latest" -> birrapoint-<c>:latest, X.Y.Z -> birrapoint-<c>-release:X.Y.Z.
+  image_versions = {
+    api      = coalesce(var.api_version, var.release_version)
+    web      = coalesce(var.web_version, var.release_version)
+    keycloak = coalesce(var.keycloak_version, var.release_version)
   }
+  images = {
+    for component, version in local.image_versions :
+    component => version == "latest" ? "docker.io/${var.image_namespace}/birrapoint-${component}:latest" : "docker.io/${var.image_namespace}/birrapoint-${component}-release:${version}"
+  }
+
+  # TF_VAR_neon_org_id="" (an unset GitHub variable) means "the API key's default organization".
+  neon_org_id = var.neon_org_id == "" ? null : var.neon_org_id
 
   private_registry = var.dockerhub_username != "" ? [var.dockerhub_username] : []
   # Whether an SMTP password exists is not itself a secret (only its value is), and resource
@@ -69,13 +77,6 @@ resource "random_password" "keycloak_admin" {
 }
 
 resource "random_password" "api_admin_client_secret" {
-  length  = 48
-  special = false
-}
-
-# birrapoint-deploy service-account client (infra/deploy.ps1 reconciles birrapoint-spa's URLs with
-# it after each full run; T140, ADR-0020).
-resource "random_password" "deploy_client_secret" {
   length  = 48
   special = false
 }

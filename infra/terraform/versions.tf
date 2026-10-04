@@ -20,10 +20,12 @@ terraform {
     }
   }
 
-  # Remote state in Azure Storage (constitution v1.3.1 — never committed). Partial configuration:
-  # infra/deploy.ps1 creates the storage account idempotently and passes resource_group_name,
-  # storage_account_name, container_name and key via -backend-config at `terraform init`.
-  backend "azurerm" {}
+  # State lives in HCP Terraform (constitution v1.4.0, T143) - never committed. The workspace must
+  # use the Local execution mode: HCP only stores the state, plans and applies run where the Azure
+  # credentials are (`az login` on a laptop, OIDC in deploy.yml). Organization and workspace come
+  # from TF_CLOUD_ORGANIZATION and TF_WORKSPACE, so nothing account-specific is committed; the API
+  # token comes from `terraform login` or TF_TOKEN_app_terraform_io.
+  cloud {}
 }
 
 provider "azurerm" {
@@ -40,6 +42,7 @@ provider "azurerm" {
       recover_soft_deleted_key_vaults = false
     }
   }
+  # Null falls back to the ARM_SUBSCRIPTION_ID environment variable, then to the az CLI default.
   subscription_id = var.subscription_id
 }
 

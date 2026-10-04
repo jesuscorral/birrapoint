@@ -4,7 +4,7 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-09-27
+**Last updated:** 2026-10-03
 
 ## Status
 
@@ -12,10 +12,9 @@
   contract/integration and E2E coverage (`quickstart.md` scenarios).
 - **Open work** (`tasks.md`): T092 (SC-010 human usability study), T098 (health/telemetry in ACA),
   T099 (first validated cloud deploy), T129–T132 (PR #46 follow-ups), T137 (CI/CD validation
-  against a real deployment), T139 (E2E + a11y job in CI), T141 (narrow the Keycloak deploy
-  client).
-- **Not yet deployed to a real Azure subscription.** The whole cloud path (Terraform, `deploy.ps1`,
-  pipelines) is implemented and unit-tested but unvalidated end to end (T099/T137).
+  against a real deployment), T139 (E2E + a11y job in CI).
+- **Not yet deployed to a real Azure subscription.** The whole cloud path (Terraform, `deploy.yml`,
+  `teardown.ps1`) is implemented and unit-tested but unvalidated end to end (T099/T137).
 
 ## Topology
 
@@ -38,7 +37,7 @@ realm re-import and deletes every user created since the seed.
 ### Cloud (Terraform → Azure Container Apps + Neon)
 
 Every resource is named `birrapoint-<env>-<acronym>` (default env `PROD`, lower-cased;
-`infra/ResourceNames.psm1`, ADR-0021).
+ADR-0021).
 
 | Resource | Implementation | Ingress | Notes |
 |---|---|---|---|
@@ -50,34 +49,35 @@ Every resource is named `birrapoint-<env>-<acronym>` (default env `PROD`, lower-
 | `-neon` | Neon project (`kislerdm/neon` provider), PG 16 | — | databases `birrapoint` and `keycloak` on one branch, so a PITR restores both consistently |
 
 **Secrets** never enter an image or the repo. Neon passwords come from the provider; the Keycloak
-bootstrap admin, API admin-client and deploy-client secrets from `random_password`; SMTP and the
+bootstrap admin and API admin-client secrets from `random_password`; SMTP and the
 optional Docker Hub token from `terraform.tfvars` (gitignored). Everything except the Docker Hub
 pull token (a Container Apps registry secret) is written to Key Vault and read at startup through
 Dapr. The production realm is derived at image build time from the local one: the seeded account
 and local-dev secret fallbacks are stripped (the build fails if they survive).
 
-**Deploy** (`infra/deploy.ps1`, ADR-0016/0018): resolves each image (`-ApiVersion` etc. →
-`<ns>/birrapoint-<c>-release:X.Y.Z`, omitted → `<ns>/birrapoint-<c>:latest`) and checks it exists
-on Docker Hub; bootstraps the remote state (`birrapoint-<env>-tfstate-rg`); `terraform apply`
-(Terraform sets the image only at creation, `ignore_changes` afterwards; each apply passes a fresh
-`revision_suffix`); rolls out Keycloak → API → web with `az containerapp update`, waiting for a
-healthy revision each time and skipping apps already serving the target; finally reconciles the
-`birrapoint-spa` client's URLs with the Keycloak Admin API as the `birrapoint-deploy` service
-account (ADR-0020). `-AppsOnly` runs only the rollout; `-WhatIf` previews.
+**Deploy** (ADR-0022): Terraform only. `terraform init` + `terraform apply -var image_namespace=<ns>
+[-var release_version=X.Y.Z] [-var api_version=…]` from a workstation (`az login`, `terraform login`,
+`NEON_API_KEY`) or from `deploy.yml`. Images are plain variables: `latest` →
+`<ns>/birrapoint-<c>:latest`, `X.Y.Z` → `<ns>/birrapoint-<c>-release:X.Y.Z`; a changed version
+creates a new revision (rollback = apply the previous version). `latest` on an existing
+environment does not re-pull; update with release versions. State is in HCP Terraform (`cloud {}`;
+`TF_CLOUD_ORGANIZATION`, `TF_WORKSPACE`; workspace in Local execution mode, so plans run with the
+caller's Azure identity). Every deployment starts from scratch: the realm is imported with the
+right `SPA_URL`, there is no post-deploy Keycloak sync.
 
-**Teardown** (`infra/teardown.ps1`): destroys every billed Azure resource, keeps the Neon project
-and the Terraform state (a redeploy reconnects to the same data); `-IncludeNeon` wipes everything.
-Idempotent, with a direct sweep fallback when the destroy fails.
+**Teardown** (`infra/teardown.ps1 [-WhatIf] [-Force]`): always wipes everything — `terraform destroy`
+including the Neon project, sweep by name, Key Vault and Log Analytics purge, local `.terraform`.
+No data is kept. Idempotent, with a direct sweep fallback when the destroy fails.
 
 **Pipelines** (`.github/workflows/`):
 
 | Workflow | Trigger | Does |
 |---|---|---|
 | `ci.yml` | PR, push to `main` | backend/frontend gates (`quality-gates.yml`, reusable), image builds; on `main` pushes `sha-<short>` and `latest` |
-| `infra.yml` | `infra/**` changes | `terraform fmt`/`validate`, Pester, Dapr loader test |
+| `infra.yml` | `infra/**` changes | `terraform fmt`/`validate`/`test` (mocked providers), Pester (teardown), Dapr loader test |
 | `workflows.yml` | `.github/**` changes | actionlint, `version.test.sh` |
 | `release.yml` | manual, from `main` (ADR-0019) | builds `ref` (`main`, `hotfix/*`, `v*` tag), runs gates, pushes `-release:X.Y.Z` images, tags `vX.Y.Z`, creates the GitHub Release, bumps `version.txt` on `main`; idempotent re-runs |
-| `deploy.yml` | manual, from `main` | validates versions, then (after `production` environment approval, OIDC login scoped to `birrapoint-<env>-rg`) runs `deploy.ps1 -AppsOnly` |
+| `deploy.yml` | manual, from `main` | validates versions, then (after `production` environment approval) OIDC runs `terraform init` + `apply` with the release versions; identity needs Contributor + User Access Administrator |
 
 One-time setup: `infra/github-actions-setup.md`. Prerequisites and Neon PITR restore:
 `infra/terraform/README.md`.
@@ -227,7 +227,7 @@ Shared primitives live in `shared/components/` (`bp-button`, `bp-input`, `bp-ale
 | E2E + a11y | `cd frontend && npm run e2e` | Playwright (Chromium) per story + `e2e/a11y/routes.a11y.spec.ts` axe sweep; needs the full Aspire stack |
 | Performance | `k6 run infra/perf/api-budgets.js`, `npm run build:budget` | API p95 budgets (needs a bearer token); gzip initial-bundle gate |
 | Lint/format | `ng lint`, `npm run format:check`, `dotnet format --verify-no-changes` | CI gates |
-| Infra | `Invoke-Pester infra/tests`, `version.test.sh`, `DaprSecretsEnv.test.sh` | deploy/teardown logic, release versioning, Keycloak secret loader |
+| Infra | `terraform -chdir=infra/terraform test`, `Invoke-Pester infra/tests`, `version.test.sh`, `DaprSecretsEnv.test.sh` | Terraform image/naming rules, teardown logic, release versioning, Keycloak secret loader |
 
 ## Known gaps and debt
 
