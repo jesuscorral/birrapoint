@@ -14,7 +14,7 @@
 # Partial failure: use "Re-run failed jobs" — finished jobs are not repeated, an image leg reuses
 # an image it already pushed for this SHA, and every finalize step is idempotent (an existing tag
 # on the same SHA, an existing release or an already-advanced version.txt is accepted). It never
-# deploys: deploy.yml does that. Concurrency keeps a single pending run: a third dispatch while
+# deploys: deploy-azure.yml does that. Concurrency keeps a single pending run: a third dispatch while
 # one runs and one waits replaces the waiting one.
 name: 2.-Release
 
@@ -266,7 +266,7 @@ jobs:
           {
             echo '## Images'
             echo
-            echo "Deploy with the **Deploy** workflow (\`deploy.yml\`), version \`$VERSION\`."
+            echo "Deploy with the **3.-Deploy (Azure)** workflow (\`deploy-azure.yml\`), version \`$VERSION\`."
             echo
             echo '| Component | Image | Digest |'
             echo '|---|---|---|'

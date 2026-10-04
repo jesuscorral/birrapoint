@@ -1,5 +1,5 @@
 # Copy to terraform.tfvars (gitignored, loaded automatically) and fill in. SECRETS ONLY: every
-# non-secret input lives in the committed environments/<env>.tfvars, shared with deploy.yml.
+# non-secret input lives in the committed environments/<env>.tfvars, shared with deploy-azure.yml.
 #   - state:        HCP Terraform (Local execution mode): TF_CLOUD_ORGANIZATION and TF_WORKSPACE
 #                   environment variables, `terraform login` or TF_TOKEN_app_terraform_io
 #   - subscription: ARM_SUBSCRIPTION_ID environment variable (or the `az login` default)

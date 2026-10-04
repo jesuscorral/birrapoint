@@ -11,9 +11,9 @@ This is the end-to-end validation guide for the feature. Commands mirror `CLAUDE
 - Docker Desktop (container runtime for the Aspire-managed PostgreSQL 16, Keycloak 25+, Mailpit)
 - .NET 10 SDK
 - Node.js 24+ / npm 10+ (Jest loads `jest.config.ts` via Node's native TS type stripping — no ts-node)
-- Cloud deployment only: Azure CLI (`az login`), Terraform ≥ 1.9, a Docker Hub account
-  (`docker login`), a Neon API key in `NEON_API_KEY`, SMTP relay credentials — details in
-  `infra/terraform/README.md`
+- Cloud deployment only (Azure or AWS, one per deployment): Azure CLI (`az login`), Terraform ≥ 1.9,
+  a Docker Hub account (`docker login`), a Neon API key in `NEON_API_KEY`, SMTP relay credentials —
+  details in `infra/azure/terraform/README.md` (AWS guide: T146)
 
 ## Environment up
 
@@ -44,23 +44,26 @@ direct endpoint for migrations; ADR-0021). The PWA reads `/config.json` at start
 
 ## Cloud deployment (SC-011)
 
+Azure shown; the AWS target (`infra/aws/`, T145/T146, ADR-0023) will mirror it with its own root,
+workspace, workflow (`deploy-aws.yml`) and teardown.
+
 ```bash
-# One-time: az login; terraform login; set image_namespace + smtp_* in infra/terraform/environments/prod.tfvars
-# (committed, non-secret); copy infra/terraform/terraform.tfvars.example → terraform.tfvars (secrets only).
+# One-time: az login; terraform login; set image_namespace + smtp_* in infra/azure/terraform/environments/prod.tfvars
+# (committed, non-secret); copy infra/azure/terraform/terraform.tfvars.example → terraform.tfvars (secrets only).
 # State: HCP Terraform workspace in Local execution mode (ADR-0022).
 # Images are published to Docker Hub by GitHub Actions (ci.yml: latest; release.yml: X.Y.Z).
 export TF_CLOUD_ORGANIZATION=<org> TF_WORKSPACE=<workspace> NEON_API_KEY=<neon api key>
-terraform -chdir=infra/terraform init
-terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=X.Y.Z \
+terraform -chdir=infra/azure/terraform init
+terraform -chdir=infra/azure/terraform apply -var-file=environments/prod.tfvars -var release_version=X.Y.Z \
     [-var api_version=X.Y.Z] [-var web_version=X.Y.Z] [-var keycloak_version=X.Y.Z]
 # Creates the ACA environment, the three Container Apps (web public, API internal-only, Keycloak
 # public) and the Neon project with databases `birrapoint` + `keycloak`. Prints web_url /
 # keycloak_url. release_version is required (`latest` allowed explicitly); `latest` does not re-pull on an existing environment, so
-# later deployments use release versions (the same apply with new versions, or deploy.yml).
-./infra/teardown.ps1 [-WhatIf]   # removes everything, data included
+# later deployments use release versions (the same apply with new versions, or deploy-azure.yml).
+./infra/azure/teardown.ps1 [-WhatIf]   # removes everything, data included
 ```
 
-Restore: Neon point-in-time recovery, procedure in `infra/terraform/README.md` (FR-047).
+Restore: Neon point-in-time recovery, procedure in `infra/azure/terraform/README.md` (FR-047).
 
 Local production-image smoke (no Azure needed): build the three images
 (`docker build -f backend/src/BirraPoint.Api/Dockerfile backend`, `docker build frontend`,

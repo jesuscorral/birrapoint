@@ -2,6 +2,7 @@
 
 **Status:** Accepted — supersedes ADR-0018 and ADR-0020, and the deploy-script part of ADR-0016
 **Date:** 2026-10-03
+**Related:** ADR-0023 adds an AWS target and moves this Azure stack to `infra/azure/` (paths, `deploy-azure.yml`, `azure-production` below are now under that layout).
 
 ## Context
 

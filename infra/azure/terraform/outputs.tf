@@ -24,7 +24,7 @@ output "environment" {
 }
 
 output "key_vault_name" {
-  description = "Key Vault holding every application secret (read by the apps through Dapr; infra/teardown.ps1 purges it)."
+  description = "Key Vault holding every application secret (read by the apps through Dapr; infra/azure/teardown.ps1 purges it)."
   value       = azurerm_key_vault.main.name
 }
 

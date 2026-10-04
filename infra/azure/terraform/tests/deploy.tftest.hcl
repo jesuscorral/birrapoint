@@ -1,6 +1,6 @@
 # Plan-level tests of the deployment (T143): image references, resource names and the absence of
 # the removed birrapoint-deploy secret. Every provider is mocked, so no credentials are needed:
-#   terraform -chdir=infra/terraform init -backend=false && terraform -chdir=infra/terraform test
+#   terraform -chdir=infra/azure/terraform init -backend=false && terraform -chdir=infra/azure/terraform test
 
 mock_provider "azurerm" {
   # Provider-side validation rejects the random strings mocks generate for UUID attributes.

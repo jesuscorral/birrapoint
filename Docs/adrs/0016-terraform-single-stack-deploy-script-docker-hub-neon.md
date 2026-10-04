@@ -1,7 +1,8 @@
 # 0016 - Single Terraform stack + `deploy.ps1`, images on Docker Hub, Neon via Terraform provider
 
 **Status:** Accepted — partially superseded by ADR-0018 (image build/push, `image_tag`),
-ADR-0021 (naming, secrets) and ADR-0022 (`deploy.ps1`, Azure Storage state backend)
+ADR-0021 (naming, secrets) and ADR-0022 (`deploy.ps1`, Azure Storage state backend); paths
+below moved to `infra/azure/` (ADR-0023)
 **Date:** 2026-09-24
 
 ## Context

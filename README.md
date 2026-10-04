@@ -48,9 +48,12 @@ Tests: `dotnet test backend/BirraPoint.sln` · `cd frontend && npx jest` · `cd 
 
 ## Deploy to Azure
 
+BirraPoint deploys to Azure or to AWS, one cloud per deployment (ADR-0023). Azure is available now
+(`infra/azure/`); the AWS target (`infra/aws/`) is planned (T145/T146).
+
 One-time prerequisites: Azure CLI logged in as Owner (or Contributor + User Access Administrator),
-Terraform ≥ 1.9, a Neon API key, the non-secret inputs in `infra/terraform/environments/prod.tfvars`
-(set `image_namespace` and the SMTP host/sender) and the secrets in `infra/terraform/terraform.tfvars` (copy
+Terraform ≥ 1.9, a Neon API key, the non-secret inputs in `infra/azure/terraform/environments/prod.tfvars`
+(set `image_namespace` and the SMTP host/sender) and the secrets in `infra/azure/terraform/terraform.tfvars` (copy
 `terraform.tfvars.example`). Images are built by CI; no local Docker is needed.
 
 Deployment is Terraform only (ADR-0022); state is in HCP Terraform (workspace in Local execution
@@ -58,20 +61,20 @@ mode: `TF_CLOUD_ORGANIZATION`, `TF_WORKSPACE`, `terraform login`).
 
 ```bash
 export NEON_API_KEY=<key>
-terraform -chdir=infra/terraform init
-terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=1.2.3   # release images
-terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=latest   # CI images
-./infra/teardown.ps1 [-WhatIf]                                       # removes everything, data included
+terraform -chdir=infra/azure/terraform init
+terraform -chdir=infra/azure/terraform apply -var-file=environments/prod.tfvars -var release_version=1.2.3   # release images
+terraform -chdir=infra/azure/terraform apply -var-file=environments/prod.tfvars -var release_version=latest   # CI images
+./infra/azure/teardown.ps1 [-WhatIf]                                 # removes everything, data included
 ```
 
 Releases and production deployments run from GitHub Actions:
 
 ```bash
 gh workflow run release.yml -f ref=main -f bump=patch   # publish version.txt's X.Y.Z
-gh workflow run deploy.yml -f version=X.Y.Z             # apply it to production (approval required)
+gh workflow run deploy-azure.yml -f version=X.Y.Z       # apply it to Azure (approval required)
 ```
 
-Details: [`infra/terraform/README.md`](./infra/terraform/README.md) and
+Details: [`infra/azure/terraform/README.md`](./infra/azure/terraform/README.md) and
 [`infra/github-actions-setup.md`](./infra/github-actions-setup.md).
 
 ## Documentation

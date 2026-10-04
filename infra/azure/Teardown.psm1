@@ -1,11 +1,11 @@
-# Pure helpers behind infra/teardown.ps1 (T140, T143): the confirmation check, resource names,
+# Pure helpers behind infra/azure/teardown.ps1 (T140, T143): the confirmation check, resource names,
 # which Neon project may be deleted, and the `terraform destroy` arguments. Kept free of
-# Azure/Neon calls so they are unit-testable (infra/tests/Teardown.Tests.ps1). Windows PowerShell
+# Azure/Neon calls so they are unit-testable (infra/azure/tests/Teardown.Tests.ps1). Windows PowerShell
 # 5.1 and PowerShell 7.
 
 $ErrorActionPreference = 'Stop'
 
-# Resource acronyms; must match the locals in infra/terraform/main.tf (ADR-0021).
+# Resource acronyms; must match the locals in infra/azure/terraform/main.tf (ADR-0021).
 $script:ResourceAcronyms = @{
     ResourceGroup = 'rg'
     KeyVault      = 'kv'
@@ -81,7 +81,7 @@ function Resolve-StateEnvironment {
 }
 
 function Get-EnvironmentVarFile {
-    # The committed, non-secret inputs of an environment, shared with deploy.yml (ADR-0022).
+    # The committed, non-secret inputs of an environment, shared with deploy-azure.yml (ADR-0022).
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)] [string] $TerraformDir,
@@ -111,6 +111,30 @@ function Resolve-NeonProjectTarget {
         0 { return [pscustomobject]@{ Action = 'None'; ProjectId = $null } }
         1 { return [pscustomobject]@{ Action = 'DeleteById'; ProjectId = $candidates[0].id } }
         default { return [pscustomobject]@{ Action = 'Refuse'; ProjectId = $null } }
+    }
+}
+
+function Resolve-NeonOrgId {
+    # Neon requires org_id to list projects with a key that belongs to an organization. Order:
+    # -NeonOrgId, then TF_VAR_neon_org_id (what Terraform uses), then the API key's only
+    # organization. Several organizations are refused, never guessed between; none (a personal
+    # account) means no org_id.
+    [CmdletBinding()]
+    param(
+        [string] $Explicit,
+        [string] $EnvValue,
+        [AllowEmptyCollection()] [object[]] $Organizations = @()
+    )
+    if (-not [string]::IsNullOrWhiteSpace($Explicit)) { return $Explicit.Trim() }
+    if (-not [string]::IsNullOrWhiteSpace($EnvValue)) { return $EnvValue.Trim() }
+    $orgs = @($Organizations | Where-Object { $_ })
+    switch ($orgs.Count) {
+        0 { return $null }
+        1 { return [string] $orgs[0].id }
+        default {
+            $ids = ($orgs | ForEach-Object { $_.id }) -join ', '
+            throw "The Neon API key belongs to several organizations ($ids); pass -NeonOrgId or set TF_VAR_neon_org_id."
+        }
     }
 }
 
@@ -147,4 +171,4 @@ function Get-DestroyArgument {
 
 Export-ModuleMember -Function Test-TeardownConfirmation, ConvertTo-EnvironmentName, Get-TeardownResourceName,
     Select-NeonProjectToDelete, Resolve-NeonProjectTarget, Get-DestroyArgument,
-    Test-StateEnvironment, Resolve-StateEnvironment, Get-EnvironmentVarFile
+    Test-StateEnvironment, Resolve-StateEnvironment, Get-EnvironmentVarFile, Resolve-NeonOrgId

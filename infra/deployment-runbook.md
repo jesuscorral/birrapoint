@@ -1,17 +1,17 @@
-# Deployment runbook: from zero to a running environment
+# Azure deployment runbook: from zero to a running environment
 
-This is the end-to-end checklist for deploying BirraPoint from scratch (ADR-0022). It lists every
+This is the end-to-end checklist for deploying BirraPoint to **Azure** from scratch (ADR-0022). It lists every
 account, key and setting needed, in the order to create them. The details behind each step are in
-[`terraform/README.md`](terraform/README.md) (local apply) and
+[`azure/terraform/README.md`](azure/terraform/README.md) (local apply) and
 [`github-actions-setup.md`](github-actions-setup.md) (CI).
 
 There are two phases:
 
 - **Phase A**: the first deploy, from your workstation with your own `az login`.
-- **Phase B**: every later deploy, through `deploy.yml` in GitHub Actions.
+- **Phase B**: every later deploy, through `deploy-azure.yml` in GitHub Actions.
 
 Both phases run the same `terraform apply` against the same HCP Terraform state, with the same
-committed `infra/terraform/environments/prod.tfvars`.
+committed `infra/azure/terraform/environments/prod.tfvars`.
 
 ## 1. Accounts and credentials
 
@@ -20,16 +20,16 @@ committed `infra/terraform/environments/prod.tfvars`.
 | 1 | **Azure** | A subscription where you are **Owner** (or Contributor + User Access Administrator) | Terraform (resources + role assignments) | `az login`; `ARM_SUBSCRIPTION_ID` |
 | 2 | **HCP Terraform** (free) | Organization + one workspace per environment, execution mode **Local** | Terraform state | `TF_CLOUD_ORGANIZATION`, `TF_WORKSPACE` |
 | 3 | HCP Terraform | **User token** (via `terraform login`) for your workstation | Local apply / teardown | `%APPDATA%\terraform.d\credentials.tfrc.json` (written by `terraform login`) |
-| 4 | HCP Terraform | **Team token** for a team that can only access this workspace | `deploy.yml` | GitHub secret `TF_API_TOKEN` |
+| 4 | HCP Terraform | **Team token** for a team that can only access this workspace | `deploy-azure.yml` | GitHub secret `TF_API_TOKEN` |
 | 5 | **Neon** | Account + **API key** | Terraform (Neon project, roles, databases); teardown | `NEON_API_KEY` env var; GitHub secret `NEON_API_KEY` |
-| 6 | Neon | Organization id (`org-...`), only if the key spans several organizations | Terraform; teardown `-NeonOrgId` | `TF_VAR_neon_org_id`; GitHub variable `NEON_ORG_ID` |
+| 6 | Neon | Organization id (`org-...`), needed when your account uses organizations (Neon answers `org_id is required`) | Terraform; teardown `-NeonOrgId` | `TF_VAR_neon_org_id`; GitHub variable `NEON_ORG_ID` |
 | 7 | **Docker Hub** | Account (user or organization = image namespace) | Image hosting | `image_namespace` in `prod.tfvars`; GitHub variable `IMAGE_NAMESPACE` |
 | 8 | Docker Hub | **Personal access token, Read & Write** | `ci.yml`, `release.yml` push images | GitHub secrets `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` |
-| 9 | Docker Hub | *Optional:* **Read-only** access token (private repos, or to avoid pull rate limits) | Container Apps pull; `deploy.yml` image check | `dockerhub_token` in `terraform.tfvars`; GitHub secret `DOCKERHUB_READ_TOKEN` |
+| 9 | Docker Hub | *Optional:* **Read-only** access token (private repos, or to avoid pull rate limits) | Container Apps pull; `deploy-azure.yml` image check | `dockerhub_token` in `terraform.tfvars`; GitHub secret `DOCKERHUB_READ_TOKEN` |
 | 10 | **SMTP provider** | SMTP credentials + a **verified sender address** | API emails (judge invitations, results) | `smtp_*` in `prod.tfvars`; password in `terraform.tfvars` / GitHub secret `SMTP_PASSWORD` |
-| 11 | **Microsoft Entra ID** | App registration `birrapoint-github-deploy` with a federated credential (OIDC, no password) | `deploy.yml` logs in to Azure | GitHub secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` |
+| 11 | **Microsoft Entra ID** | App registration `birrapoint-github-deploy` with a federated credential (OIDC, no password) | `deploy-azure.yml` logs in to Azure | GitHub secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` |
 | 12 | Microsoft Entra ID | *Recommended:* security group `birrapoint-terraform-operators` holding you and the deploy identity | Key Vault Secrets Officer for everyone who runs Terraform | `key_vault_secrets_officer_principal_ids` in `prod.tfvars` |
-| 13 | **GitHub** | Repository admin; `production` environment with required reviewers | `deploy.yml` approval gate | Repository settings |
+| 13 | **GitHub** | Repository admin; `azure-production` environment with required reviewers | `deploy-azure.yml` approval gate | Repository settings |
 
 Terraform generates every other secret itself: the Keycloak admin password, the API admin-client
 secret and the Neon role passwords. It stores them in Key Vault and in the HCP state.
@@ -43,7 +43,7 @@ secret and the Neon role passwords. It stores them in Key Vault and in the HCP s
 | Tool | Version | Needed for |
 |---|---|---|
 | Azure CLI (`az`) | current | Login, verification, teardown sweep |
-| Terraform | 1.14.3 (same as `deploy.yml`; `>= 1.9` works) | Apply / destroy |
+| Terraform | 1.14.3 (same as `deploy-azure.yml`; `>= 1.9` works) | Apply / destroy |
 | GitHub CLI (`gh`) | current | Secrets, variables, workflow runs |
 | PowerShell 7 + Pester 5 | — | `teardown.ps1` and its tests |
 
@@ -53,7 +53,7 @@ No local Docker is needed: images are built and published by GitHub Actions.
 
 ### A1. Publish the images
 
-`deploy.yml` and Terraform only pull images; they never build them.
+`deploy-azure.yml` and Terraform only pull images; they never build them.
 
 1. Create the Docker Hub token (item 8) and store it in GitHub:
 
@@ -77,14 +77,14 @@ No local Docker is needed: images are built and published by GitHub Actions.
 ### A3. Neon and SMTP
 
 1. Neon console → Account settings → **API keys** → create a key.
-2. If you belong to several Neon organizations, copy the organization id (`org-...`) from the
-   organization settings.
+2. Copy the organization id (`org-...`) from the organization settings. Keys that belong to an
+   organization need it (Neon answers `org_id is required` otherwise).
 3. From your SMTP provider, collect the host, port (587 with STARTTLS), user name, password, and a
    verified sender address.
 
 ### A4. Fill the environment file (committed)
 
-Edit `infra/terraform/environments/prod.tfvars` and commit it through a PR:
+Edit `infra/azure/terraform/environments/prod.tfvars` and commit it through a PR:
 
 ```hcl
 image_namespace   = "<docker hub user or org>"   # CHANGE-ME is rejected by a validation
@@ -111,7 +111,7 @@ $groupId   # goes into key_vault_secrets_officer_principal_ids
 ### A5. Local secrets (not committed)
 
 ```powershell
-Copy-Item infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars
+Copy-Item infra/azure/terraform/terraform.tfvars.example infra/azure/terraform/terraform.tfvars
 # edit: smtp_password = "...", optionally dockerhub_username / dockerhub_token (read-only)
 ```
 
@@ -126,11 +126,12 @@ $env:TF_CLOUD_ORGANIZATION = "<org>"
 $env:TF_WORKSPACE          = "<workspace>"
 $env:ARM_SUBSCRIPTION_ID   = "<subscription id>"
 $env:NEON_API_KEY          = "<neon api key>"
-# $env:TF_VAR_neon_org_id  = "org-..."            # only with several Neon organizations
+$env:TF_VAR_neon_org_id   = "org-..."            # Neon organization (organization settings)
 
-terraform -chdir=infra/terraform init
-terraform -chdir=infra/terraform plan  -var-file=environments/prod.tfvars -var release_version=X.Y.Z
-terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=X.Y.Z
+terraform -chdir=infra/azure/terraform init
+# PowerShell splits an unquoted -var-file=...tfvars at the dot: keep the quotes.
+terraform -chdir=infra/azure/terraform plan  "-var-file=environments/prod.tfvars" "-var=release_version=X.Y.Z"
+terraform -chdir=infra/azure/terraform apply "-var-file=environments/prod.tfvars" "-var=release_version=X.Y.Z"
 ```
 
 A first apply takes several minutes longer than later ones, because it waits for Key Vault role
@@ -139,9 +140,9 @@ propagation.
 ### A7. Verify
 
 ```powershell
-terraform -chdir=infra/terraform output web_url
-terraform -chdir=infra/terraform output keycloak_url
-terraform -chdir=infra/terraform output -raw keycloak_admin_password   # Keycloak admin, user "admin"
+terraform -chdir=infra/azure/terraform output web_url
+terraform -chdir=infra/azure/terraform output keycloak_url
+terraform -chdir=infra/azure/terraform output -raw keycloak_admin_password   # Keycloak admin, user "admin"
 az containerapp revision list -g birrapoint-prod-rg -n birrapoint-prod-api -o table   # repeat for -web, -kc
 ```
 
@@ -153,8 +154,8 @@ az containerapp revision list -g birrapoint-prod-rg -n birrapoint-prod-api -o ta
 
 ### B1. Azure deploy identity (OIDC)
 
-Follow [`github-actions-setup.md` §3](github-actions-setup.md#3-azure-identity-for-deployyml-oidc-no-stored-password).
-It creates the app registration, a federated credential limited to the `production` environment,
+Follow [`github-actions-setup.md` §3](github-actions-setup.md#3-azure-identity-for-deploy-azureyml-oidc-no-stored-password).
+It creates the app registration, a federated credential limited to the `azure-production` environment,
 and **Contributor + User Access Administrator** on the subscription.
 
 Then add the identity to the operators group from A4:
@@ -170,10 +171,10 @@ the workspace only, then create a **team token**. Team management may need a pai
 the free plan, fall back to an organization or user token and keep the security note in §1 in
 mind.
 
-### B3. GitHub `production` environment, secrets and variables
+### B3. GitHub `azure-production` environment, secrets and variables
 
-Follow [`github-actions-setup.md` §4](github-actions-setup.md#4-github-production-environment).
-Here is everything `deploy.yml` reads:
+Follow [`github-actions-setup.md` §4](github-actions-setup.md#4-github-azure-production-environment).
+Here is everything `deploy-azure.yml` reads:
 
 | Kind | Name | Value |
 |---|---|---|
@@ -187,14 +188,14 @@ Here is everything `deploy.yml` reads:
 | variable (optional) | `NEON_ORG_ID` | Neon organization id |
 | variable (optional) | `BIRRAPOINT_ENVIRONMENT` | Default `PROD` |
 
-Add **required reviewers** to the `production` environment, and restrict it to `main`.
+Add **required reviewers** to the `azure-production` environment, and restrict it to `main`.
 
 ### B4. Deploy
 
 ```powershell
 gh workflow run release.yml -f ref=main -f bump=patch      # new X.Y.Z
-gh workflow run deploy.yml  -f version=X.Y.Z               # approve in the Actions tab
-gh workflow run deploy.yml  -f version=X.Y.Z -f keycloak_version=X.Y.W   # per-component override / rollback
+gh workflow run deploy-azure.yml  -f version=X.Y.Z               # approve in the Actions tab
+gh workflow run deploy-azure.yml  -f version=X.Y.Z -f keycloak_version=X.Y.W   # per-component override / rollback
 ```
 
 The workflow validates the version and checks that the images exist on Docker Hub. It waits for
@@ -205,8 +206,8 @@ waits for every Container App revision to become healthy.
 
 ```powershell
 $env:NEON_API_KEY = "<key>"   # plus TF_CLOUD_ORGANIZATION, TF_WORKSPACE, terraform login, az login
-./infra/teardown.ps1 -WhatIf  # preview
-./infra/teardown.ps1          # type the resource group name to confirm
+./infra/azure/teardown.ps1 -WhatIf  # preview
+./infra/azure/teardown.ps1          # type the resource group name to confirm
 ```
 
 Accounts, tokens, Docker Hub images, GitHub secrets and the HCP workspace survive a teardown. The
@@ -226,5 +227,5 @@ next deploy is just step A6 (or B4) again.
 - [ ] Keycloak `admin` password changed
 - [ ] Entra app registration + federated credential + roles; added to operators group
 - [ ] HCP team token
-- [ ] GitHub `production` environment: secrets, variables, reviewers, `main`-only
-- [ ] `deploy.yml` run end to end
+- [ ] GitHub `azure-production` environment: secrets, variables, reviewers, `main`-only
+- [ ] `deploy-azure.yml` run end to end

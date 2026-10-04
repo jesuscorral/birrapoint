@@ -45,12 +45,14 @@ Dexie.js on judge devices (drafts + offline outbox only, never the source of tru
 `WebApplicationFactory` + Testcontainers (PostgreSQL). Frontend: Jest (unit), Playwright (E2E,
 including offline simulation and `axe-core` accessibility checks). Deployment tooling: Pester 5+
 (PowerShell's de facto test framework, preinstalled on GitHub runners; test-only) for
-`infra/Teardown.psm1`, and `terraform test` (mocked providers) for the Terraform variables
-(T143, ADR-0022).
+`infra/azure/Teardown.psm1` (and `infra/aws/Teardown.psm1`, T146), and `terraform test` (mocked
+providers) for the Terraform variables (T143, ADR-0022).
 
 **Target Platform**: Backend: Linux containers — orchestrated locally by .NET Aspire, deployed to
-Azure Container Apps (images on Docker Hub + Terraform; Keycloak runs as a container in the same ACA environment,
+Azure Container Apps **or** AWS ECS Fargate, one per deployment (constitution v1.5.0, ADR-0023,
+R-21; images on Docker Hub + Terraform; Keycloak runs as a container beside the API and web,
 per Clarifications 2026-07-07; PostgreSQL is hosted externally on Neon, constitution v1.3.0).
+The AWS target is planned (T145, T146).
 Frontend: multi-stage Node→Nginx image;
 evergreen mobile/desktop browsers as an installable PWA; judge flow designed for mid-range
 Android/iOS devices on flaky venue networks.
@@ -204,14 +206,20 @@ frontend/
 └── tests/                              # Jest unit; e2e/ Playwright suites
 
 infra/
-├── teardown.ps1 + Teardown.psm1        # full wipe, data included (FR-045; Pester in tests/)
-├── terraform/                          # ACA environment + container apps: frontend (public
-│                                       #   ingress), backend (internal ingress), Keycloak; Neon
-│                                       #   project + databases via the Neon provider; images
-│                                       #   pulled from Docker Hub; state in HCP Terraform; the
-│                                       #   deploy is `terraform apply` (ADR-0022); tests/ =
-│                                       #   `terraform test`
-└── keycloak/birrapoint-realm.json      # Realm import (roles, clients, seeded organizer)
+├── azure/                              # Azure target (independent of aws/)
+│   ├── teardown.ps1 + Teardown.psm1    #   full wipe, data included (FR-045; Pester in tests/)
+│   └── terraform/                      #   ACA environment + container apps: frontend (public
+│                                       #   ingress), backend (internal ingress), Keycloak; Key
+│                                       #   Vault + Dapr; Neon project + databases via the Neon
+│                                       #   provider; images from Docker Hub; state in HCP
+│                                       #   Terraform; deploy is `terraform apply` (ADR-0022);
+│                                       #   tests/ = `terraform test`
+├── aws/                                # AWS target (planned, T145/T146, ADR-0023): same shape
+│   ├── teardown.ps1 + Teardown.psm1    #   as azure/ (own tests/, own state, own workflow)
+│   └── terraform/                      #   VPC, ALB, 2 CloudFront distributions, ECS Fargate +
+│                                       #   Dapr, Secrets Manager, IAM, Neon
+└── keycloak/                           # Shared image + realm import (roles, clients, seeded
+                                        #   organizer); perf/ = k6
 ```
 
 **Structure Decision**: Web application layout (backend + frontend at repo root, matching the
@@ -219,8 +227,9 @@ constitution's modular-monolith + FSD mandate). Backend slices live under
 `backend/src/BirraPoint.Api/Features/`, one directory per business capability, with `Domain/` and
 `Common/` as the deliberately small shared kernel. Frontend mirrors the same capabilities under
 `frontend/src/app/features/` with shared infrastructure in `core/`. Local orchestration lives in
-the Aspire `BirraPoint.AppHost` project; the cloud topology in `infra/terraform/` (production
-PostgreSQL on Neon, everything else in Azure Container Apps).
+the Aspire `BirraPoint.AppHost` project; the cloud topology in `infra/azure/terraform/` or
+`infra/aws/terraform/` (one target per deployment; production PostgreSQL on Neon, everything else
+in Azure Container Apps or ECS Fargate).
 
 **User Story 14 file locations** (the diagram above predates the ACCE-import wizard fold, ADR-0011,
 and is stale on where entry-import UI actually lives — this note is authoritative for the new work,

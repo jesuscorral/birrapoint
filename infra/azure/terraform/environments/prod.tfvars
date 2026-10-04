@@ -1,6 +1,6 @@
-# Non-secret inputs of the PROD environment, committed so a local apply and deploy.yml use exactly
-# the same values (ADR-0022). deploy.yml loads environments/<BIRRAPOINT_ENVIRONMENT lower-cased>.tfvars:
-#   terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=X.Y.Z
+# Non-secret inputs of the PROD environment, committed so a local apply and deploy-azure.yml use exactly
+# the same values (ADR-0022). deploy-azure.yml loads environments/<BIRRAPOINT_ENVIRONMENT lower-cased>.tfvars:
+#   terraform -chdir=infra/azure/terraform apply -var-file=environments/prod.tfvars -var release_version=X.Y.Z
 # Secrets never go here: smtp_password, dockerhub_username and dockerhub_token live in the gitignored
 # terraform.tfvars (see terraform.tfvars.example) or in TF_VAR_* environment variables.
 
@@ -9,7 +9,7 @@ location    = "northeurope"
 
 # Docker Hub user or organization that owns the birrapoint-* repositories.
 # CHANGE-ME is rejected by a validation: set the real value before the first deploy.
-image_namespace = "CHANGE-ME"
+image_namespace = "jesuscorral"
 
 # Placeholders: set real values before the first deploy.
 smtp_host         = "smtp.example.com"

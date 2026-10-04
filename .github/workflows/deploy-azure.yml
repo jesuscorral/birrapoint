@@ -1,11 +1,11 @@
 # Deploy pipeline (FR-064c, T136, T143). Manually triggered, approval-gated: runs the full
-# Terraform apply (infra/terraform) for the production environment with the released image
+# Terraform apply (infra/azure/terraform) for the azure-production environment with the released image
 # versions (<ns>/birrapoint-<component>-release:X.Y.Z, published by release.yml). Terraform owns
 # the running image, so a rollout is an apply with other versions; rollback = run it again with the
 # previous version. State lives in HCP Terraform (Local execution mode: it only stores state; the
 # apply runs here with the Azure OIDC identity). Only runs when dispatched from main (the
-# `production` environment is also restricted to main). Setup: infra/github-actions-setup.md.
-name: 3.-Deploy
+# `azure-production` environment is also restricted to main). Setup: infra/github-actions-setup.md.
+name: 3.-Deploy (Azure)
 
 on:
   workflow_dispatch:
@@ -50,7 +50,7 @@ jobs:
         with:
           sparse-checkout: |
             .github/scripts
-            infra/terraform/environments
+            infra/azure/terraform/environments
           persist-credentials: false
       - name: Resolve versions
         id: versions
@@ -90,7 +90,7 @@ jobs:
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_READ_TOKEN }}
         run: |
           # Same file, same image_namespace as the apply below (ADR-0022): no separate variable.
-          varfile="infra/terraform/environments/${BIRRAPOINT_ENVIRONMENT,,}.tfvars"
+          varfile="infra/azure/terraform/environments/${BIRRAPOINT_ENVIRONMENT,,}.tfvars"
           if [ ! -f "$varfile" ]; then
             echo "::error::$varfile does not exist (BIRRAPOINT_ENVIRONMENT=$BIRRAPOINT_ENVIRONMENT)."
             exit 1
@@ -116,18 +116,18 @@ jobs:
   deploy:
     needs: resolve
     # Defence in depth next to the environment's main-only branch policy: the production Azure
-    # identity trusts the `production` environment, so no other branch may reach this job.
+    # identity trusts the `azure-production` environment, so no other branch may reach this job.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 70
     # One production rollout at a time, never cancelled halfway; held only once approved.
     concurrency:
-      group: deploy-production
+      group: deploy-azure-production
       cancel-in-progress: false
     # Required reviewers are configured on this environment (infra/github-actions-setup.md); its
     # secrets hold the Azure OIDC identity, which needs Contributor plus User Access Administrator
     # (or RBAC Administrator) on the subscription or resource group, since it runs the whole apply.
-    environment: production
+    environment: azure-production
     permissions:
       contents: read
       id-token: write
@@ -176,20 +176,20 @@ jobs:
           terraform_version: 1.14.3
           terraform_wrapper: false
       - name: terraform init
-        run: terraform -chdir=infra/terraform init -input=false
+        run: terraform -chdir=infra/azure/terraform init -input=false
       # The HCP workspace behind TF_WORKSPACE must hold the requested environment (or be empty on a
       # first deploy): a mismatch would apply one environment over another.
       - name: Check the workspace environment
         run: |
           expected="${BIRRAPOINT_ENVIRONMENT,,}"
           # An unreadable state aborts: only a successful, empty `state list` means a first deploy.
-          if ! resources="$(terraform -chdir=infra/terraform state list)"; then
+          if ! resources="$(terraform -chdir=infra/azure/terraform state list)"; then
             echo "::error::Could not read the state of HCP workspace $TF_WORKSPACE."
             exit 1
           fi
           actual=""
           if [ -n "$resources" ]; then
-            if ! actual="$(terraform -chdir=infra/terraform output -raw environment)" || [ -z "${actual// /}" ]; then
+            if ! actual="$(terraform -chdir=infra/azure/terraform output -raw environment)" || [ -z "${actual// /}" ]; then
               echo "::error::HCP workspace $TF_WORKSPACE has resources but no readable environment output."
               exit 1
             fi
@@ -206,11 +206,11 @@ jobs:
       - name: terraform apply
         run: |
           varfile="environments/${BIRRAPOINT_ENVIRONMENT,,}.tfvars"
-          if [ ! -f "infra/terraform/$varfile" ]; then
-            echo "::error::infra/terraform/$varfile does not exist (BIRRAPOINT_ENVIRONMENT=$BIRRAPOINT_ENVIRONMENT)."
+          if [ ! -f "infra/azure/terraform/$varfile" ]; then
+            echo "::error::infra/azure/terraform/$varfile does not exist (BIRRAPOINT_ENVIRONMENT=$BIRRAPOINT_ENVIRONMENT)."
             exit 1
           fi
-          terraform -chdir=infra/terraform apply -input=false -auto-approve \
+          terraform -chdir=infra/azure/terraform apply -input=false -auto-approve \
             -var-file="$varfile" \
             -var "release_version=$VERSION" \
             -var "api_version=$API_VERSION" \
