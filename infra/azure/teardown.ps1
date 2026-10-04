@@ -43,7 +43,7 @@ param(
     # Passed to Terraform only when given; otherwise tfvars or the variable default apply.
     [string] $Location,
 
-    # Only when the Neon API key belongs to several organizations.
+    # Neon organization id. Defaults to TF_VAR_neon_org_id, then to the API key's only organization.
     [string] $NeonOrgId,
 
     # Skips the typed confirmation. For deliberate, scripted use only.
@@ -91,6 +91,18 @@ function Test-ResourceGroup([string] $Name) {
     $exists = (az group exists --name $Name) -join ''
     if ($LASTEXITCODE -ne 0) { throw "Checking resource group '$Name' failed." }
     $exists.Trim() -eq 'true'
+}
+
+function Get-NeonOrganization {
+    # The API key's organizations. An organization-scoped key cannot list them; it gets none here
+    # and then needs -NeonOrgId or TF_VAR_neon_org_id when Neon asks for org_id.
+    try {
+        $response = Invoke-RestMethod -Uri "$neonApi/users/me/organizations" -Headers $neonHeaders -TimeoutSec 30
+        @($response.organizations)
+    }
+    catch {
+        @()
+    }
 }
 
 function Find-NeonProjectByName([string] $Name) {
@@ -145,6 +157,14 @@ $appResourceGroup = Get-TeardownResourceName -Environment $environmentName -Reso
 $keyVault = Get-TeardownResourceName -Environment $environmentName -Resource KeyVault
 $neonProjectName = Get-TeardownResourceName -Environment $environmentName -Resource NeonProject
 $appExists = Test-ResourceGroup $appResourceGroup
+
+if (-not $NeonOrgId -and -not $env:TF_VAR_neon_org_id) {
+    $NeonOrgId = Resolve-NeonOrgId -Organizations (Get-NeonOrganization)
+}
+else {
+    $NeonOrgId = Resolve-NeonOrgId -Explicit $NeonOrgId -EnvValue $env:TF_VAR_neon_org_id
+}
+if ($NeonOrgId) { Write-Host "Neon organization $NeonOrgId" }
 
 $neonMatches = @(Find-NeonProjectByName $neonProjectName)
 $neonTarget = Resolve-NeonProjectTarget -NameMatches $neonMatches

@@ -56,7 +56,7 @@ first push.
 | secret | `NEON_API_KEY` | Neon API key |
 | secret | `SMTP_PASSWORD` | SMTP relay password |
 | variable | `TF_CLOUD_ORGANIZATION`, `TF_WORKSPACE` | HCP organization and workspace |
-| variable (optional) | `NEON_ORG_ID` | Neon organization id, only when the API key spans several organizations (not committed); unset = the key's default |
+| variable (optional) | `NEON_ORG_ID` | Neon organization id (not committed); needed when the account uses organizations (Neon answers `org_id is required`) |
 | variable (optional) | `BIRRAPOINT_ENVIRONMENT` | environment name, default `PROD`; selects `infra/azure/terraform/environments/<env>.tfvars` |
 
 Non-secret inputs (`image_namespace`, `smtp_host`, `smtp_port`, `smtp_username`,

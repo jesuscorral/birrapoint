@@ -73,7 +73,7 @@ First deploy from scratch? Follow the end-to-end checklist in [`infra/deployment
 | Terraform ≥ 1.9 | <https://developer.hashicorp.com/terraform/install> |
 | HCP Terraform workspace | One workspace per environment, **execution mode Local** (HCP only stores the state). `export TF_CLOUD_ORGANIZATION=<org> TF_WORKSPACE=<workspace>`, then `terraform login` (or `TF_TOKEN_app_terraform_io`) |
 | Docker Hub images | Published by GitHub Actions (`ci.yml` for `latest`, `release.yml` for `X.Y.Z`); no local Docker needed |
-| Neon account + API key | Neon console → Account settings → API keys; `export NEON_API_KEY=...`. If the key spans several Neon organizations also `export TF_VAR_neon_org_id=org-...` (an account identifier, deliberately not committed; unset = the key's default organization) |
+| Neon account + API key | Neon console → Account settings → API keys; `export NEON_API_KEY=...`. If your Neon account uses organizations (Neon answers `org_id is required`) also `export TF_VAR_neon_org_id=org-...` from the organization settings (an account identifier, deliberately not committed) |
 | SMTP relay | Any provider with SMTP credentials and a verified sender address |
 | Environment file | `infra/azure/terraform/environments/<env>.tfvars` is committed and holds every non-secret input (shared with `deploy-azure.yml`): set `image_namespace` and the `smtp_*` placeholders before the first deploy |
 | Secrets file | `cp infra/azure/terraform/terraform.tfvars.example infra/azure/terraform/terraform.tfvars` (gitignored): `smtp_password`, optionally `dockerhub_*`; or `TF_VAR_*` environment variables |
@@ -183,8 +183,8 @@ Always a full wipe, **data included**; the next deploy starts from scratch (ADR-
    exactly that name (refused when several match);
 3. removal of the local `infra/azure/terraform/.terraform` and a final verification.
 
-Pass `-Environment` for an environment other than `PROD` (its `environments/<env>.tfvars` is used), `-NeonOrgId` when the API key belongs to
-several Neon organizations. Docker Hub images, GitHub secrets and the HCP workspace itself are not
+Pass `-Environment` for an environment other than `PROD` (its `environments/<env>.tfvars` is used), `-NeonOrgId` for the Neon organization (default:
+`TF_VAR_neon_org_id`, then the API key's only organization). Docker Hub images, GitHub secrets and the HCP workspace itself are not
 touched. The script is idempotent: re-run it after a partial failure. Log Analytics and Key Vault
 are purged, not soft-deleted (`permanently_delete_on_destroy`, `purge_soft_delete_on_destroy`), so
 a redeploy never collides with them (the vault's name is globally unique). The same provider

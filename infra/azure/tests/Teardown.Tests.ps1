@@ -215,3 +215,26 @@ Describe 'Resolve-StateEnvironment' {
         { Resolve-StateEnvironment -StateListExitCode 0 -StateList @('a.b') -OutputExitCode 0 -Output '  ' } | Should -Throw '*environment*'
     }
 }
+
+Describe 'Resolve-NeonOrgId' {
+    It 'prefers the explicit -NeonOrgId' {
+        Resolve-NeonOrgId -Explicit 'org-a' -EnvValue 'org-b' -Organizations @([pscustomobject]@{ id = 'org-c' }) | Should -Be 'org-a'
+    }
+
+    It 'falls back to TF_VAR_neon_org_id, the variable Terraform uses' {
+        Resolve-NeonOrgId -Explicit '' -EnvValue ' org-b ' -Organizations @() | Should -Be 'org-b'
+    }
+
+    It 'uses the only organization of the API key when nothing is set' {
+        Resolve-NeonOrgId -Organizations @([pscustomobject]@{ id = 'org-c'; name = 'mine' }) | Should -Be 'org-c'
+    }
+
+    It 'returns nothing for a key without organizations (personal account)' {
+        Resolve-NeonOrgId -Organizations @() | Should -BeNullOrEmpty
+    }
+
+    It 'refuses to guess between several organizations' {
+        $orgs = @([pscustomobject]@{ id = 'org-1' }, [pscustomobject]@{ id = 'org-2' })
+        { Resolve-NeonOrgId -Organizations $orgs } | Should -Throw '*NeonOrgId*'
+    }
+}

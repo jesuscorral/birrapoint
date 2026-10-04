@@ -22,7 +22,7 @@ committed `infra/azure/terraform/environments/prod.tfvars`.
 | 3 | HCP Terraform | **User token** (via `terraform login`) for your workstation | Local apply / teardown | `%APPDATA%\terraform.d\credentials.tfrc.json` (written by `terraform login`) |
 | 4 | HCP Terraform | **Team token** for a team that can only access this workspace | `deploy-azure.yml` | GitHub secret `TF_API_TOKEN` |
 | 5 | **Neon** | Account + **API key** | Terraform (Neon project, roles, databases); teardown | `NEON_API_KEY` env var; GitHub secret `NEON_API_KEY` |
-| 6 | Neon | Organization id (`org-...`), only if the key spans several organizations | Terraform; teardown `-NeonOrgId` | `TF_VAR_neon_org_id`; GitHub variable `NEON_ORG_ID` |
+| 6 | Neon | Organization id (`org-...`), needed when your account uses organizations (Neon answers `org_id is required`) | Terraform; teardown `-NeonOrgId` | `TF_VAR_neon_org_id`; GitHub variable `NEON_ORG_ID` |
 | 7 | **Docker Hub** | Account (user or organization = image namespace) | Image hosting | `image_namespace` in `prod.tfvars`; GitHub variable `IMAGE_NAMESPACE` |
 | 8 | Docker Hub | **Personal access token, Read & Write** | `ci.yml`, `release.yml` push images | GitHub secrets `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` |
 | 9 | Docker Hub | *Optional:* **Read-only** access token (private repos, or to avoid pull rate limits) | Container Apps pull; `deploy-azure.yml` image check | `dockerhub_token` in `terraform.tfvars`; GitHub secret `DOCKERHUB_READ_TOKEN` |
@@ -77,8 +77,8 @@ No local Docker is needed: images are built and published by GitHub Actions.
 ### A3. Neon and SMTP
 
 1. Neon console → Account settings → **API keys** → create a key.
-2. If you belong to several Neon organizations, copy the organization id (`org-...`) from the
-   organization settings.
+2. Copy the organization id (`org-...`) from the organization settings. Keys that belong to an
+   organization need it (Neon answers `org_id is required` otherwise).
 3. From your SMTP provider, collect the host, port (587 with STARTTLS), user name, password, and a
    verified sender address.
 
@@ -126,11 +126,12 @@ $env:TF_CLOUD_ORGANIZATION = "<org>"
 $env:TF_WORKSPACE          = "<workspace>"
 $env:ARM_SUBSCRIPTION_ID   = "<subscription id>"
 $env:NEON_API_KEY          = "<neon api key>"
-# $env:TF_VAR_neon_org_id  = "org-..."            # only with several Neon organizations
+$env:TF_VAR_neon_org_id   = "org-..."            # Neon organization (organization settings)
 
 terraform -chdir=infra/azure/terraform init
-terraform -chdir=infra/azure/terraform plan  -var-file=environments/prod.tfvars -var release_version=X.Y.Z
-terraform -chdir=infra/azure/terraform apply -var-file=environments/prod.tfvars -var release_version=X.Y.Z
+# PowerShell splits an unquoted -var-file=...tfvars at the dot: keep the quotes.
+terraform -chdir=infra/azure/terraform plan  "-var-file=environments/prod.tfvars" "-var=release_version=X.Y.Z"
+terraform -chdir=infra/azure/terraform apply "-var-file=environments/prod.tfvars" "-var=release_version=X.Y.Z"
 ```
 
 A first apply takes several minutes longer than later ones, because it waits for Key Vault role
