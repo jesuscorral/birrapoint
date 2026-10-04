@@ -340,6 +340,14 @@ Numbered R-21 because R-20 was already taken by the judge-roster decision.
   model and so apps never receive secrets as task settings); private subnets + NAT (rejected:
   cost).
 
+**Update 2026-10-04 (T145)** — implementation refinements, not a change of decision:
+
+- **Web→API discovery**: a Cloud Map private DNS namespace (`api.birrapoint-<env>.local`, ECS service discovery A records) replaces ECS Service Connect. The web nginx resolves `API_UPSTREAM` per request through `resolver`, which ignores `/etc/hosts`, where Service Connect publishes its names.
+- **HTTPS behind CloudFront**: CloudFront→ALB is HTTP and the ALB overwrites `X-Forwarded-Proto` with `http`. CloudFront therefore adds `Forwarded: proto=https` (the ALB leaves it untouched); Keycloak runs with `KC_PROXY_HEADERS=forwarded` and `KC_HOSTNAME` = the full https CloudFront URL. To verify on the first real apply. The API still sees forwarded proto `http`.
+- **One environment per AWS account and region**: `secretstores.aws.secretmanager` reads exact secret names (no prefix lookup), so names cannot be namespaced per environment.
+- **daprd 1.16 listens on 127.0.0.1 only**; the init container and app reach it over the task's loopback.
+- **API rollouts stop the old task first** (deployment minimum 0% / maximum 100%) because of the single SignalR and job consumer: each API deploy causes a short outage.
+
 ## Dependency justification summary (Principle V gate)
 
 | Dependency | Slice | Why the stack can't already do it |

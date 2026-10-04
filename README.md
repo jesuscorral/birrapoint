@@ -49,7 +49,7 @@ Tests: `dotnet test backend/BirraPoint.sln` · `cd frontend && npx jest` · `cd 
 ## Deploy to Azure
 
 BirraPoint deploys to Azure or to AWS, one cloud per deployment (ADR-0023). Azure is available now
-(`infra/azure/`); the AWS target (`infra/aws/`) is planned (T145/T146).
+(`infra/azure/`); the AWS Terraform root exists (`infra/aws/terraform/`); deploy it with a local `terraform apply` for now (see [`infra/aws/terraform/README.md`](./infra/aws/terraform/README.md)); the workflow and teardown arrive with T146.
 
 One-time prerequisites: Azure CLI logged in as Owner (or Contributor + User Access Administrator),
 Terraform ≥ 1.9, a Neon API key, the non-secret inputs in `infra/azure/terraform/environments/prod.tfvars`

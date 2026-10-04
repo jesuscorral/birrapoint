@@ -12,9 +12,9 @@
   contract/integration and E2E coverage (`quickstart.md` scenarios).
 - **Open work** (`tasks.md`): T092 (SC-010 human usability study), T098 (health/telemetry in ACA),
   T099 (first validated cloud deploy), T129–T132 (PR #46 follow-ups), T137 (CI/CD validation
-  against a real deployment), T139 (E2E + a11y job in CI), T145/T146 (AWS target).
+  against a real deployment), T139 (E2E + a11y job in CI), T146 (AWS deploy workflow + teardown).
 - **Two cloud targets, one per deployment** (ADR-0023): Azure Container Apps is implemented under
-  `infra/azure/`; AWS ECS Fargate is **planned** (T145/T146) and does not exist yet.
+  `infra/azure/`; the AWS Terraform root exists under `infra/aws/terraform/` (not yet applied to a real account); its deploy workflow and teardown arrive with T146 (deploy meanwhile is a local `terraform apply`, see its README).
 - **Not yet deployed to a real Azure subscription.** The whole Azure path (Terraform,
   `deploy-azure.yml`, `infra/azure/teardown.ps1`) is implemented and unit-tested but unvalidated
   end to end (T099/T137).
@@ -41,9 +41,15 @@ realm re-import and deletes every user created since the seed.
 
 A deployment targets Azure **or** AWS, never both; each target is its own Terraform root, HCP
 workspace, teardown and workflow, sharing only the Docker Hub images, `infra/keycloak` and the Neon
-account (ADR-0023). Planned AWS shape (T145/T146, not built): ECS Fargate in a dedicated VPC without
-NAT, ALB behind two CloudFront distributions (web, Keycloak), internal API via Service Connect,
-Secrets Manager read through Dapr, CloudWatch logs; see research R-21.
+account (ADR-0023).
+
+AWS (`infra/aws/terraform/`, Terraform only; deploy workflow and teardown arrive with T146):
+
+- Two CloudFront distributions (web, Keycloak) → one ALB (admits only the CloudFront prefix list plus a secret origin header; routes web vs Keycloak by that header) → ECS Fargate web / Keycloak.
+- API is internal (no target group), exactly 1 replica, reached by the web through a Cloud Map private DNS namespace (`api.birrapoint-<env>.local`).
+- Secrets Manager read through Dapr sidecars on API and Keycloak only; Neon for Postgres; CloudWatch logs; dedicated VPC, public subnets, no NAT. One environment per AWS account and region.
+- Open risks for the first apply: security-group rule quota with the CloudFront prefix list; Keycloak honoring the `Forwarded` header; API sees forwarded proto `http`; daprd on Fargate (loopback only); Cloud Map registration; Docker Hub pull limits. Each API deploy stops the old task first (short outage).
+- Rationale and refinements: research R-21, ADR-0023.
 
 Azure: every resource is named `birrapoint-<env>-<acronym>` (default env `PROD`, lower-cased;
 ADR-0021).
