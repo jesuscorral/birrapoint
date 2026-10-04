@@ -1,0 +1,16 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        { "label": "backend: build", "type": "shell", "command": "dotnet build backend/BirraPoint.sln", "group": { "kind": "build", "isDefault": true }, "problemMatcher": "$msCompile" },
+        { "label": "backend: unit tests", "type": "shell", "command": "dotnet test backend/tests/BirraPoint.Api.UnitTests", "group": { "kind": "test", "isDefault": true }, "problemMatcher": "$msCompile" },
+        { "label": "backend: integration tests (Docker)", "type": "shell", "command": "dotnet test backend/tests/BirraPoint.Api.IntegrationTests", "group": "test", "problemMatcher": "$msCompile" },
+        { "label": "backend: format check", "type": "shell", "command": "dotnet format backend/BirraPoint.sln --verify-no-changes", "problemMatcher": [] },
+        { "label": "frontend: start", "type": "shell", "command": "npm start", "options": { "cwd": "${workspaceFolder}/frontend" }, "isBackground": true, "problemMatcher": [] },
+        { "label": "frontend: jest", "type": "shell", "command": "npx jest", "options": { "cwd": "${workspaceFolder}/frontend" }, "group": "test", "problemMatcher": [] },
+        { "label": "frontend: lint", "type": "shell", "command": "npx ng lint", "options": { "cwd": "${workspaceFolder}/frontend" }, "problemMatcher": [] },
+        { "label": "frontend: format check", "type": "shell", "command": "npm run format:check", "options": { "cwd": "${workspaceFolder}/frontend" }, "problemMatcher": [] },
+        { "label": "frontend: e2e", "type": "shell", "command": "npm run e2e", "options": { "cwd": "${workspaceFolder}/frontend" }, "group": "test", "problemMatcher": [] },
+        { "label": "terraform (azure): test", "type": "shell", "command": "terraform -chdir=infra/azure/terraform test", "problemMatcher": [] },
+        { "label": "terraform (aws): test", "type": "shell", "command": "terraform -chdir=infra/aws/terraform test", "problemMatcher": [] }
+    ]
+}

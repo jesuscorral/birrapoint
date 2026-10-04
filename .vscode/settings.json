@@ -13,6 +13,85 @@
     "sonarlint.connectedMode.project": {
         "connectionId": "jesuscorral",
         "projectKey": "jesuscorral_birrapoint"
+    },
+
+    // --- Editor behaviour shared by the team (personal look & feel goes in the user profile) ---
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit",
+        "source.organizeImports": "explicit"
+    },
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+
+    // --- C# / .NET (whole-solution diagnostics like Visual Studio) ---
+    "dotnet.defaultSolution": "backend/BirraPoint.sln",
+    "dotnet.backgroundAnalysis.analyzerDiagnosticsScope": "fullSolution",
+    "dotnet.backgroundAnalysis.compilerDiagnosticsScope": "fullSolution",
+    "dotnet.completion.showCompletionItemsFromUnimportedNamespaces": true,
+    "dotnet.inlayHints.enableInlayHintsForParameters": true,
+    "dotnet.inlayHints.enableInlayHintsForImplicitObjectCreation": true,
+    "dotnet.inlayHints.enableInlayHintsForImplicitVariableTypes": true,
+    "[csharp]": {
+        "editor.defaultFormatter": "ms-dotnettools.csharp"
+    },
+
+    // --- Angular / TypeScript (formatter = Prettier, config lives in frontend/package.json) ---
+    "eslint.workingDirectories": [{ "directory": "frontend" }],
+    "prettier.requireConfig": true,
+    "[typescript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+    "[html]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+    "[css]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+    "[json]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+    "[jsonc]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+    "jestrunner.projectPath": "frontend",
+    "jestrunner.configPath": "frontend/jest.config.ts",
+    "tailwindCSS.experimental.classRegex": [["class\\s*=\\s*\"([^\"]*)\""]],
+
+    // --- Terraform / PowerShell / YAML ---
+    "[terraform]": {
+        "editor.defaultFormatter": "hashicorp.terraform",
+        "editor.formatOnSave": true
+    },
+    "[terraform-vars]": { "editor.defaultFormatter": "hashicorp.terraform" },
+    "files.associations": {
+        "*.tfvars": "terraform-vars",
+        "Directory.Packages.props": "xml",
+        "Directory.Build.props": "xml"
+    },
+    "[powershell]": { "editor.defaultFormatter": "ms-vscode.powershell" },
+
+    // --- Noise reduction ---
+    "files.exclude": {
+        "**/bin": true,
+        "**/obj": true
+    },
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/bin": true,
+        "**/obj": true,
+        "**/.angular": true,
+        "**/dist": true,
+        "**/package-lock.json": true,
+        "**/playwright-report": true,
+        "**/test-results": true
+    },
+    "files.watcherExclude": {
+        "**/node_modules/**": true,
+        "**/.angular/**": true,
+        "**/bin/**": true,
+        "**/obj/**": true
+    },
+
+    // --- Solution-Explorer-like nesting ---
+    "explorer.fileNesting.enabled": true,
+    "explorer.fileNesting.expand": false,
+    "explorer.fileNesting.patterns": {
+        "*.csproj": "${capture}.csproj.user, packages.lock.json",
+        "appsettings.json": "appsettings.*.json",
+        "*.ts": "${capture}.html, ${capture}.css, ${capture}.spec.ts",
+        "package.json": "package-lock.json, .npmrc",
+        "*.tf": "${capture}.tfvars",
+        "Dockerfile": ".dockerignore"
     }
 }
-

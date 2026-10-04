@@ -1,0 +1,52 @@
+{
+    // Install with: Extensions view -> "@recommended", or `code --install-extension <id>`.
+    // Rationale per extension: Docs/vscode-setup.md
+    "recommendations": [
+        // C# / .NET (Visual Studio-like experience)
+        "ms-dotnettools.csdevkit",
+        "ms-dotnettools.csharp",
+        "jrbye.vscode-dotnet-cpm",
+        "adrianwilczynski.user-secrets",
+        "microsoft-aspire.aspire-vscode",
+
+        // Angular / TypeScript
+        "angular.ng-template",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "firsttris.vscode-jest-runner",
+        "ms-playwright.playwright",
+
+        // Infra / containers / CI
+        "hashicorp.terraform",
+        "ms-azuretools.vscode-containers",
+        "github.vscode-github-actions",
+        "redhat.vscode-yaml",
+        "ms-vscode.powershell",
+
+        // Data / API
+        "cweijan.vscode-postgresql-client2",
+        "humao.rest-client",
+
+        // Quality, git, docs
+        "sonarsource.sonarlint-vscode",
+        "editorconfig.editorconfig",
+        "eamodio.gitlens",
+        "github.vscode-pull-request-github",
+        "usernamehw.errorlens",
+        "bierner.markdown-mermaid",
+        "fill-labs.dependi",
+
+        // AI + Visual Studio keymap/look
+        "anthropic.claude-code",
+        "ms-vscode.vs-keybindings",
+        "vscode-icons-team.vscode-icons"
+    ],
+    "unwantedRecommendations": [
+        "4ops.terraform", // conflicts with hashicorp.terraform
+        "ms-azuretools.vscode-bicep", // Terraform, not Bicep
+        "formulahendry.docker-explorer", // superseded by ms-azuretools.vscode-containers
+        "kreativ-software.csharpextensions", // superseded by C# Dev Kit
+        "ms-dotnettools.blazorwasm-companion" // no Blazor
+    ]
+}

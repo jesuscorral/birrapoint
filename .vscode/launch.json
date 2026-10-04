@@ -1,7 +1,4 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
@@ -9,6 +6,14 @@
             "request": "launch",
             "name": "Aspire: Launch default AppHost",
             "program": "${workspaceFolder}"
+        },
+        {
+            // Needs the PWA running (Aspire launch above, or `npm start` in frontend/).
+            "type": "msedge",
+            "request": "launch",
+            "name": "PWA: debug in Edge (:4200)",
+            "url": "http://localhost:4200",
+            "webRoot": "${workspaceFolder}/frontend"
         }
     ]
 }
