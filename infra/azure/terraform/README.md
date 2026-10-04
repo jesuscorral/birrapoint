@@ -2,7 +2,7 @@
 
 Constitution v1.4.0, research R-17/R-18/R-19, ADR-0016/ADR-0017/ADR-0021/ADR-0022, FR-043–FR-047, SC-011.
 
-First deploy from scratch? Follow the end-to-end checklist in [`../deployment-runbook.md`](../deployment-runbook.md) (accounts, keys, order).
+First deploy from scratch? Follow the end-to-end checklist in [`../deployment-runbook.md`](../../deployment-runbook.md) (accounts, keys, order).
 
 ## Topology
 
@@ -75,8 +75,8 @@ First deploy from scratch? Follow the end-to-end checklist in [`../deployment-ru
 | Docker Hub images | Published by GitHub Actions (`ci.yml` for `latest`, `release.yml` for `X.Y.Z`); no local Docker needed |
 | Neon account + API key | Neon console → Account settings → API keys; `export NEON_API_KEY=...`. If the key spans several Neon organizations also `export TF_VAR_neon_org_id=org-...` (an account identifier, deliberately not committed; unset = the key's default organization) |
 | SMTP relay | Any provider with SMTP credentials and a verified sender address |
-| Environment file | `infra/terraform/environments/<env>.tfvars` is committed and holds every non-secret input (shared with `deploy.yml`): set `image_namespace` and the `smtp_*` placeholders before the first deploy |
-| Secrets file | `cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars` (gitignored): `smtp_password`, optionally `dockerhub_*`; or `TF_VAR_*` environment variables |
+| Environment file | `infra/azure/terraform/environments/<env>.tfvars` is committed and holds every non-secret input (shared with `deploy-azure.yml`): set `image_namespace` and the `smtp_*` placeholders before the first deploy |
+| Secrets file | `cp infra/azure/terraform/terraform.tfvars.example infra/azure/terraform/terraform.tfvars` (gitignored): `smtp_password`, optionally `dockerhub_*`; or `TF_VAR_*` environment variables |
 
 Private Docker Hub repositories additionally need `dockerhub_username` + a **read-only** access
 token in `dockerhub_token`; with public repositories leave both empty.
@@ -86,14 +86,14 @@ token in `dockerhub_token`; with public repositories leave both empty.
 ```bash
 az login && terraform login
 export TF_CLOUD_ORGANIZATION=<org> TF_WORKSPACE=<workspace> NEON_API_KEY=<key>
-terraform -chdir=infra/terraform init
-terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=0.3.1
-terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=0.3.1 -var keycloak_version=0.3.0
-terraform -chdir=infra/terraform apply -var-file=environments/prod.tfvars -var release_version=latest   # CI images
-terraform -chdir=infra/terraform plan  -var-file=environments/prod.tfvars -var release_version=0.3.1    # preview
+terraform -chdir=infra/azure/terraform init
+terraform -chdir=infra/azure/terraform apply -var-file=environments/prod.tfvars -var release_version=0.3.1
+terraform -chdir=infra/azure/terraform apply -var-file=environments/prod.tfvars -var release_version=0.3.1 -var keycloak_version=0.3.0
+terraform -chdir=infra/azure/terraform apply -var-file=environments/prod.tfvars -var release_version=latest   # CI images
+terraform -chdir=infra/azure/terraform plan  -var-file=environments/prod.tfvars -var release_version=0.3.1    # preview
 ```
 
-The environment file is the same one `deploy.yml` loads, so a local and a CI apply use identical
+The environment file is the same one `deploy-azure.yml` loads, so a local and a CI apply use identical
 non-secret inputs. `release_version` has no default (it must be explicit, so an apply never rolls
 to `latest` by accident); each component's image is chosen
 independently: `api_version`, `web_version`, `keycloak_version` override it. `X.Y.Z` deploys `<ns>/birrapoint-<component>-release:X.Y.Z`, `latest` deploys
@@ -103,11 +103,11 @@ Terraform owns the running image (ADR-0022): changing a version and applying cre
 revision of that app; rollback is an apply with the previous version. **`latest` on an existing
 environment does not re-pull**, because the template does not change; use release versions to
 update. The API migrates the database on startup. A local apply has no revision health gate;
-`deploy.yml` adds one after its apply (`.github/scripts/wait-revisions.sh`), so check the
+`deploy-azure.yml` adds one after its apply (`.github/scripts/wait-revisions.sh`), so check the
 revisions yourself (`az containerapp revision list`) after a local rollout.
 
 Environment guard: the HCP workspace (`TF_WORKSPACE`) must hold the environment you deploy or
-tear down. `deploy.yml` and `teardown.ps1` read `terraform output -raw environment` after `init`
+tear down. `deploy-azure.yml` and `teardown.ps1` read `terraform output -raw environment` after `init`
 and stop when it differs (an empty state is allowed).
 
 On a first apply Terraform waits ~90 s after granting `Key Vault Secrets Officer`, for the role to
@@ -121,24 +121,24 @@ Outputs: `web_url`, `keycloak_url`.
 
 ### Tests
 
-`terraform -chdir=infra/terraform test` (mocked providers, no credentials) covers image resolution,
+`terraform -chdir=infra/azure/terraform test` (mocked providers, no credentials) covers image resolution,
 version validation, naming and the absence of a deploy-client secret. Teardown logic is covered by
-Pester (`infra/tests`, Pester 5+; Windows PowerShell 5.1 ships 3.4, which cannot run them):
+Pester (`infra/azure/tests`, Pester 5+; Windows PowerShell 5.1 ships 3.4, which cannot run them):
 
 ```powershell
 Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -SkipPublisherCheck   # once
-Invoke-Pester infra/tests
+Invoke-Pester infra/azure/tests
 ```
 
-Both run in `infra.yml` when `infra/**` changes. `deploy.yml` runs the same `init` + `apply` with
+Both run in `infra.yml` when `infra/**` changes. `deploy-azure.yml` runs the same `init` + `apply` with
 the release versions through Azure OIDC; its one-time setup (HCP token, Azure identity, secrets,
-`production` environment) is in [`infra/github-actions-setup.md`](../github-actions-setup.md).
+`azure-production` environment) is in [`infra/github-actions-setup.md`](../../github-actions-setup.md).
 
 First start takes a few minutes: Keycloak creates its schema on Neon and imports the realm, and
 the API applies EF Core migrations (including the BJCP catalog seed) before serving.
 
 The Keycloak admin console is at `<keycloak_url>/admin`, user `admin`, password from
-`terraform -chdir=infra/terraform output -raw keycloak_admin_password`.
+`terraform -chdir=infra/azure/terraform output -raw keycloak_admin_password`.
 
 There is **no seeded organizer account** in production (the image strips the local-dev
 `organizer`/`organizer` user); organizers self-register from the login page.
@@ -167,8 +167,8 @@ Branches → New branch → "Past data") and inspect it with `psql` before resto
 
 ```powershell
 $env:NEON_API_KEY = "<key>"   # plus TF_CLOUD_ORGANIZATION, TF_WORKSPACE and a Terraform login
-./infra/teardown.ps1 -WhatIf  # preview, changes nothing
-./infra/teardown.ps1          # wipes everything; asks to type the resource group name (-Force skips it)
+./infra/azure/teardown.ps1 -WhatIf  # preview, changes nothing
+./infra/azure/teardown.ps1          # wipes everything; asks to type the resource group name (-Force skips it)
 ```
 
 Always a full wipe, **data included**; the next deploy starts from scratch (ADR-0022):
@@ -181,7 +181,7 @@ Always a full wipe, **data included**; the next deploy starts from scratch (ADR-
 2. a sweep of whatever remains, found by name: Log Analytics purge and `az group delete` of
    `birrapoint-<env>-rg`, purge of the soft-deleted Key Vault, deletion of the Neon project with
    exactly that name (refused when several match);
-3. removal of the local `infra/terraform/.terraform` and a final verification.
+3. removal of the local `infra/azure/terraform/.terraform` and a final verification.
 
 Pass `-Environment` for an environment other than `PROD` (its `environments/<env>.tfvars` is used), `-NeonOrgId` when the API key belongs to
 several Neon organizations. Docker Hub images, GitHub secrets and the HCP workspace itself are not

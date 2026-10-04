@@ -71,6 +71,10 @@
 
 - Q: Constitution v1.3.0 (2026-09-23) moved the production database to Neon (managed Postgres) and the IaC tool to Terraform, but FR-043/FR-047 still required an in-environment database container with a self-managed backup/restore procedure. Which wins? → A: The constitution — FR-043 now scopes "container" to the application components (the database is containerized only locally), and FR-047 is rewritten for a managed external database whose provider-side point-in-time recovery is the documented restore path. Also: container images are published to Docker Hub rather than an Azure Container Registry (user decision; constitution v1.3.1) — the registry is not a spec concern, noted here only for traceability.
 
+### Session 2026-10-04
+
+- Q: Must the cloud target stay Azure only? → A: No — BirraPoint is deployable to either Azure (Container Apps) or AWS (ECS Fargate), as independently as possible; a single deployment never targets both (user decision; constitution v1.5.0, ADR-0023, research R-21). FR-045/FR-046/SC-011 are cloud-agnostic and apply to each target unchanged: each has its own IaC root, remote state, teardown and pipeline; only the Docker Hub images, the Keycloak image and the Neon account are shared.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Secure Access with Role-Based Entry (Priority: P1)

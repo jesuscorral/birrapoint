@@ -1,11 +1,11 @@
-# Pure helpers behind infra/teardown.ps1 (T140, T143): the confirmation check, resource names,
+# Pure helpers behind infra/azure/teardown.ps1 (T140, T143): the confirmation check, resource names,
 # which Neon project may be deleted, and the `terraform destroy` arguments. Kept free of
-# Azure/Neon calls so they are unit-testable (infra/tests/Teardown.Tests.ps1). Windows PowerShell
+# Azure/Neon calls so they are unit-testable (infra/azure/tests/Teardown.Tests.ps1). Windows PowerShell
 # 5.1 and PowerShell 7.
 
 $ErrorActionPreference = 'Stop'
 
-# Resource acronyms; must match the locals in infra/terraform/main.tf (ADR-0021).
+# Resource acronyms; must match the locals in infra/azure/terraform/main.tf (ADR-0021).
 $script:ResourceAcronyms = @{
     ResourceGroup = 'rg'
     KeyVault      = 'kv'
@@ -81,7 +81,7 @@ function Resolve-StateEnvironment {
 }
 
 function Get-EnvironmentVarFile {
-    # The committed, non-secret inputs of an environment, shared with deploy.yml (ADR-0022).
+    # The committed, non-secret inputs of an environment, shared with deploy-azure.yml (ADR-0022).
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)] [string] $TerraformDir,

@@ -14,7 +14,7 @@ resource "azurerm_key_vault" "main" {
   # Azure RBAC instead of access policies: the apps' identities get a read-only data-plane role.
   rbac_authorization_enabled = true
 
-  # No purge protection, shortest retention: infra/teardown.ps1 purges the vault so a redeploy can
+  # No purge protection, shortest retention: infra/azure/teardown.ps1 purges the vault so a redeploy can
   # reuse its (globally unique) name. Every value is regenerated/re-written by Terraform anyway.
   purge_protection_enabled   = false
   soft_delete_retention_days = 7

@@ -4,7 +4,7 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-10-03
+**Last updated:** 2026-10-04
 
 ## Status
 
@@ -12,9 +12,12 @@
   contract/integration and E2E coverage (`quickstart.md` scenarios).
 - **Open work** (`tasks.md`): T092 (SC-010 human usability study), T098 (health/telemetry in ACA),
   T099 (first validated cloud deploy), T129–T132 (PR #46 follow-ups), T137 (CI/CD validation
-  against a real deployment), T139 (E2E + a11y job in CI).
-- **Not yet deployed to a real Azure subscription.** The whole cloud path (Terraform, `deploy.yml`,
-  `teardown.ps1`) is implemented and unit-tested but unvalidated end to end (T099/T137).
+  against a real deployment), T139 (E2E + a11y job in CI), T145/T146 (AWS target).
+- **Two cloud targets, one per deployment** (ADR-0023): Azure Container Apps is implemented under
+  `infra/azure/`; AWS ECS Fargate is **planned** (T145/T146) and does not exist yet.
+- **Not yet deployed to a real Azure subscription.** The whole Azure path (Terraform,
+  `deploy-azure.yml`, `infra/azure/teardown.ps1`) is implemented and unit-tested but unvalidated
+  end to end (T099/T137).
 
 ## Topology
 
@@ -34,9 +37,15 @@ rows keyed by the old one (`Organizers.KeycloakUserId`, `Competitions.CreatedByU
 `Judges.KeycloakUserId`) must be re-pointed by hand. Dropping the `keycloak` database forces a
 realm re-import and deletes every user created since the seed.
 
-### Cloud (Terraform → Azure Container Apps + Neon)
+### Cloud (Terraform → Azure Container Apps + Neon, `infra/azure/`)
 
-Every resource is named `birrapoint-<env>-<acronym>` (default env `PROD`, lower-cased;
+A deployment targets Azure **or** AWS, never both; each target is its own Terraform root, HCP
+workspace, teardown and workflow, sharing only the Docker Hub images, `infra/keycloak` and the Neon
+account (ADR-0023). Planned AWS shape (T145/T146, not built): ECS Fargate in a dedicated VPC without
+NAT, ALB behind two CloudFront distributions (web, Keycloak), internal API via Service Connect,
+Secrets Manager read through Dapr, CloudWatch logs; see research R-21.
+
+Azure: every resource is named `birrapoint-<env>-<acronym>` (default env `PROD`, lower-cased;
 ADR-0021).
 
 | Resource | Implementation | Ingress | Notes |
@@ -57,7 +66,7 @@ and local-dev secret fallbacks are stripped (the build fails if they survive).
 
 **Deploy** (ADR-0022): Terraform only. `terraform init` + `terraform apply -var image_namespace=<ns>
 [-var release_version=X.Y.Z] [-var api_version=…]` from a workstation (`az login`, `terraform login`,
-`NEON_API_KEY`) or from `deploy.yml`. Images are plain variables: `latest` →
+`NEON_API_KEY`) or from `deploy-azure.yml`. Images are plain variables: `latest` →
 `<ns>/birrapoint-<c>:latest`, `X.Y.Z` → `<ns>/birrapoint-<c>-release:X.Y.Z`; a changed version
 creates a new revision (rollback = apply the previous version). `latest` on an existing
 environment does not re-pull; update with release versions. State is in HCP Terraform (`cloud {}`;
@@ -65,7 +74,7 @@ environment does not re-pull; update with release versions. State is in HCP Terr
 caller's Azure identity). Every deployment starts from scratch: the realm is imported with the
 right `SPA_URL`, there is no post-deploy Keycloak sync.
 
-**Teardown** (`infra/teardown.ps1 [-WhatIf] [-Force]`): always wipes everything — `terraform destroy`
+**Teardown** (`infra/azure/teardown.ps1 [-WhatIf] [-Force]`): always wipes everything — `terraform destroy`
 including the Neon project, sweep by name, Key Vault and Log Analytics purge, local `.terraform`.
 No data is kept. Idempotent, with a direct sweep fallback when the destroy fails.
 
@@ -77,10 +86,10 @@ No data is kept. Idempotent, with a direct sweep fallback when the destroy fails
 | `infra.yml` | `infra/**` changes | `terraform fmt`/`validate`/`test` (mocked providers), Pester (teardown), Dapr loader test |
 | `workflows.yml` | `.github/**` changes | actionlint, `version.test.sh` |
 | `release.yml` | manual, from `main` (ADR-0019) | builds `ref` (`main`, `hotfix/*`, `v*` tag), runs gates, pushes `-release:X.Y.Z` images, tags `vX.Y.Z`, creates the GitHub Release, bumps `version.txt` on `main`; idempotent re-runs |
-| `deploy.yml` | manual, from `main` | validates versions, then (after `production` environment approval) OIDC runs `terraform init` + `apply` with the release versions; identity needs Contributor + User Access Administrator |
+| `deploy-azure.yml` | manual, from `main` | validates versions, then (after `azure-production` environment approval) OIDC runs `terraform init` + `apply` with the release versions; identity needs Contributor + User Access Administrator |
 
 One-time setup: `infra/github-actions-setup.md`. Prerequisites and Neon PITR restore:
-`infra/terraform/README.md`.
+`infra/azure/terraform/README.md`.
 
 ## Backend (`backend/`, .NET 10 / C# 14)
 
@@ -227,7 +236,7 @@ Shared primitives live in `shared/components/` (`bp-button`, `bp-input`, `bp-ale
 | E2E + a11y | `cd frontend && npm run e2e` | Playwright (Chromium) per story + `e2e/a11y/routes.a11y.spec.ts` axe sweep; needs the full Aspire stack |
 | Performance | `k6 run infra/perf/api-budgets.js`, `npm run build:budget` | API p95 budgets (needs a bearer token); gzip initial-bundle gate |
 | Lint/format | `ng lint`, `npm run format:check`, `dotnet format --verify-no-changes` | CI gates |
-| Infra | `terraform -chdir=infra/terraform test`, `Invoke-Pester infra/tests`, `version.test.sh`, `DaprSecretsEnv.test.sh` | Terraform image/naming rules, teardown logic, release versioning, Keycloak secret loader |
+| Infra | `terraform -chdir=infra/azure/terraform test`, `Invoke-Pester infra/azure/tests`, `version.test.sh`, `DaprSecretsEnv.test.sh` | Terraform image/naming rules, teardown logic, release versioning, Keycloak secret loader |
 
 ## Known gaps and debt
 

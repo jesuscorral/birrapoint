@@ -1,5 +1,5 @@
-# Pester 5+ tests for infra/Teardown.psm1 - the pure decisions behind infra/teardown.ps1 (T140, T143).
-# Run: Invoke-Pester infra/tests
+# Pester 5+ tests for infra/azure/Teardown.psm1 - the pure decisions behind infra/azure/teardown.ps1 (T140, T143).
+# Run: Invoke-Pester infra/azure/tests
 # (Windows PowerShell 5.1 ships Pester 3.4: Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser)
 
 BeforeAll {
@@ -77,14 +77,14 @@ Describe 'Get-TeardownResourceName' {
 
 Describe 'Get-DestroyArgument' {
     BeforeAll {
-        $common = @{ TerraformDir = 'C:/repo/infra/terraform'; Environment = 'prod' }
+        $common = @{ TerraformDir = 'C:/repo/infra/azure/terraform'; Environment = 'prod' }
     }
 
     It 'always destroys everything: never a -target' {
-        $arguments = Get-DestroyArgument @common -VarFile 'C:/repo/infra/terraform/terraform.tfvars'
+        $arguments = Get-DestroyArgument @common -VarFile 'C:/repo/infra/azure/terraform/terraform.tfvars'
 
         ($arguments | Where-Object { $_ -like '-target*' }) | Should -BeNullOrEmpty
-        $arguments[0..1] | Should -Be @('-chdir=C:/repo/infra/terraform', 'destroy')
+        $arguments[0..1] | Should -Be @('-chdir=C:/repo/infra/azure/terraform', 'destroy')
         $arguments | Should -Contain '-input=false'
         $arguments | Should -Contain '-auto-approve'
     }
@@ -127,9 +127,9 @@ Describe 'Get-DestroyArgument' {
     }
 
     It 'uses the var file when there is one' {
-        $arguments = Get-DestroyArgument @common -VarFile 'C:/repo/infra/terraform/terraform.tfvars'
+        $arguments = Get-DestroyArgument @common -VarFile 'C:/repo/infra/azure/terraform/terraform.tfvars'
 
-        $arguments | Should -Contain '-var-file=C:/repo/infra/terraform/terraform.tfvars'
+        $arguments | Should -Contain '-var-file=C:/repo/infra/azure/terraform/terraform.tfvars'
         ($arguments | Where-Object { $_ -like '-var=smtp_*' }) | Should -BeNullOrEmpty
     }
 
@@ -187,8 +187,8 @@ Describe 'Get-EnvironmentVarFile' {
     It 'is environments/ENV.tfvars (lower-cased) under the Terraform directory' {
         # No drive letter: Join-Path throws DriveNotFound for a drive that does not exist (C: on
         # Linux). Separators differ between platforms and PowerShell versions, so compare with '/'.
-        $file = Get-EnvironmentVarFile -TerraformDir 'repo/infra/terraform' -Environment 'PROD'
-        ($file -replace '\\', '/') | Should -Be 'repo/infra/terraform/environments/prod.tfvars'
+        $file = Get-EnvironmentVarFile -TerraformDir 'repo/infra/azure/terraform' -Environment 'PROD'
+        ($file -replace '\\', '/') | Should -Be 'repo/infra/azure/terraform/environments/prod.tfvars'
     }
 }
 

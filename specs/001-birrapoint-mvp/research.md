@@ -305,6 +305,39 @@ Alternatives considered.
   outside individual clubs' own conventions, and FR-052 category cross-checking was explicitly
   deferred in spec.md Assumptions; both are reasonable future follow-ups, not MVP scope).
 
+## R-21: AWS deployment target — ECS Fargate as an alternative to Azure *(added 2026-10-04)*
+
+Numbered R-21 because R-20 was already taken by the judge-roster decision.
+
+- **Decision**: BirraPoint deploys to Azure (R-17) **or** AWS; a run never deploys both. The AWS
+  root is `infra/aws/terraform/`:
+  - ECS Fargate in a dedicated VPC with 2 public subnets and no NAT gateway; tasks get a public IP
+    only for egress (Docker Hub, Neon); security groups admit inbound traffic only from the ALB.
+  - The API is internal (no ALB target group) and exactly 1 replica; the web nginx reaches it via
+    ECS Service Connect (`api.birrapoint.local`).
+  - HTTPS: two CloudFront distributions (web, Keycloak) on `*.cloudfront.net` with free
+    certificates, WebSockets, caching disabled. The ALB admits only CloudFront (managed
+    origin-facing prefix list) and routes web vs Keycloak by a secret origin custom header.
+  - Secrets: AWS Secrets Manager (`recovery_window_in_days = 0`, so redeploys do not collide),
+    read through a Dapr sidecar (`secretstores.aws.secretmanager`; an init container writes the
+    component YAML into a shared volume); one IAM task role per service with `GetSecretValue` on
+    its own secrets only. Same mechanism as Azure (ADR-0021), so the images stay unchanged.
+  - Logs in CloudWatch; Neon unchanged (one project per deployment, `aws-eu-central-1`); naming
+    `birrapoint-<env>-<acronym>`.
+  - Independence: own teardown, Pester tests, `terraform test`, HCP workspace (Local execution),
+    `environments/<env>.tfvars`, workflow `deploy-aws.yml` (AWS OIDC role,
+    `aws ecs wait services-stable` health gate) and GitHub environment `aws-production`.
+- **Rationale**: user decision 2026-10-04. Fargate runs the existing images and supports
+  WebSockets (SignalR). CloudFront gives HTTPS without owning a domain. Dapr keeps secret access
+  identical on both clouds. No NAT gateway avoids ~32 USD/month per NAT. Rough cost 85–100
+  USD/month (ALB ~18, Fargate incl. 3 daprd sidecars ~60, public IPv4 ~15, CloudFront ~0); Azure
+  ACA is cheaper.
+- **Alternatives considered**: App Runner (rejected: no WebSockets); EKS (rejected: cost and
+  operational complexity); own domain + ACM (rejected for now: no domain available, CloudFront
+  covers HTTPS); ECS native secrets injection (considered, rejected for parity with Azure's Dapr
+  model and so apps never receive secrets as task settings); private subnets + NAT (rejected:
+  cost).
+
 ## Dependency justification summary (Principle V gate)
 
 | Dependency | Slice | Why the stack can't already do it |

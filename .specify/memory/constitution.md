@@ -1,6 +1,26 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 1.4.0 → 1.5.0 (MINOR — alternative cloud deployment target added; no principle removed)
+Modified principles: none
+Modified sections:
+  - Technology & Architecture Constraints / Deployment (user decision 2026-10-04, ADR-0023):
+    * BirraPoint deploys to EITHER Azure Container Apps (+ Key Vault) OR AWS ECS Fargate
+      (+ ALB + CloudFront + Secrets Manager); a single run never deploys both;
+    * each target is its own Terraform root with its own remote state (HCP Terraform workspace),
+      teardown and pipeline; only the Docker Hub images, `infra/keycloak` and the Neon account
+      are shared;
+    * secrets on both targets are read at runtime through a Dapr secret store component, so the
+      images stay cloud-agnostic; naming `birrapoint-<environment>-<acronym>` applies to both.
+Added sections: none
+Removed sections: none
+Templates:
+  - CLAUDE.md ✅ updated (commands, layout, infra stack)
+  - specs/001-birrapoint-mvp/spec.md (clarification), plan.md, research.md (R-20), tasks.md
+    (T144–T146), quickstart.md ✅ updated
+Follow-up TODOs: AWS stack itself is pending (T145, T146)
+
+Previous report (v1.4.0, 2026-09-27):
 Version change: 1.3.1 → 1.4.0 (MINOR — cloud secret management and resource naming added)
 Modified principles: none (Principle VII already allows "environment variables or secret stores")
 Modified sections:
@@ -224,21 +244,27 @@ The approved stack is defined in `Docs/01-Definicion-Tecnologica.md` and is bind
 - **Containerization**: every runtime component ships as a multi-stage Docker image (backend:
   .NET SDK build → ASP.NET runtime; frontend: Node build → Nginx Alpine serving static files);
   images MUST NOT contain secrets or environment-specific configuration.
-- **Deployment**: Azure Container Apps, provisioned declaratively with Terraform (HCL). A build
-  step (CI, or `docker build`/`docker push`) publishes images to Docker Hub ahead of
-  `terraform apply`, which then provisions the ACA environment and the app resources (no
-  registry is provisioned; private repositories are pulled with an access token injected as a
-  registry secret). Production topology: one ACA environment hosting the frontend (public
-  ingress) and the backend API as two separate Container Apps, Keycloak as a third in-environment
-  Container App, and PostgreSQL hosted externally on Neon. Every deployed resource is named
-  `birrapoint-<environment>-<resource acronym>` (default environment `PROD`). Production secrets
-  (the Neon connection strings included) live in Azure Key Vault; every Container App runs with a
-  system-assigned managed identity holding read-only access to the vault, and apps read their
-  secrets at runtime through a Dapr secret store component (Dapr sidecar), never as Container Apps
-  secrets or settings, never baked into an image or committed to the repo. The only exception is
-  the registry pull token, which the platform needs before any container starts.
-  Terraform state MUST live in a remote backend (e.g. an Azure Storage container), never
-  committed to the repo.
+- **Deployment**: one of two cloud targets, chosen per deployment (a run never deploys both),
+  each provisioned declaratively with Terraform (HCL) in its own root (`infra/azure/terraform`,
+  `infra/aws/terraform`) with its own remote state. A build step (CI, or `docker build`/
+  `docker push`) publishes images to Docker Hub ahead of `terraform apply` (no registry is
+  provisioned; private repositories are pulled with an access token injected as a registry
+  secret). PostgreSQL is hosted externally on Neon on both targets. Every deployed resource is
+  named `birrapoint-<environment>-<resource acronym>` (default environment `PROD`).
+  - **Azure**: Azure Container Apps. One ACA environment hosting the frontend (public ingress) and
+    the backend API as two Container Apps, Keycloak as a third. Secrets live in Azure Key Vault;
+    every Container App runs with a system-assigned managed identity holding read-only access to
+    the vault.
+  - **AWS**: ECS Fargate in a dedicated VPC, frontend and Keycloak published through an ALB
+    fronted by CloudFront (HTTPS), the API internal and reached over ECS Service Connect.
+    Secrets live in AWS Secrets Manager; every service has its own IAM task role limited to
+    reading its own secrets.
+  - **Both**: apps read their secrets at runtime through a Dapr secret store component (Dapr
+    sidecar), never as platform secrets or settings, never baked into an image or committed to
+    the repo. The only exception is the registry pull token, which the platform needs before any
+    container starts.
+  Terraform state MUST live in a remote backend (HCP Terraform, one workspace per target and
+  environment), never committed to the repo.
 
 Deviations from this stack require a constitution amendment, not a per-feature decision.
 Offline-first is an architectural property, not a feature: judge-facing evaluation flows MUST
@@ -271,4 +297,4 @@ be updated.
   Definition of Done above. Runtime development guidance for agents lives in `CLAUDE.md` and must
   stay consistent with this document.
 
-**Version**: 1.4.0 | **Ratified**: 2026-07-06 | **Last Amended**: 2026-09-27
+**Version**: 1.5.0 | **Ratified**: 2026-07-06 | **Last Amended**: 2026-10-04

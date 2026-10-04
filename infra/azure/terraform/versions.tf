@@ -22,7 +22,7 @@ terraform {
 
   # State lives in HCP Terraform (constitution v1.4.0, T143) - never committed. The workspace must
   # use the Local execution mode: HCP only stores the state, plans and applies run where the Azure
-  # credentials are (`az login` on a laptop, OIDC in deploy.yml). Organization and workspace come
+  # credentials are (`az login` on a laptop, OIDC in deploy-azure.yml). Organization and workspace come
   # from TF_CLOUD_ORGANIZATION and TF_WORKSPACE, so nothing account-specific is committed; the API
   # token comes from `terraform login` or TF_TOKEN_app_terraform_io.
   cloud {}
@@ -30,13 +30,13 @@ terraform {
 
 provider "azurerm" {
   features {
-    # Purge instead of the 14-day soft-delete, so a teardown (infra/teardown.ps1) followed by a
+    # Purge instead of the 14-day soft-delete, so a teardown (infra/azure/teardown.ps1) followed by a
     # fresh deploy never collides with a soft-deleted workspace of the same name.
     log_analytics_workspace {
       permanently_delete_on_destroy = true
     }
     # Same for Key Vault, whose name is globally unique (T142): purged on destroy so a redeploy
-    # can recreate it. infra/teardown.ps1 also purges it after a direct resource-group delete.
+    # can recreate it. infra/azure/teardown.ps1 also purges it after a direct resource-group delete.
     key_vault {
       purge_soft_delete_on_destroy    = true
       recover_soft_deleted_key_vaults = false

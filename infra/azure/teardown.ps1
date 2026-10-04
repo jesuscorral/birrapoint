@@ -13,7 +13,7 @@
       3. sweep of whatever the destroy left behind, found by name: Log Analytics purge and
          `az group delete` of birrapoint-<environment>-rg, purge of the soft-deleted Key Vault,
          deletion of the Neon project of exactly that name (refused when several match);
-      4. removal of the local infra/terraform/.terraform folder; final verification.
+      4. removal of the local infra/azure/terraform/.terraform folder; final verification.
     Docker Hub images, GitHub secrets/variables and the HCP Terraform workspace itself are not
     touched.
 
@@ -25,10 +25,10 @@
     set, NEON_API_KEY. The subscription is ARM_SUBSCRIPTION_ID or the `az login` default.
 
 .EXAMPLE
-    ./infra/teardown.ps1 -WhatIf
+    ./infra/azure/teardown.ps1 -WhatIf
     Shows what would be removed and changes nothing.
 .EXAMPLE
-    ./infra/teardown.ps1
+    ./infra/azure/teardown.ps1
     Deletes everything, data included, after asking for confirmation.
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
@@ -36,8 +36,8 @@ param(
     # Deployment environment (resources are named birrapoint-<environment>-<acronym>).
     [string] $Environment = 'PROD',
 
-    # Defaults to infra/terraform/environments/<environment>.tfvars when it exists; Terraform also
-    # loads the gitignored infra/terraform/terraform.tfvars on its own.
+    # Defaults to infra/azure/terraform/environments/<environment>.tfvars when it exists; Terraform also
+    # loads the gitignored infra/azure/terraform/terraform.tfvars on its own.
     [string] $VarFile,
 
     # Passed to Terraform only when given; otherwise tfvars or the variable default apply.
@@ -74,7 +74,7 @@ function Invoke-Native {
 
 function Assert-Command([string] $Name) {
     if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
-        throw "Prerequisite '$Name' is not on PATH (see infra/terraform/README.md)."
+        throw "Prerequisite '$Name' is not on PATH (see infra/azure/terraform/README.md)."
     }
 }
 
@@ -163,7 +163,7 @@ else {
     Write-Host "  - Neon project $neonProjectName - none found"
 }
 Write-Host '  - everything Terraform manages in the HCP Terraform workspace (terraform destroy)'
-Write-Host '  - local infra/terraform/.terraform'
+Write-Host '  - local infra/azure/terraform/.terraform'
 Write-Host ''
 
 # --- 2. Confirmation -------------------------------------------------------------------------
@@ -177,7 +177,7 @@ $problems = @()
 
 # --- 3. terraform destroy ---------------------------------------------------------------------
 
-if ($PSCmdlet.ShouldProcess('infra/terraform', 'terraform destroy (everything)')) {
+if ($PSCmdlet.ShouldProcess('infra/azure/terraform', 'terraform destroy (everything)')) {
     try {
         $resolvedVarFile = if ($VarFile) { (Resolve-Path $VarFile).Path } else { $null }
         $destroyArgs = Get-DestroyArgument -TerraformDir $terraformDir -Environment $environmentName `
@@ -252,7 +252,7 @@ foreach ($project in @(Find-NeonProjectByName $neonProjectName)) { $remaining +=
 
 foreach ($problem in $problems) { Write-Warning $problem }
 if ($remaining.Count -gt 0) {
-    throw "Still present: $($remaining -join ', '). Re-run ./infra/teardown.ps1 to retry."
+    throw "Still present: $($remaining -join ', '). Re-run ./infra/azure/teardown.ps1 to retry."
 }
 
 Write-Host 'Environment removed. The next deploy starts from scratch.' -ForegroundColor Green
