@@ -2,6 +2,8 @@
 
 Constitution v1.4.0, research R-17/R-18/R-19, ADR-0016/ADR-0017/ADR-0021/ADR-0022, FR-043–FR-047, SC-011.
 
+First deploy from scratch? Follow the end-to-end checklist in [`../deployment-runbook.md`](../deployment-runbook.md) (accounts, keys, order).
+
 ## Topology
 
 ```text

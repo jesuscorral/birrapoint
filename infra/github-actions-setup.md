@@ -15,6 +15,8 @@ Only `deploy.yml` creates or changes infrastructure: it runs the same `terraform
 workstation (see `infra/terraform/README.md`), so it can also create a brand-new environment.
 State lives in HCP Terraform (workspace in **Local** execution mode).
 
+For the full from-scratch order (accounts, keys, first local apply) see [`deployment-runbook.md`](deployment-runbook.md).
+
 Commands below are PowerShell. Run them from the repository root, logged in with `az login` and
 `gh auth login`.
 
