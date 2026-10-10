@@ -87,8 +87,10 @@ public sealed class DispatchWorker(
         }
     }
 
-    /// <summary>A Running job whose lease expired (or was never set) belongs to a crashed worker;
-    /// treat it exactly like a failed attempt so it goes through the same retry/backoff decision.
+    /// <summary>A Running job whose lease expired belongs to a crashed worker; treat it exactly like
+    /// a failed attempt so it goes through the same retry/backoff decision. A job with no lease was
+    /// claimed by a pre-lease (pre-T129) revision, which may still be running it during the first
+    /// rollout: it counts as orphaned only once it has not been touched for a full lease duration.
     /// Claimed with SKIP LOCKED so concurrent recoverers never double-count an attempt.</summary>
     private async Task RecoverExpiredLeasesAsync(CancellationToken stoppingToken)
     {
@@ -98,12 +100,15 @@ public sealed class DispatchWorker(
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
             var now = DateTimeOffset.UtcNow;
+            var staleBefore = now - LeaseDuration;
             var running = nameof(DispatchJobStatus.Running);
             await using var transaction = await db.Database.BeginTransactionAsync(stoppingToken);
             var expired = await db.DispatchJobs
                 .FromSql($"""
                     SELECT * FROM "DispatchJobs"
-                    WHERE "Status" = {running} AND ("LeaseExpiresAt" IS NULL OR "LeaseExpiresAt" < {now})
+                    WHERE "Status" = {running}
+                      AND ("LeaseExpiresAt" < {now}
+                           OR ("LeaseExpiresAt" IS NULL AND "UpdatedAt" < {staleBefore}))
                     ORDER BY "CreatedAt"
                     LIMIT {RecoveryBatchSize}
                     FOR UPDATE SKIP LOCKED
