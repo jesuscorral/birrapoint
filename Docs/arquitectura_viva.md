@@ -141,8 +141,9 @@ Projects: `BirraPoint.Api` (modular monolith), `BirraPoint.AppHost`, `BirraPoint
   `Pending` job per transaction (`FOR UPDATE SKIP LOCKED`), marks it `Running` with
   `LeaseOwner`/`LeaseExpiresAt`, runs the handler outside the transaction, renews the lease every
   `LeaseDuration`/3 (`Dispatch:LeaseDuration`, default 2 min) and writes the outcome only
-  `WHERE LeaseOwner = me` (lost lease: result discarded, warning logged). `Running` rows with a
-  null/expired lease are recovered at startup and every sweep as failed attempts; live leases are
+  `WHERE LeaseOwner = me` (lost lease: result discarded, warning logged). `Running` rows with an
+  expired lease, or a null lease and `UpdatedAt` older than `LeaseDuration` (legacy pre-lease
+  claim), are recovered at startup and every sweep as failed attempts; live leases are
   never touched (ADR-0024). Dispatch is by `DispatchJobType` to an `IDispatchJobHandler`, with
   capped exponential backoff enforced by `NextAttemptAt` (ADR-0008, max 5 attempts) and
   `DispatchProgress` emits. `RetryDispatch` resets only `Failed` `SendResultEmail` jobs (FR-041) and wakes the worker right after the reset. With a long poll only three cases wait for the next sweep: backed-off retries after a process restart, `Pending` jobs written by another revision, and expired-lease recovery after a crash (startup always sweeps once). Handlers: `ProvisionJudgeAccount`, `SendInvitation`,

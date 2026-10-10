@@ -250,7 +250,9 @@ dispatch wake-ups on a paid plan, then apply as usual.
 - **Revision rollout overlap.** Even in `Single` revision mode ACA briefly runs the old and the
   new API revision together, and both may run the DispatchJob worker. Jobs are claimed
   atomically with a lease (ADR-0024), so a job in flight is not run twice; if the old revision is
-  stopped mid-job, the new one recovers it once the lease (default 2 min) expires.
+  stopped mid-job, the new one recovers it once the lease (default 2 min) expires. Exception: the
+  first deploy of the lease change itself, whose old revision claims without a lease — deploy it
+  while no competition is being finalized.
 - **Keycloak hardening** (brute-force detection, password policy, admin console exposure) is
   T130. Until then, change the `admin` password after the first login and keep it strong.
 - **Docker Hub rate limits.** Anonymous pulls from ACA's shared outbound IPs can be throttled;

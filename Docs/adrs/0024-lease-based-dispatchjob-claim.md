@@ -18,8 +18,10 @@ emails, double PDFs) and a new revision could reset a job the old one was still 
   `Running` and the lease, then run the handler outside the transaction.
 - Renew the lease every `LeaseDuration`/3 (`Dispatch:LeaseDuration`, default 2 min, must be > 0).
 - Write the outcome only `WHERE LeaseOwner = me`. On a lost lease, discard the result and log.
-- Recover `Running` jobs with a null or expired lease at startup and every sweep, through the
-  existing retry/backoff path. Live leases are never touched.
+- Recover `Running` jobs with an expired lease at startup and every sweep, through the existing
+  retry/backoff path. Live leases are never touched. A `Running` job with no lease was claimed by
+  a pre-lease revision and counts as orphaned only once its `UpdatedAt` is older than
+  `LeaseDuration` (PR #65 review M1), so the first rollout does not re-run it immediately.
 - `RetryDispatch` resets only `Failed` `SendResultEmail` jobs (FR-041).
 
 Rejected: a broker or Hangfire (extra dependency, R-06 still holds), Postgres advisory locks
@@ -31,6 +33,9 @@ Rejected: a broker or Hangfire (extra dependency, R-06 still holds), Postgres ad
   to `LeaseDuration` before recovery.
 - Handlers still must be idempotent: a handler outliving a lost lease may finish its side effects
   while another worker retries.
+- **First rollout of this change is not covered**: the old revision still claims without a
+  lease and keeps its in-memory batch, so deploy it while no dispatch is in flight (no
+  competition being finalized). Later rollouts are safe.
 - Two new nullable columns and one index; `data-model.md` and R-06 updated.
 - Raising the API replica count still needs a SignalR backplane (ADR-0016 constraint on SignalR
   remains; the job-queue half is lifted).
