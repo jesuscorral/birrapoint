@@ -49,4 +49,19 @@ public sealed class DispatchOptionsTests
 
         Assert.Contains("Dispatch:SafetyNetPollInterval", options.Validate());
     }
+
+    [Fact]
+    public void Validator_failure_message_names_the_bad_setting()
+    {
+        var validator = new DispatchOptionsValidator();
+
+        var lease = validator.Validate(null, new DispatchOptions { LeaseDuration = TimeSpan.Zero });
+        var poll = validator.Validate(null, new DispatchOptions { SafetyNetPollInterval = TimeSpan.Zero });
+
+        Assert.True(lease.Failed);
+        Assert.Contains("Dispatch:LeaseDuration", lease.FailureMessage);
+        Assert.True(poll.Failed);
+        Assert.Contains("Dispatch:SafetyNetPollInterval", poll.FailureMessage);
+        Assert.True(validator.Validate(null, new DispatchOptions()).Succeeded);
+    }
 }

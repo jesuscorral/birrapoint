@@ -45,8 +45,7 @@ public sealed class DispatchWorker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await RunGuardedAsync(RecoverExpiredLeasesAsync, stoppingToken);
-        await RunGuardedAsync(ProcessPendingJobsAsync, stoppingToken);
+        await SweepAsync(stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -57,9 +56,15 @@ public sealed class DispatchWorker(
                 break;
             }
 
-            await RunGuardedAsync(RecoverExpiredLeasesAsync, stoppingToken);
-            await RunGuardedAsync(ProcessPendingJobsAsync, stoppingToken);
+            await SweepAsync(stoppingToken);
         }
+    }
+
+    private async Task SweepAsync(CancellationToken stoppingToken)
+    {
+        await RunGuardedAsync(RecoverExpiredLeasesAsync, stoppingToken);
+        await RunGuardedAsync(ProcessPendingJobsAsync, stoppingToken);
+        await RunGuardedAsync(ScheduleNextWakeAsync, stoppingToken);
     }
 
     /// <summary>A transient fault in a cycle must never fault <see cref="ExecuteAsync"/> — that
@@ -141,9 +146,12 @@ public sealed class DispatchWorker(
 
     private async Task WaitForWorkAsync(CancellationToken stoppingToken)
     {
-        var channelWait = wakeUpChannel.Reader.WaitToReadAsync(stoppingToken).AsTask();
-        var timerWait = Task.Delay(SafetyNetPollInterval, stoppingToken);
+        // The losing delay must not stay alive (up to the full poll interval) after a channel wake.
+        using var waitCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        var channelWait = wakeUpChannel.Reader.WaitToReadAsync(waitCts.Token).AsTask();
+        var timerWait = Task.Delay(SafetyNetPollInterval, waitCts.Token);
         await Task.WhenAny(channelWait, timerWait);
+        await waitCts.CancelAsync();
 
         // Drain any queued signals now so the channel doesn't accumulate while this cycle runs —
         // the upcoming full sweep already covers whatever they were signaling.
@@ -361,11 +369,6 @@ public sealed class DispatchWorker(
         }
 
         await PublishProgressSafely(job, job.LastError);
-
-        if (outcome.Backoff.HasValue)
-        {
-            ScheduleRetrySignal(job.Id, outcome.Backoff.Value, stoppingToken);
-        }
     }
 
     /// <summary>The DispatchProgress notification is fire-and-forget, not the source of truth
@@ -385,21 +388,66 @@ public sealed class DispatchWorker(
         }
     }
 
-    /// <summary>Best-effort early wake-up for a backed-off retry; the periodic safety-net poll in
-    /// <see cref="WaitForWorkAsync"/>, combined with the NextAttemptAt filter in
-    /// <see cref="ClaimNextPendingAsync"/>, is what actually enforces the delay — this only
-    /// saves the job from waiting out the full safety-net poll interval unnecessarily.</summary>
-    private void ScheduleRetrySignal(Guid jobId, TimeSpan delay, CancellationToken stoppingToken) =>
+    private static readonly TimeSpan WakeMargin = TimeSpan.FromSeconds(1);
+
+    private CancellationTokenSource? _scheduledWake;
+
+    /// <summary>End of every sweep: one cheap query for the earliest lease expiry among Running jobs
+    /// and the earliest NextAttemptAt among Pending jobs (a dead worker's lease, or a backoff whose
+    /// in-process signal died with the old process), then a single scheduled wake at
+    /// min(that + margin, safety-net poll). Replaces the previous scheduled wake, so at most one is
+    /// pending; nothing is scheduled when nothing is waiting.</summary>
+    private async Task ScheduleNextWakeAsync(CancellationToken stoppingToken)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var running = nameof(DispatchJobStatus.Running);
+        var pending = nameof(DispatchJobStatus.Pending);
+
+        var earliest = await db.Database
+            .SqlQuery<DateTimeOffset?>($"""
+                SELECT LEAST(
+                    (SELECT MIN("LeaseExpiresAt") FROM "DispatchJobs" WHERE "Status" = {running}),
+                    (SELECT MIN("NextAttemptAt") FROM "DispatchJobs" WHERE "Status" = {pending})) AS "Value"
+                """)
+            .SingleAsync(stoppingToken);
+
+        var previous = Interlocked.Exchange(ref _scheduledWake, null);
+        if (previous is not null)
+        {
+            await previous.CancelAsync();
+            previous.Dispose();
+        }
+
+        if (earliest is null)
+        {
+            return;
+        }
+
+        var delay = earliest.Value - DateTimeOffset.UtcNow + WakeMargin;
+        if (delay < WakeMargin)
+        {
+            delay = WakeMargin;
+        }
+
+        if (delay > SafetyNetPollInterval)
+        {
+            delay = SafetyNetPollInterval;
+        }
+
+        var wake = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        _scheduledWake = wake;
         _ = Task.Run(async () =>
         {
             try
             {
-                await Task.Delay(delay, stoppingToken);
-                await wakeUpChannel.Writer.WriteAsync(jobId, stoppingToken);
+                await Task.Delay(delay, wake.Token);
+                wakeUpChannel.Writer.TryWrite(Guid.Empty);
             }
             catch (OperationCanceledException)
             {
-                // Host is shutting down — nothing to signal.
+                // Replaced by a newer schedule, or the host is shutting down.
             }
-        }, stoppingToken);
+        }, CancellationToken.None);
+    }
 }

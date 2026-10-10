@@ -242,3 +242,12 @@ run "zero_dispatch_poll_interval_is_rejected" {
 
   expect_failures = [var.dispatch_poll_interval]
 }
+
+run "keycloak_housekeeping_interval_keeps_neon_asleep" {
+  command = plan
+
+  assert {
+    condition     = [for e in azurerm_container_app.keycloak.template[0].container[0].env : e.value if e.name == "KC_SPI_SCHEDULED_INTERVAL"] == ["21600"]
+    error_message = "Keycloak housekeeping must run every 6 h, not the 15 min default (Neon compute budget, ADR-0025)"
+  }
+}

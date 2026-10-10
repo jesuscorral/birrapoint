@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+
 namespace BirraPoint.Api.Common.Jobs;
 
 /// <summary>Bound from the <c>Dispatch</c> configuration section (T129, T132).</summary>
@@ -36,4 +38,10 @@ public sealed class DispatchOptions
 
         return null;
     }
+}
+
+public sealed class DispatchOptionsValidator : IValidateOptions<DispatchOptions>
+{
+    public ValidateOptionsResult Validate(string? name, DispatchOptions options) =>
+        options.Validate() is { } error ? ValidateOptionsResult.Fail(error) : ValidateOptionsResult.Success;
 }

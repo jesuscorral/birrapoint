@@ -115,6 +115,8 @@ locals {
     KC_HTTP_ENABLED             = "true"
     KC_PROXY_HEADERS            = "forwarded"
     KC_BOOTSTRAP_ADMIN_USERNAME = "admin"
+    # Seconds between Keycloak's housekeeping tasks (default 900); each run wakes Neon (ADR-0025).
+    KC_SPI_SCHEDULED_INTERVAL = "21600"
     # ${VAR:default} placeholders in the imported realm (infra/keycloak/birrapoint-realm.json).
     SPA_URL       = local.web_url
     SMTP_HOST     = var.smtp_host

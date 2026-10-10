@@ -62,7 +62,7 @@ ADR-0021).
 | `-web` | `birrapoint-web`: Angular build → `nginx-unprivileged` | external | writes `/config.json` from env at start; reverse-proxies `/api/` and `/hubs/` (WebSocket) to the API (ADR-0017); security headers; hashed assets cached 1 year |
 | `-api` | `birrapoint-api`: `aspnet:10.0`, non-root | **internal** | exactly 1 replica (SignalR without backplane, single job consumer); Dapr sidecar loads `ConnectionStrings:db` (Neon pooled), `ConnectionStrings:dbDirect` (direct, migrations only), `Keycloak:AdminClientSecret`, `Smtp:Password` |
 | `-kc` | `birrapoint-keycloak`: optimized build + theme + production realm + Dapr secret loader | external | entrypoint loads its 5 secrets from the sidecar (≤180 s retry), then `start --optimized --import-realm`; readiness probe on `/health/live` (port 9000), liveness-only so it does not touch the DB (ADR-0025) |
-| `-neon` | Neon project (`kislerdm/neon` provider), PG 16 | — | databases `birrapoint` and `keycloak` on one branch, so a PITR restores both consistently; compute autoscaling minimum 0.25 CU; Free plan = 100 CU-h/month, so live events need the Launch plan (ADR-0025, budget in `infra/<cloud>/terraform/README.md`) |
+| `-neon` | Neon project (`kislerdm/neon` provider), PG 16 | — | databases `birrapoint` and `keycloak` on one branch, so a PITR restores both consistently; compute autoscaling minimum 0.25 CU; Free plan = 100 CU-h/month, idle estimate about 20 CU-h with the Keycloak image set to `KC_CACHE=local`, no background pool validation and a 6 h housekeeping interval (measured on Keycloak 26.2: image defaults never let compute suspend, about 182 CU-h); live events need the Launch plan (ADR-0025, budget in `infra/<cloud>/terraform/README.md`) |
 
 **Secrets** never enter an image or the repo. Neon passwords come from the provider; the Keycloak
 bootstrap admin and API admin-client secrets from `random_password`; SMTP and the
@@ -146,7 +146,7 @@ Projects: `BirraPoint.Api` (modular monolith), `BirraPoint.AppHost`, `BirraPoint
   claim), are recovered at startup and every sweep as failed attempts; live leases are
   never touched (ADR-0024). Dispatch is by `DispatchJobType` to an `IDispatchJobHandler`, with
   capped exponential backoff enforced by `NextAttemptAt` (ADR-0008, max 5 attempts) and
-  `DispatchProgress` emits. `RetryDispatch` resets only `Failed` `SendResultEmail` jobs (FR-041) and wakes the worker right after the reset. With a long poll only three cases wait for the next sweep: backed-off retries after a process restart, `Pending` jobs written by another revision, and expired-lease recovery after a crash (startup always sweeps once). Handlers: `ProvisionJudgeAccount`, `SendInvitation`,
+  `DispatchProgress` emits. `RetryDispatch` resets only `Failed` `SendResultEmail` jobs (FR-041) and wakes the worker right after the reset. Each sweep (startup included) schedules one wake at the earliest lease expiry or `NextAttemptAt` (+1 s, capped at the poll interval), so with a long poll only `Pending` jobs written by another revision wait for the next sweep. Handlers: `ProvisionJudgeAccount`, `SendInvitation`,
   `GeneratePdfs`, `BundleZip`, `SendResultEmail`.
 - **Keycloak Admin** (`Common/Keycloak/`): client-credentials as `birrapoint-api-admin`.
   `EnsureUserWithTemporaryPasswordAsync` finds or creates the user, always grants `JUDGE`, and
@@ -260,7 +260,7 @@ Shared primitives live in `shared/components/` (`bp-button`, `bp-input`, `bp-ale
 - **No integration tests** for `CompetitionHub` join authorization or for the `DispatchWorker`
   DB loop.
 - **Health endpoints** `/health`, `/alive` are Development-only; ACA uses default probes (T098).
-- **Probes no longer reflect DB reachability** (Keycloak ACA probe, AWS ALB check use `/health/live`; ADR-0025). Neon CU-hours and the probes are unverified on real accounts (T099/T137).
+- **Probes no longer reflect DB reachability** (Keycloak ACA probe, AWS ALB check use `/health/live`; ADR-0025). Keycloak is single-replica by construction (`KC_CACHE=local`). Neon billing behaviour and the probes are unverified on real accounts (T099/T137).
 - **Single API replica**: scaling out needs a SignalR backplane and a migration job (the job queue is already multi-worker safe, ADR-0024).
 - **Keycloak production hardening** pending (T130: brute-force, password policy, admin console
   exposure); Keycloak's JDBC uses `sslmode=require` (API uses `VerifyFull`).

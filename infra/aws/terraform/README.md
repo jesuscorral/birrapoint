@@ -203,13 +203,19 @@ Wake sources, and what this deployment does about each:
 | Source | Effect | Mitigation |
 |---|---|---|
 | DispatchWorker safety-net poll | one wake per interval; every 30 s would keep compute on 24/7 (about 182 CU-h/month at 0.25 CU) | `dispatch_poll_interval`, default `01:00:00` |
-| Keycloak internal cleanup task (about every 15 min, expired offline sessions) | about 4 wakes/h of at least 5 min each: roughly 20 min/h, about 61 CU-h/month | none: no documented server option; budget for it |
+| Keycloak cluster discovery (default `ispn` cache, JDBC_PING) | measured on Keycloak 26.2: a `SELECT ... FROM JGROUPS_PING` every 30-40 s; the longest quiet gap in 37 min was 65 s, so compute never suspends (24/7: about 182 CU-h/month, above the Free cap) | the image sets `KC_CACHE=local` (build and run time; `infra/keycloak/Dockerfile`). Single replica only: more than one needs `ispn` again |
+| Keycloak pool validation (Quarkus Agroal default: idle connections validated every 2 min) | measured: `state_change` of every pooled connection moves every 2 min even with no queries logged, which alone keeps a 5 min suspend timer from firing | `infra/keycloak/quarkus.properties` (copied to `conf/quarkus.properties`): background validation off, validation on borrow for connections idle over 5 s, so the connection Neon closed on suspend is replaced instead of failing the first request (measured: without it, HTTP 500 after a server-side disconnect) |
+| Keycloak housekeeping task (expired revoked tokens, events, sessions; default every 900 s) | measured every 15 min; each run wakes compute for at least its 5 min suspend delay | `KC_SPI_SCHEDULED_INTERVAL=21600` (6 h; seconds). Works in 26.2 (debug log shows the interval) but is not listed by `kc.sh start --help-all`; re-check on a Keycloak upgrade |
 | Keycloak health check | `/health/ready` validates the pooled DB connections on every call (measured, Keycloak 26.2: `/health/live` and `/health/started` do not touch the DB) | the ALB target group checks `/health/live`; the lost signal is "database unreachable" in the check (Keycloak still fails requests itself) |
 | Real traffic (organizers, judges, offline sync) | active time during use | none; this is the point of the database |
 
-Estimate with the defaults and an idle system: about 61 CU-h/month from Keycloak plus up to
-about 15 CU-h from the hourly poll, so roughly 60-80 CU-h of the 100 free. A busy event week
-uses more.
+Estimate with the defaults and an idle system, assuming each wake costs about 5.5 min of compute
+(the 5 min suspend delay plus the work): 4 Keycloak housekeeping wakes a day is about 3 CU-h/month,
+the hourly poll up to about 16 CU-h, so roughly 20 CU-h of the 100 free. Without the Keycloak
+settings above (image defaults) compute never suspends: about 182 CU-h/month. Method: Keycloak 26.2
+on Postgres 16 in Docker, idle, `pg_stat_activity` sampled every 30 s plus `log_statement=all`;
+the Neon billing side (what counts as activity, per-wake cost) is not measured here - confirm in the
+console, Monitoring, CU-hours (T099/T137). A busy event week uses more.
 
 **Recommendation.** Free plan works for low traffic and idle periods with the 1 h poll. A paid
 plan (Launch) is a **prerequisite for a live competition period** or any guaranteed availability:

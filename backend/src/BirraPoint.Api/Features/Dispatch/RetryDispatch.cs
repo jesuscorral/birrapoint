@@ -1,6 +1,6 @@
 using System.Text.Json;
-using System.Threading.Channels;
 using BirraPoint.Api.Common.Auth;
+using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using FluentValidation;
@@ -23,10 +23,10 @@ public sealed class RetryDispatchCommandValidator : AbstractValidator<RetryDispa
 /// <summary>Re-queues failed result emails (FR-041) by resetting the SendResultEmail job back to a
 /// fresh attempt. Only Failed jobs: a Completed one would resend the email, a Running one may still
 /// be executing under another worker's lease (T129). After the commit the worker is woken
-/// through the shared channel (same as DispatchJobQueue), because the production safety-net poll
+/// through IDispatchWakeUp (same as DispatchJobQueue), because the production safety-net poll
 /// (Dispatch:SafetyNetPollInterval) can be hours long (T132).</summary>
 public sealed class RetryDispatchCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, Channel<Guid> wakeUpChannel)
+    AppDbContext dbContext, ICurrentUser currentUser, IDispatchWakeUp wakeUp)
     : IRequestHandler<RetryDispatchCommand, bool>
 {
     public async Task<bool> Handle(RetryDispatchCommand request, CancellationToken cancellationToken)
@@ -66,11 +66,11 @@ public sealed class RetryDispatchCommandHandler(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        // Best-effort wake-up after commit; an unbounded channel write never blocks. One signal is
-        // enough (the worker drains the channel and sweeps everything pending).
+        // Best-effort wake-up after commit (never fails the request). One signal is enough: the
+        // worker drains the channel and sweeps everything pending.
         if (resetJobIds.Count > 0)
         {
-            await wakeUpChannel.Writer.WriteAsync(resetJobIds[0], cancellationToken);
+            wakeUp.Signal();
         }
 
         return true;

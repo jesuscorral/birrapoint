@@ -22,6 +22,7 @@ using BirraPoint.Api.Realtime;
 using BirraPoint.ServiceDefaults;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 // Community license (T074) — required before the first document generation or QuestPDF throws.
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
@@ -72,10 +73,11 @@ builder.Services.AddSingleton<IEventPublisher, EventPublisher>();
 // DispatchJob queue + hosted worker (T016/R-06): Channel<Guid> wakes the worker immediately on
 // enqueue; the worker's own periodic safety-net poll (Dispatch:SafetyNetPollInterval) covers any missed signal.
 builder.Services.AddSingleton(Channel.CreateUnbounded<Guid>());
+builder.Services.AddSingleton<IDispatchWakeUp, ChannelDispatchWakeUp>();
+builder.Services.AddSingleton<IValidateOptions<DispatchOptions>, DispatchOptionsValidator>();
 builder.Services.AddScoped<IDispatchJobQueue, DispatchJobQueue>();
 builder.Services.AddOptions<DispatchOptions>()
     .BindConfiguration(DispatchOptions.SectionName)
-    .Validate(o => o.Validate() is null, "Invalid Dispatch options: LeaseDuration and SafetyNetPollInterval must each be at least 1 second.")
     .ValidateOnStart();
 builder.Services.AddHostedService<DispatchWorker>();
 

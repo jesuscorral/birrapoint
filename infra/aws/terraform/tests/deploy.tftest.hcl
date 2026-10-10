@@ -682,3 +682,12 @@ run "zero_dispatch_poll_interval_is_rejected" {
 
   expect_failures = [var.dispatch_poll_interval]
 }
+
+run "keycloak_housekeeping_interval_keeps_neon_asleep" {
+  command = apply
+
+  assert {
+    condition     = [for e in [for c in jsondecode(aws_ecs_task_definition.keycloak.container_definitions) : c if c.name == "keycloak"][0].environment : e.value if e.name == "KC_SPI_SCHEDULED_INTERVAL"] == ["21600"]
+    error_message = "Keycloak housekeeping must run every 6 h, not the 15 min default (Neon compute budget, ADR-0025)"
+  }
+}

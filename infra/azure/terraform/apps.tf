@@ -238,6 +238,12 @@ resource "azurerm_container_app" "keycloak" {
         name  = "KC_BOOTSTRAP_ADMIN_USERNAME"
         value = "admin"
       }
+      # Seconds between Keycloak's housekeeping tasks (expired revoked tokens, events, sessions;
+      # default 900). Each run wakes Neon for at least its 5 min suspend delay (ADR-0025).
+      env {
+        name  = "KC_SPI_SCHEDULED_INTERVAL"
+        value = "21600"
+      }
       # ${VAR:default} placeholders in the imported realm (infra/keycloak/birrapoint-realm.json).
       env {
         name  = "SPA_URL"

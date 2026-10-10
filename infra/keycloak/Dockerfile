@@ -31,13 +31,22 @@ COPY dapr-secrets/DaprSecretsEnv.java /src/
 RUN javac --release 21 -d /out /src/DaprSecretsEnv.java
 
 FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION} AS builder
+# KC_CACHE=local: no Infinispan clustering. The default (ispn + JDBC_PING) polls the JGROUPS_PING
+# table every ~30 s, which keeps Neon compute awake 24/7 (ADR-0025). BirraPoint runs exactly one
+# Keycloak replica; scaling out needs `ispn` again (and a paid Neon plan).
 ENV KC_DB=postgres \
+    KC_CACHE=local \
     KC_HEALTH_ENABLED=true \
     KC_METRICS_ENABLED=true
 COPY themes/birrapoint /opt/keycloak/themes/birrapoint
+# Connection-pool validation tuning, see the file header (ADR-0025).
+COPY quarkus.properties /opt/keycloak/conf/quarkus.properties
 RUN /opt/keycloak/bin/kc.sh build
 
 FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}
+# Repeated from the builder stage on purpose: Keycloak reads `cache` again at run time, and with the
+# default (`ispn`) the JDBC_PING cluster discovery starts despite the image having been built local.
+ENV KC_CACHE=local
 COPY --from=builder /opt/keycloak/ /opt/keycloak/
 COPY --from=realm /realm/birrapoint-realm.prod.json /opt/keycloak/data/import/birrapoint-realm.json
 COPY --from=dapr-secrets /out/ /opt/birrapoint/dapr-secrets/
