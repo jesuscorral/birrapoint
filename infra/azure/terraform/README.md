@@ -43,8 +43,8 @@ First deploy from scratch? Follow the end-to-end checklist in [`infra/azure/depl
   secrets from Key Vault (below).
 - **The API is not publicly reachable.** Browsers only talk to the web app (same origin, no
   CORS) and to Keycloak.
-- **The API runs exactly one replica**: SignalR has no backplane and the `DispatchJob` worker is a
-  single consumer (R-06). Scaling out requires a backplane first.
+- **The API runs exactly one replica**: SignalR has no backplane. The `DispatchJob` queue itself is
+  multi-worker safe (lease + `SKIP LOCKED`, ADR-0024). Scaling out requires a backplane first.
 - **Secrets** (Neon credentials, Keycloak bootstrap admin password, API admin-client secret,
   SMTP password) live in **Key Vault** `birrapoint-<env>-kv` (and in
   Terraform's state in HCP, which writes them; the generated ones come from `random_password`).
@@ -216,9 +216,9 @@ Environments deployed with `deploy.ps1` keep their state in an Azure Storage acc
   (e.g. a custom domain) does not reach Keycloak — update the client in the admin console too,
   or judge provisioning / login redirects break.
 - **Revision rollout overlap.** Even in `Single` revision mode ACA briefly runs the old and the
-  new API revision together, and the DispatchJob worker has no atomic job claim yet, so a job in
-  flight during a deploy can run twice (duplicate result email). Avoid deploying while results
-  are being dispatched until T129 lands.
+  new API revision together, and both may run the DispatchJob worker. Jobs are claimed
+  atomically with a lease (ADR-0024), so a job in flight is not run twice; if the old revision is
+  stopped mid-job, the new one recovers it once the lease (default 2 min) expires.
 - **Keycloak hardening** (brute-force detection, password policy, admin console exposure) is
   T130. Until then, change the `admin` password after the first login and keep it strong.
 - **Docker Hub rate limits.** Anonymous pulls from ACA's shared outbound IPs can be throttled;

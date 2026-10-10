@@ -65,7 +65,7 @@ is in [`infra/aws/github-actions-setup.md`](../github-actions-setup.md); what is
   `KC_HOSTNAME=<keycloak_url>`.
 - **The API runs exactly one task** (`desired_count = 1`, deployment 0% min / 100% max, so the old
   task stops before the new one starts: a short API outage per deploy): SignalR has no backplane
-  and the `DispatchJob` worker is a single consumer (R-06).
+  (the `DispatchJob` queue is lease-based and multi-worker safe, ADR-0024).
 - **Service discovery**: Cloud Map private DNS (`api.birrapoint-<env>.local`), not ECS Service
   Connect: nginx resolves `API_UPSTREAM` per request with its `resolver` directive, which ignores
   the `/etc/hosts` entries Service Connect writes. The image derives `NGINX_LOCAL_RESOLVERS` from
@@ -216,7 +216,7 @@ Manual alternative: `terraform -chdir=infra/aws/terraform destroy "-var-file=env
 - **One environment per AWS account and region**: the Dapr component reads the exact secret names
   the apps ask for (`ConnectionStrings--db`, `keycloak-db-password`, ...) and has no name prefix
   option, so the application secrets are not environment-qualified.
-- **API deployments stop the old task first** (single consumer): expect a brief API outage on
+- **API deployments stop the old task first** (SignalR has no backplane): expect a brief API outage on
   each rollout. `deployment_circuit_breaker` rolls back a task that fails to start.
 - **No container health checks**: the Keycloak image has no curl and the API has none on Azure
   either; the ALB checks web (`/`) and Keycloak (`/health/ready` on port 9000). A crashing API is
