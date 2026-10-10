@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Threading.Channels;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 
@@ -16,7 +15,7 @@ public interface IDispatchJobQueue
         Guid competitionId, DispatchJobType type, object payload, CancellationToken cancellationToken = default);
 }
 
-public sealed class DispatchJobQueue(AppDbContext db, Channel<Guid> wakeUpChannel) : IDispatchJobQueue
+public sealed class DispatchJobQueue(AppDbContext db, IDispatchWakeUp wakeUp) : IDispatchJobQueue
 {
     public async Task EnqueueAsync(
         Guid competitionId, DispatchJobType type, object payload, CancellationToken cancellationToken = default)
@@ -31,9 +30,8 @@ public sealed class DispatchJobQueue(AppDbContext db, Channel<Guid> wakeUpChanne
         db.DispatchJobs.Add(job);
         await db.SaveChangesAsync(cancellationToken);
 
-        // Best-effort wake-up: an unbounded channel write never blocks/fails, and the worker's
-        // periodic safety-net poll (DispatchWorker) still picks this job up even if this signal
-        // is somehow missed.
-        await wakeUpChannel.Writer.WriteAsync(job.Id, cancellationToken);
+        // Best-effort wake-up after commit; the worker's safety-net poll still picks this job up
+        // even if this signal is somehow missed.
+        wakeUp.Signal();
     }
 }

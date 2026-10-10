@@ -294,6 +294,15 @@ run "api_is_internal_and_single_instance" {
   }
 }
 
+run "keycloak_never_overlaps_during_deployment" {
+  command = plan
+
+  assert {
+    condition     = aws_ecs_service.keycloak.desired_count == 1 && aws_ecs_service.keycloak.deployment_minimum_healthy_percent == 0 && aws_ecs_service.keycloak.deployment_maximum_percent == 100
+    error_message = "Keycloak runs one task (KC_CACHE=local, no clustering) and a deployment stops the old task before starting the new one"
+  }
+}
+
 run "web_replicas_follow_the_variable" {
   command = plan
 
@@ -638,5 +647,56 @@ run "task_definition_arns_output_matches_the_services" {
   assert {
     condition     = toset(keys(output.ecs_task_definition_arns)) == toset(keys(output.ecs_service_names))
     error_message = "ecs_task_definition_arns and ecs_service_names must have the same keys"
+  }
+}
+
+run "dispatch_poll_interval_defaults_to_one_hour" {
+  command = plan
+
+  assert {
+    condition     = local.api_environment["Dispatch__SafetyNetPollInterval"] == "01:00:00"
+    error_message = "the API must receive Dispatch__SafetyNetPollInterval=01:00:00 by default (Neon compute budget)"
+  }
+}
+
+run "dispatch_poll_interval_is_configurable" {
+  command = plan
+
+  variables {
+    dispatch_poll_interval = "00:05:00"
+  }
+
+  assert {
+    condition     = local.api_environment["Dispatch__SafetyNetPollInterval"] == "00:05:00"
+    error_message = "dispatch_poll_interval must reach the API container"
+  }
+}
+
+run "invalid_dispatch_poll_interval_is_rejected" {
+  command = plan
+
+  variables {
+    dispatch_poll_interval = "30s"
+  }
+
+  expect_failures = [var.dispatch_poll_interval]
+}
+
+run "zero_dispatch_poll_interval_is_rejected" {
+  command = plan
+
+  variables {
+    dispatch_poll_interval = "00:00:00"
+  }
+
+  expect_failures = [var.dispatch_poll_interval]
+}
+
+run "keycloak_housekeeping_interval_keeps_neon_asleep" {
+  command = apply
+
+  assert {
+    condition     = [for e in [for c in jsondecode(aws_ecs_task_definition.keycloak.container_definitions) : c if c.name == "keycloak"][0].environment : e.value if e.name == "KC_SPI_SCHEDULED_INTERVAL"] == ["21600"]
+    error_message = "Keycloak housekeeping must run every 6 h, not the 15 min default (Neon compute budget, ADR-0025)"
   }
 }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BirraPoint.Api.Common.Auth;
+using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using FluentValidation;
@@ -21,9 +22,11 @@ public sealed class RetryDispatchCommandValidator : AbstractValidator<RetryDispa
 
 /// <summary>Re-queues failed result emails (FR-041) by resetting the SendResultEmail job back to a
 /// fresh attempt. Only Failed jobs: a Completed one would resend the email, a Running one may still
-/// be executing under another worker's lease (T129). DispatchWorker's safety-net poll picks up
-/// Pending jobs regardless of NextAttemptAt being cleared, no separate wake-up needed.</summary>
-public sealed class RetryDispatchCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+/// be executing under another worker's lease (T129). After the commit the worker is woken
+/// through IDispatchWakeUp (same as DispatchJobQueue), because the production safety-net poll
+/// (Dispatch:SafetyNetPollInterval) can be hours long (T132).</summary>
+public sealed class RetryDispatchCommandHandler(
+    AppDbContext dbContext, ICurrentUser currentUser, IDispatchWakeUp wakeUp)
     : IRequestHandler<RetryDispatchCommand, bool>
 {
     public async Task<bool> Handle(RetryDispatchCommand request, CancellationToken cancellationToken)
@@ -42,6 +45,7 @@ public sealed class RetryDispatchCommandHandler(AppDbContext dbContext, ICurrent
             .ToListAsync(cancellationToken);
 
         var participantIds = new HashSet<Guid>(request.ParticipantIds);
+        var resetJobIds = new List<Guid>();
 
         foreach (var job in jobs)
         {
@@ -57,9 +61,18 @@ public sealed class RetryDispatchCommandHandler(AppDbContext dbContext, ICurrent
             job.LastError = null;
             job.LeaseOwner = null;
             job.LeaseExpiresAt = null;
+            resetJobIds.Add(job.Id);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        // Best-effort wake-up after commit (never fails the request). One signal is enough: the
+        // worker drains the channel and sweeps everything pending.
+        if (resetJobIds.Count > 0)
+        {
+            wakeUp.Signal();
+        }
+
         return true;
     }
 }

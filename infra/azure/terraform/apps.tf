@@ -99,6 +99,10 @@ resource "azurerm_container_app" "api" {
         value = "birrapoint-api-admin"
       }
       env {
+        name  = "Dispatch__SafetyNetPollInterval"
+        value = var.dispatch_poll_interval
+      }
+      env {
         name  = "Smtp__Host"
         value = var.smtp_host
       }
@@ -195,10 +199,12 @@ resource "azurerm_container_app" "keycloak" {
         failure_count_threshold = 30
       }
 
+      # /health/live, not /health/ready: ready validates the pooled DB connections on every probe
+      # (~10 s), which would keep Neon compute awake 24/7 (README "Neon compute budget").
       readiness_probe {
         transport = "HTTP"
         port      = 9000
-        path      = "/health/ready"
+        path      = "/health/live"
       }
 
       liveness_probe {
@@ -231,6 +237,12 @@ resource "azurerm_container_app" "keycloak" {
       env {
         name  = "KC_BOOTSTRAP_ADMIN_USERNAME"
         value = "admin"
+      }
+      # Seconds between Keycloak's housekeeping tasks (expired revoked tokens, events, sessions;
+      # default 900). Each run wakes Neon for at least its 5 min suspend delay (ADR-0025).
+      env {
+        name  = "KC_SPI_SCHEDULED_INTERVAL"
+        value = "21600"
       }
       # ${VAR:default} placeholders in the imported realm (infra/keycloak/birrapoint-realm.json).
       env {

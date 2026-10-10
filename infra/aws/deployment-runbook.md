@@ -86,6 +86,9 @@ No local Docker is needed: images are built and published by GitHub Actions.
 3. From your SMTP provider, collect the host, port (587 with STARTTLS), user name, password, and a
    verified sender address.
 
+**Neon plan.** The Free plan (100 CU-hours/month) suffices for low traffic or idle periods; use a paid
+plan (Launch) before a live competition. See "Neon compute budget" in `terraform/README.md`.
+
 ### A4. Fill the environment file (committed)
 
 Edit `infra/aws/terraform/environments/prod.tfvars` and commit it through a PR:

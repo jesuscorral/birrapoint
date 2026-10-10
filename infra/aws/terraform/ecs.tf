@@ -89,20 +89,21 @@ locals {
   }
 
   api_environment = {
-    ASPNETCORE_ENVIRONMENT     = "Production"
-    Dapr__SecretStore          = var.dapr_secret_store_name
-    DAPR_HTTP_PORT             = tostring(local.dapr_http_port)
-    DAPR_GRPC_PORT             = tostring(local.dapr_grpc_port)
-    Database__MigrateOnStartup = "true"
-    Keycloak__Authority        = "${local.keycloak_url}/realms/birrapoint"
-    Keycloak__ApiAudience      = "birrapoint-api"
-    Keycloak__AdminClientId    = "birrapoint-api-admin"
-    Smtp__Host                 = var.smtp_host
-    Smtp__Port                 = tostring(var.smtp_port)
-    Smtp__Username             = var.smtp_username
-    Smtp__UseStartTls          = tostring(var.smtp_use_starttls)
-    Smtp__From                 = "BirraPoint <${var.smtp_from_address}>"
-    Frontend__BaseUrl          = local.web_url
+    ASPNETCORE_ENVIRONMENT          = "Production"
+    Dapr__SecretStore               = var.dapr_secret_store_name
+    DAPR_HTTP_PORT                  = tostring(local.dapr_http_port)
+    DAPR_GRPC_PORT                  = tostring(local.dapr_grpc_port)
+    Database__MigrateOnStartup      = "true"
+    Keycloak__Authority             = "${local.keycloak_url}/realms/birrapoint"
+    Keycloak__ApiAudience           = "birrapoint-api"
+    Keycloak__AdminClientId         = "birrapoint-api-admin"
+    Dispatch__SafetyNetPollInterval = var.dispatch_poll_interval
+    Smtp__Host                      = var.smtp_host
+    Smtp__Port                      = tostring(var.smtp_port)
+    Smtp__Username                  = var.smtp_username
+    Smtp__UseStartTls               = tostring(var.smtp_use_starttls)
+    Smtp__From                      = "BirraPoint <${var.smtp_from_address}>"
+    Frontend__BaseUrl               = local.web_url
   }
 
   keycloak_environment = {
@@ -114,6 +115,8 @@ locals {
     KC_HTTP_ENABLED             = "true"
     KC_PROXY_HEADERS            = "forwarded"
     KC_BOOTSTRAP_ADMIN_USERNAME = "admin"
+    # Seconds between Keycloak's housekeeping tasks (default 900); each run wakes Neon (ADR-0025).
+    KC_SPI_SCHEDULED_INTERVAL = "21600"
     # ${VAR:default} placeholders in the imported realm (infra/keycloak/birrapoint-realm.json).
     SPA_URL       = local.web_url
     SMTP_HOST     = var.smtp_host
@@ -271,7 +274,7 @@ resource "aws_ecs_task_definition" "keycloak" {
 
   # The image's entrypoint (infra/keycloak/dapr-secrets) loads the secrets listed in DAPR_SECRETS
   # from the Dapr secret store into Keycloak's environment before starting it. No container
-  # health check: the image has no curl; the ALB checks /health/ready on the management port.
+  # health check: the image has no curl; the ALB checks /health/live on the management port.
   container_definitions = jsonencode(concat(
     local.dapr_containers.keycloak,
     [merge({
@@ -298,7 +301,13 @@ resource "aws_ecs_service" "keycloak" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.keycloak.arn
   launch_type     = "FARGATE"
-  desired_count   = 1
+
+  # One task, never two at once (0% minimum healthy / 100% maximum): KC_CACHE=local means no
+  # clustering, so overlapping tasks would hold separate caches (ADR-0025). A deployment stops the
+  # old task before starting the new one: a short Keycloak outage, so deploy outside live events.
+  desired_count                      = 1
+  deployment_minimum_healthy_percent = 0
+  deployment_maximum_percent         = 100
 
   # First start imports the realm and creates Keycloak's schema on Neon: allow it time before
   # the ALB health check can fail the task.

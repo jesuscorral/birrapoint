@@ -30,9 +30,9 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
     private static readonly TimeSpan PollTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(200);
 
-    // DispatchWorker's manual-retry path deliberately has no proactive wake-up signal (contracts:
-    // "no latency SLA on manual retry pickup") — a retried job is only noticed on the next 30s
-    // safety-net sweep, so that one test needs a longer allowance than every other poll here.
+    // Crash-resume (an orphaned Pending job with no wake-up signal) is only noticed on the next
+    // configured safety-net poll sweep, so that test needs a longer allowance than every other poll here. Manual
+    // retry wakes the worker directly (T132) and uses the normal PollTimeout.
     private static readonly TimeSpan SafetyNetPollTimeout = TimeSpan.FromSeconds(35);
 
     private HttpClient OrganizerClient(string sub)
@@ -476,8 +476,10 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
 
     // ---- Retry ------------------------------------------------------------------------------
 
+    // The wake-up guarantee (no safety-net poll needed) is covered deterministically by
+    // DispatchWakeUpTests.Retry_dispatch_wakes_the_worker_without_the_safety_net_poll.
     [Fact]
-    public async Task Retry_dispatch_resets_a_failed_job_and_it_gets_reprocessed_by_the_safety_net_poll()
+    public async Task Retry_dispatch_resets_a_failed_job_and_it_gets_reprocessed()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer, "Retry");
@@ -492,7 +494,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
         Assert.Equal(HttpStatusCode.OK, retryResponse.StatusCode);
 
         // Reset itself is synchronous within the retry request — no polling needed for this part.
-        // The job is no longer Failed and its error is cleared; the DispatchWorker's safety-net poll
+        // The job is no longer Failed and its error is cleared; the DispatchWorker (woken by the retry or the poll)
         // may already have picked it up, so Running (mid-handler) is as valid as Pending or
         // Completed here (T138: asserting only Pending/Completed made this test flaky).
         var statusResponse = await GetDispatchStatusAsync(organizer, competitionId);
@@ -501,7 +503,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
         Assert.Contains(row.GetProperty("status").GetString(), new[] { "Pending", "Running", "Completed" });
         Assert.Null(row.GetProperty("lastError").GetString());
 
-        await PollForAllDispatchRowsCompletedAsync(organizer, competitionId, expectedCount: 1, SafetyNetPollTimeout);
+        await PollForAllDispatchRowsCompletedAsync(organizer, competitionId, expectedCount: 1, PollTimeout);
         Assert.Contains(FakeEmailSender.Sent, s => s.ToEmail == email);
     }
 

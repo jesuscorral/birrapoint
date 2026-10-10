@@ -22,5 +22,8 @@ web_min_replicas = 1
 
 neon_region                    = "aws-eu-central-1"
 neon_history_retention_seconds = 21600
+# DispatchWorker safety-net poll (hh:mm:ss). Default 01:00:00 lets Neon scale to zero between wakes;
+# see "Neon compute budget" in the README before shortening it.
+# dispatch_poll_interval = "01:00:00"
 # Neon organization: an account identifier, not committed. Only needed when the API key spans
 # several organizations: export TF_VAR_neon_org_id=org-... locally, or set the NEON_ORG_ID GitHub variable.
