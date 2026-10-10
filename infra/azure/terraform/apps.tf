@@ -99,6 +99,10 @@ resource "azurerm_container_app" "api" {
         value = "birrapoint-api-admin"
       }
       env {
+        name  = "Dispatch__SafetyNetPollInterval"
+        value = var.dispatch_poll_interval
+      }
+      env {
         name  = "Smtp__Host"
         value = var.smtp_host
       }
@@ -195,10 +199,12 @@ resource "azurerm_container_app" "keycloak" {
         failure_count_threshold = 30
       }
 
+      # /health/live, not /health/ready: ready validates the pooled DB connections on every probe
+      # (~10 s), which would keep Neon compute awake 24/7 (README "Neon compute budget").
       readiness_probe {
         transport = "HTTP"
         port      = 9000
-        path      = "/health/ready"
+        path      = "/health/live"
       }
 
       liveness_probe {

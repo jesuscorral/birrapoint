@@ -128,7 +128,7 @@ resource "aws_vpc_security_group_ingress_rule" "keycloak_from_alb" {
   ip_protocol                  = "tcp"
 }
 
-# Keycloak's management interface (/health/ready), used by the ALB health check.
+# Keycloak's management interface (/health/live), used by the ALB health check.
 resource "aws_vpc_security_group_ingress_rule" "keycloak_health_from_alb" {
   security_group_id            = aws_security_group.keycloak.id
   description                  = "Keycloak health checks from the ALB"

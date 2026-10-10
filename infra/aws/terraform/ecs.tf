@@ -89,20 +89,21 @@ locals {
   }
 
   api_environment = {
-    ASPNETCORE_ENVIRONMENT     = "Production"
-    Dapr__SecretStore          = var.dapr_secret_store_name
-    DAPR_HTTP_PORT             = tostring(local.dapr_http_port)
-    DAPR_GRPC_PORT             = tostring(local.dapr_grpc_port)
-    Database__MigrateOnStartup = "true"
-    Keycloak__Authority        = "${local.keycloak_url}/realms/birrapoint"
-    Keycloak__ApiAudience      = "birrapoint-api"
-    Keycloak__AdminClientId    = "birrapoint-api-admin"
-    Smtp__Host                 = var.smtp_host
-    Smtp__Port                 = tostring(var.smtp_port)
-    Smtp__Username             = var.smtp_username
-    Smtp__UseStartTls          = tostring(var.smtp_use_starttls)
-    Smtp__From                 = "BirraPoint <${var.smtp_from_address}>"
-    Frontend__BaseUrl          = local.web_url
+    ASPNETCORE_ENVIRONMENT          = "Production"
+    Dapr__SecretStore               = var.dapr_secret_store_name
+    DAPR_HTTP_PORT                  = tostring(local.dapr_http_port)
+    DAPR_GRPC_PORT                  = tostring(local.dapr_grpc_port)
+    Database__MigrateOnStartup      = "true"
+    Keycloak__Authority             = "${local.keycloak_url}/realms/birrapoint"
+    Keycloak__ApiAudience           = "birrapoint-api"
+    Keycloak__AdminClientId         = "birrapoint-api-admin"
+    Dispatch__SafetyNetPollInterval = var.dispatch_poll_interval
+    Smtp__Host                      = var.smtp_host
+    Smtp__Port                      = tostring(var.smtp_port)
+    Smtp__Username                  = var.smtp_username
+    Smtp__UseStartTls               = tostring(var.smtp_use_starttls)
+    Smtp__From                      = "BirraPoint <${var.smtp_from_address}>"
+    Frontend__BaseUrl               = local.web_url
   }
 
   keycloak_environment = {
@@ -271,7 +272,7 @@ resource "aws_ecs_task_definition" "keycloak" {
 
   # The image's entrypoint (infra/keycloak/dapr-secrets) loads the secrets listed in DAPR_SECRETS
   # from the Dapr secret store into Keycloak's environment before starting it. No container
-  # health check: the image has no curl; the ALB checks /health/ready on the management port.
+  # health check: the image has no curl; the ALB checks /health/live on the management port.
   container_definitions = jsonencode(concat(
     local.dapr_containers.keycloak,
     [merge({

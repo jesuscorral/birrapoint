@@ -200,3 +200,45 @@ run "neon_org_id_is_used_when_set" {
     error_message = "a set neon_org_id must be passed to the project"
   }
 }
+
+run "dispatch_poll_interval_defaults_to_one_hour" {
+  command = plan
+
+  assert {
+    condition     = [for e in azurerm_container_app.api.template[0].container[0].env : e.value if e.name == "Dispatch__SafetyNetPollInterval"] == ["01:00:00"]
+    error_message = "the API must receive Dispatch__SafetyNetPollInterval=01:00:00 by default (Neon compute budget)"
+  }
+}
+
+run "dispatch_poll_interval_is_configurable" {
+  command = plan
+
+  variables {
+    dispatch_poll_interval = "00:05:00"
+  }
+
+  assert {
+    condition     = [for e in azurerm_container_app.api.template[0].container[0].env : e.value if e.name == "Dispatch__SafetyNetPollInterval"] == ["00:05:00"]
+    error_message = "dispatch_poll_interval must reach the API container"
+  }
+}
+
+run "invalid_dispatch_poll_interval_is_rejected" {
+  command = plan
+
+  variables {
+    dispatch_poll_interval = "30s"
+  }
+
+  expect_failures = [var.dispatch_poll_interval]
+}
+
+run "zero_dispatch_poll_interval_is_rejected" {
+  command = plan
+
+  variables {
+    dispatch_poll_interval = "00:00:00"
+  }
+
+  expect_failures = [var.dispatch_poll_interval]
+}

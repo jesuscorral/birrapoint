@@ -204,6 +204,38 @@ Environments deployed with `deploy.ps1` keep their state in an Azure Storage acc
 (`git show <old-commit>:infra/teardown.ps1`) and deploy fresh, or move the state with
 `terraform init -migrate-state` after pointing a local `backend "azurerm"` block at it.
 
+## Neon compute budget
+
+Neon Free gives each project 100 CU-hours of compute per month (0.25 CU for about 400 h). When it
+is exhausted the compute is **suspended until the next billing period or an upgrade** (data is
+kept, but the API and Keycloak cannot reach the database). Free also fixes scale-to-zero at 5
+minutes of inactivity (no active queries; idle connections alone should not keep it awake, per
+Neon's docs - confirm in the console, Monitoring). Launch ($0.106/CU-hour) can disable scale-to-zero
+and has no monthly cap. The project pins a 0.25 CU floor (`primary_compute` in `neon.tf`).
+
+Wake sources, and what this deployment does about each:
+
+| Source | Effect | Mitigation |
+|---|---|---|
+| DispatchWorker safety-net poll | one wake per interval; every 30 s would keep compute on 24/7 (about 182 CU-h/month at 0.25 CU) | `dispatch_poll_interval`, default `01:00:00` |
+| Keycloak internal cleanup task (about every 15 min, expired offline sessions) | about 4 wakes/h of at least 5 min each: roughly 20 min/h, about 61 CU-h/month | none: no documented server option; budget for it |
+| Keycloak health check | `/health/ready` validates the pooled DB connections on every call (measured, Keycloak 26.2: `/health/live` and `/health/started` do not touch the DB) | the ACA readiness probe uses `/health/live`; the lost signal is "database unreachable" in the probe (Keycloak still fails requests itself) |
+| Real traffic (organizers, judges, offline sync) | active time during use | none; this is the point of the database |
+
+Estimate with the defaults and an idle system: about 61 CU-h/month from Keycloak plus up to
+about 15 CU-h from the hourly poll, so roughly 60-80 CU-h of the 100 free. A busy event week
+uses more.
+
+**Recommendation.** Free plan works for low traffic and idle periods with the 1 h poll. A paid
+plan (Launch) is a **prerequisite for a live competition period** or any guaranteed availability:
+a suspended compute means no logins and no evaluations until the next period. Check the Neon
+console, Monitoring, CU-hours, before an event.
+
+Change the poll with the `dispatch_poll_interval` variable (TimeSpan `hh:mm:ss`, `00:00:01` to
+`23:59:59`, passed to the API as `Dispatch__SafetyNetPollInterval`), e.g. in
+`environments/prod.tfvars`: `dispatch_poll_interval = "00:05:00"` for faster recovery of missed
+dispatch wake-ups on a paid plan, then apply as usual.
+
 ## Known limitations
 
 - Default `*.azurecontainerapps.io` host names; no custom domain yet.

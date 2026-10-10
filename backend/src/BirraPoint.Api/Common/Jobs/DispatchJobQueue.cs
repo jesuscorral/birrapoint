@@ -32,7 +32,7 @@ public sealed class DispatchJobQueue(AppDbContext db, Channel<Guid> wakeUpChanne
         await db.SaveChangesAsync(cancellationToken);
 
         // Best-effort wake-up: an unbounded channel write never blocks/fails, and the worker's
-        // periodic safety-net poll (DispatchWorker) still picks this job up even if this signal
+        // periodic safety-net poll (DispatchWorker, Dispatch:SafetyNetPollInterval) still picks this job up even if this signal
         // is somehow missed.
         await wakeUpChannel.Writer.WriteAsync(job.Id, cancellationToken);
     }

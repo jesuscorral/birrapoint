@@ -48,9 +48,11 @@ resource "aws_lb_target_group" "keycloak" {
 
   deregistration_delay = 30
 
-  # Keycloak serves its health endpoints on the management port, not the HTTP one.
+  # Keycloak serves its health endpoints on the management port, not the HTTP one. /health/live,
+  # not /health/ready: ready validates the pooled DB connections on every call, which would keep
+  # Neon compute awake 24/7 (README "Neon compute budget").
   health_check {
-    path     = "/health/ready"
+    path     = "/health/live"
     port     = "9000"
     matcher  = "200"
     interval = 30

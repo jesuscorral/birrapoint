@@ -640,3 +640,45 @@ run "task_definition_arns_output_matches_the_services" {
     error_message = "ecs_task_definition_arns and ecs_service_names must have the same keys"
   }
 }
+
+run "dispatch_poll_interval_defaults_to_one_hour" {
+  command = plan
+
+  assert {
+    condition     = local.api_environment["Dispatch__SafetyNetPollInterval"] == "01:00:00"
+    error_message = "the API must receive Dispatch__SafetyNetPollInterval=01:00:00 by default (Neon compute budget)"
+  }
+}
+
+run "dispatch_poll_interval_is_configurable" {
+  command = plan
+
+  variables {
+    dispatch_poll_interval = "00:05:00"
+  }
+
+  assert {
+    condition     = local.api_environment["Dispatch__SafetyNetPollInterval"] == "00:05:00"
+    error_message = "dispatch_poll_interval must reach the API container"
+  }
+}
+
+run "invalid_dispatch_poll_interval_is_rejected" {
+  command = plan
+
+  variables {
+    dispatch_poll_interval = "30s"
+  }
+
+  expect_failures = [var.dispatch_poll_interval]
+}
+
+run "zero_dispatch_poll_interval_is_rejected" {
+  command = plan
+
+  variables {
+    dispatch_poll_interval = "00:00:00"
+  }
+
+  expect_failures = [var.dispatch_poll_interval]
+}

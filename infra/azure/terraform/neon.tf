@@ -8,6 +8,12 @@ resource "neon_project" "main" {
   org_id                    = local.neon_org_id
   history_retention_seconds = var.neon_history_retention_seconds
 
+  # Explicit smallest compute floor (0.25 CU): the budget estimate in the README assumes it. Neon
+  # autoscaling may still scale up under load; scale-to-zero stays at the plan default (5 min).
+  primary_compute {
+    autoscaling_limit_min_cu = 0.25
+  }
+
   branch {
     name          = "main"
     database_name = "birrapoint"

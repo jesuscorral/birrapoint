@@ -33,7 +33,6 @@ public sealed class DispatchWorker(
     ILogger<DispatchWorker> logger)
     : BackgroundService
 {
-    private static readonly TimeSpan SafetyNetPollInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan ErrorBackoff = TimeSpan.FromSeconds(5);
     private const int LastErrorMaxLength = 2000; // matches DispatchJobConfiguration.LastError
     private const int RecoveryBatchSize = 50;
@@ -42,6 +41,7 @@ public sealed class DispatchWorker(
     private readonly string _workerId = $"{Environment.MachineName}:{Guid.NewGuid():N}";
 
     private TimeSpan LeaseDuration => options.Value.LeaseDuration;
+    private TimeSpan SafetyNetPollInterval => options.Value.SafetyNetPollInterval;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -383,7 +383,7 @@ public sealed class DispatchWorker(
     /// <summary>Best-effort early wake-up for a backed-off retry; the periodic safety-net poll in
     /// <see cref="WaitForWorkAsync"/>, combined with the NextAttemptAt filter in
     /// <see cref="ClaimNextPendingAsync"/>, is what actually enforces the delay — this only
-    /// saves the job from waiting out the full 30s poll interval unnecessarily.</summary>
+    /// saves the job from waiting out the full safety-net poll interval unnecessarily.</summary>
     private void ScheduleRetrySignal(Guid jobId, TimeSpan delay, CancellationToken stoppingToken) =>
         _ = Task.Run(async () =>
         {

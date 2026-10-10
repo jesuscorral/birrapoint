@@ -119,6 +119,17 @@ variable "neon_history_retention_seconds" {
   default     = 21600
 }
 
+variable "dispatch_poll_interval" {
+  description = "Safety-net poll of the DispatchWorker as a TimeSpan (hh:mm:ss), passed as Dispatch__SafetyNetPollInterval. The poll is a safety net; a longer interval lets Neon scale to zero (see README \"Neon compute budget\")."
+  type        = string
+  default     = "01:00:00"
+
+  validation {
+    condition     = can(regex("^([0-1][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$", var.dispatch_poll_interval)) && var.dispatch_poll_interval != "00:00:00"
+    error_message = "dispatch_poll_interval must be a TimeSpan hh:mm:ss between 00:00:01 and 23:59:59 (e.g. 00:30:00)."
+  }
+}
+
 # --- SMTP relay (invitations, results, Keycloak password reset) -------------------------------
 
 variable "smtp_host" {
