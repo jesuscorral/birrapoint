@@ -56,7 +56,7 @@ Alternatives considered.
   resumed on startup (any `Pending`/`Running` job re-queues).
   **Update T129 (ADR-0024)**: the single-consumer assumption is lifted — jobs are claimed with
   `FOR UPDATE SKIP LOCKED` plus a lease (`LeaseOwner`/`LeaseExpiresAt`); only `Running` jobs with an
-  expired lease are recovered, so overlapping API revisions cannot double-process a job.
+  expired lease (or a stale null lease from a pre-lease revision) are recovered, so overlapping API revisions cannot double-process a job.
 - **Rationale**: FR-036 requires background PDF generation without blocking; the constitution
   (KISS, minimal deps) rules out a broker for an MVP hosting a single live event. DB persistence
   gives restart-safety, retry counts, and per-recipient status (FR-041) for free with EF Core.
