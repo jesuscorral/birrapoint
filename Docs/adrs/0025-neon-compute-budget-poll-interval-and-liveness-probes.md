@@ -47,12 +47,16 @@ poll (loses crash and cross-revision recovery).
 - Idle estimate is about 20 CU-h/month (about 3 from Keycloak housekeeping, up to about 16 from
   the hourly poll, at about 5.5 min per wake), inside the Free plan; traffic during events adds to
   it. With the Keycloak image defaults it is about 182 CU-h/month (never suspends), over the cap.
-- Keycloak is single-replica by construction (`KC_CACHE=local`, no clustering); scaling out needs
-  `ispn` again, which implies a paid Neon plan. The `quarkus.properties` and `KC_SPI_SCHEDULED_*`
+- Keycloak runs one replica (`KC_CACHE=local`, no clustering); scaling out needs `ispn` again,
+  which implies a paid Neon plan. AWS deploys stop the old task before starting the new one
+  (`deployment_minimum_healthy_percent = 0`, maximum 100), so there is a short Keycloak outage.
+  Azure Container Apps single-revision mode has no setting to avoid overlap: the old and new
+  revisions run together until the new one is ready, so an in-progress login or an Admin-API
+  password reset can be seen by the other node (separate caches). Deploy outside live events. The `quarkus.properties` and `KC_SPI_SCHEDULED_*`
   settings are not in `--help-all`; re-test after a Keycloak upgrade.
 - Neon-side behaviour (what counts as activity, per-wake billing) is still not measured; check
   console CU-hours in T099/T137.
 - With a 1 h poll, only `Pending` jobs written by another revision (not seen by this worker's
-  sweep) wait up to 1 h; lease expiry and backed-off retries are covered by the scheduled wake.
+  sweep) and legacy NULL-lease `Running` rows (pre-T129) wait up to 1 h; lease expiry and backed-off retries are covered by the scheduled wake, and a failed sweep retries after 5 s * 2^n (capped at the poll interval) instead of waiting for the poll.
 - Probes no longer detect an unreachable DB; a DB outage shows as request errors instead of
   restarts or unhealthy targets.

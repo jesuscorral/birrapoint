@@ -32,8 +32,10 @@ RUN javac --release 21 -d /out /src/DaprSecretsEnv.java
 
 FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION} AS builder
 # KC_CACHE=local: no Infinispan clustering. The default (ispn + JDBC_PING) polls the JGROUPS_PING
-# table every ~30 s, which keeps Neon compute awake 24/7 (ADR-0025). BirraPoint runs exactly one
-# Keycloak replica; scaling out needs `ispn` again (and a paid Neon plan).
+# table every ~30 s, which keeps Neon compute awake 24/7 (ADR-0025). BirraPoint runs one Keycloak
+# replica; scaling out needs `ispn` again (and a paid Neon plan). AWS deploys stop the old task
+# before starting the new one (short outage); Azure revisions overlap during a deploy, so an
+# in-progress login or Admin-API password reset can hit the other node: deploy outside live events.
 ENV KC_DB=postgres \
     KC_CACHE=local \
     KC_HEALTH_ENABLED=true \

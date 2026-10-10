@@ -146,7 +146,7 @@ Projects: `BirraPoint.Api` (modular monolith), `BirraPoint.AppHost`, `BirraPoint
   claim), are recovered at startup and every sweep as failed attempts; live leases are
   never touched (ADR-0024). Dispatch is by `DispatchJobType` to an `IDispatchJobHandler`, with
   capped exponential backoff enforced by `NextAttemptAt` (ADR-0008, max 5 attempts) and
-  `DispatchProgress` emits. `RetryDispatch` resets only `Failed` `SendResultEmail` jobs (FR-041) and wakes the worker right after the reset. Each sweep (startup included) schedules one wake at the earliest lease expiry or `NextAttemptAt` (+1 s, capped at the poll interval), so with a long poll only `Pending` jobs written by another revision wait for the next sweep. Handlers: `ProvisionJudgeAccount`, `SendInvitation`,
+  `DispatchProgress` emits. `RetryDispatch` resets only `Failed` `SendResultEmail` jobs (FR-041) and wakes the worker right after the reset. Each sweep (startup included) schedules one wake at the earliest lease expiry or `NextAttemptAt` (+1 s, capped at the poll interval), so with a long poll only `Pending` jobs written by another revision and legacy NULL-lease `Running` rows wait for the next sweep. A failed sweep schedules a retry wake after 5 s * 2^n (capped at the poll interval). Handlers: `ProvisionJudgeAccount`, `SendInvitation`,
   `GeneratePdfs`, `BundleZip`, `SendResultEmail`.
 - **Keycloak Admin** (`Common/Keycloak/`): client-credentials as `birrapoint-api-admin`.
   `EnsureUserWithTemporaryPasswordAsync` finds or creates the user, always grants `JUDGE`, and
@@ -260,7 +260,7 @@ Shared primitives live in `shared/components/` (`bp-button`, `bp-input`, `bp-ale
 - **No integration tests** for `CompetitionHub` join authorization or for the `DispatchWorker`
   DB loop.
 - **Health endpoints** `/health`, `/alive` are Development-only; ACA uses default probes (T098).
-- **Probes no longer reflect DB reachability** (Keycloak ACA probe, AWS ALB check use `/health/live`; ADR-0025). Keycloak is single-replica by construction (`KC_CACHE=local`). Neon billing behaviour and the probes are unverified on real accounts (T099/T137).
+- **Probes no longer reflect DB reachability** (Keycloak ACA probe, AWS ALB check use `/health/live`; ADR-0025). Keycloak runs one replica (`KC_CACHE=local`): AWS deploys stop-then-start (short Keycloak outage); Azure revisions overlap during a deploy, so an in-progress login or Admin-API password reset can hit the other node. Deploy outside live events. Neon billing behaviour and the probes are unverified on real accounts (T099/T137).
 - **Single API replica**: scaling out needs a SignalR backplane and a migration job (the job queue is already multi-worker safe, ADR-0024).
 - **Keycloak production hardening** pending (T130: brute-force, password policy, admin console
   exposure); Keycloak's JDBC uses `sslmode=require` (API uses `VerifyFull`).

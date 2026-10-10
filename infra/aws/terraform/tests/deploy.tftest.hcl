@@ -294,6 +294,15 @@ run "api_is_internal_and_single_instance" {
   }
 }
 
+run "keycloak_never_overlaps_during_deployment" {
+  command = plan
+
+  assert {
+    condition     = aws_ecs_service.keycloak.desired_count == 1 && aws_ecs_service.keycloak.deployment_minimum_healthy_percent == 0 && aws_ecs_service.keycloak.deployment_maximum_percent == 100
+    error_message = "Keycloak runs one task (KC_CACHE=local, no clustering) and a deployment stops the old task before starting the new one"
+  }
+}
+
 run "web_replicas_follow_the_variable" {
   command = plan
 

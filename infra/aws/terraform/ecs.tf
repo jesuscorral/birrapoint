@@ -301,7 +301,13 @@ resource "aws_ecs_service" "keycloak" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.keycloak.arn
   launch_type     = "FARGATE"
-  desired_count   = 1
+
+  # One task, never two at once (0% minimum healthy / 100% maximum): KC_CACHE=local means no
+  # clustering, so overlapping tasks would hold separate caches (ADR-0025). A deployment stops the
+  # old task before starting the new one: a short Keycloak outage, so deploy outside live events.
+  desired_count                      = 1
+  deployment_minimum_healthy_percent = 0
+  deployment_maximum_percent         = 100
 
   # First start imports the realm and creates Keycloak's schema on Neon: allow it time before
   # the ALB health check can fail the task.

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Data.Common;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -12,6 +13,7 @@ using BirraPoint.Api.Features.Dispatch;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -43,10 +45,51 @@ public sealed class DispatchWakeUpTests(ApiFactory factory) : IClassFixture<ApiF
         }
     }
 
+    /// <summary>Simulates a transient DB fault (e.g. Neon resuming from suspend) during one sweep:
+    /// once armed, the next claim query and then the next schedule query each fail exactly once.
+    /// Inert until <see cref="Arm"/> is called.</summary>
+    private sealed class SweepFaultInterceptor : DbCommandInterceptor
+    {
+        private int _armed;
+        private int _claimFaults;
+        private int _scheduleFaults;
+
+        public int ClaimFaults => Volatile.Read(ref _claimFaults);
+
+        public int ScheduleFaults => Volatile.Read(ref _scheduleFaults);
+
+        public void Arm() => Volatile.Write(ref _armed, 1);
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (Volatile.Read(ref _armed) == 1)
+            {
+                var text = command.CommandText;
+                if (text.Contains("\"NextAttemptAt\" IS NULL OR", StringComparison.Ordinal)
+                    && Interlocked.CompareExchange(ref _claimFaults, 1, 0) == 0)
+                {
+                    throw new TimeoutException("Simulated transient DB fault on the claim query.");
+                }
+
+                if (text.Contains("LEAST(", StringComparison.Ordinal)
+                    && Volatile.Read(ref _claimFaults) == 1
+                    && Interlocked.CompareExchange(ref _scheduleFaults, 1, 0) == 0)
+                {
+                    throw new TimeoutException("Simulated transient DB fault on the schedule query.");
+                }
+            }
+
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+    }
+
     private AppDbContext NewDb() =>
         new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options);
 
-    private WebApplicationFactory<Program> NewHost(IDispatchJobHandler? handler = null) =>
+    private WebApplicationFactory<Program> NewHost(
+        IDispatchJobHandler? handler = null, SweepFaultInterceptor? fault = null) =>
         factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(
@@ -55,15 +98,38 @@ public sealed class DispatchWakeUpTests(ApiFactory factory) : IClassFixture<ApiF
                     ["Dispatch:LeaseDuration"] = "00:00:05",
                     ["Dispatch:SafetyNetPollInterval"] = "01:00:00",
                 }));
-            if (handler is not null)
+            builder.ConfigureServices(services =>
             {
-                builder.ConfigureServices(services =>
+                if (handler is not null)
                 {
                     services.RemoveAll<IDispatchJobHandler>();
                     services.AddSingleton(handler);
-                });
-            }
+                }
+
+                if (fault is not null)
+                {
+                    services.ConfigureDbContext<AppDbContext>(options => options.AddInterceptors(fault));
+                }
+            });
         });
+
+    /// <summary>Starts the host and waits until its startup sweep is over and the worker is parked
+    /// on the wake-up channel (a sentinel job is processed, then the loop runs its final empty claim
+    /// and waits), so a test can then seed rows the startup sweep can never have seen, however slow
+    /// the host start is.</summary>
+    private async Task ParkWorkerAsync(WebApplicationFactory<Program> host, Guid competitionId)
+    {
+        var sentinel = await SeedJobAsync(competitionId, DispatchJobStatus.Pending);
+        _ = host.Services;
+        await WaitUntilAsync(
+            async () => (await LoadAsync(sentinel.Id)).Status == DispatchJobStatus.Completed,
+            "sentinel processed, worker past its startup sweep");
+        // Let the sweep loop run its final empty claim, schedule and park (no observable signal).
+        await Task.Delay(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+    }
+
+    private static void Signal(WebApplicationFactory<Program> host) =>
+        Assert.True(host.Services.GetRequiredService<Channel<Guid>>().Writer.TryWrite(Guid.Empty));
 
     private async Task<Guid> SeedCompetitionAsync()
     {
@@ -111,14 +177,15 @@ public sealed class DispatchWakeUpTests(ApiFactory factory) : IClassFixture<ApiF
         return await db.DispatchJobs.AsNoTracking().SingleAsync(j => j.Id == jobId, TestContext.Current.CancellationToken);
     }
 
-    private static async Task WaitUntilAsync(Func<Task<bool>> condition, string because)
+    private static async Task WaitUntilAsync(Func<Task<bool>> condition, string because, TimeSpan? timeout = null)
     {
-        using var cts = new CancellationTokenSource(PollTimeout);
+        var limit = timeout ?? PollTimeout;
+        using var cts = new CancellationTokenSource(limit);
         while (!await condition())
         {
             if (cts.IsCancellationRequested)
             {
-                Assert.Fail($"Timed out after {PollTimeout}: {because}");
+                Assert.Fail($"Timed out after {limit}: {because}");
             }
 
             await Task.Delay(PollInterval, TestContext.Current.CancellationToken);
@@ -129,13 +196,17 @@ public sealed class DispatchWakeUpTests(ApiFactory factory) : IClassFixture<ApiF
     public async Task ForeignLease_ExpiringAfterStartupSweep_IsRecoveredAndProcessedWithoutThePoll()
     {
         var competitionId = await SeedCompetitionAsync();
+        var handler = new CountingHandler();
+        await using var host = NewHost(handler);
+        await ParkWorkerAsync(host, competitionId);
+
+        // Seeded only after the worker parked, so no startup sweep can see it, however slow the
+        // host start was: a signalled sweep sees the live lease; only the scheduled wake can
+        // recover it later (the poll is 1 h).
         var job = await SeedJobAsync(
             competitionId, DispatchJobStatus.Running, leaseOwner: "dead-worker",
             leaseExpiresAt: DateTimeOffset.UtcNow.AddSeconds(2));
-        var handler = new CountingHandler();
-
-        await using var host = NewHost(handler);
-        _ = host.Services; // startup sweep sees a live lease and skips the job
+        Signal(host);
 
         await WaitUntilAsync(
             async () => (await LoadAsync(job.Id)).Status == DispatchJobStatus.Completed,
@@ -150,17 +221,43 @@ public sealed class DispatchWakeUpTests(ApiFactory factory) : IClassFixture<ApiF
     public async Task PendingJob_WithFutureNextAttemptAt_AtStartup_IsProcessedWithoutThePoll()
     {
         var competitionId = await SeedCompetitionAsync();
+        var handler = new CountingHandler();
+        await using var host = NewHost(handler);
+        await ParkWorkerAsync(host, competitionId);
+
         var job = await SeedJobAsync(
             competitionId, DispatchJobStatus.Pending, nextAttemptAt: DateTimeOffset.UtcNow.AddSeconds(2), attempts: 1);
-        var handler = new CountingHandler();
-
-        await using var host = NewHost(handler);
-        _ = host.Services; // startup sweep skips the not-yet-due job
+        Signal(host); // the sweep skips the not-yet-due job and must schedule its own wake
 
         await WaitUntilAsync(
             async () => (await LoadAsync(job.Id)).Status == DispatchJobStatus.Completed,
             "backed-off Pending job processed shortly after NextAttemptAt (1 h poll must not be needed)");
 
+        Assert.Equal(1, handler.Calls[job.Id]);
+    }
+
+    [Fact]
+    public async Task FailedSweep_AtScheduledWake_StillProcessesTheDueJobWithoutThePoll()
+    {
+        var competitionId = await SeedCompetitionAsync();
+        var handler = new CountingHandler();
+        var fault = new SweepFaultInterceptor();
+        await using var host = NewHost(handler, fault);
+        await ParkWorkerAsync(host, competitionId);
+
+        var job = await SeedJobAsync(
+            competitionId, DispatchJobStatus.Pending, nextAttemptAt: DateTimeOffset.UtcNow.AddSeconds(2), attempts: 1);
+        Signal(host); // healthy sweep: skips the not-yet-due job, schedules the wake for ~3 s
+        await Task.Delay(TimeSpan.FromMilliseconds(500), TestContext.Current.CancellationToken);
+        fault.Arm(); // the sweep at the scheduled wake hits a transient DB fault (claim + schedule)
+
+        await WaitUntilAsync(
+            async () => (await LoadAsync(job.Id)).Status == DispatchJobStatus.Completed,
+            "due job processed although the sweep at its scheduled wake failed (1 h poll must not be needed)",
+            TimeSpan.FromSeconds(30));
+
+        Assert.Equal(1, fault.ClaimFaults);
+        Assert.Equal(1, fault.ScheduleFaults);
         Assert.Equal(1, handler.Calls[job.Id]);
     }
 

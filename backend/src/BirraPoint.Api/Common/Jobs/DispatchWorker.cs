@@ -45,50 +45,82 @@ public sealed class DispatchWorker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await SweepAsync(stoppingToken);
-
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            await WaitForWorkAsync(stoppingToken);
-
-            if (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-
             await SweepAsync(stoppingToken);
+
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                await WaitForWorkAsync(stoppingToken);
+
+                if (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                await SweepAsync(stoppingToken);
+            }
+        }
+        finally
+        {
+            _scheduledWake?.Dispose();
+            _scheduledWake = null;
         }
     }
 
+    private int _consecutiveFailedSweeps;
+
+    /// <summary>Runs recover, process and schedule. A failure in any step leaves the schedule
+    /// unreliable (and with a long poll interval nothing else would wake the worker), so a failed
+    /// sweep schedules a short retry wake with a growing backoff, capped at the poll interval.</summary>
     private async Task SweepAsync(CancellationToken stoppingToken)
     {
-        await RunGuardedAsync(RecoverExpiredLeasesAsync, stoppingToken);
-        await RunGuardedAsync(ProcessPendingJobsAsync, stoppingToken);
-        await RunGuardedAsync(ScheduleNextWakeAsync, stoppingToken);
+        var ok = await RunGuardedAsync(RecoverExpiredLeasesAsync, stoppingToken);
+        ok &= await RunGuardedAsync(ProcessPendingJobsAsync, stoppingToken);
+        ok &= await RunGuardedAsync(ScheduleNextWakeAsync, stoppingToken);
+
+        if (stoppingToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        if (ok)
+        {
+            _consecutiveFailedSweeps = 0;
+            return;
+        }
+
+        var exponent = Math.Min(_consecutiveFailedSweeps, 20);
+        _consecutiveFailedSweeps++;
+        var retryDelay = TimeSpan.FromTicks(ErrorBackoff.Ticks << exponent);
+        if (retryDelay > SafetyNetPollInterval || retryDelay <= TimeSpan.Zero)
+        {
+            retryDelay = SafetyNetPollInterval;
+        }
+
+        logger.LogWarning("DispatchWorker sweep failed ({Failures} in a row); retrying in {Delay}.",
+            _consecutiveFailedSweeps, retryDelay);
+        StartWake(retryDelay, stoppingToken);
     }
 
     /// <summary>A transient fault in a cycle must never fault <see cref="ExecuteAsync"/> — that
     /// would stop the whole host under the default exception behavior.</summary>
-    private async Task RunGuardedAsync(Func<CancellationToken, Task> cycle, CancellationToken stoppingToken)
+    private async Task<bool> RunGuardedAsync(Func<CancellationToken, Task> cycle, CancellationToken stoppingToken)
     {
         try
         {
             await cycle(stoppingToken);
+            return true;
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // Host is shutting down — nothing to recover.
+            return true;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "DispatchWorker cycle failed; will retry after the next wake-up.");
-            try
-            {
-                await Task.Delay(ErrorBackoff, stoppingToken);
-            }
-            catch (OperationCanceledException)
-            {
-            }
+            logger.LogError(ex, "DispatchWorker cycle failed; a retry wake is scheduled.");
+            return false;
         }
     }
 
@@ -412,18 +444,11 @@ public sealed class DispatchWorker(
                 """)
             .SingleAsync(stoppingToken);
 
-        var previous = Interlocked.Exchange(ref _scheduledWake, null);
-        if (previous is not null)
-        {
-            await previous.CancelAsync();
-            previous.Dispose();
-        }
-
         if (earliest is null)
         {
+            ReplaceWake(null);
             return;
         }
-
         var delay = earliest.Value - DateTimeOffset.UtcNow + WakeMargin;
         if (delay < WakeMargin)
         {
@@ -435,13 +460,31 @@ public sealed class DispatchWorker(
             delay = SafetyNetPollInterval;
         }
 
+        StartWake(delay, stoppingToken);
+    }
+
+    private void ReplaceWake(CancellationTokenSource? next)
+    {
+        var previous = _scheduledWake;
+        _scheduledWake = next;
+        if (previous is not null)
+        {
+            previous.Cancel();
+            previous.Dispose();
+        }
+    }
+
+    /// <summary>Fire-and-forget wake after <paramref name="delay"/>; replaces any previous one.</summary>
+    private void StartWake(TimeSpan delay, CancellationToken stoppingToken)
+    {
         var wake = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-        _scheduledWake = wake;
+        var token = wake.Token;
+        ReplaceWake(wake);
         _ = Task.Run(async () =>
         {
             try
             {
-                await Task.Delay(delay, wake.Token);
+                await Task.Delay(delay, token);
                 wakeUpChannel.Writer.TryWrite(Guid.Empty);
             }
             catch (OperationCanceledException)
