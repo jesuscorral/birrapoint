@@ -20,8 +20,9 @@ public sealed class RetryDispatchCommandValidator : AbstractValidator<RetryDispa
 }
 
 /// <summary>Re-queues failed result emails (FR-041) by resetting the SendResultEmail job back to a
-/// fresh attempt — DispatchWorker's existing 30s safety-net poll picks up Pending jobs regardless
-/// of NextAttemptAt being cleared, no separate wake-up needed.</summary>
+/// fresh attempt. Only Failed jobs: a Completed one would resend the email, a Running one may still
+/// be executing under another worker's lease (T129). DispatchWorker's safety-net poll picks up
+/// Pending jobs regardless of NextAttemptAt being cleared, no separate wake-up needed.</summary>
 public sealed class RetryDispatchCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<RetryDispatchCommand, bool>
 {
@@ -35,7 +36,9 @@ public sealed class RetryDispatchCommandHandler(AppDbContext dbContext, ICurrent
         }
 
         var jobs = await dbContext.DispatchJobs
-            .Where(j => j.CompetitionId == request.CompetitionId && j.Type == DispatchJobType.SendResultEmail)
+            .Where(j => j.CompetitionId == request.CompetitionId
+                && j.Type == DispatchJobType.SendResultEmail
+                && j.Status == DispatchJobStatus.Failed)
             .ToListAsync(cancellationToken);
 
         var participantIds = new HashSet<Guid>(request.ParticipantIds);
@@ -52,6 +55,8 @@ public sealed class RetryDispatchCommandHandler(AppDbContext dbContext, ICurrent
             job.Attempts = 0;
             job.NextAttemptAt = null;
             job.LastError = null;
+            job.LeaseOwner = null;
+            job.LeaseExpiresAt = null;
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);

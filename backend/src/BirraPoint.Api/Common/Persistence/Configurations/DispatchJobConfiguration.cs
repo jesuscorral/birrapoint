@@ -5,10 +5,10 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace BirraPoint.Api.Common.Persistence.Configurations;
 
 /// <summary>
-/// No optimistic-concurrency token: DispatchWorker's claim-by-query (Status == Pending) assumes a
-/// single worker instance (R-06, MVP hosting one live event). Scaling to multiple API replicas
-/// would let two workers double-process the same job — add a concurrency token or an atomic
-/// claim (`UPDATE ... WHERE Status = 'Pending'` with a rows-affected check) before that happens.
+/// No optimistic-concurrency token: overlapping API revisions (ACA rollouts) are made safe by an
+/// atomic claim instead (T129) — DispatchWorker selects `FOR UPDATE SKIP LOCKED`, marks the job
+/// Running with LeaseOwner/LeaseExpiresAt, and finishes it only `WHERE LeaseOwner = me`. Running
+/// jobs whose lease expired (crashed worker) are recovered through the normal retry path.
 /// </summary>
 public sealed class DispatchJobConfiguration : IEntityTypeConfiguration<DispatchJob>
 {
@@ -19,9 +19,12 @@ public sealed class DispatchJobConfiguration : IEntityTypeConfiguration<Dispatch
         builder.Property(j => j.PayloadJson).HasColumnType("jsonb");
         builder.Property(j => j.LastError).HasMaxLength(2000);
 
-        // Supports DispatchWorker's two hot-path sweeps: Status == Running (resume) and
-        // Status == Pending && NextAttemptAt <= now (dispatch), both ordered by CreatedAt.
+        builder.Property(j => j.LeaseOwner).HasMaxLength(200);
+
+        // Supports DispatchWorker's claim sweeps: Status == Pending && NextAttemptAt <= now
+        // (dispatch) and Status == Running && LeaseExpiresAt < now (expired-lease recovery).
         builder.HasIndex(j => new { j.Status, j.NextAttemptAt });
+        builder.HasIndex(j => new { j.Status, j.LeaseExpiresAt });
 
         builder.HasOne<Competition>()
             .WithMany()

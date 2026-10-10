@@ -30,6 +30,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// database, which is unnecessary here.</summary>
     public SubmitEvaluationRaceInterceptor EvaluationRaceInterceptor { get; } = new();
 
+    /// <summary>Connection string of this factory's Testcontainer, for tests that seed or inspect
+    /// rows directly without starting the API host (and thus its DispatchWorker).</summary>
+    public string ConnectionString => _container.GetConnectionString();
+
     public async ValueTask InitializeAsync()
     {
         await _container.StartAsync();

@@ -422,6 +422,8 @@ points from any other submitted total (spec edge case: ≥3 judges).
 | Attempts | int | retry with backoff; `Failed` after max attempts, retryable via API (FR-041) |
 | LastError | string? | truncated to 2000 chars |
 | NextAttemptAt | DateTimeOffset? | null until a failed attempt schedules a backoff-delayed retry (ADR-0008); a `Pending` job is dispatch-eligible only once this has passed or is null; indexed together with `Status` |
+| LeaseOwner | string? | worker-process id holding the job (T129); set atomically on claim (`FOR UPDATE SKIP LOCKED`), cleared on completion/failure; outcome writes require `LeaseOwner = me` |
+| LeaseExpiresAt | DateTimeOffset? | claim validity, renewed while the handler runs (`Dispatch:LeaseDuration`, default 2 min); a `Running` job with null/expired lease is recovered through the retry path by any worker; indexed together with `Status` |
 
 ### GeneratedScoreSheet / ResultsArchive *(T074/T075, US10 — added during implementation)*
 

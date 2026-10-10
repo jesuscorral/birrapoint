@@ -40,6 +40,6 @@ backplane, and Neon's pooled endpoint is PgBouncer in transaction mode.
   procedure (FR-047) are in `infra/terraform/README.md`.
 - Destroying the Neon project deletes its data; `teardown.ps1` keeps it by default.
 - Docker Hub and Neon credentials are the only external secrets besides SMTP.
-- ACA overlaps two API revisions during a rollout, so a job can run twice until jobs are claimed
-  atomically (T129).
-- Scaling the API beyond one replica needs a SignalR backplane, job leases and a migration job.
+- ACA overlaps two API revisions during a rollout; jobs are claimed with a lease so none runs
+  twice (ADR-0024).
+- Scaling the API beyond one replica needs a SignalR backplane and a migration job.

@@ -4,14 +4,14 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-10-04
+**Last updated:** 2026-10-10
 
 ## Status
 
 - **Functional scope complete**: user stories US1–US14 are implemented, each with unit,
   contract/integration and E2E coverage (`quickstart.md` scenarios).
 - **Open work** (`tasks.md`): T092 (SC-010 human usability study), T098 (health/telemetry in ACA),
-  T099 (first validated cloud deploy), T129–T132 (PR #46 follow-ups), T137 (CI/CD validation
+  T099 (first validated cloud deploy), T130–T132 (PR #46 follow-ups), T137 (CI/CD validation
   against a real deployment), T139 (E2E + a11y job in CI).
 - **Two cloud targets, one per deployment** (ADR-0023): Azure Container Apps is implemented under
   `infra/azure/`; AWS is implemented under `infra/aws/` (Terraform, `deploy-aws.yml`, `infra/aws/teardown.ps1`), deployable and tear-downable, but not yet applied to a real account (T099/T137; first-apply risks below).
@@ -137,10 +137,15 @@ Projects: `BirraPoint.Api` (modular monolith), `BirraPoint.AppHost`, `BirraPoint
   (125 styles, full guide text) is seeded by migration from the embedded
   `Features/Catalog/Data/bjcp-2021.json`, with its SHA-256 pinned by a unit test (ADR-0005).
 - **Background jobs** (`Common/Jobs/`, R-06): `DispatchJobQueue` inserts a `Pending` row and wakes
-  `DispatchWorker` through a channel (plus a 30 s safety-net poll). The worker dispatches by
-  `DispatchJobType` to an `IDispatchJobHandler`, retries with capped exponential backoff enforced
-  by `NextAttemptAt` (ADR-0008, max 5 attempts), treats `Running` rows on startup as crashed
-  attempts, and emits `DispatchProgress`. Handlers: `ProvisionJudgeAccount`, `SendInvitation`,
+  `DispatchWorker` through a channel (plus a 30 s safety-net poll). The worker claims one eligible
+  `Pending` job per transaction (`FOR UPDATE SKIP LOCKED`), marks it `Running` with
+  `LeaseOwner`/`LeaseExpiresAt`, runs the handler outside the transaction, renews the lease every
+  `LeaseDuration`/3 (`Dispatch:LeaseDuration`, default 2 min) and writes the outcome only
+  `WHERE LeaseOwner = me` (lost lease: result discarded, warning logged). `Running` rows with a
+  null/expired lease are recovered at startup and every sweep as failed attempts; live leases are
+  never touched (ADR-0024). Dispatch is by `DispatchJobType` to an `IDispatchJobHandler`, with
+  capped exponential backoff enforced by `NextAttemptAt` (ADR-0008, max 5 attempts) and
+  `DispatchProgress` emits. `RetryDispatch` resets only `Failed` `SendResultEmail` jobs (FR-041). Handlers: `ProvisionJudgeAccount`, `SendInvitation`,
   `GeneratePdfs`, `BundleZip`, `SendResultEmail`.
 - **Keycloak Admin** (`Common/Keycloak/`): client-credentials as `birrapoint-api-admin`.
   `EnsureUserWithTemporaryPasswordAsync` finds or creates the user, always grants `JUDGE`, and
@@ -253,10 +258,8 @@ Shared primitives live in `shared/components/` (`bp-button`, `bp-input`, `bp-ale
   no E2E/axe coverage.
 - **No integration tests** for `CompetitionHub` join authorization or for the `DispatchWorker`
   DB loop.
-- **DispatchJob under overlapping revisions** (T129): an ACA rollout briefly runs two API replicas;
-  jobs have no atomic claim, so a job can run twice.
 - **Health endpoints** `/health`, `/alive` are Development-only; ACA uses default probes (T098).
-- **Single API replica**: scaling out needs a SignalR backplane, job leases and a migration job.
+- **Single API replica**: scaling out needs a SignalR backplane and a migration job (the job queue is already multi-worker safe, ADR-0024).
 - **Keycloak production hardening** pending (T130: brute-force, password policy, admin console
   exposure); Keycloak's JDBC uses `sslmode=require` (API uses `VerifyFull`).
 - **`UpdateJudgeEmail`** does not re-run COI/BOS checks against the new email (contract says it

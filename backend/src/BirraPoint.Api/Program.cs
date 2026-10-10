@@ -73,6 +73,10 @@ builder.Services.AddSingleton<IEventPublisher, EventPublisher>();
 // enqueue; the worker's own periodic safety-net poll covers any missed signal.
 builder.Services.AddSingleton(Channel.CreateUnbounded<Guid>());
 builder.Services.AddScoped<IDispatchJobQueue, DispatchJobQueue>();
+builder.Services.AddOptions<DispatchOptions>()
+    .BindConfiguration(DispatchOptions.SectionName)
+    .Validate(o => o.LeaseDuration > TimeSpan.Zero, "Dispatch:LeaseDuration must be greater than zero.")
+    .ValidateOnStart();
 builder.Services.AddHostedService<DispatchWorker>();
 
 // Judge provisioning (R-10/T040): Keycloak Admin REST API via a typed HttpClient (client-credentials

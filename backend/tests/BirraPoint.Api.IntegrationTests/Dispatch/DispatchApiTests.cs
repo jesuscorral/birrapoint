@@ -505,6 +505,53 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
         Assert.Contains(FakeEmailSender.Sent, s => s.ToEmail == email);
     }
 
+    [Fact]
+    public async Task Retry_dispatch_leaves_completed_and_running_jobs_untouched()
+    {
+        // FR-041 retries failures only: resetting a Completed job would resend the email, and
+        // resetting a Running job (live lease, possibly another revision's worker, T129) would run
+        // it twice.
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer, "RetryUntouched");
+        var completedParticipant = await SeedParticipantAsync(
+            competitionId, "Done", $"done-{Guid.NewGuid():N}@brew.example");
+        var runningParticipant = await SeedParticipantAsync(
+            competitionId, "Busy", $"busy-{Guid.NewGuid():N}@brew.example");
+
+        var completedJobId = await SeedDispatchJobAsync(
+            competitionId, DispatchJobType.SendResultEmail, DispatchJobStatus.Completed,
+            new SendResultEmailPayload(completedParticipant), attempts: 1);
+        var runningJobId = await SeedDispatchJobAsync(
+            competitionId, DispatchJobType.SendResultEmail, DispatchJobStatus.Running,
+            new SendResultEmailPayload(runningParticipant), attempts: 1);
+        var leaseExpiresAt = DateTimeOffset.UtcNow.AddHours(1);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.DispatchJobs.Where(j => j.Id == runningJobId).ExecuteUpdateAsync(
+                set => set
+                    .SetProperty(j => j.LeaseOwner, "other-revision-worker")
+                    .SetProperty(j => j.LeaseExpiresAt, leaseExpiresAt),
+                TestContext.Current.CancellationToken);
+        }
+
+        var retryResponse = await RetryDispatchAsync(organizer, competitionId, completedParticipant, runningParticipant);
+        Assert.Equal(HttpStatusCode.OK, retryResponse.StatusCode);
+
+        await using var verifyScope = factory.Services.CreateAsyncScope();
+        var verify = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var completed = await verify.DispatchJobs.AsNoTracking()
+            .SingleAsync(j => j.Id == completedJobId, TestContext.Current.CancellationToken);
+        Assert.Equal(DispatchJobStatus.Completed, completed.Status);
+        Assert.Equal(1, completed.Attempts);
+
+        var running = await verify.DispatchJobs.AsNoTracking()
+            .SingleAsync(j => j.Id == runningJobId, TestContext.Current.CancellationToken);
+        Assert.Equal(DispatchJobStatus.Running, running.Status);
+        Assert.Equal(1, running.Attempts);
+        Assert.Equal("other-revision-worker", running.LeaseOwner);
+    }
+
     // ---- Ownership scoping (404, never leaking existence) ---------------------------------------
 
     [Fact]

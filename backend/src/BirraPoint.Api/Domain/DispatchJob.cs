@@ -19,4 +19,12 @@ public class DispatchJob : Entity
     /// <summary>Null until a failed attempt schedules a backoff-delayed retry (ADR-0008); a
     /// Pending job is eligible for dispatch only once this has passed (or is null).</summary>
     public DateTimeOffset? NextAttemptAt { get; set; }
+
+    /// <summary>Unique id of the worker process currently holding this job (T129); set on claim,
+    /// cleared on completion/failure. Null for any job not currently Running.</summary>
+    public string? LeaseOwner { get; set; }
+
+    /// <summary>The claim is valid until this instant; the owner renews it while the handler
+    /// runs. A Running job whose lease has expired (or is null) is recoverable by any worker.</summary>
+    public DateTimeOffset? LeaseExpiresAt { get; set; }
 }
