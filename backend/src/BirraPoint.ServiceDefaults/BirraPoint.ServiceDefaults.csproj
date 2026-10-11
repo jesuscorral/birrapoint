@@ -2,8 +2,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>$(BirraPointTargetFramework)</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <IsAspireSharedProject>true</IsAspireSharedProject>
   </PropertyGroup>
   <ItemGroup>
