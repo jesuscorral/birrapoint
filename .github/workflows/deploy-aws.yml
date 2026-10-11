@@ -88,17 +88,11 @@ jobs:
           KEYCLOAK: ${{ steps.versions.outputs.keycloak }}
           # Read-only token: required, the apps always pull with it (Docker Hub rate limits).
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_READ_TOKEN: ${{ secrets.DOCKERHUB_READ_TOKEN }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_READ_TOKEN }}
         run: |
           # Fail before the approval gate: Terraform requires both values (T131).
-          for name in DOCKERHUB_USERNAME DOCKERHUB_READ_TOKEN; do
-            value="${DOCKERHUB_USERNAME}"
-            [ "$name" = DOCKERHUB_READ_TOKEN ] && value="${DOCKERHUB_TOKEN}"
-            if [ -z "${value//[[:space:]]/}" ]; then
-              echo "::error::The $name repository secret is missing or empty; the deployment needs Docker Hub credentials to pull images (see infra/ci-setup.md)."
-              exit 1
-            fi
-          done
+          .github/scripts/require-dockerhub-read.sh
           # Same file, same image_namespace as the apply below (ADR-0022): no separate variable.
           varfile="infra/aws/terraform/environments/${BIRRAPOINT_ENVIRONMENT,,}.tfvars"
           if [ ! -f "$varfile" ]; then

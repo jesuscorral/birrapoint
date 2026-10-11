@@ -67,8 +67,8 @@ ADR-0021).
 **Secrets** never enter an image or the repo. Neon passwords come from the provider; the Keycloak
 bootstrap admin and API admin-client secrets from `random_password`; SMTP and the
 mandatory read-only Docker Hub credentials (`dockerhub_username`/`dockerhub_token`, ADR-0027) from `terraform.tfvars` (gitignored). Everything except the Docker Hub
-pull token (a Container Apps registry secret on Azure; a Secrets Manager secret read only by the ECS execution role on AWS) is written to Key Vault and read at startup through
-Dapr. The production realm is derived at image build time from the local one: the seeded account
+pull token is written to the cloud's secret store (Key Vault on Azure, Secrets Manager on AWS) and read at startup through
+Dapr. The pull token is the exception: a Container Apps registry secret on Azure, a Secrets Manager secret read only by the ECS execution role on AWS. The production realm is derived at image build time from the local one: the seeded account
 and local-dev secret fallbacks are stripped (the build fails if they survive), and `infra/keycloak/realm-prod.jq`
 adds brute-force lockout (5 failures, temporary only, 60 s to 15 min), password policy
 `length(12) and notUsername and notEmail` and `verifyEmail=true` (ADR-0026). The realm is imported

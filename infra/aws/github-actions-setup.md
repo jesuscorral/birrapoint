@@ -23,6 +23,9 @@ an administrator of the target account (`aws sso login`) and `gh auth login`.
 Shared by both clouds: follow [`../ci-setup.md` §1](../ci-setup.md#1-docker-hub-ci-release-and-deploys).
 `DOCKERHUB_READ_TOKEN` (required, read-only) is read by `deploy-aws.yml`, which fails early without it.
 
+The Docker Hub secrets (`DOCKERHUB_USERNAME`, `DOCKERHUB_READ_TOKEN`) must be repository secrets, not
+environment-scoped: the early check runs in the `resolve` job, which has no environment.
+
 ## 2. HCP Terraform, Neon and SMTP (state and apply inputs)
 
 1. In HCP Terraform create a workspace for the AWS root (for example `birrapoint-aws-prod`, **not**

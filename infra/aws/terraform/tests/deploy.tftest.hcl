@@ -500,6 +500,23 @@ run "dockerhub_credentials_always_wired" {
     ])
     error_message = "every Docker Hub container (daprd included) must pull with repositoryCredentials"
   }
+  assert {
+    condition = alltrue([for td in [aws_ecs_task_definition.api, aws_ecs_task_definition.keycloak] :
+      alltrue([for c in jsondecode(td.container_definitions) : !contains(keys(c), "repositoryCredentials") if c.name == "dapr-init"])
+    ])
+    error_message = "dapr-init pulls from public ECR and must not carry repositoryCredentials"
+  }
+}
+
+run "execution_role_reads_the_dockerhub_secret" {
+  command = apply
+
+  assert {
+    condition = anytrue([for s in jsondecode(aws_iam_role_policy.execution.policy).Statement :
+      contains(s.Action, "secretsmanager:GetSecretValue") && contains(s.Resource, aws_secretsmanager_secret.dockerhub.arn)
+    ])
+    error_message = "the ECS execution role must be allowed secretsmanager:GetSecretValue on the Docker Hub secret ARN"
+  }
 }
 
 # --- Origin secret wiring (ALB rule <-> CloudFront header) -----------------------------------------

@@ -38,6 +38,10 @@ gh variable set IMAGE_NAMESPACE --body "<docker hub user or org>"
 gh secret set DOCKERHUB_READ_TOKEN
 ```
 
+All three secrets must be **repository** secrets, not environment-scoped: the deploy workflows
+check them early in the `resolve` job, which runs without a GitHub environment (an
+environment-scoped secret would read as empty there and the run would fail).
+
 `IMAGE_NAMESPACE` is used by `ci.yml` and `release.yml` only (`deploy-azure.yml` and `deploy-aws.yml`
 read the namespace from `infra/<cloud>/terraform/environments/<env>.tfvars`; keep them equal). It must be a **variable**, not a
 secret. The workflows read `vars.IMAGE_NAMESPACE`,

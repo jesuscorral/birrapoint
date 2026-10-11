@@ -5,7 +5,9 @@
 #   exit 0 = exists, 1 = does not exist, 2 = lookup failed (never treated as "missing")
 #
 # Authenticates with DOCKERHUB_USERNAME + DOCKERHUB_TOKEN when both are set, so private
-# repositories are seen too; otherwise anonymous.
+# repositories are seen too; otherwise anonymous. release.yml and the deploy workflows always
+# pass both (deploys map the read-only token to DOCKERHUB_TOKEN); anonymous only happens when
+# the script is run by hand without them.
 set -euo pipefail
 
 [ $# -eq 3 ] || { echo 'usage: dockerhub-tag-exists.sh <namespace> <repository> <tag>' >&2; exit 2; }

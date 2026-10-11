@@ -21,6 +21,9 @@ Commands below are PowerShell. Run them from the repository root, logged in with
 Shared by both clouds: follow [`../ci-setup.md` §1](../ci-setup.md#1-docker-hub-ci-release-and-deploys).
 `DOCKERHUB_READ_TOKEN` (required, read-only) is read by `deploy-azure.yml`, which fails early without it.
 
+The Docker Hub secrets (`DOCKERHUB_USERNAME`, `DOCKERHUB_READ_TOKEN`) must be repository secrets, not
+environment-scoped: the early check runs in the `resolve` job, which has no environment.
+
 ## 2. HCP Terraform, Neon and SMTP (state and apply inputs)
 
 1. In HCP Terraform create an organization and a workspace, set its execution mode to **Local**

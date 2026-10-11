@@ -89,6 +89,7 @@ gh workflow run deploy-aws.yml -f version=X.Y.Z         # AWS apply; see infra/a
 bash .github/scripts/version.test.sh
 bash .github/scripts/wait-revisions.test.sh
 bash .github/scripts/ecs-health.test.sh
+bash .github/scripts/require-dockerhub-read.test.sh
 node .claude/hooks/guard.test.js
 bash infra/keycloak/dapr-secrets/DaprSecretsEnv.test.sh
 bash infra/keycloak/dapr-secrets/ApiAdminSecretGuard.test.sh
