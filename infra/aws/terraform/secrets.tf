@@ -73,18 +73,26 @@ resource "aws_secretsmanager_secret_version" "app" {
   secret_string = local.secret_values[each.key]
 }
 
-# Docker Hub pull credentials (private repositories only), in the format ECS expects.
+# Docker Hub pull credentials (always configured), in the format ECS expects.
 resource "aws_secretsmanager_secret" "dockerhub" {
-  count = local.has_dockerhub ? 1 : 0
-
   name                    = "${local.name_prefix}-dockerhub"
   recovery_window_in_days = 0
 }
 
-resource "aws_secretsmanager_secret_version" "dockerhub" {
-  count = local.has_dockerhub ? 1 : 0
+# Deployments created before T131 with credentials had these under count index 0; keep them in
+# place instead of destroying and recreating the secret.
+moved {
+  from = aws_secretsmanager_secret.dockerhub[0]
+  to   = aws_secretsmanager_secret.dockerhub
+}
 
-  secret_id = aws_secretsmanager_secret.dockerhub[0].id
+moved {
+  from = aws_secretsmanager_secret_version.dockerhub[0]
+  to   = aws_secretsmanager_secret_version.dockerhub
+}
+
+resource "aws_secretsmanager_secret_version" "dockerhub" {
+  secret_id = aws_secretsmanager_secret.dockerhub.id
   secret_string = jsonencode({
     username = var.dockerhub_username
     password = var.dockerhub_token
@@ -104,8 +112,8 @@ locals {
   })
 }
 
-# Task execution role: what ECS itself needs to start the tasks - write the log streams and, for a
-# private registry, read the Docker Hub credentials. No other secret.
+# Task execution role: what ECS itself needs to start the tasks - write the log streams and
+# read the Docker Hub credentials. No other secret.
 resource "aws_iam_role" "execution" {
   name               = "${local.name_prefix}-ecs-exec"
   assume_role_policy = local.ecs_tasks_assume_role_policy
@@ -123,11 +131,11 @@ resource "aws_iam_role_policy" "execution" {
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = [for group in aws_cloudwatch_log_group.app : "${group.arn}:*"]
       }],
-      local.has_dockerhub ? [{
+      [{
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
-        Resource = [aws_secretsmanager_secret.dockerhub[0].arn]
-      }] : [],
+        Resource = [aws_secretsmanager_secret.dockerhub.arn]
+      }],
     )
   })
 }

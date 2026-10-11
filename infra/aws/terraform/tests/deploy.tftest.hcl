@@ -44,12 +44,14 @@ mock_provider "neon" {}
 mock_provider "random" {}
 
 variables {
-  image_namespace   = "acme"
-  smtp_host         = "smtp.example.com"
-  smtp_from_address = "no-reply@example.com"
-  smtp_password     = "not-a-real-password"
-  environment       = "PROD"
-  release_version   = "latest"
+  image_namespace    = "acme"
+  smtp_host          = "smtp.example.com"
+  smtp_from_address  = "no-reply@example.com"
+  smtp_password      = "not-a-real-password"
+  dockerhub_username = "hubuser"
+  dockerhub_token    = "dckr_pat_fake"
+  environment        = "PROD"
+  release_version    = "latest"
 }
 
 # --- Images and version variables (same logic as the Azure root) -------------------------------
@@ -445,26 +447,58 @@ run "task_roles_without_smtp_password" {
   }
 }
 
-run "dockerhub_credentials_only_when_configured" {
-  command = plan
-
-  assert {
-    condition     = length(aws_secretsmanager_secret.dockerhub) == 0
-    error_message = "no Docker Hub secret for public repositories"
-  }
-}
-
-run "dockerhub_credentials_when_configured" {
+run "empty_dockerhub_username_is_rejected" {
   command = plan
 
   variables {
-    dockerhub_username = "hubuser"
-    dockerhub_token    = "dckr_pat_fake"
+    dockerhub_username = ""
   }
 
+  expect_failures = [var.dockerhub_username]
+}
+
+run "blank_dockerhub_username_is_rejected" {
+  command = plan
+
+  variables {
+    dockerhub_username = "   "
+  }
+
+  expect_failures = [var.dockerhub_username]
+}
+
+run "empty_dockerhub_token_is_rejected" {
+  command = plan
+
+  variables {
+    dockerhub_token = ""
+  }
+
+  expect_failures = [var.dockerhub_token]
+}
+
+run "blank_dockerhub_token_is_rejected" {
+  command = plan
+
+  variables {
+    dockerhub_token = "  "
+  }
+
+  expect_failures = [var.dockerhub_token]
+}
+
+run "dockerhub_credentials_always_wired" {
+  command = plan
+
   assert {
-    condition     = length(aws_secretsmanager_secret.dockerhub) == 1 && aws_secretsmanager_secret.dockerhub[0].recovery_window_in_days == 0
-    error_message = "a private registry needs its credentials secret"
+    condition     = aws_secretsmanager_secret.dockerhub.recovery_window_in_days == 0
+    error_message = "the Docker Hub credentials secret is always created"
+  }
+  assert {
+    condition = alltrue([for td in [aws_ecs_task_definition.api, aws_ecs_task_definition.web, aws_ecs_task_definition.keycloak] :
+      alltrue([for c in jsondecode(td.container_definitions) : contains(keys(c), "repositoryCredentials") if startswith(c.image, "docker.io/")])
+    ])
+    error_message = "every Docker Hub container (daprd included) must pull with repositoryCredentials"
   }
 }
 

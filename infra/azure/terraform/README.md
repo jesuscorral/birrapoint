@@ -76,10 +76,11 @@ First deploy from scratch? Follow the end-to-end checklist in [`infra/azure/depl
 | Neon account + API key | Neon console → Account settings → API keys; `export NEON_API_KEY=...`. If your Neon account uses organizations (Neon answers `org_id is required`) also `export TF_VAR_neon_org_id=org-...` from the organization settings (an account identifier, deliberately not committed) |
 | SMTP relay | Any provider with SMTP credentials and a verified sender address |
 | Environment file | `infra/azure/terraform/environments/<env>.tfvars` is committed and holds every non-secret input (shared with `deploy-azure.yml`): set `image_namespace` and the `smtp_*` placeholders before the first deploy |
-| Secrets file | `cp infra/azure/terraform/terraform.tfvars.example infra/azure/terraform/terraform.tfvars` (gitignored): `smtp_password`, optionally `dockerhub_*`; or `TF_VAR_*` environment variables |
+| Secrets file | `cp infra/azure/terraform/terraform.tfvars.example infra/azure/terraform/terraform.tfvars` (gitignored): `smtp_password`, `dockerhub_username` + `dockerhub_token` (both required); or `TF_VAR_*` environment variables |
 
-Private Docker Hub repositories additionally need `dockerhub_username` + a **read-only** access
-token in `dockerhub_token`; with public repositories leave both empty.
+`dockerhub_username` and a **read-only** access token in `dockerhub_token` are mandatory (empty or
+blank values fail variable validation): the apps always pull with Docker Hub credentials, stored as
+Container App secrets.
 
 ## Deploy
 
@@ -264,9 +265,9 @@ dispatch wake-ups on a paid plan, then apply as usual.
   SMTP relay) and no admin console are baked into the image; details and the bootstrap-admin
   replacement in [`../../keycloak/admin-runbook.md`](../../keycloak/admin-runbook.md). The realm is
   imported once, so an existing environment keeps its old realm settings.
-- **Docker Hub rate limits.** Anonymous pulls from ACA's shared outbound IPs can be throttled;
-  setting `dockerhub_username` + a read-only `dockerhub_token` avoids it even for public
-  repositories (T131).
+- **Docker Hub rate limits.** Anonymous pulls from ACA's shared outbound IPs can be throttled, so
+  `dockerhub_username` + a read-only `dockerhub_token` are mandatory and always wired into the
+  Container Apps registry configuration, public repositories included (T131).
 - **Neon compute.** With the defaults compute wakes about 30 times a day (see "Neon compute
   budget"); a shorter `dispatch_poll_interval`, a second Keycloak replica or a changed Keycloak
   image setting can keep it awake around the clock, above the free plan's monthly allowance (T132).

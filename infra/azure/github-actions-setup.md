@@ -19,7 +19,7 @@ Commands below are PowerShell. Run them from the repository root, logged in with
 ## 1. Docker Hub (CI, release and deploy)
 
 Shared by both clouds: follow [`../ci-setup.md` §1](../ci-setup.md#1-docker-hub-ci-release-and-deploys).
-`DOCKERHUB_READ_TOKEN` (optional, private repositories) is read by `deploy-azure.yml`.
+`DOCKERHUB_READ_TOKEN` (required, read-only) is read by `deploy-azure.yml`, which fails early without it.
 
 ## 2. HCP Terraform, Neon and SMTP (state and apply inputs)
 

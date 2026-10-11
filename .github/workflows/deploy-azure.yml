@@ -85,10 +85,19 @@ jobs:
           API: ${{ steps.versions.outputs.api }}
           WEB: ${{ steps.versions.outputs.web }}
           KEYCLOAK: ${{ steps.versions.outputs.keycloak }}
-          # Optional read-only token (private repositories); anonymous otherwise.
+          # Read-only token: required, the apps always pull with it (Docker Hub rate limits).
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_READ_TOKEN }}
         run: |
+          # Fail before the approval gate: Terraform requires both values (T131).
+          for name in DOCKERHUB_USERNAME DOCKERHUB_READ_TOKEN; do
+            value="${DOCKERHUB_USERNAME}"
+            [ "$name" = DOCKERHUB_READ_TOKEN ] && value="${DOCKERHUB_TOKEN}"
+            if [ -z "${value//[[:space:]]/}" ]; then
+              echo "::error::The $name repository secret is missing or empty; the deployment needs Docker Hub credentials to pull images (see infra/ci-setup.md)."
+              exit 1
+            fi
+          done
           # Same file, same image_namespace as the apply below (ADR-0022): no separate variable.
           varfile="infra/azure/terraform/environments/${BIRRAPOINT_ENVIRONMENT,,}.tfvars"
           if [ ! -f "$varfile" ]; then
@@ -155,8 +164,8 @@ jobs:
       # default organization (main.tf turns "" into null).
       TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID }}
       TF_VAR_smtp_password: ${{ secrets.SMTP_PASSWORD }}
-      # Optional read-only token so the apps can pull private repositories; this job never gets
-      # the read/write token CI and releases push with.
+      # Required read-only token the apps pull images with (avoids anonymous rate limits); this job
+      # never gets the read/write token CI and releases push with.
       TF_VAR_dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
       TF_VAR_dockerhub_token: ${{ secrets.DOCKERHUB_READ_TOKEN }}
     steps:

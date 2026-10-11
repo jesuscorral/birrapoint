@@ -8,6 +8,6 @@
 
 smtp_password = "change-me"
 
-# Private Docker Hub repositories only - leave both unset for public ones.
-# dockerhub_username = "myhubuser"
-# dockerhub_token    = "dckr_pat_..."   # read-only access token
+# Required: the apps always pull images with Docker Hub credentials (anonymous pulls hit rate limits).
+dockerhub_username = "myhubuser"
+dockerhub_token    = "dckr_pat_..."   # read-only access token

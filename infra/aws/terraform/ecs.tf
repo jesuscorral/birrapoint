@@ -18,10 +18,10 @@ locals {
     web      = { cpu = 256, memory = 512 }
   }
 
-  # Private Docker Hub repositories: ECS pulls with the credentials in Secrets Manager.
-  docker_hub_credentials = local.has_dockerhub ? {
-    repositoryCredentials = { credentialsParameter = aws_secretsmanager_secret.dockerhub[0].arn }
-  } : {}
+  # ECS always pulls with the Docker Hub credentials in Secrets Manager (avoids anonymous rate limits).
+  docker_hub_credentials = {
+    repositoryCredentials = { credentialsParameter = aws_secretsmanager_secret.dockerhub.arn }
+  }
 
   log_config = {
     for service, group in aws_cloudwatch_log_group.app : service => {

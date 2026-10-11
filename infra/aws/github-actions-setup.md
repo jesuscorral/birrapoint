@@ -21,7 +21,7 @@ an administrator of the target account (`aws sso login`) and `gh auth login`.
 ## 1. Docker Hub (CI, release and deploy)
 
 Shared by both clouds: follow [`../ci-setup.md` §1](../ci-setup.md#1-docker-hub-ci-release-and-deploys).
-`DOCKERHUB_READ_TOKEN` (optional, private repositories) is read by `deploy-aws.yml`.
+`DOCKERHUB_READ_TOKEN` (required, read-only) is read by `deploy-aws.yml`, which fails early without it.
 
 ## 2. HCP Terraform, Neon and SMTP (state and apply inputs)
 
@@ -34,7 +34,7 @@ Shared by both clouds: follow [`../ci-setup.md` §1](../ci-setup.md#1-docker-hub
 | secret | `TF_API_TOKEN` | HCP Terraform API token |
 | secret | `NEON_API_KEY` | Neon API key |
 | secret | `SMTP_PASSWORD` | SMTP relay password |
-| secret (repository, optional) | `DOCKERHUB_READ_TOKEN` | read-only Docker Hub token |
+| secret (repository) | `DOCKERHUB_READ_TOKEN` | read-only Docker Hub token |
 | variable | `TF_CLOUD_ORGANIZATION`, `TF_WORKSPACE` | HCP organization and the **AWS** workspace |
 | variable | `AWS_REGION` | region of the deployment, default `eu-central-1`; must match `region` in `environments/<env>.tfvars` |
 | variable (optional) | `NEON_ORG_ID` | Neon organization id (not committed); needed when the account uses organizations |
@@ -138,7 +138,7 @@ gh variable set BIRRAPOINT_ENVIRONMENT --env aws-production --body "PROD"
 ```
 
 `DOCKERHUB_USERNAME` is a repository secret already set for `ci.yml`; `DOCKERHUB_READ_TOKEN`
-(optional) is read from the repository too.
+(required) is read from the repository too.
 
 Then add **required reviewers** in Settings, Environments, `aws-production`, Required reviewers.
 With reviewers set, every deploy waits for an approval after its inputs (and the existence of the

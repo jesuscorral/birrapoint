@@ -26,21 +26,15 @@ resource "azurerm_container_app" "api" {
     type = "SystemAssigned"
   }
 
-  dynamic "registry" {
-    for_each = local.private_registry
-    content {
-      server               = "docker.io"
-      username             = registry.value
-      password_secret_name = "dockerhub-token"
-    }
+  registry {
+    server               = "docker.io"
+    username             = var.dockerhub_username
+    password_secret_name = "dockerhub-token"
   }
 
-  dynamic "secret" {
-    for_each = local.private_registry
-    content {
-      name  = "dockerhub-token"
-      value = var.dockerhub_token
-    }
+  secret {
+    name  = "dockerhub-token"
+    value = var.dockerhub_token
   }
 
   # Secrets (ConnectionStrings:db/dbDirect, Keycloak:AdminClientSecret, Smtp:Password) are read
@@ -146,21 +140,15 @@ resource "azurerm_container_app" "keycloak" {
     type = "SystemAssigned"
   }
 
-  dynamic "registry" {
-    for_each = local.private_registry
-    content {
-      server               = "docker.io"
-      username             = registry.value
-      password_secret_name = "dockerhub-token"
-    }
+  registry {
+    server               = "docker.io"
+    username             = var.dockerhub_username
+    password_secret_name = "dockerhub-token"
   }
 
-  dynamic "secret" {
-    for_each = local.private_registry
-    content {
-      name  = "dockerhub-token"
-      value = var.dockerhub_token
-    }
+  secret {
+    name  = "dockerhub-token"
+    value = var.dockerhub_token
   }
 
   # The image's entrypoint (infra/keycloak/dapr-secrets) loads the secrets listed in DAPR_SECRETS
@@ -305,21 +293,15 @@ resource "azurerm_container_app" "web" {
     type = "SystemAssigned"
   }
 
-  dynamic "registry" {
-    for_each = local.private_registry
-    content {
-      server               = "docker.io"
-      username             = registry.value
-      password_secret_name = "dockerhub-token"
-    }
+  registry {
+    server               = "docker.io"
+    username             = var.dockerhub_username
+    password_secret_name = "dockerhub-token"
   }
 
-  dynamic "secret" {
-    for_each = local.private_registry
-    content {
-      name  = "dockerhub-token"
-      value = var.dockerhub_token
-    }
+  secret {
+    name  = "dockerhub-token"
+    value = var.dockerhub_token
   }
 
   ingress {

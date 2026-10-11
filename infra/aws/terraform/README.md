@@ -51,9 +51,9 @@ is in [`infra/aws/github-actions-setup.md`](../github-actions-setup.md); what is
   `release_version`, `api_version`/`web_version`/`keycloak_version`; ADR-0022): `latest` →
   `<ns>/birrapoint-<c>:latest`, `X.Y.Z` → `<ns>/birrapoint-<c>-release:X.Y.Z`. Terraform owns the
   running image: changing the version and applying registers a new task definition and ECS rolls
-  the service. Private repositories: set `dockerhub_username` + `dockerhub_token` (read-only
-  token); they go to a Secrets Manager secret read only by the task execution role
-  (`repositoryCredentials`).
+  the service. `dockerhub_username` + `dockerhub_token` (read-only token) are mandatory, even for
+  public repositories (anonymous pulls from ECS shared IPs hit Docker Hub rate limits, T131); they
+  go to a Secrets Manager secret read only by the task execution role (`repositoryCredentials`).
 - **Network**: dedicated VPC `10.40.0.0/16`, 2 public subnets in 2 AZs, internet gateway, **no NAT**
   (about 32 USD/month saved per gateway). Tasks run with `assign_public_ip` only for egress
   (Docker Hub, Neon, SMTP, Secrets Manager). The security groups are the only inbound control:
