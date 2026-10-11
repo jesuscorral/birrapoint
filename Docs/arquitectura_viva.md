@@ -10,8 +10,7 @@
 
 - **Functional scope complete**: user stories US1–US14 are implemented, each with unit,
   contract/integration and E2E coverage (`quickstart.md` scenarios).
-- **Open work** (`tasks.md`): T092 (SC-010 human usability study), T098 (health/telemetry in ACA),
-  T099 (first validated cloud deploy), T137 (CI/CD validation
+- **Open work** (`tasks.md`): T092 (SC-010 human usability study), T099 (first validated cloud deploy), T137 (CI/CD validation
   against a real deployment), T139 (E2E + a11y job in CI).
 - **Two cloud targets, one per deployment** (ADR-0023): Azure Container Apps is implemented under
   `infra/azure/`; AWS is implemented under `infra/aws/` (Terraform, `deploy-aws.yml`, `infra/aws/teardown.ps1`), deployable and tear-downable, but not yet applied to a real account (T099/T137; first-apply risks below).
@@ -57,7 +56,7 @@ ADR-0021).
 
 | Resource | Implementation | Ingress | Notes |
 |---|---|---|---|
-| `-rg`, `-log`, `-cae` | resource group, Log Analytics (30 d), ACA environment | — | console logs → Log Analytics; OTLP export pending (T098) |
+| `-rg`, `-log`, `-cae` | resource group, Log Analytics (30 d), ACA environment | — | console logs → Log Analytics; OTLP export only if `OTEL_EXPORTER_OTLP_ENDPOINT` is set (none in cloud; validation in T099) |
 | `-kv` | Key Vault (RBAC, soft-delete 7 d, purged on destroy) + Dapr component `secretstore` | public, RBAC-only | all app secrets; `Key Vault Secrets User` granted **per secret** to the app that uses it |
 | `-web` | `birrapoint-web`: Angular build → `nginx-unprivileged` | external | writes `/config.json` from env at start; reverse-proxies `/api/` and `/hubs/` (WebSocket) to the API (ADR-0017); security headers; hashed assets cached 1 year |
 | `-api` | `birrapoint-api`: `aspnet:10.0`, non-root | **internal** | exactly 1 replica (SignalR without backplane, single job consumer); Dapr sidecar loads `ConnectionStrings:db` (Neon pooled), `ConnectionStrings:dbDirect` (direct, migrations only), `Keycloak:AdminClientSecret`, `Smtp:Password` |
@@ -266,7 +265,7 @@ Shared primitives live in `shared/components/` (`bp-button`, `bp-input`, `bp-ale
   no E2E/axe coverage.
 - **No integration tests** for `CompetitionHub` join authorization or for the `DispatchWorker`
   DB loop.
-- **Health endpoints** `/health`, `/alive` are Development-only; ACA uses default probes (T098).
+- **Health/telemetry**: `/alive` (no DB) and `/health` (incl. `db` check) are mapped anonymously in all environments (ADR-0028). ACA API probes use `/alive` (startup 250 s); AWS API has no probe. Cloud telemetry is console logs only; ACA/ECS visibility is unvalidated (T099). Keycloak ACA startup probe threshold 30 exceeds the ACA maximum of 10 (T099).
 - **Probes no longer reflect DB reachability** (Keycloak ACA probe, AWS ALB check use `/health/live`; ADR-0025). Keycloak runs one replica (`KC_CACHE=local`): AWS deploys stop-then-start (short Keycloak outage); Azure revisions overlap during a deploy, so an in-progress login or Admin-API password reset can hit the other node. Deploy outside live events. Neon billing behaviour and the probes are unverified on real accounts (T099/T137).
 - **Single API replica**: scaling out needs a SignalR backplane and a migration job (the job queue is already multi-worker safe, ADR-0024).
 - **Keycloak**: JDBC uses `sslmode=require` (API uses `VerifyFull`). The password policy is
