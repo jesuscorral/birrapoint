@@ -11,19 +11,12 @@
 
 ARG KEYCLOAK_VERSION=26.2
 
-# Derive the production realm from the local-dev one so a production realm never ships a known
-# credential:
-#  - strip the seeded `organizer`/`organizer` account (E2E-only); the service-account user stays;
-#  - drop the local-dev fallback of the API admin client secret, so the import takes it from
-#    API_ADMIN_CLIENT_SECRET or not at all.
+# Derive the production realm from the local-dev one (realm-prod.jq: no seeded account or known
+# credential, brute-force detection, password policy, verified e-mail; see the filter's header).
 FROM alpine:3.22 AS realm
 RUN apk add --no-cache jq
-COPY birrapoint-realm.json /realm/birrapoint-realm.json
-RUN jq '.users |= map(select(.username != "organizer")) \
-        | .clients |= map(if .clientId == "birrapoint-api-admin" \
-                          then .secret = "${API_ADMIN_CLIENT_SECRET}" else . end)' \
-        /realm/birrapoint-realm.json > /realm/birrapoint-realm.prod.json \
-    && ! grep -q -e '"value": "organizer"' -e 'dev-only-secret' /realm/birrapoint-realm.prod.json
+COPY birrapoint-realm.json realm-prod.jq /realm/
+RUN jq -f /realm/realm-prod.jq /realm/birrapoint-realm.json > /realm/birrapoint-realm.prod.json     && ! grep -q -e '"value": "organizer"' -e 'dev-only-secret' /realm/birrapoint-realm.prod.json
 
 # Dapr secret loader (dapr-secrets/): compiled here, the runtime image only has a JRE.
 FROM eclipse-temurin:21-jdk-alpine AS dapr-secrets
@@ -39,7 +32,7 @@ FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION} AS builder
 ENV KC_DB=postgres \
     KC_CACHE=local \
     KC_HEALTH_ENABLED=true \
-    KC_METRICS_ENABLED=true
+    KC_METRICS_ENABLED=true     KC_FEATURES_DISABLED=admin
 COPY themes/birrapoint /opt/keycloak/themes/birrapoint
 # Connection-pool validation tuning, see the file header (ADR-0025).
 COPY quarkus.properties /opt/keycloak/conf/quarkus.properties
@@ -49,6 +42,10 @@ FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}
 # Repeated from the builder stage on purpose: Keycloak reads `cache` again at run time, and with the
 # default (`ispn`) the JDBC_PING cluster discovery starts despite the image having been built local.
 ENV KC_CACHE=local
+# Production has no admin console UI (T130): `admin` is the console UI, `admin-api` (the Admin REST API
+# used by the API's judge provisioning) stays enabled. A build-time option, repeated here so the
+# optimized start sees the same value. Admin tasks go through kcadm.sh (deployment runbooks).
+ENV KC_FEATURES_DISABLED=admin
 COPY --from=builder /opt/keycloak/ /opt/keycloak/
 COPY --from=realm /realm/birrapoint-realm.prod.json /opt/keycloak/data/import/birrapoint-realm.json
 COPY --from=dapr-secrets /out/ /opt/birrapoint/dapr-secrets/

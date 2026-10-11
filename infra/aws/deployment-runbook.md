@@ -155,7 +155,10 @@ answers everywhere; a `403` or DNS error right after the apply is usually that.
 
 1. Open `web_url`, self-register an organizer from the login page (no seeded account exists in
    production), and send one judge invitation to check SMTP.
-2. Log in to `<keycloak_url>/admin` and change the `admin` password (T130 hardening is pending).
+2. Replace the temporary bootstrap Keycloak admin with a permanent one and delete it. The production
+   image has no admin console: follow [`../keycloak/admin-runbook.md`](../keycloak/admin-runbook.md).
+3. Check that `verifyEmail` works: the self-registration in step 1 must send a verification e-mail
+   (the production realm requires SMTP, see the same page).
 
 **First-apply checks** (details in [`terraform/README.md`](terraform/README.md), known limitations):
 

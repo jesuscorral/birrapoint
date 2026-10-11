@@ -4,7 +4,7 @@ output "web_url" {
 }
 
 output "keycloak_url" {
-  description = "Public URL of Keycloak (login flows; admin console at /admin)."
+  description = "Public URL of Keycloak (login flows; the admin console is disabled, admin work goes through the Admin REST API, see infra/keycloak/admin-runbook.md)."
   value       = local.keycloak_url
 }
 

@@ -13,4 +13,12 @@ if [[ -n "${DAPR_SECRET_STORE:-}" ]]; then
     unset secret_exports
 fi
 
-exec /opt/keycloak/bin/kc.sh "$@"
+# Fail fast (T130): without the API admin client secret the realm import would leave the
+# birrapoint-api-admin client with no usable secret and judge provisioning would fail at runtime.
+# Never prints the value.
+if [[ -z "${API_ADMIN_CLIENT_SECRET:-}" || -z "${API_ADMIN_CLIENT_SECRET//[[:space:]]/}" ]]; then
+    echo "FATAL: API_ADMIN_CLIENT_SECRET is not set or empty; refusing to start Keycloak." >&2
+    exit 1
+fi
+
+exec "${KC_BIN:-/opt/keycloak/bin/kc.sh}" "$@"

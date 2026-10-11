@@ -137,8 +137,9 @@ the release versions through Azure OIDC; its one-time setup (HCP token, Azure id
 First start takes a few minutes: Keycloak creates its schema on Neon and imports the realm, and
 the API applies EF Core migrations (including the BJCP catalog seed) before serving.
 
-The Keycloak admin console is at `<keycloak_url>/admin`, user `admin`, password from
-`terraform -chdir=infra/azure/terraform output -raw keycloak_admin_password`.
+The production Keycloak has no admin console (Admin REST API only). The temporary bootstrap admin
+(user `admin`, password from `terraform -chdir=infra/azure/terraform output -raw keycloak_admin_password`)
+must be replaced by a permanent one: [`../../keycloak/admin-runbook.md`](../../keycloak/admin-runbook.md).
 
 There is **no seeded organizer account** in production (the image strips the local-dev
 `organizer`/`organizer` user); organizers self-register from the login page.
@@ -251,7 +252,7 @@ dispatch wake-ups on a paid plan, then apply as usual.
   restart.
 - **Realm changes after the first start are not applied.** `--import-realm` skips a realm that
   already exists, so rotating `random_password.api_admin_client_secret` or changing the web URL
-  (e.g. a custom domain) does not reach Keycloak — update the client in the admin console too,
+  (e.g. a custom domain) does not reach Keycloak — update the client through the Admin REST API too ([`admin-runbook.md`](../../keycloak/admin-runbook.md)),
   or judge provisioning / login redirects break.
 - **Revision rollout overlap.** Even in `Single` revision mode ACA briefly runs the old and the
   new API revision together, and both may run the DispatchJob worker. Jobs are claimed
@@ -259,8 +260,10 @@ dispatch wake-ups on a paid plan, then apply as usual.
   stopped mid-job, the new one recovers it once the lease (default 2 min) expires. Exception: the
   first deploy of the lease change itself, whose old revision claims without a lease — deploy it
   while no competition is being finalized.
-- **Keycloak hardening** (brute-force detection, password policy, admin console exposure) is
-  T130. Until then, change the `admin` password after the first login and keep it strong.
+- **Keycloak hardening** (T130): brute-force detection, password policy, `verifyEmail` (needs a working
+  SMTP relay) and no admin console are baked into the image; details and the bootstrap-admin
+  replacement in [`../../keycloak/admin-runbook.md`](../../keycloak/admin-runbook.md). The realm is
+  imported once, so an existing environment keeps its old realm settings.
 - **Docker Hub rate limits.** Anonymous pulls from ACA's shared outbound IPs can be throttled;
   setting `dockerhub_username` + a read-only `dockerhub_token` avoids it even for public
   repositories (T131).

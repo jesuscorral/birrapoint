@@ -50,6 +50,8 @@ public sealed class MigrateOnStartupApiFactory : WebApplicationFactory<Program>,
                 ["ConnectionStrings:db"] = _container.GetConnectionString(),
                 ["Database:MigrateOnStartup"] = "true",
                 ["Frontend:BaseUrl"] = "http://localhost:4200",
+                // Production env enforces a non-placeholder admin secret at startup (T130).
+                ["Keycloak:AdminClientSecret"] = "integration-test-secret",
             });
         });
 
@@ -175,6 +177,8 @@ public sealed class MigrateOnStartupViaDbDirectApiFactory : WebApplicationFactor
                 ["ConnectionStrings:dbDirect"] = _container.GetConnectionString(),
                 ["Database:MigrateOnStartup"] = "true",
                 ["Frontend:BaseUrl"] = "http://localhost:4200",
+                // Production env enforces a non-placeholder admin secret at startup (T130).
+                ["Keycloak:AdminClientSecret"] = "integration-test-secret",
             });
         });
 

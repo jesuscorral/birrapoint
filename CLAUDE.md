@@ -9,7 +9,7 @@ dispatch. Judge: offline-first evaluation, shared fixed tasting order, BJCP scor
 discrepancy consensus. Out of scope: Best of Show, tie-breaks (only `NotValidForBos` flag).
 
 Status: US1–US14 done. Pending work lives in `specs/001-birrapoint-mvp/tasks.md` (T092 usability
-study; Phase 16 deploy/ops: T098, T099, T129–T132, T137, T139). Current system state: `Docs/arquitectura_viva.md`.
+study; Phase 16 deploy/ops: T098, T099, T131, T137, T139). Current system state: `Docs/arquitectura_viva.md`.
 `Docs/` product definition is Spanish and superseded by the English spec.
 
 ## Source of truth (priority order)
@@ -91,6 +91,8 @@ bash .github/scripts/wait-revisions.test.sh
 bash .github/scripts/ecs-health.test.sh
 node .claude/hooks/guard.test.js
 bash infra/keycloak/dapr-secrets/DaprSecretsEnv.test.sh
+bash infra/keycloak/dapr-secrets/ApiAdminSecretGuard.test.sh
+bash infra/keycloak/RealmProd.test.sh
 Invoke-Pester infra/azure/tests       # Pester 5+
 Invoke-Pester infra/aws/tests
 docker build -f backend/src/BirraPoint.Api/Dockerfile backend | docker build frontend | docker build infra/keycloak

@@ -84,6 +84,10 @@ builder.Services.AddHostedService<DispatchWorker>();
 // Judge provisioning (R-10/T040): Keycloak Admin REST API via a typed HttpClient (client-credentials
 // grant against Keycloak:AdminClientId/AdminClientSecret).
 builder.Services.AddHttpClient<IKeycloakAdminClient, KeycloakAdminClient>();
+builder.Services.AddSingleton<IValidateOptions<KeycloakAdminOptions>, KeycloakAdminOptionsValidator>();
+builder.Services.AddOptions<KeycloakAdminOptions>()
+    .BindConfiguration(KeycloakAdminOptions.SectionName)
+    .ValidateOnStart();
 
 // Invitation/result email delivery (R-10/T041): MailKit against Smtp:Host/Smtp:Port (Mailpit locally).
 builder.Services.AddScoped<IEmailSender, MailKitEmailSender>();
