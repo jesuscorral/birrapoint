@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace BirraPoint.Api.Common.Persistence.Configurations;
 
-public sealed class TableSampleConfiguration : IEntityTypeConfiguration<TableSample>
+internal sealed class TableSampleConfiguration : IEntityTypeConfiguration<TableSample>
 {
     public void Configure(EntityTypeBuilder<TableSample> builder)
     {

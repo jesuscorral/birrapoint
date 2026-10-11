@@ -1,6 +1,6 @@
 namespace BirraPoint.Api.Domain;
 
-public enum InvitationStatus
+internal enum InvitationStatus
 {
     Pending,
     Sent,

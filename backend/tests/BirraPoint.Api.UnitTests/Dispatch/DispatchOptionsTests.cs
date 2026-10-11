@@ -1,3 +1,4 @@
+using System.Globalization;
 using BirraPoint.Api.Common.Jobs;
 
 namespace BirraPoint.Api.UnitTests.Dispatch;
@@ -5,7 +6,7 @@ namespace BirraPoint.Api.UnitTests.Dispatch;
 public sealed class DispatchOptionsTests
 {
     [Fact]
-    public void Defaults_are_valid_and_keep_the_30s_poll()
+    public void DefaultsAreValidAndKeepThe30sPoll()
     {
         var options = new DispatchOptions();
 
@@ -17,12 +18,12 @@ public sealed class DispatchOptionsTests
     [InlineData("00:00:01", "01:00:00")]
     [InlineData("00:02:00", "00:00:01")]
     [InlineData("00:00:05", "1.00:00:00")]
-    public void Boundary_and_production_values_are_valid(string lease, string poll)
+    public void BoundaryAndProductionValuesAreValid(string lease, string poll)
     {
         var options = new DispatchOptions
         {
-            LeaseDuration = TimeSpan.Parse(lease),
-            SafetyNetPollInterval = TimeSpan.Parse(poll),
+            LeaseDuration = TimeSpan.Parse(lease, CultureInfo.InvariantCulture),
+            SafetyNetPollInterval = TimeSpan.Parse(poll, CultureInfo.InvariantCulture),
         };
 
         Assert.Null(options.Validate());
@@ -32,26 +33,26 @@ public sealed class DispatchOptionsTests
     [InlineData("00:00:00")]
     [InlineData("00:00:00.999")]
     [InlineData("-00:00:05")]
-    public void LeaseDuration_below_one_second_is_rejected(string lease)
+    public void LeaseDurationBelowOneSecondIsRejected(string lease)
     {
-        var options = new DispatchOptions { LeaseDuration = TimeSpan.Parse(lease) };
+        var options = new DispatchOptions { LeaseDuration = TimeSpan.Parse(lease, CultureInfo.InvariantCulture) };
 
-        Assert.Contains("Dispatch:LeaseDuration", options.Validate());
+        Assert.Contains("Dispatch:LeaseDuration", options.Validate(), StringComparison.Ordinal);
     }
 
     [Theory]
     [InlineData("00:00:00")]
     [InlineData("00:00:00.999")]
     [InlineData("-00:00:30")]
-    public void SafetyNetPollInterval_below_one_second_is_rejected(string poll)
+    public void SafetyNetPollIntervalBelowOneSecondIsRejected(string poll)
     {
-        var options = new DispatchOptions { SafetyNetPollInterval = TimeSpan.Parse(poll) };
+        var options = new DispatchOptions { SafetyNetPollInterval = TimeSpan.Parse(poll, CultureInfo.InvariantCulture) };
 
-        Assert.Contains("Dispatch:SafetyNetPollInterval", options.Validate());
+        Assert.Contains("Dispatch:SafetyNetPollInterval", options.Validate(), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Validator_failure_message_names_the_bad_setting()
+    public void ValidatorFailureMessageNamesTheBadSetting()
     {
         var validator = new DispatchOptionsValidator();
 
@@ -59,9 +60,9 @@ public sealed class DispatchOptionsTests
         var poll = validator.Validate(null, new DispatchOptions { SafetyNetPollInterval = TimeSpan.Zero });
 
         Assert.True(lease.Failed);
-        Assert.Contains("Dispatch:LeaseDuration", lease.FailureMessage);
+        Assert.Contains("Dispatch:LeaseDuration", lease.FailureMessage, StringComparison.Ordinal);
         Assert.True(poll.Failed);
-        Assert.Contains("Dispatch:SafetyNetPollInterval", poll.FailureMessage);
+        Assert.Contains("Dispatch:SafetyNetPollInterval", poll.FailureMessage, StringComparison.Ordinal);
         Assert.True(validator.Validate(null, new DispatchOptions()).Succeeded);
     }
 }

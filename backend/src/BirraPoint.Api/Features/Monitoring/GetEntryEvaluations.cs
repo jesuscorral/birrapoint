@@ -12,18 +12,18 @@ namespace BirraPoint.Api.Features.Monitoring;
 /// doesn't exist/isn't owned by the caller, the entry doesn't belong to the competition, or the
 /// entry isn't yet assigned to a table (nothing to audit) — the endpoint maps all three to a plain
 /// 404, never leaking existence.</summary>
-public sealed record GetEntryEvaluationsQuery(Guid CompetitionId, Guid EntryId) : IRequest<EntryEvaluationsResult?>;
+internal sealed record GetEntryEvaluationsQuery(Guid CompetitionId, Guid EntryId) : IRequest<EntryEvaluationsResult?>;
 
 /// <summary>Reuses EvaluationScoresDto/EvaluationCommentsDto from Features/Evaluations — same wire
 /// shape, no need to redefine. Descriptors/Feedback (Session 2026-09-21) are the organizer's
 /// read-only view of the same structured tasting-sheet data the judge filled in.</summary>
-public sealed record EvaluationAuditItemDto(
+internal sealed record EvaluationAuditItemDto(
     string JudgeDisplayName, EvaluationScoresDto Scores, EvaluationCommentsDto Comments, int Total, string Status,
     EvaluationDescriptorsDto? Descriptors, string? Feedback);
 
-public sealed record EntryEvaluationsResult(string BlindCode, IReadOnlyList<EvaluationAuditItemDto> Evaluations, decimal? ConsolidatedMean);
+internal sealed record EntryEvaluationsResult(string BlindCode, IReadOnlyList<EvaluationAuditItemDto> Evaluations, decimal? ConsolidatedMean);
 
-public sealed class GetEntryEvaluationsQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class GetEntryEvaluationsQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<GetEntryEvaluationsQuery, EntryEvaluationsResult?>
 {
     public async Task<EntryEvaluationsResult?> Handle(GetEntryEvaluationsQuery request, CancellationToken cancellationToken)

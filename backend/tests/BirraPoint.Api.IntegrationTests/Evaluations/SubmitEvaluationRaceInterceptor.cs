@@ -21,7 +21,7 @@ namespace BirraPoint.Api.IntegrationTests.Evaluations;
 /// disarmed explicitly (directly or via <c>using</c>), so an arm that never fires cannot leak into a
 /// later query in the same or a subsequent test.
 /// </summary>
-public sealed class SubmitEvaluationRaceInterceptor : DbCommandInterceptor
+internal sealed class SubmitEvaluationRaceInterceptor : DbCommandInterceptor
 {
     private sealed record Trigger(string Tag, Func<CancellationToken, Task> Action);
 
@@ -30,7 +30,7 @@ public sealed class SubmitEvaluationRaceInterceptor : DbCommandInterceptor
     /// test can assert its race was genuinely exercised instead of passing vacuously; disposing it
     /// disarms the interceptor (a no-op if it already fired or was already disarmed).
     /// </summary>
-    public sealed class ArmedTrigger(SubmitEvaluationRaceInterceptor owner) : IDisposable
+    internal sealed class ArmedTrigger(SubmitEvaluationRaceInterceptor owner) : IDisposable
     {
         private int _fired;
 
@@ -61,6 +61,7 @@ public sealed class SubmitEvaluationRaceInterceptor : DbCommandInterceptor
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(command);
         var trigger = Volatile.Read(ref _armed);
         if (trigger is not null
             && command.CommandText.Contains(trigger.Tag, StringComparison.Ordinal)

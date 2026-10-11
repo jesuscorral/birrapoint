@@ -10,11 +10,13 @@ namespace BirraPoint.Api.IntegrationTests.Persistence;
 /// One PostgreSQL 16 container per test class; the InitialCreate migration is applied once.
 /// Tests isolate their data with fresh Guids/codes instead of per-test databases.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1515:Consider making public types internal",
+    Justification = "xUnit requires fixtures used in public test-class constructors (IClassFixture<T>) to be public.")]
 public sealed class PostgresFixture : IAsyncLifetime, IAsyncDisposable
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:16").Build();
 
-    public DbContextOptions<AppDbContext> Options { get; private set; } = null!;
+    internal DbContextOptions<AppDbContext> Options { get; private set; } = null!;
 
     public async ValueTask InitializeAsync()
     {
@@ -40,7 +42,7 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
     private AppDbContext NewContext() => new(fixture.Options);
 
     [Fact]
-    public async Task Migration_applies_cleanly_and_creates_the_schema()
+    public async Task MigrationAppliesCleanlyAndCreatesTheSchema()
     {
         await using var db = NewContext();
 
@@ -55,7 +57,7 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
     }
 
     [Fact]
-    public async Task Evaluation_total_is_computed_by_the_database()
+    public async Task EvaluationTotalIsComputedByTheDatabase()
     {
         await using var db = NewContext();
         var (_, judge, entry, table) = await SeedTableGraphAsync(db);
@@ -71,7 +73,7 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
     }
 
     [Fact]
-    public async Task Duplicate_evaluation_for_same_judge_and_entry_is_rejected()
+    public async Task DuplicateEvaluationForSameJudgeAndEntryIsRejected()
     {
         await using var db = NewContext();
         var (_, judge, entry, table) = await SeedTableGraphAsync(db);
@@ -87,7 +89,7 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
     }
 
     [Fact]
-    public async Task Competition_with_end_date_before_start_date_is_rejected()
+    public async Task CompetitionWithEndDateBeforeStartDateIsRejected()
     {
         await using var db = NewContext();
         var competition = NewCompetition();
@@ -101,7 +103,7 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
     }
 
     [Fact]
-    public async Task Only_one_open_discrepancy_alert_per_table_and_entry()
+    public async Task OnlyOneOpenDiscrepancyAlertPerTableAndEntry()
     {
         await using var db = NewContext();
         var (_, _, entry, table) = await SeedTableGraphAsync(db);
@@ -136,7 +138,7 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
     }
 
     [Fact]
-    public async Task Timestamps_are_stamped_on_insert_and_update()
+    public async Task TimestampsAreStampedOnInsertAndUpdate()
     {
         await using var db = NewContext();
         var before = DateTimeOffset.UtcNow;

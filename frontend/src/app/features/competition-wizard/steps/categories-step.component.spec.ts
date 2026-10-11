@@ -127,7 +127,7 @@ describe('CategoriesStepComponent', () => {
   it('seeds a default "General" category when the competition has none yet', () => {
     const fixture = createComponent();
 
-    expect(fixture.componentInstance.categories()).toEqual([
+    expect(fixture.componentInstance['categories']()).toEqual([
       { id: null, name: 'General', displayOrder: 0, styleCodes: [] },
     ]);
   });
@@ -135,19 +135,19 @@ describe('CategoriesStepComponent', () => {
   it('adds and removes a category row', () => {
     const fixture = createComponent();
 
-    fixture.componentInstance.addCategory();
+    fixture.componentInstance['addCategory']();
     fixture.detectChanges();
-    expect(fixture.componentInstance.categories().length).toBe(2);
-    expect(fixture.componentInstance.categories()[1]).toEqual({
+    expect(fixture.componentInstance['categories']().length).toBe(2);
+    expect(fixture.componentInstance['categories']()[1]).toEqual({
       id: null,
       name: '',
       displayOrder: 1,
       styleCodes: [],
     });
 
-    fixture.componentInstance.removeCategory(1);
+    fixture.componentInstance['removeCategory'](1);
     fixture.detectChanges();
-    expect(fixture.componentInstance.categories()).toEqual([
+    expect(fixture.componentInstance['categories']()).toEqual([
       { id: null, name: 'General', displayOrder: 0, styleCodes: [] },
     ]);
   });
@@ -155,10 +155,10 @@ describe('CategoriesStepComponent', () => {
   it('never removes the last remaining category', () => {
     const fixture = createComponent();
 
-    fixture.componentInstance.removeCategory(0);
+    fixture.componentInstance['removeCategory'](0);
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.categories().length).toBe(1);
+    expect(fixture.componentInstance['categories']().length).toBe(1);
   });
 
   it('toggles a category row into edit mode and back', () => {
@@ -166,11 +166,11 @@ describe('CategoriesStepComponent', () => {
 
     expect(fixture.nativeElement.querySelector('#category-name-0')).toBeFalsy();
 
-    fixture.componentInstance.startEditing(0);
+    fixture.componentInstance['startEditing'](0);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('#category-name-0')).toBeTruthy();
 
-    fixture.componentInstance.stopEditing();
+    fixture.componentInstance['stopEditing']();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('#category-name-0')).toBeFalsy();
   });
@@ -220,10 +220,10 @@ describe('CategoriesStepComponent', () => {
     );
     const fixture = createComponent();
 
-    fixture.componentInstance.onAssignStyle('18A', '1');
+    fixture.componentInstance['onAssignStyle']('18A', '1');
     fixture.detectChanges();
 
-    const rows = fixture.componentInstance.categories();
+    const rows = fixture.componentInstance['categories']();
     expect(rows[0].styleCodes).toEqual([]);
     expect(rows[1].styleCodes).toEqual(['18A']);
   });
@@ -239,10 +239,10 @@ describe('CategoriesStepComponent', () => {
     );
     const fixture = createComponent();
 
-    fixture.componentInstance.onAssignStyle('18A', '');
+    fixture.componentInstance['onAssignStyle']('18A', '');
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.categories()[0].styleCodes).toEqual([]);
+    expect(fixture.componentInstance['categories']()[0].styleCodes).toEqual([]);
   });
 
   it('renders one bulk-assign select per BJCP group, not one per style', () => {
@@ -288,15 +288,18 @@ describe('CategoriesStepComponent', () => {
     );
     const fixture = createComponent();
 
-    fixture.componentInstance.onBulkAssignGroup(fixture.componentInstance.groupedCatalog()[0], '1');
+    fixture.componentInstance['onBulkAssignGroup'](
+      fixture.componentInstance['groupedCatalog']()[0],
+      '1',
+    );
     fixture.detectChanges();
 
-    const rows = fixture.componentInstance.categories();
+    const rows = fixture.componentInstance['categories']();
     expect(rows[0].styleCodes).toEqual([]);
     expect(rows[1].styleCodes).toEqual(['18A', '18B', '18C']);
-    expect(fixture.componentInstance.styleSelectValue('18A')).toBe('1');
-    expect(fixture.componentInstance.styleSelectValue('18B')).toBe('1');
-    expect(fixture.componentInstance.styleSelectValue('18C')).toBe('1');
+    expect(fixture.componentInstance['styleSelectValue']('18A')).toBe('1');
+    expect(fixture.componentInstance['styleSelectValue']('18B')).toBe('1');
+    expect(fixture.componentInstance['styleSelectValue']('18C')).toBe('1');
   });
 
   it('overwrites individual per-style assignments when bulk-assigning the whole group', () => {
@@ -313,10 +316,13 @@ describe('CategoriesStepComponent', () => {
     );
     const fixture = createComponent();
 
-    fixture.componentInstance.onBulkAssignGroup(fixture.componentInstance.groupedCatalog()[0], '0');
+    fixture.componentInstance['onBulkAssignGroup'](
+      fixture.componentInstance['groupedCatalog']()[0],
+      '0',
+    );
     fixture.detectChanges();
 
-    const rows = fixture.componentInstance.categories();
+    const rows = fixture.componentInstance['categories']();
     expect(rows[0].styleCodes).toEqual(['18A', '18B', '18C']);
     expect(rows[1].styleCodes).toEqual([]);
   });
@@ -335,13 +341,13 @@ describe('CategoriesStepComponent', () => {
     );
     const fixture = createComponent();
 
-    fixture.componentInstance.onBulkAssignGroup(
-      fixture.componentInstance.groupedCatalog()[0],
+    fixture.componentInstance['onBulkAssignGroup'](
+      fixture.componentInstance['groupedCatalog']()[0],
       'unassign',
     );
     fixture.detectChanges();
 
-    const rows = fixture.componentInstance.categories();
+    const rows = fixture.componentInstance['categories']();
     expect(rows[0].styleCodes).toEqual([]);
     expect(rows[1].styleCodes).toEqual([]);
   });
@@ -367,7 +373,7 @@ describe('CategoriesStepComponent', () => {
     bulkSelect.dispatchEvent(new Event('change'));
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.categories()[0].styleCodes).toEqual(['18A', '18B', '18C']);
+    expect(fixture.componentInstance['categories']()[0].styleCodes).toEqual(['18A', '18B', '18C']);
     expect(bulkSelect.value).toBe('0');
     expect(bulkSelect.selectedOptions[0].text.trim()).toBe('A');
   });
@@ -387,7 +393,7 @@ describe('CategoriesStepComponent', () => {
       '.style-group__bulk-select',
     ) as HTMLSelectElement;
     expect(bulkSelect.value).toBe('mixed');
-    expect(fixture.componentInstance.categories()[0].styleCodes).toEqual(['18A']);
+    expect(fixture.componentInstance['categories']()[0].styleCodes).toEqual(['18A']);
   });
 
   it('clears the whole group when the bulk-assign select is set back to "Sin asignar"', () => {
@@ -410,7 +416,7 @@ describe('CategoriesStepComponent', () => {
     bulkSelect.dispatchEvent(new Event('change'));
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.categories()[0].styleCodes).toEqual([]);
+    expect(fixture.componentInstance['categories']()[0].styleCodes).toEqual([]);
   });
 
   it('assigns a whole group from the collapsed header, without expanding it', () => {
@@ -427,7 +433,7 @@ describe('CategoriesStepComponent', () => {
     bulkSelect.dispatchEvent(new Event('change'));
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.categories()[0].styleCodes).toEqual(['18A', '18B', '18C']);
+    expect(fixture.componentInstance['categories']()[0].styleCodes).toEqual(['18A', '18B', '18C']);
     expect((fixture.nativeElement.querySelector('.style-group__rows') as HTMLElement).hidden).toBe(
       true,
     );
@@ -487,7 +493,7 @@ describe('CategoriesStepComponent', () => {
 
     const navigateSpy = jest.spyOn(TestBed.inject(Router), 'navigateByUrl');
 
-    fixture.componentInstance.onFinish();
+    fixture.componentInstance['onFinish']();
 
     expect(fakeCompetitionsApi.setCategories).toHaveBeenCalledWith('c1', [
       { name: 'Estilos clásicos', displayOrder: 0, styleCodes: ['18A'] },
@@ -548,7 +554,7 @@ describe('CategoriesStepComponent', () => {
     const emitted: boolean[] = [];
     fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
 
-    fixture.componentInstance.addCategory();
+    fixture.componentInstance['addCategory']();
     fixture.detectChanges();
 
     expect(emitted).toEqual([true]);
@@ -559,7 +565,7 @@ describe('CategoriesStepComponent', () => {
     const emitted: boolean[] = [];
     fixture.componentInstance.dirtyChange.subscribe((value) => emitted.push(value));
 
-    fixture.componentInstance.updateCategoryName(0, 'Renamed');
+    fixture.componentInstance['updateCategoryName'](0, 'Renamed');
     fixture.detectChanges();
 
     expect(emitted).toEqual([true]);
@@ -645,7 +651,7 @@ describe('CategoriesStepComponent', () => {
       const emitted: void[] = [];
       fixture.componentInstance.saved.subscribe(() => emitted.push(undefined));
 
-      fixture.componentInstance.onFinish();
+      fixture.componentInstance['onFinish']();
 
       expect(fakeCompetitionsApi.setCategories).not.toHaveBeenCalled();
       expect(emitted.length).toBe(1);

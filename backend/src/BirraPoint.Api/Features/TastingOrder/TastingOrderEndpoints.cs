@@ -2,11 +2,11 @@ using MediatR;
 
 namespace BirraPoint.Api.Features.TastingOrder;
 
-public sealed record FixOrderRequest(IReadOnlyList<Guid> OrderedBeerEntryIds);
+internal sealed record FixOrderRequest(IReadOnlyList<Guid> OrderedBeerEntryIds);
 
 /// <summary>Maps GetMyTables/GetTableSamples/FixOrder (contracts/rest-api.md §Judge workspace,
 /// T050-T052) — JUDGE-only.</summary>
-public static class TastingOrderEndpoints
+internal static class TastingOrderEndpoints
 {
     public static IEndpointRouteBuilder MapTastingOrderEndpoints(this IEndpointRouteBuilder endpoints)
     {

@@ -8,7 +8,7 @@ namespace BirraPoint.Api.Common.Persistence.Seeding;
 /// kernel — not under Features/Catalog/ — because the AddBjcpStyleCatalogDetails migration
 /// depends on it, and Common/Persistence/ must never depend on a feature slice.
 /// </summary>
-public static class BjcpStyleCatalogLoader
+internal static class BjcpStyleCatalogLoader
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 

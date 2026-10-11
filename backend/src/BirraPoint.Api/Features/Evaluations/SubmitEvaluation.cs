@@ -13,15 +13,15 @@ using Npgsql;
 namespace BirraPoint.Api.Features.Evaluations;
 
 /// <summary>Wire shape for the five capped sections (contracts/rest-api.md §Judge workspace).</summary>
-public sealed record EvaluationScoresDto(int Aroma, int Appearance, int Flavor, int Mouthfeel, int Overall);
+internal sealed record EvaluationScoresDto(int Aroma, int Appearance, int Flavor, int Mouthfeel, int Overall);
 
 /// <summary>Wire shape for the five per-section comments (FR-025: each ≥20 chars).</summary>
-public sealed record EvaluationCommentsDto(string Aroma, string Appearance, string Flavor, string Mouthfeel, string Overall);
+internal sealed record EvaluationCommentsDto(string Aroma, string Appearance, string Flavor, string Mouthfeel, string Overall);
 
 /// <summary>POST /me/tables/{tableId}/evaluations (contracts/rest-api.md §Judge workspace, T055-T058,
 /// FR-022/FR-023/FR-025/FR-029). Returns null when the caller is not an active member of this table
 /// — the endpoint maps that to a plain 404, same convention as FixOrderCommand/GetTableSamplesQuery.</summary>
-public sealed record SubmitEvaluationCommand(
+internal sealed record SubmitEvaluationCommand(
     Guid TableId, Guid BeerEntryId, EvaluationScoresDto Scores, EvaluationCommentsDto Comments,
     EvaluationDescriptorsDto? Descriptors, string? Feedback)
     : IRequest<SubmitEvaluationResult?>;
@@ -32,7 +32,7 @@ public sealed record SubmitEvaluationCommand(
 /// sample (FR-031). <see cref="IsNewSubmission"/> is not part of the wire contract; the endpoint
 /// reads it to choose 201 (fresh insert) vs 200 (idempotent replay, FR-029/R-07) and then it's
 /// excluded from the body.</summary>
-public sealed record SubmitEvaluationResult(Guid EvaluationId, string Status, int Total, DiscrepancyView? Discrepancy)
+internal sealed record SubmitEvaluationResult(Guid EvaluationId, string Status, int Total, DiscrepancyView? Discrepancy)
 {
     [JsonIgnore]
     public bool IsNewSubmission { get; init; }
@@ -44,7 +44,7 @@ public sealed record SubmitEvaluationResult(Guid EvaluationId, string Status, in
 /// validation for a non-member would leak this table's existence via a 400 instead of the
 /// handler's 404; the real precondition gating happens in the handler and throws DomainException).
 /// </summary>
-public sealed class SubmitEvaluationCommandValidator : AbstractValidator<SubmitEvaluationCommand>
+internal sealed class SubmitEvaluationCommandValidator : AbstractValidator<SubmitEvaluationCommand>
 {
     public SubmitEvaluationCommandValidator()
     {
@@ -85,14 +85,14 @@ public sealed class SubmitEvaluationCommandValidator : AbstractValidator<SubmitE
 /// deterministically reproducing races that would otherwise need two real HTTP calls to interleave
 /// in exactly the right order (flaky).
 /// </summary>
-public static class SubmitEvaluationQueryTags
+internal static class SubmitEvaluationQueryTags
 {
     public const string AlreadySubmittedIds = "SubmitEvaluation.AlreadySubmittedIds";
     public const string TableLoad = "SubmitEvaluation.TableLoad";
     public const string GateReplayRecheck = "SubmitEvaluation.GateReplayRecheck";
 }
 
-public sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher)
+internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher)
     : IRequestHandler<SubmitEvaluationCommand, SubmitEvaluationResult?>
 {
     public async Task<SubmitEvaluationResult?> Handle(SubmitEvaluationCommand request, CancellationToken cancellationToken)

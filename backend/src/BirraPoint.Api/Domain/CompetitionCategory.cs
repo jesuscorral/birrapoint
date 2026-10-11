@@ -8,7 +8,7 @@ namespace BirraPoint.Api.Domain;
 /// Hooking this allow-list into beer-entry validation is a separate, later feature; this entity
 /// only persists the grouping.
 /// </summary>
-public class CompetitionCategory : Entity
+internal class CompetitionCategory : Entity
 {
     public Guid CompetitionId { get; set; }
 

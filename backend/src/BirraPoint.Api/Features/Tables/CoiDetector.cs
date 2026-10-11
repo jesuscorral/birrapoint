@@ -1,13 +1,13 @@
 namespace BirraPoint.Api.Features.Tables;
 
-public sealed record TableConflict(Guid JudgeId, IReadOnlyList<Guid> BeerEntryIds);
+internal sealed record TableConflict(Guid JudgeId, IReadOnlyList<Guid> BeerEntryIds);
 
 /// <summary>
 /// Pure COI classification (FR-017): a judge conflicts with a beer entry when the judge's email
 /// matches the entry's owner or any collaborator. Callers are responsible for building
 /// <paramref name="entryOwnerEmailsById"/> sets with a case-insensitive comparer.
 /// </summary>
-public static class CoiDetector
+internal static class CoiDetector
 {
     public static IReadOnlyList<TableConflict> FindConflicts(
         IReadOnlyDictionary<Guid, string> judgeEmailsById,

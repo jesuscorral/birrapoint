@@ -13,12 +13,12 @@ namespace BirraPoint.Api.Features.Evaluations;
 /// competition not owned by the caller — the endpoint maps that to a plain 404, never leaking
 /// existence. Allowed regardless of table state (the whole point is correcting a closed table's
 /// evaluation) — organizer-only, no table-state gate here.</summary>
-public sealed record CorrectEvaluationCommand(
+internal sealed record CorrectEvaluationCommand(
     Guid CompetitionId, Guid EvaluationId, EvaluationScoresDto Scores, EvaluationCommentsDto Comments,
     EvaluationDescriptorsDto? Descriptors, string? Feedback)
     : IRequest<CorrectEvaluationResult?>;
 
-public sealed record CorrectEvaluationResult(Guid EvaluationId, int Total, decimal ConsolidatedMean);
+internal sealed record CorrectEvaluationResult(Guid EvaluationId, int Total, decimal ConsolidatedMean);
 
 /// <summary>
 /// Same score caps (FR-023/FR-024) and comment-length rule (FR-025) as
@@ -26,7 +26,7 @@ public sealed record CorrectEvaluationResult(Guid EvaluationId, int Total, decim
 /// two boundaries can never drift apart — duplicated rather than shared because the two commands
 /// have unrelated shapes (this one also carries CompetitionId/EvaluationId).
 /// </summary>
-public sealed class CorrectEvaluationCommandValidator : AbstractValidator<CorrectEvaluationCommand>
+internal sealed class CorrectEvaluationCommandValidator : AbstractValidator<CorrectEvaluationCommand>
 {
     public CorrectEvaluationCommandValidator()
     {
@@ -56,7 +56,7 @@ public sealed class CorrectEvaluationCommandValidator : AbstractValidator<Correc
     }
 }
 
-public sealed class CorrectEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter)
+internal sealed class CorrectEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter)
     : IRequestHandler<CorrectEvaluationCommand, CorrectEvaluationResult?>
 {
     public async Task<CorrectEvaluationResult?> Handle(CorrectEvaluationCommand request, CancellationToken cancellationToken)

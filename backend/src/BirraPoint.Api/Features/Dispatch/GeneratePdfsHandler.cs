@@ -13,7 +13,7 @@ namespace BirraPoint.Api.Features.Dispatch;
 /// <see cref="DispatchJobType.BundleZip"/> for the same competition. Payload is empty — the job's
 /// own <see cref="DispatchJob.CompetitionId"/> is all that's needed.
 /// </summary>
-public sealed class GeneratePdfsHandler(AppDbContext dbContext, IDispatchJobQueue dispatchJobQueue) : IDispatchJobHandler
+internal sealed class GeneratePdfsHandler(AppDbContext dbContext, IDispatchJobQueue dispatchJobQueue) : IDispatchJobHandler
 {
     public DispatchJobType Type => DispatchJobType.GeneratePdfs;
 

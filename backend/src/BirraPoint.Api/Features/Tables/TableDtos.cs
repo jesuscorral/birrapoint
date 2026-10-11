@@ -2,9 +2,9 @@ using BirraPoint.Api.Domain;
 
 namespace BirraPoint.Api.Features.Tables;
 
-public sealed record TableJudgeDto(Guid Id, string Email, string DisplayName);
+internal sealed record TableJudgeDto(Guid Id, string Email, string DisplayName);
 
-public sealed record TableSampleDto(
+internal sealed record TableSampleDto(
     Guid BeerEntryId,
     string BlindCode,
     string StyleCode,
@@ -25,12 +25,12 @@ public sealed record TableSampleDto(
     string? BjcpCategoryNumber,
     string? BjcpCategoryName);
 
-public sealed record TableProgressDto(int Submitted, int Total);
+internal sealed record TableProgressDto(int Submitted, int Total);
 
-public sealed record TableStatsDto(decimal? MeanAbv, int StyleCount, IReadOnlyList<string> Styles);
+internal sealed record TableStatsDto(decimal? MeanAbv, int StyleCount, IReadOnlyList<string> Styles);
 
 /// <summary>GET /tables shape (contracts/rest-api.md §Tables: "judges, samples, progress, state").</summary>
-public sealed record TableDto(
+internal sealed record TableDto(
     Guid Id,
     string Name,
     TableState State,
@@ -40,7 +40,7 @@ public sealed record TableDto(
     TableStatsDto Stats);
 
 /// <summary>POST/PUT response: the table plus the entries newly flagged "Not valid for BOS" by this call (FR-018).</summary>
-public sealed record TableMutationResult(
+internal sealed record TableMutationResult(
     Guid Id,
     string Name,
     TableState State,

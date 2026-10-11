@@ -161,7 +161,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Parses_the_real_organizer_worked_example_as_Valid_with_matched_category_and_style()
+    public void ParsesTheRealOrganizerWorkedExampleAsValidWithMatchedCategoryAndStyle()
     {
         var xlsx = BuildAcceWorkbook(Row());
 
@@ -187,7 +187,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Number_of_bottles_column_is_read_but_never_appears_in_the_parsed_row()
+    public void NumberOfBottlesColumnIsReadButNeverAppearsInTheParsedRow()
     {
         // ParsedImportRow simply has no property for it — a compile-time guarantee — so this test
         // only confirms the presence of that column/value doesn't affect parsing of anything else.
@@ -199,7 +199,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Bare_style_code_without_a_name_suffix_still_resolves()
+    public void BareStyleCodeWithoutANameSuffixStillResolves()
     {
         var xlsx = BuildAcceWorkbook(Row(style: "21C"));
 
@@ -210,7 +210,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Bare_style_name_without_a_code_prefix_still_resolves()
+    public void BareStyleNameWithoutACodePrefixStillResolves()
     {
         var xlsx = BuildAcceWorkbook(Row(style: "American IPA"));
 
@@ -221,7 +221,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Style_code_prefix_match_is_case_insensitive()
+    public void StyleCodePrefixMatchIsCaseInsensitive()
     {
         var xlsx = BuildAcceWorkbook(Row(style: "21c. Hazy IPA (weird casing)"));
 
@@ -232,7 +232,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Style_that_does_not_match_the_catalog_is_marked_StyleMismatch()
+    public void StyleThatDoesNotMatchTheCatalogIsMarkedStyleMismatch()
     {
         var xlsx = BuildAcceWorkbook(Row(style: "99Z. Nonexistent Style"));
 
@@ -246,7 +246,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Category_that_does_not_match_any_competition_category_is_marked_CategoryMismatch()
+    public void CategoryThatDoesNotMatchAnyCompetitionCategoryIsMarkedCategoryMismatch()
     {
         var xlsx = BuildAcceWorkbook(Row(category: "Estilos experimentales"));
 
@@ -261,7 +261,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Category_matching_is_case_insensitive_and_trims_whitespace()
+    public void CategoryMatchingIsCaseInsensitiveAndTrimsWhitespace()
     {
         var xlsx = BuildAcceWorkbook(Row(category: "  ESTILOS CLÁSICOS  "));
 
@@ -272,7 +272,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Style_valid_in_the_catalog_but_not_assigned_to_the_resolved_category_is_marked_CategoryStyleMismatch()
+    public void StyleValidInTheCatalogButNotAssignedToTheResolvedCategoryIsMarkedCategoryStyleMismatch()
     {
         // "Estilos de especialidad" has no styles assigned in AllowedPairs; 21C is BJCP-valid.
         var xlsx = BuildAcceWorkbook(Row(category: "Estilos de especialidad", style: "21C. Hazy IPA"));
@@ -288,7 +288,7 @@ public sealed class WorkbookParserTests
 
     [Theory]
     [MemberData(nameof(MissingRequiredCellCases))]
-    public void Rows_with_missing_required_cells_are_marked_Invalid(object?[] row)
+    public void RowsWithMissingRequiredCellsAreMarkedInvalid(object?[] row)
     {
         var xlsx = BuildAcceWorkbook(row);
 
@@ -310,7 +310,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Row_with_a_blank_Marca_temporal_cell_is_marked_Invalid()
+    public void RowWithABlankMarcaTemporalCellIsMarkedInvalid()
     {
         var xlsx = BuildWorkbook(
             StandardHeaders,
@@ -320,11 +320,11 @@ public sealed class WorkbookParserTests
 
         Assert.Single(rows);
         Assert.Equal(ImportRowStatus.Invalid, rows[0].Status);
-        Assert.Contains("Marca temporal", rows[0].ErrorMessage);
+        Assert.Contains("Marca temporal", rows[0].ErrorMessage, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Unparsable_Marca_temporal_text_cell_is_marked_Invalid_with_a_clear_message()
+    public void UnparsableMarcaTemporalTextCellIsMarkedInvalidWithAClearMessage()
     {
         var xlsx = BuildWorkbook(
             StandardHeaders,
@@ -337,11 +337,11 @@ public sealed class WorkbookParserTests
 
         Assert.Single(rows);
         Assert.Equal(ImportRowStatus.Invalid, rows[0].Status);
-        Assert.Contains("Marca temporal", rows[0].ErrorMessage);
+        Assert.Contains("Marca temporal", rows[0].ErrorMessage, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Unparsable_optional_date_text_cell_is_marked_Invalid_with_a_clear_message()
+    public void UnparsableOptionalDateTextCellIsMarkedInvalidWithAClearMessage()
     {
         var xlsx = BuildAcceWorkbook(Row());
         // Row() can only express typed DateTime cells — overwrite the "Fecha de nacimiento" cell
@@ -356,13 +356,13 @@ public sealed class WorkbookParserTests
 
         Assert.Single(rows);
         Assert.Equal(ImportRowStatus.Invalid, rows[0].Status);
-        Assert.Contains("Fecha de nacimiento", rows[0].ErrorMessage);
+        Assert.Contains("Fecha de nacimiento", rows[0].ErrorMessage, StringComparison.Ordinal);
     }
 
     [Theory]
     [InlineData(-1.0)]
     [InlineData(100.0)]
-    public void Abv_outside_the_0_to_99_99_range_is_marked_Invalid(double abv)
+    public void AbvOutsideThe0To9999RangeIsMarkedInvalid(double abv)
     {
         var xlsx = BuildAcceWorkbook(Row(abv: abv));
 
@@ -372,7 +372,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Over_length_participant_name_is_marked_Invalid()
+    public void OverLengthParticipantNameIsMarkedInvalid()
     {
         var xlsx = BuildAcceWorkbook(Row(name: new string('A', 201)));
 
@@ -382,7 +382,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Over_length_acce_member_number_is_marked_Invalid()
+    public void OverLengthAcceMemberNumberIsMarkedInvalid()
     {
         var xlsx = BuildWorkbook(
             StandardHeaders,
@@ -407,7 +407,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Optional_columns_may_be_entirely_absent_from_the_header_row()
+    public void OptionalColumnsMayBeEntirelyAbsentFromTheHeaderRow()
     {
         var xlsx = BuildWorkbook(
             headers:
@@ -430,7 +430,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Headers_are_matched_case_insensitively_trimmed_and_in_any_order()
+    public void HeadersAreMatchedCaseInsensitivelyTrimmedAndInAnyOrder()
     {
         var xlsx = BuildWorkbook(
             headers: [" estilo ", "GRADO ALCOHOL: (%)", "categoria", "nombre y apellidos", "dirección de correo electrónico", "marca temporal"],
@@ -444,7 +444,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Parsing_stops_at_the_first_fully_empty_row()
+    public void ParsingStopsAtTheFirstFullyEmptyRow()
     {
         var xlsx = BuildAcceWorkbook(
             Row(email: "ana@brew.example", name: "Ana Gomez"),
@@ -458,7 +458,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Missing_required_header_column_throws_invalid_import_file()
+    public void MissingRequiredHeaderColumnThrowsInvalidImportFile()
     {
         var xlsx = BuildWorkbook(
             headers: ["Marca temporal", "Dirección de correo electrónico", "Nombre y apellidos"],
@@ -470,7 +470,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Zero_data_rows_throws_invalid_import_file()
+    public void ZeroDataRowsThrowsInvalidImportFile()
     {
         var xlsx = BuildWorkbook(StandardHeaders, rows: []);
 
@@ -480,7 +480,7 @@ public sealed class WorkbookParserTests
     }
 
     [Fact]
-    public void Unreadable_bytes_throws_invalid_import_file()
+    public void UnreadableBytesThrowsInvalidImportFile()
     {
         var corrupt = new byte[] { 0x00, 0x01, 0x02, 0x03 };
 

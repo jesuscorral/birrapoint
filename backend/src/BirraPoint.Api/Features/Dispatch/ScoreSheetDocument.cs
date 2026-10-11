@@ -1,3 +1,4 @@
+using System.Globalization;
 using BirraPoint.Api.Features.Evaluations;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -8,7 +9,7 @@ namespace BirraPoint.Api.Features.Dispatch;
 /// <summary>One judge's submitted scores/comments for a sample, rendered by <see cref="ScoreSheetDocument"/>.
 /// Descriptors/Feedback (Session 2026-09-21) are the structured tasting-sheet data alongside the
 /// five authoritative scores/comments — advisory, never part of <see cref="Total"/>.</summary>
-public sealed record ScoreSheetJudgeEntry(
+internal sealed record ScoreSheetJudgeEntry(
     string JudgeDisplayName,
     int AromaScore, string AromaComment,
     int AppearanceScore, string AppearanceComment,
@@ -25,7 +26,7 @@ public sealed record ScoreSheetJudgeEntry(
 /// and beer name anywhere in the content (R-14/BR-01) — those only appear in the ZIP folder path
 /// built by <see cref="DispatchPaths"/>, never inside the PDF itself.
 /// </summary>
-public sealed class ScoreSheetDocument(
+internal sealed class ScoreSheetDocument(
     string competitionName, string blindCode, string styleCode, string styleName,
     IReadOnlyList<ScoreSheetJudgeEntry> judgeEntries, decimal? consolidatedMean)
     : IDocument
@@ -69,7 +70,7 @@ public sealed class ScoreSheetDocument(
                 // score of zero rather than "not evaluated" (senior-code-reviewer finding on PR
                 // #25; matches GetEntryEvaluationsQueryHandler's null-until-closed convention).
                 column.Item().PaddingTop(20)
-                    .Text($"Consolidated mean: {(consolidatedMean.HasValue ? consolidatedMean.Value.ToString() : "not evaluated")}")
+                    .Text($"Consolidated mean: {(consolidatedMean.HasValue ? consolidatedMean.Value.ToString(CultureInfo.InvariantCulture) : "not evaluated")}")
                     .FontSize(14).Bold();
             });
         });
@@ -81,7 +82,7 @@ public sealed class ScoreSheetDocument(
     /// (see ScoreSheetJudgeEntry's own doc comment); a first pass in plain English tokens, same as
     /// the rest of this document — not localized (tracked as follow-up debt, matches
     /// Docs/arquitectura_viva.md's existing PDF-not-yet-i18n'd note).</summary>
-    private static IReadOnlyList<string> FormatDescriptorLines(EvaluationDescriptorsDto? descriptors)
+    private static List<string> FormatDescriptorLines(EvaluationDescriptorsDto? descriptors)
     {
         if (descriptors is null)
         {

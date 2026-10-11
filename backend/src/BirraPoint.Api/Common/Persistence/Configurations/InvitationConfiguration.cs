@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace BirraPoint.Api.Common.Persistence.Configurations;
 
-public sealed class InvitationConfiguration : IEntityTypeConfiguration<Invitation>
+internal sealed class InvitationConfiguration : IEntityTypeConfiguration<Invitation>
 {
     public void Configure(EntityTypeBuilder<Invitation> builder)
     {

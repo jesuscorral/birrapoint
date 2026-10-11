@@ -9,14 +9,14 @@ namespace BirraPoint.Api.Features.Monitoring;
 /// initial dashboard state, deltas afterwards arrive via the EvaluationCompleted SignalR event.
 /// Returns null when not found or not owned by the caller — the endpoint maps that to a plain 404
 /// (same convention as ListEntriesQuery).</summary>
-public sealed record GetProgressQuery(Guid CompetitionId) : IRequest<IReadOnlyList<TableProgressSummaryDto>?>;
+internal sealed record GetProgressQuery(Guid CompetitionId) : IRequest<IReadOnlyList<TableProgressSummaryDto>?>;
 
 /// <summary>Per-table snapshot. Completed/expected/percent use the exact same formula as
 /// SubmitEvaluation.ComputeTableProgressAsync so this fetched row and a live-updated one via
 /// EvaluationCompleted never disagree.</summary>
-public sealed record TableProgressSummaryDto(Guid TableId, string Name, string State, int Completed, int Expected, int Percent);
+internal sealed record TableProgressSummaryDto(Guid TableId, string Name, string State, int Completed, int Expected, int Percent);
 
-public sealed class GetProgressQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class GetProgressQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<GetProgressQuery, IReadOnlyList<TableProgressSummaryDto>?>
 {
     public async Task<IReadOnlyList<TableProgressSummaryDto>?> Handle(GetProgressQuery request, CancellationToken cancellationToken)

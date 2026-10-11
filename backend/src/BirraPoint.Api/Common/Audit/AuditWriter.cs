@@ -5,7 +5,7 @@ using BirraPoint.Api.Domain;
 
 namespace BirraPoint.Api.Common.Audit;
 
-public sealed class AuditWriter(AppDbContext dbContext, ICurrentUser currentUser) : IAuditWriter
+internal sealed class AuditWriter(AppDbContext dbContext, ICurrentUser currentUser) : IAuditWriter
 {
     public void Record(string action, string entityType, string entityId, object? before = null, object? after = null)
     {

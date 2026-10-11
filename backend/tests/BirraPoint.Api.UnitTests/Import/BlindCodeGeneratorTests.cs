@@ -6,7 +6,7 @@ namespace BirraPoint.Api.UnitTests.Import;
 public sealed class BlindCodeGeneratorTests
 {
     [Fact]
-    public void Generated_codes_never_collide_with_pre_existing_or_previously_generated_codes()
+    public void GeneratedCodesNeverCollideWithPreExistingOrPreviouslyGeneratedCodes()
     {
         var existing = new HashSet<string> { "PREEXIST" };
         var random = new Random(12345);
@@ -24,7 +24,7 @@ public sealed class BlindCodeGeneratorTests
     }
 
     [Fact]
-    public void Generated_code_is_non_empty_alphanumeric_and_fits_the_BlindCode_column()
+    public void GeneratedCodeIsNonEmptyAlphanumericAndFitsTheBlindCodeColumn()
     {
         var existing = new HashSet<string>();
         var random = new Random(1);

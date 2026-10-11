@@ -11,16 +11,16 @@ namespace BirraPoint.Api.Features.Evaluations;
 
 /// <summary>Wire shape for FR-042's per-sample consolidated score — matches the organizer-group
 /// TableClosed payload in contracts/signalr-hub.md (`{ blindCode, mean }`).</summary>
-public sealed record ConsolidatedScoreDto(string BlindCode, decimal Mean);
+internal sealed record ConsolidatedScoreDto(string BlindCode, decimal Mean);
 
 /// <summary>POST /me/tables/{tableId}/close (contracts/rest-api.md §Judge workspace, T062-T063,
 /// FR-033/FR-042). Returns null when the caller is not an active member of this table — the
 /// endpoint maps that to a plain 404, same convention as SubmitEvaluationCommand/FixOrderCommand.</summary>
-public sealed record CloseTableCommand(Guid TableId) : IRequest<CloseTableResult?>;
+internal sealed record CloseTableCommand(Guid TableId) : IRequest<CloseTableResult?>;
 
-public sealed record CloseTableResult(IReadOnlyList<ConsolidatedScoreDto> ConsolidatedScores);
+internal sealed record CloseTableResult(IReadOnlyList<ConsolidatedScoreDto> ConsolidatedScores);
 
-public sealed class CloseTableCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher)
+internal sealed class CloseTableCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher)
     : IRequestHandler<CloseTableCommand, CloseTableResult?>
 {
     public async Task<CloseTableResult?> Handle(CloseTableCommand request, CancellationToken cancellationToken)

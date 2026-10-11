@@ -9,11 +9,11 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Tables;
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record UpdateTableCommand(
+internal sealed record UpdateTableCommand(
     Guid CompetitionId, Guid TableId, string Name, IReadOnlyList<Guid> JudgeIds, IReadOnlyList<Guid> BeerEntryIds)
     : IRequest<TableMutationResult?>;
 
-public sealed class UpdateTableCommandValidator : AbstractValidator<UpdateTableCommand>
+internal sealed class UpdateTableCommandValidator : AbstractValidator<UpdateTableCommand>
 {
     public UpdateTableCommandValidator(AppDbContext dbContext, ICurrentUser currentUser)
     {
@@ -48,7 +48,7 @@ public sealed class UpdateTableCommandValidator : AbstractValidator<UpdateTableC
     }
 }
 
-public sealed class UpdateTableCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class UpdateTableCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<UpdateTableCommand, TableMutationResult?>
 {
     public async Task<TableMutationResult?> Handle(UpdateTableCommand request, CancellationToken cancellationToken)

@@ -24,7 +24,7 @@ public sealed class CompetitionValidatorsTests
         RegistrationEnd: null);
 
     [Fact]
-    public void Create_command_with_all_required_fields_is_valid()
+    public void CreateCommandWithAllRequiredFieldsIsValid()
     {
         var result = new CreateCompetitionCommandValidator().Validate(ValidCreateCommand());
 
@@ -32,7 +32,7 @@ public sealed class CompetitionValidatorsTests
     }
 
     [Fact]
-    public void Create_command_requires_name()
+    public void CreateCommandRequiresName()
     {
         var command = ValidCreateCommand() with { Name = "" };
 
@@ -43,7 +43,7 @@ public sealed class CompetitionValidatorsTests
     }
 
     [Fact]
-    public void Create_command_requires_venue()
+    public void CreateCommandRequiresVenue()
     {
         var command = ValidCreateCommand() with { Venue = "" };
 
@@ -54,7 +54,7 @@ public sealed class CompetitionValidatorsTests
     }
 
     [Fact]
-    public void Create_command_rejects_end_date_before_start_date()
+    public void CreateCommandRejectsEndDateBeforeStartDate()
     {
         var command = ValidCreateCommand() with { StartDate = Today, EndDate = Today.AddDays(-1) };
 
@@ -65,7 +65,7 @@ public sealed class CompetitionValidatorsTests
     }
 
     [Fact]
-    public void Create_command_rejects_non_positive_entry_limit()
+    public void CreateCommandRejectsNonPositiveEntryLimit()
     {
         var command = ValidCreateCommand() with { EntryLimit = 0 };
 
@@ -76,7 +76,7 @@ public sealed class CompetitionValidatorsTests
     }
 
     [Fact]
-    public void Create_command_rejects_registration_end_before_registration_start()
+    public void CreateCommandRejectsRegistrationEndBeforeRegistrationStart()
     {
         var command = ValidCreateCommand() with { RegistrationStart = Today, RegistrationEnd = Today.AddDays(-1) };
 
@@ -87,7 +87,7 @@ public sealed class CompetitionValidatorsTests
     }
 
     [Fact]
-    public void Create_command_allows_registration_window_when_only_one_bound_is_set()
+    public void CreateCommandAllowsRegistrationWindowWhenOnlyOneBoundIsSet()
     {
         var command = ValidCreateCommand() with { RegistrationStart = Today };
 
@@ -109,7 +109,7 @@ public sealed class CompetitionValidatorsTests
         RegistrationEnd: null);
 
     [Fact]
-    public void Update_command_with_all_required_fields_is_valid()
+    public void UpdateCommandWithAllRequiredFieldsIsValid()
     {
         var result = new UpdateCompetitionCommandValidator().Validate(ValidUpdateCommand());
 
@@ -117,7 +117,7 @@ public sealed class CompetitionValidatorsTests
     }
 
     [Fact]
-    public void Update_command_requires_name()
+    public void UpdateCommandRequiresName()
     {
         var command = ValidUpdateCommand() with { Name = "" };
 
@@ -128,7 +128,7 @@ public sealed class CompetitionValidatorsTests
     }
 
     [Fact]
-    public void Update_command_rejects_end_date_before_start_date()
+    public void UpdateCommandRejectsEndDateBeforeStartDate()
     {
         var command = ValidUpdateCommand() with { StartDate = Today, EndDate = Today.AddDays(-1) };
 
@@ -139,7 +139,7 @@ public sealed class CompetitionValidatorsTests
     }
 
     [Fact]
-    public void Update_command_rejects_registration_end_before_registration_start()
+    public void UpdateCommandRejectsRegistrationEndBeforeRegistrationStart()
     {
         var command = ValidUpdateCommand() with { RegistrationStart = Today, RegistrationEnd = Today.AddDays(-1) };
 
@@ -162,7 +162,7 @@ public sealed class CompetitionValidatorsTests
     [InlineData(CompetitionState.Finalized, CompetitionState.Active, false)]
     [InlineData(CompetitionState.Draft, CompetitionState.Draft, false)]
     [InlineData(CompetitionState.Finalized, CompetitionState.Finalized, false)]
-    public void State_machine_allows_only_forward_skip_free_transitions(
+    public void StateMachineAllowsOnlyForwardSkipFreeTransitions(
         CompetitionState from, CompetitionState to, bool expected)
     {
         Assert.Equal(expected, CompetitionStateMachine.CanTransition(from, to));

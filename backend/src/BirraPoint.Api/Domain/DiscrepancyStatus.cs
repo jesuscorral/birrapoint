@@ -1,6 +1,6 @@
 namespace BirraPoint.Api.Domain;
 
-public enum DiscrepancyStatus
+internal enum DiscrepancyStatus
 {
     Open,
     Resolved,

@@ -8,9 +8,9 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Judges;
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record ResendInvitationCommand(Guid CompetitionId, Guid JudgeId) : IRequest<ResendInvitationResult?>;
+internal sealed record ResendInvitationCommand(Guid CompetitionId, Guid JudgeId) : IRequest<ResendInvitationResult?>;
 
-public sealed class ResendInvitationCommandHandler(
+internal sealed class ResendInvitationCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, IDispatchJobQueue dispatchJobQueue)
     : IRequestHandler<ResendInvitationCommand, ResendInvitationResult?>
 {

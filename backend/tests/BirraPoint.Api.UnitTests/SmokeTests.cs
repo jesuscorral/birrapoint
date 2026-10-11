@@ -3,7 +3,7 @@ namespace BirraPoint.Api.UnitTests;
 public class SmokeTests
 {
     [Fact]
-    public void TestHarness_Runs()
+    public void TestHarnessRuns()
     {
         Assert.True(true);
     }

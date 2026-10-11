@@ -7,12 +7,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Features.Judges;
 
-public sealed record NotifiedJudgeDto(Guid Id, string Email);
+internal sealed record NotifiedJudgeDto(Guid Id, string Email);
 
-public sealed record NotifyJudgesResult(IReadOnlyList<NotifiedJudgeDto> Queued);
+internal sealed record NotifyJudgesResult(IReadOnlyList<NotifiedJudgeDto> Queued);
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record NotifyJudgesCommand(Guid CompetitionId) : IRequest<NotifyJudgesResult?>;
+internal sealed record NotifyJudgesCommand(Guid CompetitionId) : IRequest<NotifyJudgesResult?>;
 
 /// <summary>
 /// FR-059/R-20: the explicit "Notify judges" action, decoupled from both provisioning paths
@@ -20,7 +20,7 @@ public sealed record NotifyJudgesCommand(Guid CompetitionId) : IRequest<NotifyJu
 /// judge in the competition whose invitation is still Pending. A judge already Sent/Failed is
 /// untouched (use the per-judge resend, ResendInvitation.cs, for those).
 /// </summary>
-public sealed class NotifyJudgesCommandHandler(
+internal sealed class NotifyJudgesCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, IDispatchJobQueue dispatchJobQueue)
     : IRequestHandler<NotifyJudgesCommand, NotifyJudgesResult?>
 {

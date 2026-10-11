@@ -1,7 +1,7 @@
 namespace BirraPoint.Api.Domain;
 
 /// <summary>Per-recipient invitation delivery state (R-10, FR-016).</summary>
-public class Invitation : Entity
+internal class Invitation : Entity
 {
     public Guid JudgeId { get; set; }
 

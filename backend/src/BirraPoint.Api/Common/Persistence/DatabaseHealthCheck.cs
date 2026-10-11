@@ -7,7 +7,7 @@ namespace BirraPoint.Api.Common.Persistence;
 /// Readiness check "db" (FR-048): can the API open a connection to Postgres. Result carries no
 /// exception or connection details; failures are logged by the health-check service without them.
 /// </summary>
-public sealed class DatabaseHealthCheck(AppDbContext db) : IHealthCheck
+internal sealed class DatabaseHealthCheck(AppDbContext db) : IHealthCheck
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(4);
 

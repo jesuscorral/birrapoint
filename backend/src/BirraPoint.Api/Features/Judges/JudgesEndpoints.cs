@@ -3,7 +3,7 @@ using MediatR;
 namespace BirraPoint.Api.Features.Judges;
 
 /// <summary>Maps every Judges endpoint (contracts/rest-api.md §Judges, T042) — ORGANIZER-only.</summary>
-public static class JudgesEndpoints
+internal static class JudgesEndpoints
 {
     public static IEndpointRouteBuilder MapJudgesEndpoints(this IEndpointRouteBuilder endpoints)
     {

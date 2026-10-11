@@ -157,18 +157,18 @@ public sealed class MonitoringApiTests(ApiFactory factory) : IClassFixture<ApiFa
     }
 
     private static Task<HttpResponseMessage> GetProgressAsync(HttpClient client, Guid competitionId) =>
-        client.GetAsync($"/api/v1/competitions/{competitionId}/progress");
+        client.GetAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/progress"));
 
     private static Task<HttpResponseMessage> GetEntryEvaluationsAsync(HttpClient client, Guid competitionId, Guid entryId) =>
-        client.GetAsync($"/api/v1/competitions/{competitionId}/entries/{entryId}/evaluations");
+        client.GetAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/entries/{entryId}/evaluations"));
 
     private static Task<HttpResponseMessage> CloseAsync(HttpClient client, Guid tableId) =>
-        client.PostAsync($"/api/v1/me/tables/{tableId}/close", content: null);
+        client.PostAsync(Urls.Rel($"/api/v1/me/tables/{tableId}/close"), content: null);
 
     // ---- GET /progress ----------------------------------------------------------------------------
 
     [Fact]
-    public async Task Get_progress_returns_completed_expected_percent_across_tables()
+    public async Task GetProgressReturnsCompletedExpectedPercentAcrossTables()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -228,7 +228,7 @@ public sealed class MonitoringApiTests(ApiFactory factory) : IClassFixture<ApiFa
     }
 
     [Fact]
-    public async Task Get_progress_for_a_competition_owned_by_a_different_organizer_returns_404()
+    public async Task GetProgressForACompetitionOwnedByADifferentOrganizerReturns404()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner);
@@ -240,7 +240,7 @@ public sealed class MonitoringApiTests(ApiFactory factory) : IClassFixture<ApiFa
     }
 
     [Fact]
-    public async Task Get_progress_with_judge_role_is_forbidden_with_403()
+    public async Task GetProgressWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -254,7 +254,7 @@ public sealed class MonitoringApiTests(ApiFactory factory) : IClassFixture<ApiFa
     // ---- GET /entries/{entryId}/evaluations --------------------------------------------------------
 
     [Fact]
-    public async Task Get_entry_evaluations_returns_judge_names_scores_comments_total_status_and_null_mean_while_open()
+    public async Task GetEntryEvaluationsReturnsJudgeNamesScoresCommentsTotalStatusAndNullMeanWhileOpen()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -300,7 +300,7 @@ public sealed class MonitoringApiTests(ApiFactory factory) : IClassFixture<ApiFa
     }
 
     [Fact]
-    public async Task Get_entry_evaluations_round_trips_descriptors_and_feedback_when_present()
+    public async Task GetEntryEvaluationsRoundTripsDescriptorsAndFeedbackWhenPresent()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -358,7 +358,7 @@ public sealed class MonitoringApiTests(ApiFactory factory) : IClassFixture<ApiFa
     }
 
     [Fact]
-    public async Task Get_entry_evaluations_consolidatedMean_is_populated_after_the_table_closes()
+    public async Task GetEntryEvaluationsConsolidatedMeanIsPopulatedAfterTheTableCloses()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -391,7 +391,7 @@ public sealed class MonitoringApiTests(ApiFactory factory) : IClassFixture<ApiFa
     }
 
     [Fact]
-    public async Task Get_entry_evaluations_for_a_non_owning_organizer_returns_404()
+    public async Task GetEntryEvaluationsForANonOwningOrganizerReturns404()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner);
@@ -408,7 +408,7 @@ public sealed class MonitoringApiTests(ApiFactory factory) : IClassFixture<ApiFa
     }
 
     [Fact]
-    public async Task Get_entry_evaluations_for_an_entryId_not_belonging_to_the_competition_returns_404()
+    public async Task GetEntryEvaluationsForAnEntryIdNotBelongingToTheCompetitionReturns404()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -423,7 +423,7 @@ public sealed class MonitoringApiTests(ApiFactory factory) : IClassFixture<ApiFa
     }
 
     [Fact]
-    public async Task Get_entry_evaluations_for_an_entry_not_yet_assigned_to_a_table_returns_404()
+    public async Task GetEntryEvaluationsForAnEntryNotYetAssignedToATableReturns404()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);

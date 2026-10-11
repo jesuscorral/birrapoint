@@ -4,7 +4,7 @@ namespace BirraPoint.Api.Domain;
 /// Immutable audit trail (FR-035, FR-039). DataJson holds before/after diffs only —
 /// never full comment bodies beyond diffs, never credentials (data-model.md).
 /// </summary>
-public class AuditLog : Entity
+internal class AuditLog : Entity
 {
     /// <summary>Keycloak subject.</summary>
     public required string ActorUserId { get; set; }

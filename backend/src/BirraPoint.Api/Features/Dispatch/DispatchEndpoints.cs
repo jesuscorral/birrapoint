@@ -4,7 +4,7 @@ namespace BirraPoint.Api.Features.Dispatch;
 
 /// <summary>Maps the Results &amp; dispatch endpoints (contracts/rest-api.md §Results &amp; dispatch,
 /// T072-T076) — ORGANIZER-only.</summary>
-public static class DispatchEndpoints
+internal static class DispatchEndpoints
 {
     public static IEndpointRouteBuilder MapDispatchEndpoints(this IEndpointRouteBuilder endpoints)
     {

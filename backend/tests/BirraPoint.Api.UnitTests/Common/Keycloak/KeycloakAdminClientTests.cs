@@ -32,14 +32,14 @@ public sealed class KeycloakAdminClientTests
             })
             .Build();
 
-        var httpClient = new HttpClient(handler);
+        var httpClient = handler.Own(new HttpClient(handler, disposeHandler: false));
         return new KeycloakAdminClient(httpClient, configuration);
     }
 
     [Fact]
-    public async Task New_user_gets_the_JUDGE_role_before_the_password_is_reset()
+    public async Task NewUserGetsTheJUDGERoleBeforeThePasswordIsReset()
     {
-        var handler = new RecordingHandler();
+        using var handler = new RecordingHandler();
         handler.When(HttpMethod.Post, "/realms/birrapoint/protocol/openid-connect/token", TokenResponse);
         handler.When(HttpMethod.Get, "/admin/realms/birrapoint/users", _ => JsonResponse(HttpStatusCode.OK, "[]"));
         handler.When(HttpMethod.Post, "/admin/realms/birrapoint/users", _ => CreatedUserResponse(NewUserId));
@@ -84,9 +84,9 @@ public sealed class KeycloakAdminClientTests
     }
 
     [Fact]
-    public async Task Existing_user_also_gets_the_JUDGE_role_before_the_password_is_reset()
+    public async Task ExistingUserAlsoGetsTheJUDGERoleBeforeThePasswordIsReset()
     {
-        var handler = new RecordingHandler();
+        using var handler = new RecordingHandler();
         handler.When(HttpMethod.Post, "/realms/birrapoint/protocol/openid-connect/token", TokenResponse);
         handler.When(
             HttpMethod.Get,
@@ -133,9 +133,9 @@ public sealed class KeycloakAdminClientTests
     /// therefore never invalidate) a password some other persona is actively using elsewhere.
     /// </summary>
     [Fact]
-    public async Task Existing_active_user_keeps_JUDGE_role_but_skips_the_password_reset()
+    public async Task ExistingActiveUserKeepsJUDGERoleButSkipsThePasswordReset()
     {
-        var handler = new RecordingHandler();
+        using var handler = new RecordingHandler();
         handler.When(HttpMethod.Post, "/realms/birrapoint/protocol/openid-connect/token", TokenResponse);
         handler.When(
             HttpMethod.Get,
@@ -172,9 +172,9 @@ public sealed class KeycloakAdminClientTests
     }
 
     [Fact]
-    public async Task Already_having_JUDGE_assigned_is_a_no_op_and_still_resets_the_password()
+    public async Task AlreadyHavingJUDGEAssignedIsANoOpAndStillResetsThePassword()
     {
-        var handler = new RecordingHandler();
+        using var handler = new RecordingHandler();
         handler.When(HttpMethod.Post, "/realms/birrapoint/protocol/openid-connect/token", TokenResponse);
         handler.When(
             HttpMethod.Get,
@@ -210,9 +210,9 @@ public sealed class KeycloakAdminClientTests
     }
 
     [Fact]
-    public async Task Judge_role_missing_from_the_realm_entirely_throws_instead_of_silently_no_opping()
+    public async Task JudgeRoleMissingFromTheRealmEntirelyThrowsInsteadOfSilentlyNoOpping()
     {
-        var handler = new RecordingHandler();
+        using var handler = new RecordingHandler();
         handler.When(HttpMethod.Post, "/realms/birrapoint/protocol/openid-connect/token", TokenResponse);
         handler.When(
             HttpMethod.Get,
@@ -240,9 +240,9 @@ public sealed class KeycloakAdminClientTests
     }
 
     [Fact]
-    public async Task Role_assignment_failure_propagates_and_the_password_is_never_reset()
+    public async Task RoleAssignmentFailurePropagatesAndThePasswordIsNeverReset()
     {
-        var handler = new RecordingHandler();
+        using var handler = new RecordingHandler();
         handler.When(HttpMethod.Post, "/realms/birrapoint/protocol/openid-connect/token", TokenResponse);
         handler.When(HttpMethod.Get, "/admin/realms/birrapoint/users", _ => JsonResponse(HttpStatusCode.OK, "[]"));
         handler.When(HttpMethod.Post, "/admin/realms/birrapoint/users", _ => CreatedUserResponse(NewUserId));
@@ -302,6 +302,25 @@ public sealed class KeycloakAdminClientTests
     /// <summary>Records every request (method, path, body) in call order and dispatches to a registered stub by method+path.</summary>
     private sealed class RecordingHandler : HttpMessageHandler
     {
+        private readonly List<IDisposable> _owned = [];
+
+        public T Own<T>(T disposable)
+            where T : IDisposable
+        {
+            _owned.Add(disposable);
+            return disposable;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _owned.ForEach(d => d.Dispose());
+            }
+
+            base.Dispose(disposing);
+        }
+
         private readonly Dictionary<(HttpMethod Method, string Path), Func<HttpRequestMessage, Task<HttpResponseMessage>>> _stubs = [];
 
         public List<(HttpMethod Method, string Path, string? Body, string? Authorization)> Requests { get; } = [];

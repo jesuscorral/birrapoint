@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Judges;
 
 /// <summary>Payload shape enqueued by RegisterJudges/ConsolidateJudgeImport — no secrets (the temp password is generated fresh inside HandleAsync and immediately discarded).</summary>
-public sealed record ProvisionJudgeAccountPayload(Guid JudgeId);
+internal sealed record ProvisionJudgeAccountPayload(Guid JudgeId);
 
 /// <summary>
 /// R-20: creates (or reuses) the judge's Keycloak account eagerly, without sending an email —
@@ -26,7 +26,7 @@ public sealed record ProvisionJudgeAccountPayload(Guid JudgeId);
 /// judge with no recovery path (re-import consolidation and stale retries both re-enqueue this
 /// job for already-known judges; see research.md R-20).
 /// </remarks>
-public sealed class ProvisionJudgeAccountHandler(AppDbContext dbContext, IKeycloakAdminClient keycloakAdminClient)
+internal sealed class ProvisionJudgeAccountHandler(AppDbContext dbContext, IKeycloakAdminClient keycloakAdminClient)
     : IDispatchJobHandler
 {
     public DispatchJobType Type => DispatchJobType.ProvisionJudgeAccount;

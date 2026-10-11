@@ -4,7 +4,7 @@ namespace BirraPoint.Api.Domain;
 /// Creation/modification instants (UTC) carried by every persisted entity (data-model.md).
 /// Stamped centrally by <c>AppDbContext.SaveChanges*</c> — never set by handlers.
 /// </summary>
-public interface ITimestamped
+internal interface ITimestamped
 {
     DateTimeOffset CreatedAt { get; set; }
 
@@ -12,7 +12,7 @@ public interface ITimestamped
 }
 
 /// <summary>Base for entities with a Guid v7 (sequential) surrogate key.</summary>
-public abstract class Entity : ITimestamped
+internal abstract class Entity : ITimestamped
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();
 

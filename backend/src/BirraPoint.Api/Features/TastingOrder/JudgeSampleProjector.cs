@@ -51,7 +51,7 @@ internal static class JudgeSampleProjector
             .ToList();
     }
 
-    private static string MapEvaluationStatus(IReadOnlyDictionary<Guid, EvaluationStatus> statuses, Guid beerEntryId)
+    private static string MapEvaluationStatus(Dictionary<Guid, EvaluationStatus> statuses, Guid beerEntryId)
     {
         if (!statuses.TryGetValue(beerEntryId, out var status))
         {

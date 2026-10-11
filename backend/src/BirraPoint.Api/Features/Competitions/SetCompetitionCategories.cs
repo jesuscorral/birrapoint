@@ -8,17 +8,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Features.Competitions;
 
-public sealed record SetCategoryItem(string Name, int DisplayOrder, IReadOnlyList<string> StyleCodes);
+internal sealed record SetCategoryItem(string Name, int DisplayOrder, IReadOnlyList<string> StyleCodes);
 
 /// <summary>
 /// Full-replace PUT (matches the existing "PUT is a full replace" convention used by
 /// UpdateCompetition) — returns null when not found or not owned by the caller (endpoint maps
 /// that to a plain 404).
 /// </summary>
-public sealed record SetCompetitionCategoriesCommand(Guid CompetitionId, IReadOnlyList<SetCategoryItem> Categories)
+internal sealed record SetCompetitionCategoriesCommand(Guid CompetitionId, IReadOnlyList<SetCategoryItem> Categories)
     : IRequest<CompetitionCategoriesDto?>;
 
-public sealed class SetCompetitionCategoriesCommandValidator : AbstractValidator<SetCompetitionCategoriesCommand>
+internal sealed class SetCompetitionCategoriesCommandValidator : AbstractValidator<SetCompetitionCategoriesCommand>
 {
     public SetCompetitionCategoriesCommandValidator(AppDbContext dbContext)
     {
@@ -71,7 +71,7 @@ public sealed class SetCompetitionCategoriesCommandValidator : AbstractValidator
     }
 }
 
-public sealed class SetCompetitionCategoriesCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class SetCompetitionCategoriesCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<SetCompetitionCategoriesCommand, CompetitionCategoriesDto?>
 {
     public async Task<CompetitionCategoriesDto?> Handle(SetCompetitionCategoriesCommand request, CancellationToken cancellationToken)

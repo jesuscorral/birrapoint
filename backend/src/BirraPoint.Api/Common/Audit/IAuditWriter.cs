@@ -1,7 +1,7 @@
 namespace BirraPoint.Api.Common.Audit;
 
 /// <summary>Stages an immutable audit trail row (FR-035, FR-039) for the current actor.</summary>
-public interface IAuditWriter
+internal interface IAuditWriter
 {
     /// <summary>
     /// Stages an <see cref="Domain.AuditLog"/> row via the DbContext's change tracker — does

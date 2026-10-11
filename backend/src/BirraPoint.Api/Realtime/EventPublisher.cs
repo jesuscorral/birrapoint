@@ -12,7 +12,7 @@ namespace BirraPoint.Api.Realtime;
 /// disconnect would silently drop a notification the contract otherwise treats as fire-and-forget
 /// but expected to fire once the transaction succeeded.
 /// </summary>
-public interface IEventPublisher
+internal interface IEventPublisher
 {
     Task PublishToOrganizersAsync(
         Guid competitionId, string eventName, object payload, CancellationToken cancellationToken = default);
@@ -21,7 +21,7 @@ public interface IEventPublisher
         Guid tableId, string eventName, object payload, CancellationToken cancellationToken = default);
 }
 
-public sealed class EventPublisher(IHubContext<CompetitionHub> hubContext) : IEventPublisher
+internal sealed class EventPublisher(IHubContext<CompetitionHub> hubContext) : IEventPublisher
 {
     public Task PublishToOrganizersAsync(
         Guid competitionId, string eventName, object payload, CancellationToken cancellationToken = default) =>

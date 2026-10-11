@@ -133,7 +133,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
 
     /// <summary>Mirrors what POST .../order (FixOrder) would do, without the extra HTTP round-trip
     /// (same convention as SubmitEvaluationApiTests).</summary>
-    private async Task FixOrderDirectlyAsync(Guid tableId, Guid judgeId, IReadOnlyList<Guid> orderedEntryIds)
+    private async Task FixOrderDirectlyAsync(Guid tableId, Guid judgeId, List<Guid> orderedEntryIds)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -184,10 +184,10 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
         overall = LongComment,
     };
 
-    private static Task<HttpResponseMessage> SubmitAsync(
+    private static async Task<HttpResponseMessage> SubmitAsync(
         HttpClient client, Guid tableId, Guid beerEntryId, object? scores = null, object? comments = null, object? descriptors = null)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/me/tables/{tableId}/evaluations")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/me/tables/{tableId}/evaluations")
         {
             Content = JsonContent.Create(new
             {
@@ -198,11 +198,11 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
             }),
         };
         request.Headers.Add("X-Idempotency-Key", $"comp:{tableId}:judge:{beerEntryId}");
-        return client.SendAsync(request);
+        return await client.SendAsync(request);
     }
 
     private static Task<HttpResponseMessage> CloseAsync(HttpClient client, Guid tableId) =>
-        client.PostAsync($"/api/v1/me/tables/{tableId}/close", content: null);
+        client.PostAsync(Urls.Rel($"/api/v1/me/tables/{tableId}/close"), content: null);
 
     private static Task<HttpResponseMessage> CorrectAsync(
         HttpClient client, Guid competitionId, Guid evaluationId, object? scores = null, object? comments = null) =>
@@ -264,7 +264,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
     // ---- Completeness precondition (FR-033) -----------------------------------------------------
 
     [Fact]
-    public async Task Close_with_incomplete_evaluations_returns_409_evaluations_incomplete_with_missing_blind_codes()
+    public async Task CloseWithIncompleteEvaluationsReturns409EvaluationsIncompleteWithMissingBlindCodes()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer, sampleCount: 2, judgeCount: 1);
@@ -281,7 +281,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var root = document.RootElement;
-        Assert.Contains("evaluations-incomplete", root.GetProperty("type").GetString());
+        Assert.Contains("evaluations-incomplete", root.GetProperty("type").GetString(), StringComparison.Ordinal);
         var missing = root.GetProperty("missing").EnumerateArray().Select(e => e.GetString()).ToList();
         Assert.Equal([missingBlindCode], missing);
     }
@@ -289,7 +289,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
     // ---- Double-close guard -----------------------------------------------------------------------
 
     [Fact]
-    public async Task Close_a_table_twice_returns_409_table_closed_on_the_second_attempt()
+    public async Task CloseATableTwiceReturns409TableClosedOnTheSecondAttempt()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -305,13 +305,13 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
 
         Assert.Equal(HttpStatusCode.Conflict, secondClose.StatusCode);
         using var document = JsonDocument.Parse(await secondClose.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("table-closed", document.RootElement.GetProperty("type").GetString());
+        Assert.Contains("table-closed", document.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
     }
 
     // ---- Happy path: closes successfully, judge response omits organizer-only data (FR-042) -------
 
     [Fact]
-    public async Task Close_succeeds_when_complete_and_the_judge_response_omits_consolidated_scores()
+    public async Task CloseSucceedsWhenCompleteAndTheJudgeResponseOmitsConsolidatedScores()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer, sampleCount: 1, judgeCount: 2);
@@ -346,7 +346,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
     // ---- Post-close immutability: the existing SubmitEvaluation gate now engages (FR-034) --------
 
     [Fact]
-    public async Task Post_close_evaluation_submission_by_a_judge_seeded_after_close_returns_409_table_closed()
+    public async Task PostCloseEvaluationSubmissionByAJudgeSeededAfterCloseReturns409TableClosed()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -367,13 +367,13 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
 
         Assert.Equal(HttpStatusCode.Conflict, lateSubmit.StatusCode);
         using var document = JsonDocument.Parse(await lateSubmit.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("table-closed", document.RootElement.GetProperty("type").GetString());
+        Assert.Contains("table-closed", document.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
     }
 
     // ---- Organizer post-close correction (FR-035) --------------------------------------------------
 
     [Fact]
-    public async Task Organizer_correction_after_close_succeeds_recomputes_total_and_mean_and_is_audited()
+    public async Task OrganizerCorrectionAfterCloseSucceedsRecomputesTotalAndMeanAndIsAudited()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -406,7 +406,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
     }
 
     [Fact]
-    public async Task Correcting_only_the_scores_preserves_the_judges_existing_descriptors()
+    public async Task CorrectingOnlyTheScoresPreservesTheJudgesExistingDescriptors()
     {
         // senior-review M1: descriptors/feedback are optional on the correction request — an
         // organizer correcting just the five scores (the contract's own documented minimal body)
@@ -424,7 +424,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
 
         var descriptorsBeforeCorrection = await GetDescriptorsJsonAsync(evaluationId);
         Assert.NotNull(descriptorsBeforeCorrection);
-        Assert.Contains("Golden", descriptorsBeforeCorrection);
+        Assert.Contains("Golden", descriptorsBeforeCorrection, StringComparison.Ordinal);
 
         // The correction body omits `descriptors` entirely — exactly what CorrectAsync's own
         // default (scores/comments only) sends.
@@ -436,7 +436,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
     }
 
     [Fact]
-    public async Task Correction_by_a_non_owning_organizer_returns_404()
+    public async Task CorrectionByANonOwningOrganizerReturns404()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(owner);
@@ -453,7 +453,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
     }
 
     [Fact]
-    public async Task Correction_of_a_non_existent_evaluation_returns_404()
+    public async Task CorrectionOfANonExistentEvaluationReturns404()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -466,7 +466,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
     // ---- Boundary validation reuses SubmitEvaluation's rules (400s) -------------------------------
 
     [Fact]
-    public async Task Correction_with_an_out_of_range_score_returns_400()
+    public async Task CorrectionWithAnOutOfRangeScoreReturns400()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -482,7 +482,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : IClassFixture<ApiFa
     }
 
     [Fact]
-    public async Task Correction_with_a_comment_under_20_characters_returns_400()
+    public async Task CorrectionWithACommentUnder20CharactersReturns400()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);

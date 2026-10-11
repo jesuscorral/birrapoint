@@ -8,9 +8,9 @@ namespace BirraPoint.Api.Features.TastingOrder;
 
 /// <summary>GET /me/tables (contracts/rest-api.md §Judge workspace) — every table the caller is
 /// actively assigned to, across every competition that has left Draft (FR-020/US6).</summary>
-public sealed record GetMyTablesQuery : IRequest<IReadOnlyList<JudgeTableSummaryDto>>;
+internal sealed record GetMyTablesQuery : IRequest<IReadOnlyList<JudgeTableSummaryDto>>;
 
-public sealed class GetMyTablesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class GetMyTablesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<GetMyTablesQuery, IReadOnlyList<JudgeTableSummaryDto>>
 {
     public async Task<IReadOnlyList<JudgeTableSummaryDto>> Handle(GetMyTablesQuery request, CancellationToken cancellationToken)

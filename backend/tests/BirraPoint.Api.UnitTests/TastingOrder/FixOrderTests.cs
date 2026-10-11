@@ -18,7 +18,7 @@ public sealed class FixOrderTests
     // ---- IsExactPermutation --------------------------------------------------------------------
 
     [Fact]
-    public void IsExactPermutation_true_for_a_reordering_of_the_same_ids()
+    public void IsExactPermutationTrueForAReorderingOfTheSameIds()
     {
         var a = Guid.NewGuid();
         var b = Guid.NewGuid();
@@ -28,7 +28,7 @@ public sealed class FixOrderTests
     }
 
     [Fact]
-    public void IsExactPermutation_false_when_an_id_is_missing()
+    public void IsExactPermutationFalseWhenAnIdIsMissing()
     {
         var a = Guid.NewGuid();
         var b = Guid.NewGuid();
@@ -37,7 +37,7 @@ public sealed class FixOrderTests
     }
 
     [Fact]
-    public void IsExactPermutation_false_when_an_extra_id_is_present()
+    public void IsExactPermutationFalseWhenAnExtraIdIsPresent()
     {
         var a = Guid.NewGuid();
         var b = Guid.NewGuid();
@@ -47,7 +47,7 @@ public sealed class FixOrderTests
     }
 
     [Fact]
-    public void IsExactPermutation_false_when_the_submitted_list_has_a_duplicate()
+    public void IsExactPermutationFalseWhenTheSubmittedListHasADuplicate()
     {
         var a = Guid.NewGuid();
         var b = Guid.NewGuid();
@@ -56,7 +56,7 @@ public sealed class FixOrderTests
     }
 
     [Fact]
-    public void IsExactPermutation_true_for_an_empty_table()
+    public void IsExactPermutationTrueForAnEmptyTable()
     {
         Assert.True(TastingOrderRules.IsExactPermutation([], []));
     }
@@ -64,7 +64,7 @@ public sealed class FixOrderTests
     // ---- EnsureOrderCanBeFixed: one-shot semantics ---------------------------------------------
 
     [Fact]
-    public void EnsureOrderCanBeFixed_throws_order_already_fixed_with_the_fixer_name_when_already_set()
+    public void EnsureOrderCanBeFixedThrowsOrderAlreadyFixedWithTheFixerNameWhenAlreadySet()
     {
         var exception = Assert.Throws<DomainException>(() =>
             TastingOrderRules.EnsureOrderCanBeFixed(isAlreadyFixed: true, "Ana Gomez", CompetitionState.Active));
@@ -78,7 +78,7 @@ public sealed class FixOrderTests
     [Theory]
     [InlineData(CompetitionState.Draft)]
     [InlineData(CompetitionState.Finalized)]
-    public void EnsureOrderCanBeFixed_throws_invalid_state_transition_outside_active_or_in_evaluation(
+    public void EnsureOrderCanBeFixedThrowsInvalidStateTransitionOutsideActiveOrInEvaluation(
         CompetitionState state)
     {
         var exception = Assert.Throws<DomainException>(() =>
@@ -90,7 +90,7 @@ public sealed class FixOrderTests
     [Theory]
     [InlineData(CompetitionState.Active)]
     [InlineData(CompetitionState.InEvaluation)]
-    public void EnsureOrderCanBeFixed_succeeds_while_active_or_in_evaluation(CompetitionState state)
+    public void EnsureOrderCanBeFixedSucceedsWhileActiveOrInEvaluation(CompetitionState state)
     {
         var exception = Record.Exception(() =>
             TastingOrderRules.EnsureOrderCanBeFixed(isAlreadyFixed: false, fixedByDisplayName: null, state));

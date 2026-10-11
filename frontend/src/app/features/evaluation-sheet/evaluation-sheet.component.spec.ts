@@ -125,7 +125,7 @@ describe('EvaluationSheetComponent', () => {
   // tests that set the whole form programmatically and then need the submit button/error visible
   // must jump there first, same as a judge who filled every section then opened Resumen.
   function goToReviewStep(fixture: ReturnType<typeof createComponent>): void {
-    fixture.componentInstance.activeTab.set('summary');
+    fixture.componentInstance['activeTab'].set('summary');
     fixture.detectChanges();
   }
 
@@ -256,7 +256,7 @@ describe('EvaluationSheetComponent', () => {
     fixture.detectChanges();
 
     expect(fakeSync.loadDraft).toHaveBeenCalledWith('e1');
-    expect(fixture.componentInstance.form.getRawValue()).toMatchObject({
+    expect(fixture.componentInstance['form'].getRawValue()).toMatchObject({
       aromaScore: 10,
       aromaComment: validComments().aroma,
       overallScore: 8,
@@ -268,7 +268,7 @@ describe('EvaluationSheetComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.form.getRawValue()).toMatchObject({
+    expect(fixture.componentInstance['form'].getRawValue()).toMatchObject({
       aromaScore: null,
       aromaComment: '',
     });
@@ -278,21 +278,24 @@ describe('EvaluationSheetComponent', () => {
     const fixture = createComponent();
     await flush();
     fixture.detectChanges();
-    fixture.componentInstance.form.patchValue(
+    fixture.componentInstance['form'].patchValue(
       { aromaScore: 10, appearanceScore: 2, flavorScore: 15, mouthfeelScore: 4, overallScore: 8 },
       { emitEvent: false },
     );
 
-    expect(fixture.componentInstance.total()).toBe(39);
+    expect(fixture.componentInstance['total']()).toBe(39);
   });
 
   it('shows the remaining characters needed to reach the 20-char comment minimum', async () => {
     const fixture = createComponent();
     await flush();
     fixture.detectChanges();
-    fixture.componentInstance.form.patchValue({ aromaComment: 'Too short' }, { emitEvent: false });
+    fixture.componentInstance['form'].patchValue(
+      { aromaComment: 'Too short' },
+      { emitEvent: false },
+    );
 
-    expect(fixture.componentInstance.remainingChars('aroma')).toBe(20 - 'Too short'.length);
+    expect(fixture.componentInstance['remainingChars']('aroma')).toBe(20 - 'Too short'.length);
   });
 
   it('disables submit while any score exceeds its cap or any comment is under 20 chars', async () => {
@@ -300,7 +303,7 @@ describe('EvaluationSheetComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    fixture.componentInstance.form.setValue({
+    fixture.componentInstance['form'].setValue({
       aromaScore: 13, // exceeds the 12 cap
       aromaComment: validComments().aroma,
       appearanceScore: validScores().appearance,
@@ -326,7 +329,7 @@ describe('EvaluationSheetComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    fixture.componentInstance.form.setValue({
+    fixture.componentInstance['form'].setValue({
       aromaScore: validScores().aroma,
       aromaComment: validComments().aroma,
       appearanceScore: validScores().appearance,
@@ -352,7 +355,7 @@ describe('EvaluationSheetComponent', () => {
     await flush();
     fixture.detectChanges();
 
-    fixture.componentInstance.form.patchValue({ aromaScore: 5 });
+    fixture.componentInstance['form'].patchValue({ aromaScore: 5 });
 
     expect(fakeSync.saveDraft).toHaveBeenCalledWith(
       'e1',
@@ -368,7 +371,7 @@ describe('EvaluationSheetComponent', () => {
     const fixture = createComponent();
     await flush();
     fixture.detectChanges();
-    fixture.componentInstance.form.setValue({
+    fixture.componentInstance['form'].setValue({
       aromaScore: validScores().aroma,
       aromaComment: validComments().aroma,
       appearanceScore: validScores().appearance,
@@ -382,7 +385,7 @@ describe('EvaluationSheetComponent', () => {
       feedback: '',
     });
 
-    await fixture.componentInstance.onSubmit();
+    await fixture.componentInstance['onSubmit']();
 
     expect(fakeSync.submit).toHaveBeenCalledWith(
       't1:e1',
@@ -401,7 +404,7 @@ describe('EvaluationSheetComponent', () => {
     const fixture = createComponent();
     await flush();
     fixture.detectChanges();
-    fixture.componentInstance.form.setValue({
+    fixture.componentInstance['form'].setValue({
       aromaScore: validScores().aroma,
       aromaComment: validComments().aroma,
       appearanceScore: validScores().appearance,
@@ -415,7 +418,7 @@ describe('EvaluationSheetComponent', () => {
       feedback: '',
     });
 
-    await fixture.componentInstance.onSubmit();
+    await fixture.componentInstance['onSubmit']();
 
     expect(navigateSpy).toHaveBeenCalledWith(['/judge', 'tables', 't1']);
   });
@@ -431,7 +434,7 @@ describe('EvaluationSheetComponent', () => {
     const fixture = createComponent();
     await flush();
     fixture.detectChanges();
-    fixture.componentInstance.form.setValue({
+    fixture.componentInstance['form'].setValue({
       aromaScore: validScores().aroma,
       aromaComment: validComments().aroma,
       appearanceScore: validScores().appearance,
@@ -445,7 +448,7 @@ describe('EvaluationSheetComponent', () => {
       feedback: '',
     });
 
-    await fixture.componentInstance.onSubmit();
+    await fixture.componentInstance['onSubmit']();
     goToReviewStep(fixture);
 
     expect(navigateSpy).not.toHaveBeenCalled();
@@ -457,7 +460,7 @@ describe('EvaluationSheetComponent', () => {
     const fixture = createComponent();
     await flush();
     fixture.detectChanges();
-    fixture.componentInstance.form.setValue({
+    fixture.componentInstance['form'].setValue({
       aromaScore: validScores().aroma,
       aromaComment: validComments().aroma,
       appearanceScore: validScores().appearance,
@@ -471,7 +474,7 @@ describe('EvaluationSheetComponent', () => {
       feedback: '',
     });
 
-    await fixture.componentInstance.onSubmit();
+    await fixture.componentInstance['onSubmit']();
 
     expect(fakeSync.rejectOutboxForTable).toHaveBeenCalledWith('t1');
     expect(navigateSpy).toHaveBeenCalledWith(['/judge', 'tables'], {
@@ -484,7 +487,7 @@ describe('EvaluationSheetComponent', () => {
     const fixture = createComponent();
     await flush();
     fixture.detectChanges();
-    fixture.componentInstance.form.setValue({
+    fixture.componentInstance['form'].setValue({
       aromaScore: validScores().aroma,
       aromaComment: validComments().aroma,
       appearanceScore: validScores().appearance,
@@ -498,7 +501,7 @@ describe('EvaluationSheetComponent', () => {
       feedback: '',
     });
 
-    await fixture.componentInstance.onSubmit();
+    await fixture.componentInstance['onSubmit']();
     goToReviewStep(fixture);
 
     expect(navigateSpy).not.toHaveBeenCalled();
@@ -698,7 +701,7 @@ describe('EvaluationSheetComponent', () => {
         fixture.detectChanges();
       }
 
-      const form = fixture.componentInstance.form;
+      const form = fixture.componentInstance['form'];
       for (const tab of tabs) {
         expect(form.get(`${tab.key}Score`)?.value).toBe(validScores()[tab.key]);
         expect(form.get(`${tab.key}Comment`)?.value).toBe(validComments()[tab.key]);
@@ -719,7 +722,7 @@ describe('EvaluationSheetComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      fixture.componentInstance.form.setValue({
+      fixture.componentInstance['form'].setValue({
         aromaScore: validScores().aroma,
         aromaComment: validComments().aroma,
         appearanceScore: validScores().appearance,
@@ -757,7 +760,7 @@ describe('EvaluationSheetComponent', () => {
       maltSlider.dispatchEvent(new Event('input'));
       fixture.detectChanges();
 
-      expect(fixture.componentInstance.descriptors().aroma.malt).toBe(3);
+      expect(fixture.componentInstance['descriptors']().aroma.malt).toBe(3);
     });
 
     // senior-review B1: an earlier version of this component defaulted every slider's *state*
@@ -779,7 +782,7 @@ describe('EvaluationSheetComponent', () => {
       maltSlider.value = '3';
       maltSlider.dispatchEvent(new Event('input'));
 
-      fixture.componentInstance.form.setValue({
+      fixture.componentInstance['form'].setValue({
         aromaScore: validScores().aroma,
         aromaComment: validComments().aroma,
         appearanceScore: validScores().appearance,
@@ -793,7 +796,7 @@ describe('EvaluationSheetComponent', () => {
         feedback: '',
       });
 
-      await fixture.componentInstance.onSubmit();
+      await fixture.componentInstance['onSubmit']();
 
       const [, , , , , descriptorsArg] = fakeSync.submit.mock.calls[0] as [
         string,
@@ -825,7 +828,7 @@ describe('EvaluationSheetComponent', () => {
       // Never touched — the rendered handle position is a display-only fallback (Nada = 0),
       // never written into component state (verified above) or, therefore, ever submitted.
       expect(maltSlider.value).toBe('0');
-      expect(fixture.componentInstance.descriptors().aroma.malt).toBeNull();
+      expect(fixture.componentInstance['descriptors']().aroma.malt).toBeNull();
     });
 
     it('toggling an off-flavor descriptor on the Resumen tab tracks it', async () => {
@@ -836,7 +839,7 @@ describe('EvaluationSheetComponent', () => {
       sectionNavButton(fixture.nativeElement, 'Resumen').click();
       fixture.detectChanges();
 
-      const diacetylCheckbox = Array.from(
+      const diacetylCheckbox = Array.from<HTMLElement>(
         fixture.nativeElement.querySelectorAll('.off-flavor-option'),
       )
         .find((label) => (label as HTMLElement).textContent?.includes('Diacetil'))
@@ -844,7 +847,7 @@ describe('EvaluationSheetComponent', () => {
       diacetylCheckbox.click();
       fixture.detectChanges();
 
-      expect(fixture.componentInstance.descriptors().offFlavors.has('Diacetyl')).toBe(true);
+      expect(fixture.componentInstance['descriptors']().offFlavors.has('Diacetyl')).toBe(true);
     });
 
     // Organizer follow-up (Session 2026-09-21): every descriptor now has its own "Inapropiado"

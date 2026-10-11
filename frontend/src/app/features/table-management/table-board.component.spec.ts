@@ -138,11 +138,11 @@ describe('TableBoardComponent', () => {
     const fixture = createComponent();
 
     // j1 is seated at Mesa 1 (table fixture); j2 is not on any table.
-    expect(fixture.componentInstance.unassignedJudges()).toEqual([
+    expect(fixture.componentInstance['unassignedJudges']()).toEqual([
       { id: 'j2', email: 'grace@example.com', displayName: 'Grace Hopper' },
     ]);
     // e1 is seated at Mesa 1; e2 has tastingTableId === null.
-    expect(fixture.componentInstance.unassignedBeers().map((e) => e.id)).toEqual(['e2']);
+    expect(fixture.componentInstance['unassignedBeers']().map((e) => e.id)).toEqual(['e2']);
   });
 
   it('renders a MesaCard per loaded table', () => {
@@ -231,9 +231,9 @@ describe('TableBoardComponent', () => {
     };
     fakeApi.updateTable.mockReturnValue(of(mutationResult));
 
-    fixture.componentInstance.onJudgeClicked('j2');
+    fixture.componentInstance['onJudgeClicked']('j2');
     fixture.detectChanges();
-    fixture.componentInstance.onModalMove('t1');
+    fixture.componentInstance['onModalMove']('t1');
 
     expect(fakeEntriesApi.getEntries).toHaveBeenCalledWith('c1');
   });
@@ -241,7 +241,7 @@ describe('TableBoardComponent', () => {
   it('opens the beer detail modal with modal content resolved from the entries list, including real ABV%', () => {
     const fixture = createComponent();
 
-    fixture.componentInstance.onBeerClicked('e2');
+    fixture.componentInstance['onBeerClicked']('e2');
     fixture.detectChanges();
 
     const text = fixture.nativeElement.textContent as string;
@@ -253,7 +253,7 @@ describe('TableBoardComponent', () => {
   it('opens the judge detail modal with modal content resolved from the judges list', () => {
     const fixture = createComponent();
 
-    fixture.componentInstance.onJudgeClicked('j2');
+    fixture.componentInstance['onJudgeClicked']('j2');
     fixture.detectChanges();
 
     const text = fixture.nativeElement.textContent as string;
@@ -278,9 +278,9 @@ describe('TableBoardComponent', () => {
 
     // Drive the move through the public API a keyboard-only user would use (the detail modal's
     // "Move to" control), rather than simulating a raw CDK drop event.
-    fixture.componentInstance.onJudgeClicked('j2');
+    fixture.componentInstance['onJudgeClicked']('j2');
     fixture.detectChanges();
-    fixture.componentInstance.onModalMove('t1');
+    fixture.componentInstance['onModalMove']('t1');
     fixture.detectChanges();
 
     const text = fixture.nativeElement.textContent as string;
@@ -297,9 +297,9 @@ describe('TableBoardComponent', () => {
     };
     fakeApi.updateTable.mockReturnValue(of(mutationResult));
 
-    fixture.componentInstance.onJudgeClicked('j2');
+    fixture.componentInstance['onJudgeClicked']('j2');
     fixture.detectChanges();
-    fixture.componentInstance.onModalMove('t1');
+    fixture.componentInstance['onModalMove']('t1');
 
     expect(fakeApi.updateTable).toHaveBeenCalledWith('c1', 't1', {
       name: 'Mesa 1',
@@ -707,7 +707,7 @@ describe('TableBoardComponent', () => {
     it('hides the "Move" control in the detail modal, while click-to-detail still opens it', () => {
       const fixture = createReadOnlyComponent();
 
-      fixture.componentInstance.onJudgeClicked('j2');
+      fixture.componentInstance['onJudgeClicked']('j2');
       fixture.detectChanges();
 
       expect(fixture.nativeElement.textContent).toContain('Grace Hopper');

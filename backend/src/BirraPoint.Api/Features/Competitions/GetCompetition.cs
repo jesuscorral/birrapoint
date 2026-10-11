@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Competitions;
 
 /// <summary>Full competition detail wire shape (contracts/rest-api.md §Competitions).</summary>
-public sealed record CompetitionDetailDto(
+internal sealed record CompetitionDetailDto(
     Guid Id,
     string Name,
     string Venue,
@@ -35,9 +35,9 @@ public sealed record CompetitionDetailDto(
 }
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record GetCompetitionQuery(Guid Id) : IRequest<CompetitionDetailDto?>;
+internal sealed record GetCompetitionQuery(Guid Id) : IRequest<CompetitionDetailDto?>;
 
-public sealed class GetCompetitionQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class GetCompetitionQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<GetCompetitionQuery, CompetitionDetailDto?>
 {
     public async Task<CompetitionDetailDto?> Handle(GetCompetitionQuery request, CancellationToken cancellationToken)

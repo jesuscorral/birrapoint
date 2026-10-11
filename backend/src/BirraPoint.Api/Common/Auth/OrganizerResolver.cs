@@ -13,13 +13,13 @@ namespace BirraPoint.Api.Common.Auth;
 /// <see cref="JudgeResolver"/> does: <see cref="CurrentUser"/> would otherwise need to depend on
 /// this, creating a DI cycle.
 /// </summary>
-public interface IOrganizerResolver
+internal interface IOrganizerResolver
 {
     Task<Organizer> ResolveOrCreateAsync(
         string sub, string? email, string? givenName, string? familyName, CancellationToken ct = default);
 }
 
-public sealed class OrganizerResolver(AppDbContext db) : IOrganizerResolver
+internal sealed class OrganizerResolver(AppDbContext db) : IOrganizerResolver
 {
     public async Task<Organizer> ResolveOrCreateAsync(
         string sub, string? email, string? givenName, string? familyName, CancellationToken ct = default)

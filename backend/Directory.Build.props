@@ -1,5 +1,18 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnalysisMode>All</AnalysisMode>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- NuGet audit advisories (NU1901-NU1904) stay visible as warnings but never fail restore:
+         a newly published advisory on a transitive package must not block an urgent release. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
+    <!-- The C# Dev Kit design-time build runs the Minimal API and configuration-binding source
+         generators even though the CLI build does not, and reports CS9137 on their interceptors.
+         Allowing both namespaces keeps the IDE consistent with the CLI. -->
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.Http.Generated;Microsoft.Extensions.Configuration.Binder.SourceGeneration</InterceptorsNamespaces>
   </PropertyGroup>
 </Project>

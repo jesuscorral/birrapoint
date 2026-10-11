@@ -5,11 +5,11 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Catalog;
 
 /// <summary>Lightweight BJCP 2021 catalog row for import matching / searchable pickers (contracts/rest-api.md §Catalog).</summary>
-public sealed record StyleSummaryDto(string Code, string Name, string CategoryNumber, string CategoryName);
+internal sealed record StyleSummaryDto(string Code, string Name, string CategoryNumber, string CategoryName);
 
-public sealed record GetStylesQuery : IRequest<IReadOnlyList<StyleSummaryDto>>;
+internal sealed record GetStylesQuery : IRequest<IReadOnlyList<StyleSummaryDto>>;
 
-public sealed class GetStylesQueryHandler(AppDbContext dbContext)
+internal sealed class GetStylesQueryHandler(AppDbContext dbContext)
     : IRequestHandler<GetStylesQuery, IReadOnlyList<StyleSummaryDto>>
 {
     public async Task<IReadOnlyList<StyleSummaryDto>> Handle(GetStylesQuery request, CancellationToken cancellationToken)
@@ -29,7 +29,7 @@ public sealed class GetStylesQueryHandler(AppDbContext dbContext)
     }
 }
 
-public static class CatalogEndpoints
+internal static class CatalogEndpoints
 {
     /// <summary>Maps <c>GET /api/v1/styles</c> (T017 — first slice; any authenticated user per the deny-by-default fallback policy).</summary>
     public static IEndpointRouteBuilder MapCatalogEndpoints(this IEndpointRouteBuilder endpoints)

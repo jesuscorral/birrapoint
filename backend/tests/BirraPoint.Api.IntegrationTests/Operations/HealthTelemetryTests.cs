@@ -17,6 +17,8 @@ namespace BirraPoint.Api.IntegrationTests.Operations;
 /// T098 (FR-048): Production host against a reachable Postgres Testcontainer (no migration needed:
 /// the "db" readiness check only opens a connection).
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1515:Consider making public types internal",
+    Justification = "xUnit requires fixtures used in public test-class constructors (IClassFixture<T>) to be public.")]
 public sealed class ProductionHealthyApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:16").Build();
@@ -31,6 +33,7 @@ public sealed class ProductionHealthyApiFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment("Production");
         builder.ConfigureAppConfiguration((_, config) =>
             config.AddInMemoryCollection(new Dictionary<string, string?>
@@ -44,6 +47,8 @@ public sealed class ProductionHealthyApiFactory : WebApplicationFactory<Program>
 
 /// <summary>Production host whose database is deterministically unreachable: 127.0.0.1 port 1 is
 /// closed (immediate connection refusal), Timeout=1 bounds any retry. No container needed.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1515:Consider making public types internal",
+    Justification = "xUnit requires fixtures used in public test-class constructors (IClassFixture<T>) to be public.")]
 public sealed class ProductionDbDownApiFactory : WebApplicationFactory<Program>
 {
     // Distinctive values so the leak assertions can look for them in response bodies.
@@ -52,6 +57,7 @@ public sealed class ProductionDbDownApiFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment("Production");
         builder.ConfigureAppConfiguration((_, config) =>
             config.AddInMemoryCollection(new Dictionary<string, string?>
@@ -66,12 +72,15 @@ public sealed class ProductionDbDownApiFactory : WebApplicationFactory<Program>
 
 /// <summary>Host that, like Aspire, supplies service.instance.id through OTEL_RESOURCE_ATTRIBUTES.
 /// No container needed: the telemetry resource is built without touching the database.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1515:Consider making public types internal",
+    Justification = "xUnit requires fixtures used in public test-class constructors (IClassFixture<T>) to be public.")]
 public sealed class AspireResourceAttributesApiFactory : WebApplicationFactory<Program>
 {
     public const string InstanceId = "aspire-instance-abc";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment("Production");
         builder.ConfigureAppConfiguration((_, config) =>
             config.AddInMemoryCollection(new Dictionary<string, string?>
@@ -90,11 +99,11 @@ public sealed class HealthEndpointsProductionTests(ProductionHealthyApiFactory f
     [Theory]
     [InlineData("/alive")]
     [InlineData("/health")]
-    public async Task Probe_is_mapped_in_Production_anonymous_and_returns_bare_Healthy(string path)
+    public async Task ProbeIsMappedInProductionAnonymousAndReturnsBareHealthy(string path)
     {
         using var client = factory.CreateClient(); // no bearer: fallback policy must not block probes
 
-        var response = await client.GetAsync(path, TestContext.Current.CancellationToken);
+        var response = await client.GetAsync(Urls.Rel(path), TestContext.Current.CancellationToken);
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -102,16 +111,16 @@ public sealed class HealthEndpointsProductionTests(ProductionHealthyApiFactory f
     }
 
     [Fact]
-    public async Task Health_body_does_not_leak_check_names_or_connection_details()
+    public async Task HealthBodyDoesNotLeakCheckNamesOrConnectionDetails()
     {
         using var client = factory.CreateClient();
 
-        var body = await client.GetStringAsync("/health", TestContext.Current.CancellationToken);
+        var body = await client.GetStringAsync(Urls.Rel("/health"), TestContext.Current.CancellationToken);
 
         Assert.Equal("Healthy", body);
-        Assert.DoesNotContain("self", body);
-        Assert.DoesNotContain("\"db\"", body);
-        Assert.DoesNotContain("Host=", body);
+        Assert.DoesNotContain("self", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"db\"", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Host=", body, StringComparison.Ordinal);
     }
 }
 
@@ -122,27 +131,27 @@ public sealed class HealthEndpointsDbDownTests : IClassFixture<ProductionDbDownA
     public HealthEndpointsDbDownTests(ProductionDbDownApiFactory factory) => _factory = factory;
 
     [Fact]
-    public async Task Health_returns_503_Unhealthy_when_database_is_unreachable_without_leaking_details()
+    public async Task HealthReturns503UnhealthyWhenDatabaseIsUnreachableWithoutLeakingDetails()
     {
         using var client = _factory.CreateClient();
 
-        var response = await client.GetAsync("/health", TestContext.Current.CancellationToken);
+        var response = await client.GetAsync(Urls.Rel("/health"), TestContext.Current.CancellationToken);
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.Equal("Unhealthy", body);
-        Assert.DoesNotContain(ProductionDbDownApiFactory.LeakCanaryPassword, body);
-        Assert.DoesNotContain(ProductionDbDownApiFactory.LeakCanaryHost, body);
-        Assert.DoesNotContain("Npgsql", body);
-        Assert.DoesNotContain("Exception", body);
+        Assert.DoesNotContain(ProductionDbDownApiFactory.LeakCanaryPassword, body, StringComparison.Ordinal);
+        Assert.DoesNotContain(ProductionDbDownApiFactory.LeakCanaryHost, body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Npgsql", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Exception", body, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task Alive_stays_200_when_database_is_unreachable_because_it_runs_only_live_checks()
+    public async Task AliveStays200WhenDatabaseIsUnreachableBecauseItRunsOnlyLiveChecks()
     {
         using var client = _factory.CreateClient();
 
-        var response = await client.GetAsync("/alive", TestContext.Current.CancellationToken);
+        var response = await client.GetAsync(Urls.Rel("/alive"), TestContext.Current.CancellationToken);
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -156,11 +165,11 @@ public sealed class HealthEndpointsTestingEnvTests(ApiFactory factory) : IClassF
     [Theory]
     [InlineData("/alive")]
     [InlineData("/health")]
-    public async Task Probe_returns_200_Healthy_anonymously(string path)
+    public async Task ProbeReturns200HealthyAnonymously(string path)
     {
         using var client = factory.CreateClient();
 
-        var response = await client.GetAsync(path, TestContext.Current.CancellationToken);
+        var response = await client.GetAsync(Urls.Rel(path), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("Healthy", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
@@ -176,14 +185,14 @@ public sealed class HealthEndpointsTestingEnvTests(ApiFactory factory) : IClassF
 public sealed class TelemetryRegistrationTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     [Fact]
-    public void TracerProvider_and_MeterProvider_are_registered()
+    public void TracerProviderAndMeterProviderAreRegistered()
     {
         Assert.NotNull(factory.Services.GetService<TracerProvider>());
         Assert.NotNull(factory.Services.GetService<MeterProvider>());
     }
 
     [Fact]
-    public void OpenTelemetry_logger_provider_is_registered()
+    public void OpenTelemetryLoggerProviderIsRegistered()
     {
         var providers = factory.Services.GetServices<ILoggerProvider>();
 
@@ -191,7 +200,7 @@ public sealed class TelemetryRegistrationTests(ApiFactory factory) : IClassFixtu
     }
 
     [Fact]
-    public void Resource_service_name_is_explicitly_set_not_the_unknown_service_default()
+    public void ResourceServiceNameIsExplicitlySetNotTheUnknownServiceDefault()
     {
         // ServiceDefaults only reads OTEL_SERVICE_NAME (injected by Aspire). Outside Aspire (ACA/ECS)
         // nothing sets it and the SDK falls back to "unknown_service:<process>", so the app must
@@ -210,7 +219,7 @@ public sealed class TelemetryResourceInstanceIdTests(AspireResourceAttributesApi
     : IClassFixture<AspireResourceAttributesApiFactory>
 {
     [Fact]
-    public void Explicit_service_name_does_not_overwrite_service_instance_id_from_OTEL_RESOURCE_ATTRIBUTES()
+    public void ExplicitServiceNameDoesNotOverwriteServiceInstanceIdFromOTELRESOURCEATTRIBUTES()
     {
         var instanceId = factory.Services.GetRequiredService<TracerProvider>()
             .GetResource().Attributes

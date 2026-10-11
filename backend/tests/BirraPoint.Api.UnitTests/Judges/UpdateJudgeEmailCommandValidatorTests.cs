@@ -39,7 +39,7 @@ public sealed class UpdateJudgeEmailCommandValidatorTests
     [Theory]
     [InlineData("not-an-email")]
     [InlineData("")]
-    public void Command_with_malformed_email_is_invalid(string email)
+    public void CommandWithMalformedEmailIsInvalid(string email)
     {
         using var dbContext = CreateUnusedDbContext();
         var validator = new UpdateJudgeEmailCommandValidator(dbContext, new UnusedCurrentUser());

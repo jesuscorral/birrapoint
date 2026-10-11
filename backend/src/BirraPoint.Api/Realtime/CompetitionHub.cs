@@ -17,7 +17,7 @@ namespace BirraPoint.Api.Realtime;
 /// harness exists; `contract-guardian` can verify this gap is closed.
 /// </summary>
 [Authorize]
-public sealed class CompetitionHub(AppDbContext db) : Hub
+internal sealed class CompetitionHub(AppDbContext db) : Hub
 {
     private const string NotAuthorizedToJoinOrganizerGroup = "Not authorized to join this competition's organizer group.";
     private const string NotAuthorizedToJoinTable = "Not authorized to join this table.";

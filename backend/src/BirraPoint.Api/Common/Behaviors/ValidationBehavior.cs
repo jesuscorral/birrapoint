@@ -9,7 +9,7 @@ namespace BirraPoint.Api.Common.Behaviors;
 /// ValidationExceptionHandler maps to a 400 urn:birrapoint:validation ProblemDetails. A no-op
 /// when no validator is registered for the request type.
 /// </summary>
-public sealed class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidator<TRequest>> validators)
+internal sealed class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidator<TRequest>> validators)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {

@@ -24,13 +24,13 @@ public sealed class CorrectEvaluationTests
         Feedback: null);
 
     [Fact]
-    public void Absent_descriptors_are_valid()
+    public void AbsentDescriptorsAreValid()
     {
         Assert.True(Validator.Validate(ValidCommand()).IsValid);
     }
 
     [Fact]
-    public void Out_of_range_discrete_descriptor_is_rejected_via_the_shared_validator()
+    public void OutOfRangeDiscreteDescriptorIsRejectedViaTheSharedValidator()
     {
         var descriptors = new EvaluationDescriptorsDto(
             null, new AromaDescriptorsDto(5, false, null, false, null, false), null, null, null, null);
@@ -41,7 +41,7 @@ public sealed class CorrectEvaluationTests
     }
 
     [Fact]
-    public void Color_outside_the_closed_list_is_rejected_via_the_shared_validator()
+    public void ColorOutsideTheClosedListIsRejectedViaTheSharedValidator()
     {
         var descriptors = new EvaluationDescriptorsDto(
             new AppearanceDescriptorsDto("Purple", null, false, null, false, null, null, false, null, false, null, null),
@@ -53,7 +53,7 @@ public sealed class CorrectEvaluationTests
     }
 
     [Fact]
-    public void Feedback_over_4000_characters_is_rejected()
+    public void FeedbackOver4000CharactersIsRejected()
     {
         var command = ValidCommand() with { Feedback = new string('x', 4001) };
 

@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace BirraPoint.Api.Common.Persistence.Configurations;
 
-public sealed class ImportRowConfiguration : IEntityTypeConfiguration<ImportRow>
+internal sealed class ImportRowConfiguration : IEntityTypeConfiguration<ImportRow>
 {
     public void Configure(EntityTypeBuilder<ImportRow> builder)
     {

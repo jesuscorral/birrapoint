@@ -14,10 +14,10 @@ namespace BirraPoint.Api.Features.Evaluations;
 /// <summary>Per-judge total for one discrepancy (contracts/rest-api.md §Judge workspace
 /// `GET .../discrepancies`). <see cref="EvaluationId"/> is additive beyond the documented wire
 /// shape — the frontend needs it to address the PUT adjustment endpoint.</summary>
-public sealed record DiscrepancyTotalDto(string JudgeDisplayName, int Total, bool IsMine, Guid EvaluationId);
+internal sealed record DiscrepancyTotalDto(string JudgeDisplayName, int Total, bool IsMine, Guid EvaluationId);
 
 /// <summary>contracts/rest-api.md §Judge workspace `{ alertId, blindCode, totals: [...] }`.</summary>
-public sealed record DiscrepancyView(Guid AlertId, string BlindCode, IReadOnlyList<DiscrepancyTotalDto> Totals);
+internal sealed record DiscrepancyView(Guid AlertId, string BlindCode, IReadOnlyList<DiscrepancyTotalDto> Totals);
 
 /// <summary>
 /// Re-derives which judges are involved for one (table, sample), stages the resulting
@@ -30,7 +30,7 @@ public sealed record DiscrepancyView(Guid AlertId, string BlindCode, IReadOnlyLi
 /// </summary>
 internal static class DiscrepancyReconciler
 {
-    public sealed record DiscrepancyReconciliationOutcome(
+    internal sealed record DiscrepancyReconciliationOutcome(
         IReadOnlyCollection<Guid> InvolvedJudgeIds, Guid? AlertId, bool AlertOpened, bool AlertResolved);
 
     /// <summary>
@@ -198,17 +198,17 @@ internal static class DiscrepancyViewBuilder
 /// this table, or when the evaluationId doesn't belong to one of the caller's own submissions at
 /// this table — the endpoint maps that to a plain 404, never leaking whether it belongs to someone
 /// else (same convention as SubmitEvaluationCommand/CloseTableCommand).</summary>
-public sealed record AdjustEvaluationCommand(
+internal sealed record AdjustEvaluationCommand(
     Guid TableId, Guid EvaluationId, EvaluationScoresDto Scores, EvaluationCommentsDto Comments)
     : IRequest<AdjustEvaluationResult?>;
 
-public sealed record AdjustEvaluationResult(Guid EvaluationId, string Status, int Total, DiscrepancyView? Discrepancy);
+internal sealed record AdjustEvaluationResult(Guid EvaluationId, string Status, int Total, DiscrepancyView? Discrepancy);
 
 /// <summary>Same score caps (FR-023/FR-024) and comment-length rule (FR-025) as
 /// SubmitEvaluationCommandValidator/CorrectEvaluationCommandValidator, sourced from the same
 /// SubmitEvaluationRules constants — duplicated rather than shared because each command has an
 /// unrelated shape (this one also carries TableId/EvaluationId).</summary>
-public sealed class AdjustEvaluationCommandValidator : AbstractValidator<AdjustEvaluationCommand>
+internal sealed class AdjustEvaluationCommandValidator : AbstractValidator<AdjustEvaluationCommand>
 {
     public AdjustEvaluationCommandValidator()
     {
@@ -235,7 +235,7 @@ public sealed class AdjustEvaluationCommandValidator : AbstractValidator<AdjustE
     }
 }
 
-public sealed class AdjustEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher)
+internal sealed class AdjustEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher)
     : IRequestHandler<AdjustEvaluationCommand, AdjustEvaluationResult?>
 {
     public async Task<AdjustEvaluationResult?> Handle(AdjustEvaluationCommand request, CancellationToken cancellationToken)
@@ -343,9 +343,9 @@ public sealed class AdjustEvaluationCommandHandler(AppDbContext dbContext, ICurr
 
 /// <summary>GET /me/tables/{tableId}/discrepancies (contracts/rest-api.md §Judge workspace, T081).
 /// Returns null when the caller is not an active member of this table.</summary>
-public sealed record GetMyDiscrepanciesQuery(Guid TableId) : IRequest<IReadOnlyList<DiscrepancyView>?>;
+internal sealed record GetMyDiscrepanciesQuery(Guid TableId) : IRequest<IReadOnlyList<DiscrepancyView>?>;
 
-public sealed class GetMyDiscrepanciesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class GetMyDiscrepanciesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<GetMyDiscrepanciesQuery, IReadOnlyList<DiscrepancyView>?>
 {
     public async Task<IReadOnlyList<DiscrepancyView>?> Handle(GetMyDiscrepanciesQuery request, CancellationToken cancellationToken)

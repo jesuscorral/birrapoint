@@ -34,7 +34,7 @@ public sealed class AuthenticationExtensionsTests
     }
 
     [Fact]
-    public async Task Registers_the_jwt_bearer_scheme()
+    public async Task RegistersTheJwtBearerScheme()
     {
         await using var provider = BuildProvider();
         var schemeProvider = provider.GetRequiredService<IAuthenticationSchemeProvider>();
@@ -45,7 +45,7 @@ public sealed class AuthenticationExtensionsTests
     }
 
     [Fact]
-    public async Task Registers_organizer_and_judge_role_policies()
+    public async Task RegistersOrganizerAndJudgeRolePolicies()
     {
         await using var provider = BuildProvider();
         var policyProvider = provider.GetRequiredService<IAuthorizationPolicyProvider>();
@@ -55,7 +55,7 @@ public sealed class AuthenticationExtensionsTests
     }
 
     [Fact]
-    public async Task Fallback_policy_requires_an_authenticated_user()
+    public async Task FallbackPolicyRequiresAnAuthenticatedUser()
     {
         await using var provider = BuildProvider();
         var policyProvider = provider.GetRequiredService<IAuthorizationPolicyProvider>();
@@ -67,7 +67,7 @@ public sealed class AuthenticationExtensionsTests
     }
 
     [Fact]
-    public void Registers_the_keycloak_claims_transformation()
+    public void RegistersTheKeycloakClaimsTransformation()
     {
         using var provider = BuildProvider();
 
@@ -77,7 +77,7 @@ public sealed class AuthenticationExtensionsTests
     }
 
     [Fact]
-    public void Registers_current_user_and_its_http_context_accessor_dependency()
+    public void RegistersCurrentUserAndItsHttpContextAccessorDependency()
     {
         using var provider = BuildProvider();
 

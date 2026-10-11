@@ -6,7 +6,7 @@ namespace BirraPoint.Api.UnitTests.Realtime;
 public sealed class EventPublisherTests
 {
     [Fact]
-    public async Task PublishToOrganizersAsync_sends_the_event_to_the_organizer_group()
+    public async Task PublishToOrganizersAsyncSendsTheEventToTheOrganizerGroup()
     {
         var hubContext = new FakeHubContext();
         var publisher = new EventPublisher(hubContext);
@@ -22,7 +22,7 @@ public sealed class EventPublisherTests
     }
 
     [Fact]
-    public async Task PublishToTableAsync_sends_the_event_to_the_table_group_only()
+    public async Task PublishToTableAsyncSendsTheEventToTheTableGroupOnly()
     {
         var hubContext = new FakeHubContext();
         var publisher = new EventPublisher(hubContext);

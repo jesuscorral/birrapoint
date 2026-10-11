@@ -38,7 +38,7 @@ public sealed class CurrentUserTests
     }
 
     [Fact]
-    public void Reads_sub_email_name_and_roles_from_the_current_principal()
+    public void ReadsSubEmailNameAndRolesFromTheCurrentPrincipal()
     {
         var identity = new ClaimsIdentity(
         [
@@ -61,7 +61,7 @@ public sealed class CurrentUserTests
     }
 
     [Fact]
-    public void Email_is_null_when_the_claim_is_absent()
+    public void EmailIsNullWhenTheClaimIsAbsent()
     {
         var identity = new ClaimsIdentity([new Claim("sub", "kc-user-123")], "test");
         var currentUser = CurrentUserFor(new ClaimsPrincipal(identity));
@@ -70,7 +70,7 @@ public sealed class CurrentUserTests
     }
 
     [Fact]
-    public void Name_is_null_when_the_claim_is_absent()
+    public void NameIsNullWhenTheClaimIsAbsent()
     {
         var identity = new ClaimsIdentity([new Claim("sub", "kc-user-123")], "test");
         var currentUser = CurrentUserFor(new ClaimsPrincipal(identity));
@@ -79,7 +79,7 @@ public sealed class CurrentUserTests
     }
 
     [Fact]
-    public void Sub_throws_when_the_claim_is_missing()
+    public void SubThrowsWhenTheClaimIsMissing()
     {
         var identity = new ClaimsIdentity([new Claim("email", "judge@example.test")], "test");
         var currentUser = CurrentUserFor(new ClaimsPrincipal(identity));
@@ -88,7 +88,7 @@ public sealed class CurrentUserTests
     }
 
     [Fact]
-    public void Throws_when_there_is_no_http_context()
+    public void ThrowsWhenThereIsNoHttpContext()
     {
         var accessor = new HttpContextAccessor { HttpContext = null };
         var currentUser = new CurrentUser(accessor, new SpyJudgeResolver(), new SpyOrganizerResolver());
@@ -97,7 +97,7 @@ public sealed class CurrentUserTests
     }
 
     [Fact]
-    public async Task GetJudgeRecordsAsync_delegates_to_the_resolver_with_sub_email_and_name()
+    public async Task GetJudgeRecordsAsyncDelegatesToTheResolverWithSubEmailAndName()
     {
         var identity = new ClaimsIdentity(
         [
@@ -118,7 +118,7 @@ public sealed class CurrentUserTests
     }
 
     [Fact]
-    public async Task GetOrganizerAsync_delegates_to_the_resolver_with_sub_email_given_and_family_name()
+    public async Task GetOrganizerAsyncDelegatesToTheResolverWithSubEmailGivenAndFamilyName()
     {
         var identity = new ClaimsIdentity(
         [

@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace BirraPoint.Api.Common.Errors;
 
 /// <summary>Maps a <see cref="DomainException"/> to its catalogued ProblemDetails shape.</summary>
-public sealed class DomainExceptionHandler(IProblemDetailsService problemDetailsService) : IExceptionHandler
+internal sealed class DomainExceptionHandler(IProblemDetailsService problemDetailsService) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {

@@ -9,7 +9,7 @@ namespace BirraPoint.Api.Common.Jobs;
 /// a crash mid-processing. T016 registers none; the first handlers are T041 (SendInvitation) and
 /// T075 (GeneratePdfs/BundleZip/SendResultEmail).
 /// </summary>
-public interface IDispatchJobHandler
+internal interface IDispatchJobHandler
 {
     DispatchJobType Type { get; }
 

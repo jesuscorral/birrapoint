@@ -194,11 +194,11 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         HttpClient client, Guid competitionId, byte[] xlsxBytes, string fileName = "entries.xlsx", string? contentType = null)
     {
         using var content = new MultipartFormDataContent();
-        var fileContent = new ByteArrayContent(xlsxBytes);
+        using var fileContent = new ByteArrayContent(xlsxBytes);
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(
             contentType ?? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         content.Add(fileContent, "file", fileName);
-        return await client.PostAsync($"/api/v1/competitions/{competitionId}/imports", content);
+        return await client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/imports"), content);
     }
 
     private static async Task<(Guid ImportId, List<JsonElement> Rows)> UploadAcceRowsAsync(
@@ -214,7 +214,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     private static Task<HttpResponseMessage> GetImportAsync(HttpClient client, Guid competitionId, Guid importId) =>
-        client.GetAsync($"/api/v1/competitions/{competitionId}/imports/{importId}");
+        client.GetAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/imports/{importId}"));
 
     private static Task<HttpResponseMessage> EditRowAsync(
         HttpClient client, Guid competitionId, Guid importId, int rowNumber, object body) =>
@@ -222,13 +222,13 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
 
     private static Task<HttpResponseMessage> ExcludeRowAsync(
         HttpClient client, Guid competitionId, Guid importId, int rowNumber) =>
-        client.PostAsync($"/api/v1/competitions/{competitionId}/imports/{importId}/rows/{rowNumber}/exclude", null);
+        client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/imports/{importId}/rows/{rowNumber}/exclude"), null);
 
     private static Task<HttpResponseMessage> ConsolidateAsync(HttpClient client, Guid competitionId, Guid importId) =>
-        client.PostAsync($"/api/v1/competitions/{competitionId}/imports/{importId}/consolidate", null);
+        client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/imports/{importId}/consolidate"), null);
 
     private static Task<HttpResponseMessage> RevalidateAsync(HttpClient client, Guid competitionId, Guid importId) =>
-        client.PostAsync($"/api/v1/competitions/{competitionId}/imports/{importId}/revalidate", null);
+        client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/imports/{importId}/revalidate"), null);
 
     /// <summary>Full editable-row body matching <c>EditImportRowRequest</c>'s camelCase wire shape.</summary>
     private static object FullEditBody(
@@ -272,7 +272,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- Upload: auth & ownership ----------------------------------------------------------
 
     [Fact]
-    public async Task Upload_without_a_bearer_token_is_rejected_with_401()
+    public async Task UploadWithoutABearerTokenIsRejectedWith401()
     {
         using var client = factory.CreateClient();
 
@@ -282,7 +282,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Upload_with_judge_role_is_forbidden_with_403()
+    public async Task UploadWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -294,7 +294,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Upload_for_a_competition_owned_by_a_different_organizer_returns_404()
+    public async Task UploadForACompetitionOwnedByADifferentOrganizerReturns404()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner);
@@ -308,7 +308,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- Upload: row-level parsing (contracts/import-file.md) -------------------------------
 
     [Fact]
-    public async Task Upload_with_a_valid_row_returns_201_with_status_Valid_and_the_full_data_envelope()
+    public async Task UploadWithAValidRowReturns201WithStatusValidAndTheFullDataEnvelope()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -331,7 +331,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Upload_row_with_a_style_that_does_not_match_the_catalog_is_marked_StyleMismatch()
+    public async Task UploadRowWithAStyleThatDoesNotMatchTheCatalogIsMarkedStyleMismatch()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -344,7 +344,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Upload_row_with_a_category_that_is_not_configured_for_this_competition_is_marked_CategoryMismatch()
+    public async Task UploadRowWithACategoryThatIsNotConfiguredForThisCompetitionIsMarkedCategoryMismatch()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -357,7 +357,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Upload_row_missing_a_required_cell_is_marked_Invalid_with_an_error_message()
+    public async Task UploadRowMissingARequiredCellIsMarkedInvalidWithAnErrorMessage()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -374,7 +374,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- Upload: file-level rejections (400 invalid-import-file) ----------------------------
 
     [Fact]
-    public async Task Upload_a_non_xlsx_file_returns_400_invalid_import_file()
+    public async Task UploadANonXlsxFileReturns400InvalidImportFile()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -388,7 +388,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Upload_a_workbook_missing_a_required_header_column_returns_400_invalid_import_file()
+    public async Task UploadAWorkbookMissingARequiredHeaderColumnReturns400InvalidImportFile()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -406,7 +406,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Upload_while_the_competition_is_in_evaluation_is_rejected_with_409()
+    public async Task UploadWhileTheCompetitionIsInEvaluationIsRejectedWith409()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -424,7 +424,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- Upload: single active batch per competition -----------------------------------------
 
     [Fact]
-    public async Task Uploading_a_second_file_discards_the_prior_unconsolidated_batch()
+    public async Task UploadingASecondFileDiscardsThePriorUnconsolidatedBatch()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -452,7 +452,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- GET current row states --------------------------------------------------------------
 
     [Fact]
-    public async Task Get_import_returns_404_for_a_competition_owned_by_a_different_organizer()
+    public async Task GetImportReturns404ForACompetitionOwnedByADifferentOrganizer()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner);
@@ -466,7 +466,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Get_import_with_judge_role_is_forbidden_with_403()
+    public async Task GetImportWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -482,7 +482,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- Full row edit (EditImportRow) -------------------------------------------------------
 
     [Fact]
-    public async Task Edit_row_with_judge_role_is_forbidden_with_403()
+    public async Task EditRowWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -496,7 +496,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Edit_row_resolving_a_StyleMismatch_lets_consolidation_include_it()
+    public async Task EditRowResolvingAStyleMismatchLetsConsolidationIncludeIt()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -519,7 +519,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Edit_row_resolving_a_CategoryMismatch_lets_consolidation_include_it()
+    public async Task EditRowResolvingACategoryMismatchLetsConsolidationIncludeIt()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -538,7 +538,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Edit_row_leaving_the_category_unresolved_recomputes_status_Invalid()
+    public async Task EditRowLeavingTheCategoryUnresolvedRecomputesStatusInvalid()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -554,7 +554,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Edit_row_with_a_CompetitionCategoryId_from_a_different_competition_returns_400()
+    public async Task EditRowWithACompetitionCategoryIdFromADifferentCompetitionReturns400()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -571,7 +571,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Edit_row_with_a_style_code_not_in_the_catalog_returns_400()
+    public async Task EditRowWithAStyleCodeNotInTheCatalogReturns400()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -585,7 +585,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Edit_row_can_set_an_organizer_typed_beer_name()
+    public async Task EditRowCanSetAnOrganizerTypedBeerName()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -601,7 +601,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Edit_row_on_an_excluded_row_returns_400()
+    public async Task EditRowOnAnExcludedRowReturns400()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -620,7 +620,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- FR-053: category/style allow-list (CompetitionCategoryStyle) -----------------------
 
     [Fact]
-    public async Task Upload_row_with_a_style_valid_in_the_catalog_but_not_assigned_to_the_resolved_category_is_marked_CategoryStyleMismatch()
+    public async Task UploadRowWithAStyleValidInTheCatalogButNotAssignedToTheResolvedCategoryIsMarkedCategoryStyleMismatch()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -641,7 +641,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Edit_row_setting_a_disallowed_category_style_pair_recomputes_status_CategoryStyleMismatch()
+    public async Task EditRowSettingADisallowedCategoryStylePairRecomputesStatusCategoryStyleMismatch()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -659,7 +659,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Consolidate_is_blocked_with_409_while_a_row_is_CategoryStyleMismatch()
+    public async Task ConsolidateIsBlockedWith409WhileARowIsCategoryStyleMismatch()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -676,7 +676,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- Exclude a row -------------------------------------------------------------------------
 
     [Fact]
-    public async Task Exclude_row_with_judge_role_is_forbidden_with_403()
+    public async Task ExcludeRowWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -690,7 +690,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Exclude_row_sets_status_Excluded_and_it_is_no_longer_a_consolidation_blocker()
+    public async Task ExcludeRowSetsStatusExcludedAndItIsNoLongerAConsolidationBlocker()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -713,7 +713,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- Consolidate -----------------------------------------------------------------------
 
     [Fact]
-    public async Task Consolidate_with_judge_role_is_forbidden_with_403()
+    public async Task ConsolidateWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -727,7 +727,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Consolidate_is_blocked_with_409_while_any_row_is_unresolved()
+    public async Task ConsolidateIsBlockedWith409WhileAnyRowIsUnresolved()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -744,7 +744,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Consolidate_is_blocked_with_409_while_a_row_is_CategoryMismatch()
+    public async Task ConsolidateIsBlockedWith409WhileARowIsCategoryMismatch()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -759,7 +759,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Consolidate_success_populates_every_new_BeerEntry_field_and_sets_the_category()
+    public async Task ConsolidateSuccessPopulatesEveryNewBeerEntryFieldAndSetsTheCategory()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -794,7 +794,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Consolidate_a_second_time_on_the_same_batch_is_rejected_with_409_and_does_not_duplicate_entries()
+    public async Task ConsolidateASecondTimeOnTheSameBatchIsRejectedWith409AndDoesNotDuplicateEntries()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -812,7 +812,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Consolidate_for_a_competition_owned_by_a_different_organizer_returns_404()
+    public async Task ConsolidateForACompetitionOwnedByADifferentOrganizerReturns404()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner);
@@ -826,7 +826,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Consolidate_reimporting_the_same_email_within_one_competition_updates_the_existing_participant()
+    public async Task ConsolidateReimportingTheSameEmailWithinOneCompetitionUpdatesTheExistingParticipant()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -857,7 +857,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Consolidate_the_same_participant_email_in_a_different_competition_creates_an_independent_participant_row()
+    public async Task ConsolidateTheSameParticipantEmailInADifferentCompetitionCreatesAnIndependentParticipantRow()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var firstCompetitionId = await CreateCompetitionAsync(organizer, "ImportFirst");
@@ -888,7 +888,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- Revalidate (RevalidateImport, FR-054) -----------------------------------------------
 
     [Fact]
-    public async Task Revalidate_with_judge_role_is_forbidden_with_403()
+    public async Task RevalidateWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -902,7 +902,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Revalidate_for_a_competition_owned_by_a_different_organizer_returns_404()
+    public async Task RevalidateForACompetitionOwnedByADifferentOrganizerReturns404()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner);
@@ -916,7 +916,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Revalidate_with_an_unknown_import_id_returns_404()
+    public async Task RevalidateWithAnUnknownImportIdReturns404()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -927,7 +927,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Revalidate_resolves_a_CategoryStyleMismatch_row_once_the_missing_style_assignment_is_added()
+    public async Task RevalidateResolvesACategoryStyleMismatchRowOnceTheMissingStyleAssignmentIsAdded()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -954,7 +954,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Revalidate_turns_a_previously_Valid_row_into_CategoryMismatch_when_its_category_no_longer_exists()
+    public async Task RevalidateTurnsAPreviouslyValidRowIntoCategoryMismatchWhenItsCategoryNoLongerExists()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -982,7 +982,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Revalidate_on_an_already_consolidated_batch_is_a_no_op()
+    public async Task RevalidateOnAnAlreadyConsolidatedBatchIsANoOp()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);

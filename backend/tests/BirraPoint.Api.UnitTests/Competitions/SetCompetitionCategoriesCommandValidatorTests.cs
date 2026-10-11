@@ -19,13 +19,13 @@ public sealed class SetCompetitionCategoriesCommandValidatorTests
 {
     // Never queried — configured with the project's real Npgsql provider so no new test-only
     // dependency (e.g. EF InMemory) is introduced, and no connection is ever opened.
-    private static AppDbContext CreateUnusedDbContext() => new(
+    private static readonly AppDbContext UnusedDbContext = new(
         new DbContextOptionsBuilder<AppDbContext>().UseNpgsql("Host=unused;Database=unused").Options);
 
-    private static SetCompetitionCategoriesCommandValidator CreateValidator() => new(CreateUnusedDbContext());
+    private static SetCompetitionCategoriesCommandValidator CreateValidator() => new(UnusedDbContext);
 
     [Fact]
-    public void Command_with_no_categories_is_invalid()
+    public void CommandWithNoCategoriesIsInvalid()
     {
         var validator = CreateValidator();
 
@@ -36,7 +36,7 @@ public sealed class SetCompetitionCategoriesCommandValidatorTests
     }
 
     [Fact]
-    public void Command_where_no_category_has_any_style_is_invalid()
+    public void CommandWhereNoCategoryHasAnyStyleIsInvalid()
     {
         var validator = CreateValidator();
         var command = new SetCompetitionCategoriesCommand(
@@ -50,7 +50,7 @@ public sealed class SetCompetitionCategoriesCommandValidatorTests
     }
 
     [Fact]
-    public void Command_with_duplicate_category_names_is_invalid()
+    public void CommandWithDuplicateCategoryNamesIsInvalid()
     {
         var validator = CreateValidator();
         var command = new SetCompetitionCategoriesCommand(
@@ -67,7 +67,7 @@ public sealed class SetCompetitionCategoriesCommandValidatorTests
     }
 
     [Fact]
-    public void Command_with_the_same_style_code_in_two_categories_is_invalid()
+    public void CommandWithTheSameStyleCodeInTwoCategoriesIsInvalid()
     {
         var validator = CreateValidator();
         var command = new SetCompetitionCategoriesCommand(

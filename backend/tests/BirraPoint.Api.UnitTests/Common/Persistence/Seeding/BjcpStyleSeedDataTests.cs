@@ -9,7 +9,7 @@ namespace BirraPoint.Api.UnitTests.Common.Persistence.Seeding;
 public sealed class BjcpStyleSeedDataTests
 {
     [Fact]
-    public void Catalog_has_exactly_125_entries_covering_categories_1_through_34_plus_appendix_b()
+    public void CatalogHasExactly125EntriesCoveringCategories1Through34PlusAppendixB()
     {
         var styles = BjcpStyleCatalogLoader.Load();
 
@@ -17,7 +17,7 @@ public sealed class BjcpStyleSeedDataTests
     }
 
     [Fact]
-    public void Every_code_is_unique_and_within_the_20_character_column_width()
+    public void EveryCodeIsUniqueAndWithinThe20CharacterColumnWidth()
     {
         var styles = BjcpStyleCatalogLoader.Load();
 
@@ -27,7 +27,7 @@ public sealed class BjcpStyleSeedDataTests
     }
 
     [Fact]
-    public void Every_entry_carries_a_complete_description()
+    public void EveryEntryCarriesACompleteDescription()
     {
         var styles = BjcpStyleCatalogLoader.Load();
 
@@ -48,7 +48,7 @@ public sealed class BjcpStyleSeedDataTests
     }
 
     [Fact]
-    public void American_ipa_vital_statistics_are_present()
+    public void AmericanIpaVitalStatisticsArePresent()
     {
         var styles = BjcpStyleCatalogLoader.Load();
 
@@ -67,7 +67,7 @@ public sealed class BjcpStyleSeedDataTests
     /// pinned hash in the same change.
     /// </summary>
     [Fact]
-    public void Embedded_catalog_content_hash_matches_the_value_seeded_by_AddBjcpStyleCatalogDetails()
+    public void EmbeddedCatalogContentHashMatchesTheValueSeededByAddBjcpStyleCatalogDetails()
     {
         var hash = BjcpStyleCatalogLoader.ComputeContentHash();
 

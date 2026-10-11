@@ -132,7 +132,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
     /// sets OrderFixedByJudgeId/OrderFixedAt — mirrors what POST .../order (FixOrder, T050) would
     /// do, without needing the extra HTTP round-trip for tests that only care about downstream
     /// evaluation preconditions.</summary>
-    private async Task FixOrderDirectlyAsync(Guid tableId, Guid judgeId, IReadOnlyList<Guid> orderedEntryIds)
+    private async Task FixOrderDirectlyAsync(Guid tableId, Guid judgeId, List<Guid> orderedEntryIds)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -225,11 +225,11 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         overall = LongComment,
     };
 
-    private static Task<HttpResponseMessage> SubmitAsync(
+    private static async Task<HttpResponseMessage> SubmitAsync(
         HttpClient client, Guid tableId, Guid beerEntryId, object? scores = null, object? comments = null,
         string? idempotencyKey = null, object? descriptors = null, string? feedback = null)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/me/tables/{tableId}/evaluations")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/me/tables/{tableId}/evaluations")
         {
             Content = JsonContent.Create(new
             {
@@ -245,13 +245,13 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
             request.Headers.Add("X-Idempotency-Key", idempotencyKey ?? $"comp:{tableId}:judge:{beerEntryId}");
         }
 
-        return client.SendAsync(request);
+        return await client.SendAsync(request);
     }
 
     // ---- Precondition chain (409s) ---------------------------------------------------------------
 
     [Fact]
-    public async Task Submit_while_competition_is_not_InEvaluation_returns_409_invalid_state_transition()
+    public async Task SubmitWhileCompetitionIsNotInEvaluationReturns409InvalidStateTransition()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedTableWithSamplesAsync(organizer);
@@ -262,11 +262,11 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("invalid-state-transition", document.RootElement.GetProperty("type").GetString());
+        Assert.Contains("invalid-state-transition", document.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task Submit_before_the_order_is_fixed_returns_409_order_not_fixed()
+    public async Task SubmitBeforeTheOrderIsFixedReturns409OrderNotFixed()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedTableWithSamplesAsync(organizer);
@@ -279,11 +279,11 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("order-not-fixed", document.RootElement.GetProperty("type").GetString());
+        Assert.Contains("order-not-fixed", document.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task Submit_against_a_closed_table_returns_409_table_closed()
+    public async Task SubmitAgainstAClosedTableReturns409TableClosed()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -294,11 +294,11 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("table-closed", document.RootElement.GetProperty("type").GetString());
+        Assert.Contains("table-closed", document.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task Submit_a_sample_out_of_sequence_returns_409_out_of_sequence()
+    public async Task SubmitASampleOutOfSequenceReturns409OutOfSequence()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer, sampleCount: 3);
@@ -312,11 +312,11 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("out-of-sequence", document.RootElement.GetProperty("type").GetString());
+        Assert.Contains("out-of-sequence", document.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task Submit_for_a_table_the_judge_is_not_a_member_of_returns_404()
+    public async Task SubmitForATableTheJudgeIsNotAMemberOfReturns404()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -330,7 +330,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
     // ---- Boundary validation (400s, FR-023/FR-025) -----------------------------------------------
 
     [Fact]
-    public async Task Submit_with_an_out_of_range_score_returns_400()
+    public async Task SubmitWithAnOutOfRangeScoreReturns400()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -343,7 +343,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task Submit_with_a_comment_under_20_characters_returns_400()
+    public async Task SubmitWithACommentUnder20CharactersReturns400()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -356,7 +356,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task Submit_without_the_idempotency_key_header_returns_400()
+    public async Task SubmitWithoutTheIdempotencyKeyHeaderReturns400()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -370,7 +370,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
     // ---- Descriptors (Session 2026-09-21) — optional, only range/catalog-checked when present ----
 
     [Fact]
-    public async Task Submit_with_an_out_of_range_descriptor_value_returns_400()
+    public async Task SubmitWithAnOutOfRangeDescriptorValueReturns400()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -383,7 +383,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task Submit_with_a_color_outside_the_closed_list_returns_400()
+    public async Task SubmitWithAColorOutsideTheClosedListReturns400()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -398,7 +398,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
     // ---- Happy path -------------------------------------------------------------------------------
 
     [Fact]
-    public async Task Submit_the_first_sample_in_order_returns_201_with_the_computed_total()
+    public async Task SubmitTheFirstSampleInOrderReturns201WithTheComputedTotal()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -416,7 +416,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task Submit_with_descriptors_and_feedback_persists_them_and_never_affects_the_total()
+    public async Task SubmitWithDescriptorsAndFeedbackPersistsThemAndNeverAffectsTheTotal()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -439,12 +439,12 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
 
         var (descriptorsJson, feedback) = await GetStoredDescriptorsAsync(fixture.JudgeId, fixture.EntryIds[0]);
         Assert.NotNull(descriptorsJson);
-        Assert.Contains("Golden", descriptorsJson);
+        Assert.Contains("Golden", descriptorsJson, StringComparison.Ordinal);
         Assert.Equal("Nice balance overall.", feedback);
     }
 
     [Fact]
-    public async Task Submit_without_descriptors_or_feedback_stores_them_as_null()
+    public async Task SubmitWithoutDescriptorsOrFeedbackStoresThemAsNull()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -461,7 +461,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
     // ---- Idempotent replay (FR-029/R-07) -----------------------------------------------------------
 
     [Fact]
-    public async Task Submitting_the_same_judge_entry_pair_twice_replays_the_stored_result()
+    public async Task SubmittingTheSameJudgeEntryPairTwiceReplaysTheStoredResult()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -484,7 +484,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task Replaying_an_already_stored_evaluation_after_the_table_closes_still_returns_200_not_409()
+    public async Task ReplayingAnAlreadyStoredEvaluationAfterTheTableClosesStillReturns200Not409()
     {
         // FR-029/R-07: idempotency must hold regardless of what happens to the table afterward — a
         // judge's evaluation is a fact once persisted. This reproduces the exact scenario the
@@ -514,7 +514,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
     // ---- Concurrency race (proves the unique-constraint catch path, not just sequential replay) --
 
     [Fact]
-    public async Task Two_near_simultaneous_submissions_for_the_same_pair_leave_exactly_one_row()
+    public async Task TwoNearSimultaneousSubmissionsForTheSamePairLeaveExactlyOneRow()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -522,9 +522,9 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
         using var judgeA = JudgeClient(fixture.JudgeSub);
         using var judgeB = JudgeClient(fixture.JudgeSub);
 
-        var taskA = SubmitAsync(judgeA, fixture.TableId, fixture.EntryIds[0]);
-        var taskB = SubmitAsync(judgeB, fixture.TableId, fixture.EntryIds[0]);
-        var responses = await Task.WhenAll(taskA, taskB);
+        var responses = await Task.WhenAll(
+            SubmitAsync(judgeA, fixture.TableId, fixture.EntryIds[0]),
+            SubmitAsync(judgeB, fixture.TableId, fixture.EntryIds[0]));
 
         Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Created));
         Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.OK));
@@ -566,7 +566,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
     /// 409 OutOfSequence; it must instead replay the row the interceptor inserted, with 200 OK.
     /// </summary>
     [Fact]
-    public async Task A_row_committed_between_the_early_replay_check_and_the_sequence_read_is_replayed_not_rejected()
+    public async Task ARowCommittedBetweenTheEarlyReplayCheckAndTheSequenceReadIsReplayedNotRejected()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -603,7 +603,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : IClassFixture
     /// fix this threw 409 table-closed; it must instead replay the row, with 200 OK.
     /// </summary>
     [Fact]
-    public async Task A_table_closed_between_the_early_replay_check_and_the_table_read_still_replays_not_409()
+    public async Task ATableClosedBetweenTheEarlyReplayCheckAndTheTableReadStillReplaysNot409()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);

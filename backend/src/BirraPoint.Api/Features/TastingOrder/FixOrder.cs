@@ -11,10 +11,10 @@ namespace BirraPoint.Api.Features.TastingOrder;
 /// <summary>POST /me/tables/{tableId}/order (contracts/rest-api.md §Judge workspace, US6-4).
 /// Returns null when the caller is not an active member of this table — the endpoint maps that
 /// to a plain 404.</summary>
-public sealed record FixOrderCommand(Guid TableId, IReadOnlyList<Guid> OrderedBeerEntryIds)
+internal sealed record FixOrderCommand(Guid TableId, IReadOnlyList<Guid> OrderedBeerEntryIds)
     : IRequest<IReadOnlyList<JudgeSampleDto>?>;
 
-public sealed class FixOrderCommandValidator : AbstractValidator<FixOrderCommand>
+internal sealed class FixOrderCommandValidator : AbstractValidator<FixOrderCommand>
 {
     public FixOrderCommandValidator(AppDbContext dbContext, ICurrentUser currentUser)
     {
@@ -47,7 +47,7 @@ public sealed class FixOrderCommandValidator : AbstractValidator<FixOrderCommand
     }
 }
 
-public sealed class FixOrderCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher)
+internal sealed class FixOrderCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher)
     : IRequestHandler<FixOrderCommand, IReadOnlyList<JudgeSampleDto>?>
 {
     public async Task<IReadOnlyList<JudgeSampleDto>?> Handle(FixOrderCommand request, CancellationToken cancellationToken)

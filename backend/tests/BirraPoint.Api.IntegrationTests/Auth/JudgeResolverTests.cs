@@ -17,7 +17,7 @@ public sealed class JudgeResolverTests(PostgresFixture fixture) : IClassFixture<
     private AppDbContext NewContext() => new(fixture.Options);
 
     [Fact]
-    public async Task Backfills_keycloak_user_id_and_display_name_on_every_judge_row_sharing_the_email()
+    public async Task BackfillsKeycloakUserIdAndDisplayNameOnEveryJudgeRowSharingTheEmail()
     {
         var email = $"judge-{Guid.NewGuid():N}@example.test";
         var competitionA = NewCompetition();
@@ -49,7 +49,7 @@ public sealed class JudgeResolverTests(PostgresFixture fixture) : IClassFixture<
     }
 
     [Fact]
-    public async Task Replay_is_idempotent_and_leaves_an_already_backfilled_row_untouched()
+    public async Task ReplayIsIdempotentAndLeavesAnAlreadyBackfilledRowUntouched()
     {
         var email = $"judge-{Guid.NewGuid():N}@example.test";
         var competition = NewCompetition();
@@ -78,7 +78,7 @@ public sealed class JudgeResolverTests(PostgresFixture fixture) : IClassFixture<
     }
 
     [Fact]
-    public async Task Unmatched_email_returns_an_empty_list()
+    public async Task UnmatchedEmailReturnsAnEmptyList()
     {
         await using var db = NewContext();
         var resolver = new JudgeResolver(db);
@@ -89,7 +89,7 @@ public sealed class JudgeResolverTests(PostgresFixture fixture) : IClassFixture<
     }
 
     [Fact]
-    public async Task A_name_less_call_backfills_the_keycloak_user_id_but_leaves_display_name_untouched()
+    public async Task ANameLessCallBackfillsTheKeycloakUserIdButLeavesDisplayNameUntouched()
     {
         var email = $"judge-{Guid.NewGuid():N}@example.test";
         var competition = NewCompetition();

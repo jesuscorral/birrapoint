@@ -152,7 +152,7 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task TwoConcurrentWorkers_HandleEveryPendingJobExactlyOnce()
+    public async Task TwoConcurrentWorkersHandleEveryPendingJobExactlyOnce()
     {
         const int jobCount = 20;
         var competitionId = await SeedCompetitionAsync();
@@ -192,7 +192,7 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task StartingWorker_LeavesRunningJobWithLiveForeignLeaseAlone()
+    public async Task StartingWorkerLeavesRunningJobWithLiveForeignLeaseAlone()
     {
         var competitionId = await SeedCompetitionAsync();
         var leaseExpiry = DateTimeOffset.UtcNow.AddHours(1);
@@ -218,7 +218,7 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task StartingWorker_RecoversRunningJobWhoseLeaseExpired()
+    public async Task StartingWorkerRecoversRunningJobWhoseLeaseExpired()
     {
         var competitionId = await SeedCompetitionAsync();
         var running = await SeedJobAsync(
@@ -240,7 +240,7 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task StartingWorker_LeavesFreshRunningJobWithNullLeaseAlone()
+    public async Task StartingWorkerLeavesFreshRunningJobWithNullLeaseAlone()
     {
         // A pre-T129 revision marks jobs Running without a lease while its handler is mid-flight.
         var competitionId = await SeedCompetitionAsync();
@@ -263,7 +263,7 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task StartingWorker_RecoversStaleRunningJobWithNullLease()
+    public async Task StartingWorkerRecoversStaleRunningJobWithNullLease()
     {
         var competitionId = await SeedCompetitionAsync();
         var running = await SeedJobAsync(competitionId, DispatchJobStatus.Running);
@@ -283,7 +283,7 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task LongHandler_RenewsLease_SoSweepingWorkerNeverRerunsIt()
+    public async Task LongHandlerRenewsLeaseSoSweepingWorkerNeverRerunsIt()
     {
         var competitionId = await SeedCompetitionAsync();
         var handler = new CountingHandler(delay: TimeSpan.FromSeconds(3)); // 3x the 1 s lease
@@ -309,7 +309,7 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task LostLease_DiscardsFinishingWorkersOutcome()
+    public async Task LostLeaseDiscardsFinishingWorkersOutcome()
     {
         var competitionId = await SeedCompetitionAsync();
         var job = await SeedJobAsync(competitionId);

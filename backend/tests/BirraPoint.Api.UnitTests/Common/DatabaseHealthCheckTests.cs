@@ -11,7 +11,7 @@ public sealed class DatabaseHealthCheckTests
         .Options);
 
     [Fact]
-    public async Task Caller_cancellation_propagates_instead_of_being_reported_as_timeout()
+    public async Task CallerCancellationPropagatesInsteadOfBeingReportedAsTimeout()
     {
         await using var db = UnreachableDb();
         using var cts = new CancellationTokenSource();

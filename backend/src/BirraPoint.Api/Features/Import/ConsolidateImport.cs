@@ -7,14 +7,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Features.Import;
 
-public sealed record ConsolidatedEntryDto(Guid Id, string BlindCode, string StyleCode);
+internal sealed record ConsolidatedEntryDto(Guid Id, string BlindCode, string StyleCode);
 
-public sealed record ConsolidateImportResult(int Imported, int Excluded, IReadOnlyList<ConsolidatedEntryDto> Entries);
+internal sealed record ConsolidateImportResult(int Imported, int Excluded, IReadOnlyList<ConsolidatedEntryDto> Entries);
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record ConsolidateImportCommand(Guid CompetitionId, Guid ImportId) : IRequest<ConsolidateImportResult?>;
+internal sealed record ConsolidateImportCommand(Guid CompetitionId, Guid ImportId) : IRequest<ConsolidateImportResult?>;
 
-public sealed class ConsolidateImportCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class ConsolidateImportCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<ConsolidateImportCommand, ConsolidateImportResult?>
 {
     public async Task<ConsolidateImportResult?> Handle(ConsolidateImportCommand request, CancellationToken cancellationToken)

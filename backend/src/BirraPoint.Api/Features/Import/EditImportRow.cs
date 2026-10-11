@@ -10,7 +10,7 @@ namespace BirraPoint.Api.Features.Import;
 /// <summary>Full-replace editable row shape (contracts/rest-api.md §Entry Import) — mirrors
 /// <see cref="ImportRowDataDto"/> minus the read-only raw <c>Category</c>/<c>Style</c> cell text,
 /// which stays whatever the file originally parsed.</summary>
-public sealed record EditImportRowRequest(
+internal sealed record EditImportRowRequest(
     string? ParticipantName,
     string? ParticipantEmail,
     string? AcceMemberNumber,
@@ -30,7 +30,7 @@ public sealed record EditImportRowRequest(
     string? BeerName);
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record EditImportRowCommand(Guid CompetitionId, Guid ImportId, int RowNumber, EditImportRowRequest Row)
+internal sealed record EditImportRowCommand(Guid CompetitionId, Guid ImportId, int RowNumber, EditImportRowRequest Row)
     : IRequest<ImportRowDto?>;
 
 /// <summary>
@@ -41,7 +41,7 @@ public sealed record EditImportRowCommand(Guid CompetitionId, Guid ImportId, int
 /// save (Status recomputes to Invalid) so the organizer can make partial progress across several
 /// saves on the Mapping &amp; Correction screen.
 /// </summary>
-public sealed class EditImportRowCommandValidator : AbstractValidator<EditImportRowCommand>
+internal sealed class EditImportRowCommandValidator : AbstractValidator<EditImportRowCommand>
 {
     public EditImportRowCommandValidator(AppDbContext dbContext)
     {
@@ -81,7 +81,7 @@ public sealed class EditImportRowCommandValidator : AbstractValidator<EditImport
     }
 }
 
-public sealed class EditImportRowCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class EditImportRowCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<EditImportRowCommand, ImportRowDto?>
 {
     public async Task<ImportRowDto?> Handle(EditImportRowCommand request, CancellationToken cancellationToken)

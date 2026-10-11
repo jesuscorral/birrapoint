@@ -4,7 +4,7 @@ namespace BirraPoint.Api.Features.Monitoring;
 
 /// <summary>Maps GetProgress/GetEntryEvaluations (contracts/rest-api.md §Monitoring &amp; audit,
 /// T068-T069) — ORGANIZER-only.</summary>
-public static class MonitoringEndpoints
+internal static class MonitoringEndpoints
 {
     public static IEndpointRouteBuilder MapMonitoringEndpoints(this IEndpointRouteBuilder endpoints)
     {

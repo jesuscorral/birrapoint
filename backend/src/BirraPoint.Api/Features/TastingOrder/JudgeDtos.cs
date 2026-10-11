@@ -7,7 +7,7 @@ namespace BirraPoint.Api.Features.TastingOrder;
 /// (OrderApiTests.GetTableSamples_payload_never_contains_entrant_fields) asserts the serialized
 /// wire payload, not just this DTO's declared members.
 /// </summary>
-public sealed record JudgeTableSummaryDto(
+internal sealed record JudgeTableSummaryDto(
     Guid TableId,
     string Name,
     string CompetitionState,
@@ -18,7 +18,7 @@ public sealed record JudgeTableSummaryDto(
 /// <summary>data-model.md §Anonymity boundary — the canonical judge-facing sample projection.
 /// AbvPercent is the beer's own physical attribute (already exposed to the organizer via
 /// TableSampleDto) — not an entrant field, so it's safe alongside BlindCode/StyleCode.</summary>
-public sealed record JudgeSampleDto(
+internal sealed record JudgeSampleDto(
     Guid BeerEntryId,
     string BlindCode,
     string StyleCode,
@@ -31,4 +31,4 @@ public sealed record JudgeSampleDto(
 /// <summary>GET /me/tables/{tableId}/judges — the table's other active judges, informational only
 /// (no editing capability hangs off this). BjcpRank is free text from the judge-roster import
 /// (US14/FR-057), null for a judge created via the plain email-list flow.</summary>
-public sealed record JudgeTableMemberDto(string DisplayName, string? BjcpRank);
+internal sealed record JudgeTableMemberDto(string DisplayName, string? BjcpRank);

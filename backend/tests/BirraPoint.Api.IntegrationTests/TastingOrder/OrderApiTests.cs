@@ -140,10 +140,10 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     }
 
     private static Task<HttpResponseMessage> GetMyTablesAsync(HttpClient client) =>
-        client.GetAsync("/api/v1/me/tables");
+        client.GetAsync(Urls.Rel("/api/v1/me/tables"));
 
     private static Task<HttpResponseMessage> GetTableSamplesAsync(HttpClient client, Guid tableId) =>
-        client.GetAsync($"/api/v1/me/tables/{tableId}/samples");
+        client.GetAsync(Urls.Rel($"/api/v1/me/tables/{tableId}/samples"));
 
     private static Task<HttpResponseMessage> FixOrderAsync(HttpClient client, Guid tableId, IEnumerable<Guid> orderedBeerEntryIds) =>
         client.PostAsJsonAsync($"/api/v1/me/tables/{tableId}/order", new { orderedBeerEntryIds });
@@ -180,7 +180,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     // ---- GET /me/tables -------------------------------------------------------------------------
 
     [Fact]
-    public async Task GetMyTables_returns_empty_list_for_a_judge_with_no_assignments()
+    public async Task GetMyTablesReturnsEmptyListForAJudgeWithNoAssignments()
     {
         using var judge = JudgeClient($"judge-{Guid.NewGuid():N}");
 
@@ -192,7 +192,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     }
 
     [Fact]
-    public async Task GetMyTables_returns_only_tables_the_judge_is_actively_assigned_to()
+    public async Task GetMyTablesReturnsOnlyTablesTheJudgeIsActivelyAssignedTo()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var (competitionId, tableId, _, judgeSub, _) = await SeedActiveTableWithSamplesAsync(organizer);
@@ -212,7 +212,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     }
 
     [Fact]
-    public async Task GetMyTables_excludes_tables_where_the_judge_was_removed()
+    public async Task GetMyTablesExcludesTablesWhereTheJudgeWasRemoved()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -234,7 +234,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     /// <summary>contracts/rest-api.md §Judge workspace: "Competition must be Active+ (invisible
     /// in Draft)".</summary>
     [Fact]
-    public async Task GetMyTables_hides_tables_of_a_competition_still_in_draft()
+    public async Task GetMyTablesHidesTablesOfACompetitionStillInDraft()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -255,7 +255,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     // ---- GET /me/tables/{tableId}/samples ---------------------------------------------------------
 
     [Fact]
-    public async Task GetTableSamples_for_a_table_the_judge_is_not_assigned_to_returns_404()
+    public async Task GetTableSamplesForATableTheJudgeIsNotAssignedToReturns404()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var (_, tableId, _, _, _) = await SeedActiveTableWithSamplesAsync(organizer);
@@ -269,7 +269,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     /// <summary>BR-01/FR-019 structural test — asserts the serialized wire payload, not just the
     /// declared DTO shape, never carries entrant fields.</summary>
     [Fact]
-    public async Task GetTableSamples_payload_never_contains_entrant_fields()
+    public async Task GetTableSamplesPayloadNeverContainsEntrantFields()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var (_, tableId, _, judgeSub, _) = await SeedActiveTableWithSamplesAsync(organizer, sampleCount: 3);
@@ -279,10 +279,9 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var raw = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        var lowered = raw.ToLowerInvariant();
         foreach (var forbidden in new[] { "beername", "participant", "brewery", "origin", "collaborator" })
         {
-            Assert.DoesNotContain(forbidden, lowered);
+            Assert.DoesNotContain(forbidden, raw, StringComparison.OrdinalIgnoreCase);
         }
     }
 
@@ -290,7 +289,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     /// BlindCode/StyleCode) — this asserts it round-trips to the judge, unlike every entrant field
     /// asserted absent above.</summary>
     [Fact]
-    public async Task GetTableSamples_includes_EntryInstructions_since_it_is_judge_facing_by_design()
+    public async Task GetTableSamplesIncludesEntryInstructionsSinceItIsJudgeFacingByDesign()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -318,7 +317,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     /// <summary>AbvPercent is the beer's own attribute, not an entrant field — safe alongside
     /// BlindCode/StyleCode (same value the organizer sees via TableSampleDto).</summary>
     [Fact]
-    public async Task GetTableSamples_includes_the_real_AbvPercent_of_each_entry()
+    public async Task GetTableSamplesIncludesTheRealAbvPercentOfEachEntry()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -345,10 +344,10 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     // ---- GET /me/tables/{tableId}/judges -----------------------------------------------------------
 
     private static Task<HttpResponseMessage> GetTableJudgesAsync(HttpClient client, Guid tableId) =>
-        client.GetAsync($"/api/v1/me/tables/{tableId}/judges");
+        client.GetAsync(Urls.Rel($"/api/v1/me/tables/{tableId}/judges"));
 
     [Fact]
-    public async Task GetTableJudges_for_a_table_the_judge_is_not_assigned_to_returns_404()
+    public async Task GetTableJudgesForATableTheJudgeIsNotAssignedToReturns404()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var (_, tableId, _, _, _) = await SeedActiveTableWithSamplesAsync(organizer);
@@ -360,7 +359,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     }
 
     [Fact]
-    public async Task GetTableJudges_returns_other_active_judges_excluding_the_caller_and_anyone_removed()
+    public async Task GetTableJudgesReturnsOtherActiveJudgesExcludingTheCallerAndAnyoneRemoved()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var (competitionId, tableId, _, callerSub, _) = await SeedActiveTableWithSamplesAsync(organizer);
@@ -386,7 +385,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     /// <summary>Same BR-01/FR-019 structural check as GetTableSamples — this endpoint never
     /// carries entrant data either, only judge display info.</summary>
     [Fact]
-    public async Task GetTableJudges_payload_never_contains_entrant_fields()
+    public async Task GetTableJudgesPayloadNeverContainsEntrantFields()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var (competitionId, tableId, _, callerSub, _) = await SeedActiveTableWithSamplesAsync(organizer);
@@ -399,17 +398,16 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var raw = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        var lowered = raw.ToLowerInvariant();
         foreach (var forbidden in new[] { "beername", "participant", "brewery", "origin", "collaborator", "email" })
         {
-            Assert.DoesNotContain(forbidden, lowered);
+            Assert.DoesNotContain(forbidden, raw, StringComparison.OrdinalIgnoreCase);
         }
     }
 
     // ---- POST /me/tables/{tableId}/order -----------------------------------------------------------
 
     [Fact]
-    public async Task FixOrder_happy_path_assigns_sequence_and_locks_the_table()
+    public async Task FixOrderHappyPathAssignsSequenceAndLocksTheTable()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var (_, tableId, _, judgeSub, entryIds) = await SeedActiveTableWithSamplesAsync(organizer, sampleCount: 3);
@@ -430,7 +428,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     }
 
     [Fact]
-    public async Task FixOrder_with_a_non_permutation_body_returns_400()
+    public async Task FixOrderWithANonPermutationBodyReturns400()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var (_, tableId, _, judgeSub, entryIds) = await SeedActiveTableWithSamplesAsync(organizer, sampleCount: 2);
@@ -444,7 +442,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     /// <summary>US6-4 / Clarification Q1: two judges race to fix the same table's order —
     /// exactly one wins, the other gets 409 order-already-fixed.</summary>
     [Fact]
-    public async Task FixOrder_race_only_one_concurrent_request_wins()
+    public async Task FixOrderRaceOnlyOneConcurrentRequestWins()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var (_, tableId, _, judgeSub, entryIds) = await SeedActiveTableWithSamplesAsync(organizer, sampleCount: 3);
@@ -454,15 +452,15 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
 
         var reversed = entryIds.AsEnumerable().Reverse().ToList();
 
-        var taskA = FixOrderAsync(judgeA, tableId, entryIds);
-        var taskB = FixOrderAsync(judgeB, tableId, reversed);
-        var responses = await Task.WhenAll(taskA, taskB);
+        var responses = await Task.WhenAll(
+            FixOrderAsync(judgeA, tableId, entryIds),
+            FixOrderAsync(judgeB, tableId, reversed));
 
         Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.OK));
         Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Conflict));
 
         var conflictResponse = responses.First(r => r.StatusCode == HttpStatusCode.Conflict);
         using var document = JsonDocument.Parse(await conflictResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("order-already-fixed", document.RootElement.GetProperty("type").GetString());
+        Assert.Contains("order-already-fixed", document.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
     }
 }

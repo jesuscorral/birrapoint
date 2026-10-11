@@ -4,7 +4,7 @@ namespace BirraPoint.Api.Domain;
 /// Composite PK (TastingTableId, JudgeId). COI-checked transactionally at assignment (FR-017).
 /// Rows are never hard-deleted once evaluations exist — live removal sets RemovedAt (FR-039).
 /// </summary>
-public class TableJudge : ITimestamped
+internal class TableJudge : ITimestamped
 {
     public Guid TastingTableId { get; set; }
 

@@ -132,7 +132,7 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
 
     /// <summary>Mirrors what POST .../order (FixOrder) would do, without the extra HTTP round-trip
     /// (same convention as SubmitEvaluationApiTests/CloseTableApiTests).</summary>
-    private async Task FixOrderDirectlyAsync(Guid tableId, Guid judgeId, IReadOnlyList<Guid> orderedEntryIds)
+    private async Task FixOrderDirectlyAsync(Guid tableId, Guid judgeId, List<Guid> orderedEntryIds)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -168,25 +168,25 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
         overall = LongComment,
     };
 
-    private static Task<HttpResponseMessage> SubmitAsync(
+    private static async Task<HttpResponseMessage> SubmitAsync(
         HttpClient client, Guid tableId, Guid beerEntryId, object? scores = null, object? comments = null)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/me/tables/{tableId}/evaluations")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/me/tables/{tableId}/evaluations")
         {
             Content = JsonContent.Create(new { beerEntryId, scores = scores ?? ValidScores(), comments = comments ?? ValidComments() }),
         };
         request.Headers.Add("X-Idempotency-Key", $"comp:{tableId}:judge:{beerEntryId}");
-        return client.SendAsync(request);
+        return await client.SendAsync(request);
     }
 
     private static Task<HttpResponseMessage> GetSamplesAsync(HttpClient client, Guid tableId) =>
-        client.GetAsync($"/api/v1/me/tables/{tableId}/samples");
+        client.GetAsync(Urls.Rel($"/api/v1/me/tables/{tableId}/samples"));
 
     private static Task<HttpResponseMessage> RemoveJudgeAsync(HttpClient client, Guid competitionId, Guid tableId, Guid judgeId) =>
-        client.DeleteAsync($"/api/v1/competitions/{competitionId}/tables/{tableId}/judges/{judgeId}");
+        client.DeleteAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/tables/{tableId}/judges/{judgeId}"));
 
     private static Task<HttpResponseMessage> GetEntryEvaluationsAsync(HttpClient client, Guid competitionId, Guid entryId) =>
-        client.GetAsync($"/api/v1/competitions/{competitionId}/entries/{entryId}/evaluations");
+        client.GetAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/entries/{entryId}/evaluations"));
 
     // ---- Discrepancy-reconciliation-on-removal helpers (mirrors DiscrepancyApiTests.cs) -----------
 
@@ -194,10 +194,10 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
         new { aroma, appearance, flavor, mouthfeel, overall };
 
     private static Task<HttpResponseMessage> GetDiscrepanciesAsync(HttpClient client, Guid tableId) =>
-        client.GetAsync($"/api/v1/me/tables/{tableId}/discrepancies");
+        client.GetAsync(Urls.Rel($"/api/v1/me/tables/{tableId}/discrepancies"));
 
     private static Task<HttpResponseMessage> CloseAsync(HttpClient client, Guid tableId) =>
-        client.PostAsync($"/api/v1/me/tables/{tableId}/close", content: null);
+        client.PostAsync(Urls.Rel($"/api/v1/me/tables/{tableId}/close"), content: null);
 
     private async Task<int> CountOpenAlertsAsync(Guid tableId, Guid beerEntryId)
     {
@@ -263,7 +263,7 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- Happy path: revokes access immediately (FR-039) -------------------------------------------
 
     [Fact]
-    public async Task Remove_by_the_owning_organizer_returns_200_and_immediately_revokes_the_removed_judges_table_access()
+    public async Task RemoveByTheOwningOrganizerReturns200AndImmediatelyRevokesTheRemovedJudgesTableAccess()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -283,7 +283,7 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Remove_writes_an_audit_log_row_keyed_by_table_and_judge()
+    public async Task RemoveWritesAnAuditLogRowKeyedByTableAndJudge()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -300,7 +300,7 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- Competition state gate (FR-039 scopes removal to "the live event") ------------------------
 
     [Fact]
-    public async Task Remove_while_the_competition_is_still_Draft_returns_409_invalid_state_transition()
+    public async Task RemoveWhileTheCompetitionIsStillDraftReturns409InvalidStateTransition()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedTableWithSamplesAsync(organizer, judgeCount: 1);
@@ -313,7 +313,7 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Remove_while_the_competition_is_Active_but_not_yet_InEvaluation_returns_409_invalid_state_transition()
+    public async Task RemoveWhileTheCompetitionIsActiveButNotYetInEvaluationReturns409InvalidStateTransition()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedTableWithSamplesAsync(organizer, judgeCount: 1);
@@ -329,7 +329,7 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- Concurrency: the FOR UPDATE lock must survive a real race, not just sequential replay -----
 
     [Fact]
-    public async Task Fifty_concurrent_removals_of_the_same_judge_yield_exactly_one_success_and_no_exceptions()
+    public async Task FiftyConcurrentRemovalsOfTheSameJudgeYieldExactlyOneSuccessAndNoExceptions()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer, judgeCount: 1);
@@ -348,7 +348,7 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- Never leaks existence (plain 404s) ---------------------------------------------------------
 
     [Fact]
-    public async Task Remove_a_judge_never_assigned_to_the_table_returns_404()
+    public async Task RemoveAJudgeNeverAssignedToTheTableReturns404()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer, judgeCount: 1);
@@ -361,7 +361,7 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Removing_an_already_removed_judge_returns_404_on_the_second_attempt()
+    public async Task RemovingAnAlreadyRemovedJudgeReturns404OnTheSecondAttempt()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -376,7 +376,7 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Remove_by_a_non_owning_organizer_returns_404()
+    public async Task RemoveByANonOwningOrganizerReturns404()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(owner);
@@ -391,7 +391,7 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- Already-submitted evaluations stay valid (FR-039) ------------------------------------------
 
     [Fact]
-    public async Task An_evaluation_submitted_before_removal_remains_readable_by_the_organizer_after_removal()
+    public async Task AnEvaluationSubmittedBeforeRemovalRemainsReadableByTheOrganizerAfterRemoval()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
@@ -416,7 +416,7 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- Removal reconciles open discrepancies at the table (FR-039 — see RemoveJudge.cs doc) ------
 
     [Fact]
-    public async Task Removing_the_common_outlier_resolves_an_open_discrepancy_once_the_remaining_judges_converge()
+    public async Task RemovingTheCommonOutlierResolvesAnOpenDiscrepancyOnceTheRemainingJudgesConverge()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer, judgeCount: 3);
@@ -438,7 +438,7 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
         var blockedClose = await CloseAsync(judgeA, fixture.TableId);
         Assert.Equal(HttpStatusCode.Conflict, blockedClose.StatusCode);
         using var blockedDocument = JsonDocument.Parse(await blockedClose.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("discrepancy-open", blockedDocument.RootElement.GetProperty("type").GetString());
+        Assert.Contains("discrepancy-open", blockedDocument.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
 
         // Removing judge B leaves A (40) and C (44) — only 4 points apart, so the alert should now
         // resolve even though nobody called AdjustEvaluation.
@@ -460,7 +460,7 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Removing_a_judge_uninvolved_in_an_open_discrepancy_leaves_it_open_and_blocks_close()
+    public async Task RemovingAJudgeUninvolvedInAnOpenDiscrepancyLeavesItOpenAndBlocksClose()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer, judgeCount: 3);
@@ -490,11 +490,11 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
         var close = await CloseAsync(judgeA, fixture.TableId);
         Assert.Equal(HttpStatusCode.Conflict, close.StatusCode);
         using var closeDocument = JsonDocument.Parse(await close.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("discrepancy-open", closeDocument.RootElement.GetProperty("type").GetString());
+        Assert.Contains("discrepancy-open", closeDocument.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task Removing_one_of_three_mutually_divergent_judges_leaves_the_alert_open_when_the_remaining_two_still_diverge()
+    public async Task RemovingOneOfThreeMutuallyDivergentJudgesLeavesTheAlertOpenWhenTheRemainingTwoStillDiverge()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer, judgeCount: 3);
@@ -524,6 +524,6 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
         var close = await CloseAsync(judgeB, fixture.TableId);
         Assert.Equal(HttpStatusCode.Conflict, close.StatusCode);
         using var closeDocument = JsonDocument.Parse(await close.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("discrepancy-open", closeDocument.RootElement.GetProperty("type").GetString());
+        Assert.Contains("discrepancy-open", closeDocument.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
     }
 }

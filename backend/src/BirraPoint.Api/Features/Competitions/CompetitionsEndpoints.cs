@@ -3,7 +3,7 @@ using MediatR;
 namespace BirraPoint.Api.Features.Competitions;
 
 /// <summary>Maps every Competitions endpoint (contracts/rest-api.md §Competitions, T027/T028) — ORGANIZER-only.</summary>
-public static class CompetitionsEndpoints
+internal static class CompetitionsEndpoints
 {
     public static IEndpointRouteBuilder MapCompetitionsEndpoints(this IEndpointRouteBuilder endpoints)
     {

@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace BirraPoint.Api.Common.Persistence.Configurations;
 
-public sealed class OrganizerConfiguration : IEntityTypeConfiguration<Organizer>
+internal sealed class OrganizerConfiguration : IEntityTypeConfiguration<Organizer>
 {
     public void Configure(EntityTypeBuilder<Organizer> builder)
     {

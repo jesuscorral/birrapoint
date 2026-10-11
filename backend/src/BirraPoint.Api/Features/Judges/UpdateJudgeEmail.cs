@@ -9,9 +9,9 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Judges;
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record UpdateJudgeEmailCommand(Guid CompetitionId, Guid JudgeId, string Email) : IRequest<JudgeProfileDto?>;
+internal sealed record UpdateJudgeEmailCommand(Guid CompetitionId, Guid JudgeId, string Email) : IRequest<JudgeProfileDto?>;
 
-public sealed class UpdateJudgeEmailCommandValidator : AbstractValidator<UpdateJudgeEmailCommand>
+internal sealed class UpdateJudgeEmailCommandValidator : AbstractValidator<UpdateJudgeEmailCommand>
 {
     public UpdateJudgeEmailCommandValidator(AppDbContext dbContext, ICurrentUser currentUser)
     {
@@ -32,6 +32,12 @@ public sealed class UpdateJudgeEmailCommandValidator : AbstractValidator<UpdateJ
     // caller doesn't own this competition, this passes trivially — the handler's separate
     // ownership check still returns 404 for the request as a whole. (`Judge` has no `Competition`
     // navigation property, so ownership is checked as its own query rather than a join.)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo",
+        Justification = "EF Core query translated to SQL by Npgsql (lower()/upper() evaluated in PostgreSQL, culture-independent); Npgsql cannot translate ToXxxInvariant or string.Equals(string, StringComparison).")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version",
+        Justification = "EF Core query translated to SQL by Npgsql (lower()/upper() evaluated in PostgreSQL, culture-independent); Npgsql cannot translate ToXxxInvariant or string.Equals(string, StringComparison).")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1862:Use the StringComparison method overloads to perform case-insensitive string comparisons",
+        Justification = "EF Core query translated to SQL by Npgsql (lower()/upper() evaluated in PostgreSQL, culture-independent); Npgsql cannot translate ToXxxInvariant or string.Equals(string, StringComparison).")]
     private static async Task<bool> IsUniqueWithinOwnedCompetitionAsync(
         AppDbContext dbContext, ICurrentUser currentUser, UpdateJudgeEmailCommand command, CancellationToken cancellationToken)
     {
@@ -51,7 +57,7 @@ public sealed class UpdateJudgeEmailCommandValidator : AbstractValidator<UpdateJ
     }
 }
 
-public sealed class UpdateJudgeEmailCommandHandler(
+internal sealed class UpdateJudgeEmailCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, IKeycloakAdminClient keycloakAdminClient)
     : IRequestHandler<UpdateJudgeEmailCommand, JudgeProfileDto?>
 {

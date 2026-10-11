@@ -11,7 +11,7 @@ public sealed class ValidationExceptionHandlerTests
     private readonly ValidationExceptionHandler _handler = new(ProblemDetailsServiceTestFactory.Create());
 
     [Fact]
-    public async Task Writes_a_400_with_the_validation_urn_and_a_field_error_map()
+    public async Task WritesA400WithTheValidationUrnAndAFieldErrorMap()
     {
         var context = new DefaultHttpContext { Response = { Body = new MemoryStream() } };
         var exception = new ValidationException(new[]
@@ -25,7 +25,7 @@ public sealed class ValidationExceptionHandlerTests
 
         Assert.True(handled);
         Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
-        Assert.StartsWith("application/problem+json", context.Response.ContentType);
+        Assert.StartsWith("application/problem+json", context.Response.ContentType, StringComparison.Ordinal);
 
         var body = await ReadBodyAsync(context);
         Assert.Equal("urn:birrapoint:validation", body.GetProperty("type").GetString());
@@ -38,7 +38,7 @@ public sealed class ValidationExceptionHandlerTests
     }
 
     [Fact]
-    public async Task Lowercases_only_the_first_character_of_each_dot_separated_path_segment()
+    public async Task LowercasesOnlyTheFirstCharacterOfEachDotSeparatedPathSegment()
     {
         var context = new DefaultHttpContext { Response = { Body = new MemoryStream() } };
         var exception = new ValidationException(
@@ -52,7 +52,7 @@ public sealed class ValidationExceptionHandlerTests
     }
 
     [Fact]
-    public async Task Returns_false_for_exceptions_it_does_not_own()
+    public async Task ReturnsFalseForExceptionsItDoesNotOwn()
     {
         var context = new DefaultHttpContext { Response = { Body = new MemoryStream() } };
 

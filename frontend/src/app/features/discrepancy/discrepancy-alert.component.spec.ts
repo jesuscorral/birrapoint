@@ -211,7 +211,7 @@ describe('DiscrepancyAlertComponent', () => {
 
     buttonWithText(fixture.nativeElement, 'Ajustar mi evaluación').click();
     fixture.detectChanges();
-    fixture.componentInstance.formFor('a1').setValue(validForm());
+    fixture.componentInstance['formFor']('a1').setValue(validForm());
     fixture.detectChanges();
 
     buttonWithText(fixture.nativeElement, 'Enviar ajuste').click();
@@ -264,7 +264,7 @@ describe('DiscrepancyAlertComponent', () => {
 
     buttonWithText(fixture.nativeElement, 'Ajustar mi evaluación').click();
     fixture.detectChanges();
-    fixture.componentInstance.formFor('a1').setValue(validForm());
+    fixture.componentInstance['formFor']('a1').setValue(validForm());
     fixture.detectChanges();
 
     buttonWithText(fixture.nativeElement, 'Enviar ajuste').click();
@@ -298,7 +298,7 @@ describe('DiscrepancyAlertComponent', () => {
 
     buttonWithText(fixture.nativeElement, 'Ajustar mi evaluación').click();
     fixture.detectChanges();
-    fixture.componentInstance.formFor('a1').setValue(validForm());
+    fixture.componentInstance['formFor']('a1').setValue(validForm());
     fixture.detectChanges();
 
     buttonWithText(fixture.nativeElement, 'Enviar ajuste').click();
@@ -307,7 +307,7 @@ describe('DiscrepancyAlertComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('ya no está abierta para ajustes');
-    expect(fixture.componentInstance.formFor('a1').getRawValue()).toMatchObject({
+    expect(fixture.componentInstance['formFor']('a1').getRawValue()).toMatchObject({
       aromaScore: 10,
       aromaComment: validForm().aromaComment,
     });

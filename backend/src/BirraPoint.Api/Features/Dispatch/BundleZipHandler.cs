@@ -15,7 +15,7 @@ namespace BirraPoint.Api.Features.Dispatch;
 /// delivery status/attempts/lastError live entirely on that job's own row, the same way
 /// <see cref="Invitation"/> tracks judge invites, except here there's no separate status entity.
 /// </summary>
-public sealed class BundleZipHandler(AppDbContext dbContext, IDispatchJobQueue dispatchJobQueue) : IDispatchJobHandler
+internal sealed class BundleZipHandler(AppDbContext dbContext, IDispatchJobQueue dispatchJobQueue) : IDispatchJobHandler
 {
     public DispatchJobType Type => DispatchJobType.BundleZip;
 
@@ -36,7 +36,7 @@ public sealed class BundleZipHandler(AppDbContext dbContext, IDispatchJobQueue d
             {
                 var entryPath = DispatchPaths.ZipEntryPath(competition.Name, sheet.ParticipantId, sheet.StyleCode, sheet.BlindCode);
                 var zipEntry = archive.CreateEntry(entryPath, CompressionLevel.Optimal);
-                await using var entryStream = zipEntry.Open();
+                await using var entryStream = await zipEntry.OpenAsync(cancellationToken);
                 await entryStream.WriteAsync(sheet.PdfBytes, cancellationToken);
             }
         }

@@ -3,7 +3,7 @@ using BirraPoint.Api.Domain;
 
 namespace BirraPoint.Api.Common.Auth;
 
-public sealed class CurrentUser(
+internal sealed class CurrentUser(
     IHttpContextAccessor httpContextAccessor, IJudgeResolver judgeResolver, IOrganizerResolver organizerResolver)
     : ICurrentUser
 {

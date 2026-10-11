@@ -8,12 +8,12 @@ namespace BirraPoint.Api.Features.Dispatch;
 
 /// <summary>Exactly one of <see cref="ZipBytes"/>/<see cref="Status"/> is set: the archive is ready
 /// (200, stream the bytes) or it's still being generated (202, report the status).</summary>
-public sealed record ResultsArchiveResult(byte[]? ZipBytes, string? Status);
+internal sealed record ResultsArchiveResult(byte[]? ZipBytes, string? Status);
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record GetResultsArchiveQuery(Guid CompetitionId) : IRequest<ResultsArchiveResult?>;
+internal sealed record GetResultsArchiveQuery(Guid CompetitionId) : IRequest<ResultsArchiveResult?>;
 
-public sealed class GetResultsArchiveQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class GetResultsArchiveQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<GetResultsArchiveQuery, ResultsArchiveResult?>
 {
     public async Task<ResultsArchiveResult?> Handle(GetResultsArchiveQuery request, CancellationToken cancellationToken)

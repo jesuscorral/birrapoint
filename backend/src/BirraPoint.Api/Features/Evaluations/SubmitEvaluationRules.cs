@@ -10,7 +10,7 @@ namespace BirraPoint.Api.Features.Evaluations;
 /// (JudgeId, BeerEntryId) unique index (data-model.md) is what actually backstops a genuine race
 /// between two submissions for the same pair, not these gates.
 /// </summary>
-public static class SubmitEvaluationRules
+internal static class SubmitEvaluationRules
 {
     /// <summary>Section score caps (FR-023/FR-024) — shared by SubmitEvaluationCommandValidator so
     /// the wire-boundary validation and these unit tests can never drift from a single source.</summary>

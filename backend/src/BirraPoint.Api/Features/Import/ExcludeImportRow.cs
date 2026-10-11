@@ -6,9 +6,9 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Import;
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record ExcludeImportRowCommand(Guid CompetitionId, Guid ImportId, int RowNumber) : IRequest<ImportRowDto?>;
+internal sealed record ExcludeImportRowCommand(Guid CompetitionId, Guid ImportId, int RowNumber) : IRequest<ImportRowDto?>;
 
-public sealed class ExcludeImportRowCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class ExcludeImportRowCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<ExcludeImportRowCommand, ImportRowDto?>
 {
     public async Task<ImportRowDto?> Handle(ExcludeImportRowCommand request, CancellationToken cancellationToken)

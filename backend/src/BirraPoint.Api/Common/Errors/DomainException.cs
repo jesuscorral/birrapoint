@@ -1,7 +1,9 @@
 namespace BirraPoint.Api.Common.Errors;
 
 /// <summary>Thrown by a slice to signal one of the 14 catalogued domain errors (contracts/rest-api.md).</summary>
-public sealed class DomainException : Exception
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1032:Implement standard exception constructors",
+    Justification = "A DomainException always carries a catalogued DomainErrorType; parameterless/message-only constructors would create untyped domain errors.")]
+internal sealed class DomainException : Exception
 {
     public DomainErrorType ErrorType { get; }
 

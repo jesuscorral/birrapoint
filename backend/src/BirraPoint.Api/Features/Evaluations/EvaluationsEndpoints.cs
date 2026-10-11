@@ -5,13 +5,13 @@ namespace BirraPoint.Api.Features.Evaluations;
 
 /// <summary>Descriptors/Feedback (Session 2026-09-21) are optional — a request body that omits them
 /// entirely still binds fine (both default to null).</summary>
-public sealed record SubmitEvaluationRequest(
+internal sealed record SubmitEvaluationRequest(
     Guid BeerEntryId, EvaluationScoresDto Scores, EvaluationCommentsDto Comments,
     EvaluationDescriptorsDto? Descriptors = null, string? Feedback = null);
 
-public sealed record AdjustEvaluationRequest(EvaluationScoresDto Scores, EvaluationCommentsDto Comments);
+internal sealed record AdjustEvaluationRequest(EvaluationScoresDto Scores, EvaluationCommentsDto Comments);
 
-public sealed record CorrectEvaluationRequest(
+internal sealed record CorrectEvaluationRequest(
     EvaluationScoresDto Scores, EvaluationCommentsDto Comments,
     EvaluationDescriptorsDto? Descriptors = null, string? Feedback = null);
 
@@ -20,7 +20,7 @@ public sealed record CorrectEvaluationRequest(
 /// GET /me/tables/{tableId}/evaluations/discrepancies (T081, FR-031), POST /me/tables/{tableId}/close
 /// (T062-T063, FR-033/FR-042) — all JUDGE-only — and PUT /competitions/{id}/evaluations/{evaluationId}
 /// (T064-T065, FR-035) — ORGANIZER-only.</summary>
-public static class EvaluationsEndpoints
+internal static class EvaluationsEndpoints
 {
     public static IEndpointRouteBuilder MapEvaluationsEndpoints(this IEndpointRouteBuilder endpoints)
     {

@@ -7,7 +7,7 @@ namespace BirraPoint.Api.Common.Persistence;
 /// Used only by `dotnet ef migrations …` at design time; no connection is opened when
 /// generating migrations, so the connection string is loaded from environment variables.
 /// </summary>
-public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
+internal sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
 {
     public AppDbContext CreateDbContext(string[] args)
     {

@@ -8,7 +8,7 @@ public sealed class RegisterJudgesCommandValidatorTests
     private static readonly RegisterJudgesCommandValidator Validator = new();
 
     [Fact]
-    public void Command_with_valid_emails_is_valid()
+    public void CommandWithValidEmailsIsValid()
     {
         var result = Validator.Validate(new RegisterJudgesCommand(Guid.NewGuid(), ["alice@example.com", "bob@example.com"]));
 
@@ -16,7 +16,7 @@ public sealed class RegisterJudgesCommandValidatorTests
     }
 
     [Fact]
-    public void Command_with_empty_email_list_is_invalid()
+    public void CommandWithEmptyEmailListIsInvalid()
     {
         var result = Validator.Validate(new RegisterJudgesCommand(Guid.NewGuid(), []));
 
@@ -29,7 +29,7 @@ public sealed class RegisterJudgesCommandValidatorTests
     [InlineData("missing-domain@")]
     [InlineData("@missing-local.com")]
     [InlineData("")]
-    public void Command_with_malformed_email_is_invalid(string email)
+    public void CommandWithMalformedEmailIsInvalid(string email)
     {
         var result = Validator.Validate(new RegisterJudgesCommand(Guid.NewGuid(), [email]));
 

@@ -38,11 +38,11 @@ public sealed class ValidationBehaviorTests
 
     private sealed class NoSpacesValidator : AbstractValidator<TestRequest>
     {
-        public NoSpacesValidator() => RuleFor(r => r.Name).Must(n => !n.Contains(' ')).WithMessage("No spaces allowed.");
+        public NoSpacesValidator() => RuleFor(r => r.Name).Must(n => !n.Contains(' ', StringComparison.Ordinal)).WithMessage("No spaces allowed.");
     }
 
     [Fact]
-    public async Task Calls_next_when_no_validators_are_registered_for_the_request()
+    public async Task CallsNextWhenNoValidatorsAreRegisteredForTheRequest()
     {
         var behavior = new ValidationBehavior<TestRequest, string>([]);
         var nextCalled = false;
@@ -58,7 +58,7 @@ public sealed class ValidationBehaviorTests
     }
 
     [Fact]
-    public async Task Calls_next_when_the_validator_passes()
+    public async Task CallsNextWhenTheValidatorPasses()
     {
         var behavior = new ValidationBehavior<TestRequest, string>([new AlwaysPassesValidator()]);
 
@@ -68,7 +68,7 @@ public sealed class ValidationBehaviorTests
     }
 
     [Fact]
-    public async Task Throws_validation_exception_and_never_calls_next_when_the_validator_fails()
+    public async Task ThrowsValidationExceptionAndNeverCallsNextWhenTheValidatorFails()
     {
         var behavior = new ValidationBehavior<TestRequest, string>([new AlwaysFailsValidator()]);
         var nextCalled = false;
@@ -84,7 +84,7 @@ public sealed class ValidationBehaviorTests
     }
 
     [Fact]
-    public async Task Aggregates_failures_from_multiple_validators()
+    public async Task AggregatesFailuresFromMultipleValidators()
     {
         var behavior = new ValidationBehavior<TestRequest, string>(
         [
@@ -99,7 +99,7 @@ public sealed class ValidationBehaviorTests
     }
 
     [Fact]
-    public async Task Does_not_double_count_failures_from_real_validators_run_in_parallel()
+    public async Task DoesNotDoubleCountFailuresFromRealValidatorsRunInParallel()
     {
         // " " (a single space) fails both real validators: too short (length 1 < 5) and contains
         // a space. Each validator must see its own ValidationContext — sharing one across the

@@ -17,7 +17,7 @@ public sealed class SmtpSettingsTests
         new ConfigurationBuilder().AddInMemoryCollection(values).Build();
 
     [Fact]
-    public void Mailpit_shaped_config_resolves_to_no_tls_and_no_authentication()
+    public void MailpitShapedConfigResolvesToNoTlsAndNoAuthentication()
     {
         var configuration = Build(new Dictionary<string, string?>
         {
@@ -37,7 +37,7 @@ public sealed class SmtpSettingsTests
     }
 
     [Fact]
-    public void UseStartTls_true_resolves_to_StartTls_socket_option()
+    public void UseStartTlsTrueResolvesToStartTlsSocketOption()
     {
         var configuration = Build(new Dictionary<string, string?>
         {
@@ -52,7 +52,7 @@ public sealed class SmtpSettingsTests
     }
 
     [Fact]
-    public void UseStartTls_false_or_absent_resolves_to_no_socket_security()
+    public void UseStartTlsFalseOrAbsentResolvesToNoSocketSecurity()
     {
         var configuration = Build(new Dictionary<string, string?>
         {
@@ -67,7 +67,7 @@ public sealed class SmtpSettingsTests
     }
 
     [Fact]
-    public void Non_empty_username_requires_authentication_and_carries_the_password_through()
+    public void NonEmptyUsernameRequiresAuthenticationAndCarriesThePasswordThrough()
     {
         var configuration = Build(new Dictionary<string, string?>
         {
@@ -86,7 +86,7 @@ public sealed class SmtpSettingsTests
     }
 
     [Fact]
-    public void Empty_username_does_not_require_authentication_even_if_present_as_a_blank_value()
+    public void EmptyUsernameDoesNotRequireAuthenticationEvenIfPresentAsABlankValue()
     {
         var configuration = Build(new Dictionary<string, string?>
         {
@@ -101,7 +101,7 @@ public sealed class SmtpSettingsTests
     }
 
     [Fact]
-    public void Custom_from_address_overrides_the_default()
+    public void CustomFromAddressOverridesTheDefault()
     {
         var configuration = Build(new Dictionary<string, string?>
         {
@@ -116,7 +116,7 @@ public sealed class SmtpSettingsTests
     }
 
     [Fact]
-    public void Missing_host_throws()
+    public void MissingHostThrows()
     {
         var configuration = Build(new Dictionary<string, string?>
         {
@@ -127,7 +127,7 @@ public sealed class SmtpSettingsTests
     }
 
     [Fact]
-    public void Missing_port_throws()
+    public void MissingPortThrows()
     {
         var configuration = Build(new Dictionary<string, string?>
         {
@@ -138,7 +138,7 @@ public sealed class SmtpSettingsTests
     }
 
     [Fact]
-    public void Username_without_a_password_throws()
+    public void UsernameWithoutAPasswordThrows()
     {
         var configuration = Build(new Dictionary<string, string?>
         {

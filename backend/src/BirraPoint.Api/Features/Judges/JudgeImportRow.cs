@@ -8,7 +8,7 @@ namespace BirraPoint.Api.Features.Judges;
 /// roster, so there is no mismatch/unresolved-reference status — only whether the two required
 /// fields (Name/Email) are present and well-formed (US14/FR-056).
 /// </summary>
-public class JudgeImportRow : Entity
+internal class JudgeImportRow : Entity
 {
     public Guid JudgeImportBatchId { get; set; }
 
@@ -44,7 +44,7 @@ public class JudgeImportRow : Entity
 /// (judge-import-file.md); <see cref="Excluded"/> is a resolution outcome set only via the
 /// exclude action and — like <see cref="Valid"/> — never blocks consolidation (FR-056).
 /// </summary>
-public enum JudgeImportRowStatus
+internal enum JudgeImportRowStatus
 {
     Valid,
     Invalid,

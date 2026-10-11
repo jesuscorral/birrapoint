@@ -6,7 +6,7 @@ namespace BirraPoint.Api.Domain;
 /// — unlike <see cref="Judge"/>, no row can pre-exist before that first login, since organizers are
 /// self-registered rather than invited. One Organizer owns many <see cref="Competition"/> rows.
 /// </summary>
-public class Organizer : Entity
+internal class Organizer : Entity
 {
     /// <summary>Keycloak subject (JWT `sub`); set at resolution time, never null once created.</summary>
     public required string KeycloakUserId { get; set; }

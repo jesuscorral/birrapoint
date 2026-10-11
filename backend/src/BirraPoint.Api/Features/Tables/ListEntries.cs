@@ -7,7 +7,7 @@ namespace BirraPoint.Api.Features.Tables;
 
 /// <summary>Feeds T048's "Unassigned" source column — every entry in the competition plus its
 /// current table assignment, null when unassigned.</summary>
-public sealed record EntryDto(
+internal sealed record EntryDto(
     Guid Id,
     string BlindCode,
     string StyleCode,
@@ -31,9 +31,9 @@ public sealed record EntryDto(
     string? BjcpCategoryName);
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record ListEntriesQuery(Guid CompetitionId) : IRequest<IReadOnlyList<EntryDto>?>;
+internal sealed record ListEntriesQuery(Guid CompetitionId) : IRequest<IReadOnlyList<EntryDto>?>;
 
-public sealed class ListEntriesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class ListEntriesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<ListEntriesQuery, IReadOnlyList<EntryDto>?>
 {
     public async Task<IReadOnlyList<EntryDto>?> Handle(ListEntriesQuery request, CancellationToken cancellationToken)

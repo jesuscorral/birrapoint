@@ -11,13 +11,13 @@ namespace BirraPoint.Api.Common.Auth;
 /// Takes primitives rather than <see cref="ICurrentUser"/>, since <see cref="CurrentUser"/> calls
 /// into this and an <see cref="ICurrentUser"/> dependency here would create a DI cycle.
 /// </summary>
-public interface IJudgeResolver
+internal interface IJudgeResolver
 {
     Task<IReadOnlyList<Judge>> ResolveAndBackfillAsync(
         string sub, string? email, string? name, CancellationToken ct = default);
 }
 
-public sealed class JudgeResolver(AppDbContext db) : IJudgeResolver
+internal sealed class JudgeResolver(AppDbContext db) : IJudgeResolver
 {
     public async Task<IReadOnlyList<Judge>> ResolveAndBackfillAsync(
         string sub, string? email, string? name, CancellationToken ct = default)

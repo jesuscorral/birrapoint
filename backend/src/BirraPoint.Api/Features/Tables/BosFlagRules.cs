@@ -6,7 +6,7 @@ namespace BirraPoint.Api.Features.Tables;
 /// assignments AND has never submitted an evaluation in the competition — the flag becomes
 /// permanent the moment any evaluation is submitted, regardless of later assignment changes.
 /// </summary>
-public static class BosFlagRules
+internal static class BosFlagRules
 {
     public static bool IsEligibleForUnflag(int remainingActiveTableAssignments, bool hasSubmittedAnyEvaluation) =>
         remainingActiveTableAssignments == 0 && !hasSubmittedAnyEvaluation;

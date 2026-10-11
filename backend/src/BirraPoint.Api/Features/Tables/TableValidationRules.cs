@@ -19,6 +19,12 @@ internal static class TableValidationRules
         AppDbContext dbContext, ICurrentUser currentUser, Guid competitionId, CancellationToken cancellationToken) =>
         dbContext.Competitions.AnyAsync(c => c.Id == competitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo",
+        Justification = "EF Core query translated to SQL by Npgsql (lower()/upper() evaluated in PostgreSQL, culture-independent); Npgsql cannot translate ToXxxInvariant or string.Equals(string, StringComparison).")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version",
+        Justification = "EF Core query translated to SQL by Npgsql (lower()/upper() evaluated in PostgreSQL, culture-independent); Npgsql cannot translate ToXxxInvariant or string.Equals(string, StringComparison).")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1862:Use the StringComparison method overloads to perform case-insensitive string comparisons",
+        Justification = "EF Core query translated to SQL by Npgsql (lower()/upper() evaluated in PostgreSQL, culture-independent); Npgsql cannot translate ToXxxInvariant or string.Equals(string, StringComparison).")]
     public static async Task<bool> IsNameUniqueAsync(
         AppDbContext dbContext,
         ICurrentUser currentUser,

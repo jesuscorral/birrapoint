@@ -10,9 +10,9 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Dispatch;
 
 /// <summary>Returns false when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record RetryDispatchCommand(Guid CompetitionId, IReadOnlyList<Guid> ParticipantIds) : IRequest<bool>;
+internal sealed record RetryDispatchCommand(Guid CompetitionId, IReadOnlyList<Guid> ParticipantIds) : IRequest<bool>;
 
-public sealed class RetryDispatchCommandValidator : AbstractValidator<RetryDispatchCommand>
+internal sealed class RetryDispatchCommandValidator : AbstractValidator<RetryDispatchCommand>
 {
     public RetryDispatchCommandValidator()
     {
@@ -25,7 +25,7 @@ public sealed class RetryDispatchCommandValidator : AbstractValidator<RetryDispa
 /// be executing under another worker's lease (T129). After the commit the worker is woken
 /// through IDispatchWakeUp (same as DispatchJobQueue), because the production safety-net poll
 /// (Dispatch:SafetyNetPollInterval) can be hours long (T132).</summary>
-public sealed class RetryDispatchCommandHandler(
+internal sealed class RetryDispatchCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, IDispatchWakeUp wakeUp)
     : IRequestHandler<RetryDispatchCommand, bool>
 {

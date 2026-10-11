@@ -8,12 +8,12 @@ namespace BirraPoint.Api.Common.Errors;
 /// returns a generic 500 — never the exception message or stack trace (Principle VII: never leak
 /// internals to the client).
 /// </summary>
-public sealed class FallbackExceptionHandler(ILogger<FallbackExceptionHandler> logger, IProblemDetailsService problemDetailsService)
+internal sealed partial class FallbackExceptionHandler(ILogger<FallbackExceptionHandler> logger, IProblemDetailsService problemDetailsService)
     : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
-        logger.LogError(exception, "Unhandled exception processing {Method} {Path}", httpContext.Request.Method, httpContext.Request.Path);
+        LogUnhandled(logger, exception, httpContext.Request.Method, httpContext.Request.Path.Value);
 
         var problemDetails = new ProblemDetails
         {
@@ -32,4 +32,7 @@ public sealed class FallbackExceptionHandler(ILogger<FallbackExceptionHandler> l
             Exception = exception,
         });
     }
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Error, Message = "Unhandled exception processing {Method} {Path}")]
+    private static partial void LogUnhandled(ILogger logger, Exception exception, string method, string? path);
 }

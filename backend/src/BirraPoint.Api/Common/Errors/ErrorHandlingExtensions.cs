@@ -1,6 +1,6 @@
 namespace BirraPoint.Api.Common.Errors;
 
-public static class ErrorHandlingExtensions
+internal static class ErrorHandlingExtensions
 {
     /// <summary>
     /// Registers ProblemDetails + the exception handler chain (T012). Handlers run in
