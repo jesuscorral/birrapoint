@@ -40,6 +40,10 @@ builder.AddServiceDefaults();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("db")));
 
+// Readiness: /health runs this, /alive does not (Neon scale-to-zero, ADR-0025).
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("db", tags: ["ready"]);
+
 // JWT bearer against Keycloak, deny-by-default fallback policy, ORGANIZER/JUDGE role policies (T011),
 // audience validation pinned to Keycloak:ApiAudience via the birrapoint-spa audience mapper (T017/ADR-0009).
 builder.Services.AddKeycloakAuthentication(builder.Configuration, builder.Environment.IsDevelopment());

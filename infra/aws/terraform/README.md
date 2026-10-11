@@ -258,9 +258,18 @@ dispatch wake-ups on a paid plan, then apply as usual.
   option, so the application secrets are not environment-qualified.
 - **API deployments stop the old task first** (SignalR has no backplane): expect a brief API outage on
   each rollout. `deployment_circuit_breaker` rolls back a task that fails to start.
-- **No container health checks**: the Keycloak image has no curl and the API has none on Azure
-  either; the ALB checks web (`/`) and Keycloak (`/health/live` on port 9000; `/health/ready` validates DB connections and would keep Neon awake). A crashing API is
-  restarted by ECS only when the process exits.
+- **No container health checks, no API probe (T098)**: the Keycloak and API images have no curl,
+  so an ECS `healthCheck` command could not run, and the API has no ALB target group (it is reached
+  through Cloud Map), so nothing probes it. The ALB checks web (`/`) and Keycloak (`/health/live`
+  on port 9000; `/health/ready` validates DB connections and would keep Neon awake). A crashing API
+  is restarted by ECS only when the process exits; `ecs-health.sh` and the circuit breaker judge a
+  rollout by the task staying RUNNING. The API's `/alive` (no dependencies) and `/health` (checks
+  Postgres, 503 when unreachable, wakes Neon) are for manual diagnostics only, for example
+  `curl http://<api task ip>:8080/alive` from a task in the VPC; never wire `/health` into a probe
+  (ADR-0025).
+- **Telemetry today**: console logs go to CloudWatch (`/birrapoint/<env>/<component>`, 30 days).
+  The API exports OpenTelemetry (OTLP) only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; none is
+  configured and no paid telemetry resource is created. Validating this on ECS belongs to T099.
 - Public task IPs without NAT trade network isolation for cost; the security groups are the only
   inbound control. Container Insights is off to save cost.
 - **Cost** (ADR-0023): about 85-100 USD/month: ALB ~18, Fargate incl. two `daprd` sidecars ~55,

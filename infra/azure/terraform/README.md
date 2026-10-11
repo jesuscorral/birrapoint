@@ -271,7 +271,20 @@ dispatch wake-ups on a paid plan, then apply as usual.
 - **Neon compute.** With the defaults compute wakes about 30 times a day (see "Neon compute
   budget"); a shorter `dispatch_poll_interval`, a second Keycloak replica or a changed Keycloak
   image setting can keep it awake around the clock, above the free plan's monthly allowance (T132).
-- OpenTelemetry export to Azure and health probes for the API arrive with T098; until then the
-  API uses ACA's default TCP probe and logs go to Log Analytics via console output.
+- **API health probes (T098).** The API container has explicit startup, readiness and liveness HTTP
+  probes on `/alive` (port 8080), which has no dependencies. Never probe `/health`: it includes a
+  Postgres check and would keep the Neon compute awake 24/7 (ADR-0025); use it only for manual
+  diagnostics (`curl https://<internal fqdn>/health` from inside the environment; it wakes Neon and
+  answers 503 when the database is unreachable). ACA caps a probe's failure threshold at 10, so the
+  startup budget is 10 x 25 s = 250 s (migrations on start plus Dapr secret retries, ~200 s worst
+  case). Rollout semantics: before, ACA's default TCP probe only proved the port was open; now a
+  revision whose app does not answer `/alive` stays unready, so `wait-revisions.sh` (latest revision
+  == latest ready revision, healthy) fails the deploy instead of passing on an open port, and in
+  Single revision mode traffic stays on the previous revision. A hung process is restarted by the
+  liveness probe.
+- **Telemetry today.** Console logs go to Log Analytics. The API exports OpenTelemetry (OTLP) only
+  when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; none is configured in the cloud, and no paid telemetry
+  resource (Application Insights, managed collectors) is created. Validating logs and the probes in
+  ACA belongs to T099.
 - Keycloak's JDBC connection uses `sslmode=require` (encrypted, server certificate not
   verified); the API's Npgsql connections use `VerifyFull`.

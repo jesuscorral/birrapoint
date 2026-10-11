@@ -109,6 +109,15 @@ built exclusively from the blind projection (`JudgeSampleDto`) — see data-mode
 | `GET /competitions/{id}/dispatch` | ORGANIZER | Per-participant email status: `[{ participantId, email, status, attempts, lastError? }]` (FR-041). |
 | `POST /competitions/{id}/dispatch/retries` | ORGANIZER | Body: `{ participantIds: [] }` → re-queue failed result emails. |
 
+## Operational endpoints
+
+Anonymous, all environments, not routed publicly in the cloud (ADR-0028). Body is `text/plain`: `Healthy`, `Degraded` or `Unhealthy`; no details.
+
+| Method & Path | Role | Description |
+|---|---|---|
+| `GET /alive` | anonymous | Liveness: `live`-tagged checks only, no DB. `200` / `503`. Used by cloud probes. |
+| `GET /health` | anonymous | All checks incl. `db` (connect, 4 s timeout). `200` / `503`. Not probed in the cloud (keeps Neon awake, ADR-0025). |
+
 ## Error catalog
 
 | `type` URN (`urn:birrapoint:…`) | HTTP | Raised by |

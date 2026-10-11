@@ -751,3 +751,24 @@ run "keycloak_housekeeping_interval_keeps_neon_asleep" {
     error_message = "Keycloak housekeeping must run every 6 h, not the 15 min default (Neon compute budget, ADR-0025)"
   }
 }
+
+# --- API health (T098, FR-048) -------------------------------------------------------------------
+# The API has no ALB target group and its image has no curl, so ECS has no probe for it: nothing may
+# probe /health (its Postgres check would keep Neon awake 24/7, ADR-0025). /alive is for manual use.
+
+run "no_health_probe_hits_the_api_or_the_db_check" {
+  command = apply
+
+  assert {
+    condition     = alltrue([for tg in [aws_lb_target_group.web, aws_lb_target_group.keycloak] : !startswith(tg.health_check[0].path, "/health") || tg.health_check[0].path == "/health/live"])
+    error_message = "target groups must not check /health or /health/ready (DB checks keep Neon awake)"
+  }
+  assert {
+    condition     = length(aws_ecs_service.api.load_balancer) == 0
+    error_message = "the API is reached through Cloud Map only; it has no target group"
+  }
+  assert {
+    condition     = alltrue([for c in jsondecode(aws_ecs_task_definition.api.container_definitions) : !contains(keys(c), "healthCheck")])
+    error_message = "the API container must define no healthCheck at all (no curl in the image; /health or /health/ready would keep Neon awake)"
+  }
+}

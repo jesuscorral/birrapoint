@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 namespace BirraPoint.ServiceDefaults;
@@ -52,7 +53,16 @@ public static class ServiceDefaultsExtensions
             logging.IncludeScopes = true;
         });
 
+        // Explicit service name: Aspire injects OTEL_SERVICE_NAME, but ACA/ECS do not, and the SDK would
+        // report "unknown_service:<process>". The env var / config still wins when present.
+        var serviceName = builder.Configuration["OTEL_SERVICE_NAME"];
+        if (string.IsNullOrWhiteSpace(serviceName))
+        {
+            serviceName = builder.Environment.ApplicationName;
+        }
+
         builder.Services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddService(serviceName, autoGenerateServiceInstanceId: false))
             .WithMetrics(metrics =>
             {
                 metrics.AddAspNetCoreInstrumentation()
@@ -110,22 +120,18 @@ public static class ServiceDefaultsExtensions
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        // Adding health checks endpoints to applications in non-development environments has security implications.
-        // See https://aka.ms/aspire/healthchecks for details before enabling these endpoints in non-development environments.
-        if (app.Environment.IsDevelopment())
+        // Mapped in ALL environments (FR-048). Anonymous: probes carry no bearer token and the
+        // deny-by-default fallback policy (T011) would block them. Security: the default plain-text
+        // writer emits only the bare status ("Healthy"/"Degraded"/"Unhealthy"), never check names or
+        // exception details. /health runs every check including the DB, so cloud liveness probes must
+        // use /alive (Neon scale-to-zero would otherwise be kept awake, ADR-0025).
+        app.MapHealthChecks(HealthEndpointPath).AllowAnonymous();
+
+        // Only checks tagged "live" (no I/O) must pass for the app to be considered alive.
+        app.MapHealthChecks(AlivenessEndpointPath, new HealthCheckOptions
         {
-            // Anonymous: container/Aspire orchestration probes hit these without a bearer token,
-            // and the deny-by-default authorization fallback policy (T011) would otherwise block them.
-
-            // All health checks must pass for app to be considered ready to accept traffic after starting
-            app.MapHealthChecks(HealthEndpointPath).AllowAnonymous();
-
-            // Only health checks tagged with the "live" tag must pass for app to be considered alive
-            app.MapHealthChecks(AlivenessEndpointPath, new HealthCheckOptions
-            {
-                Predicate = r => r.Tags.Contains("live")
-            }).AllowAnonymous();
-        }
+            Predicate = r => r.Tags.Contains("live")
+        }).AllowAnonymous();
 
         return app;
     }

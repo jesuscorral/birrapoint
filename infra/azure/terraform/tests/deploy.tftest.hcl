@@ -304,3 +304,31 @@ run "keycloak_housekeeping_interval_keeps_neon_asleep" {
     error_message = "Keycloak housekeeping must run every 6 h, not the 15 min default (Neon compute budget, ADR-0025)"
   }
 }
+
+# --- API health probes (T098, FR-048) ------------------------------------------------------------
+
+run "api_probes_use_alive_never_health" {
+  command = plan
+
+  assert {
+    condition     = azurerm_container_app.api.template[0].container[0].startup_probe[0].path == "/alive" && azurerm_container_app.api.template[0].container[0].readiness_probe[0].path == "/alive" && azurerm_container_app.api.template[0].container[0].liveness_probe[0].path == "/alive"
+    error_message = "the API startup, readiness and liveness probes must all use /alive"
+  }
+  assert {
+    condition     = alltrue([for c in concat(azurerm_container_app.api.template[0].container, azurerm_container_app.keycloak.template[0].container, azurerm_container_app.web.template[0].container) : alltrue([for p in concat(c.startup_probe, c.readiness_probe, c.liveness_probe) : !contains(["/health", "/health/ready"], p.path)])])
+    error_message = "no probe may use /health or /health/ready: its Postgres check would keep Neon awake 24/7 (ADR-0025)"
+  }
+  assert {
+    condition     = alltrue([for p in [azurerm_container_app.api.template[0].container[0].startup_probe[0], azurerm_container_app.api.template[0].container[0].readiness_probe[0], azurerm_container_app.api.template[0].container[0].liveness_probe[0]] : p.port == 8080 && p.transport == "HTTP"])
+    error_message = "the API probes must be HTTP on the container port 8080"
+  }
+}
+
+run "api_startup_probe_covers_migrations_and_dapr_retries" {
+  command = plan
+
+  assert {
+    condition     = azurerm_container_app.api.template[0].container[0].startup_probe[0].interval_seconds * azurerm_container_app.api.template[0].container[0].startup_probe[0].failure_count_threshold >= 240 && azurerm_container_app.api.template[0].container[0].startup_probe[0].failure_count_threshold <= 10
+    error_message = "the startup budget must be at least 240 s (migrations + Dapr secret retries, ~200 s worst case) with a threshold within ACA's limit of 10"
+  }
+}
