@@ -60,7 +60,7 @@ describe('BasicsStepComponent', () => {
     ) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
 
-    fixture.componentInstance.form.setValue({
+    fixture.componentInstance['form'].setValue({
       name: 'Golden Ale Cup',
       venue: 'Town Hall',
       startDate: '2026-08-02',
@@ -72,7 +72,7 @@ describe('BasicsStepComponent', () => {
 
   it('enables Next once all fields are valid and endDate is on/after startDate', () => {
     const fixture = createComponent();
-    fixture.componentInstance.form.setValue({
+    fixture.componentInstance['form'].setValue({
       name: 'Golden Ale Cup',
       venue: 'Town Hall',
       startDate: '2026-08-01',
@@ -101,14 +101,14 @@ describe('BasicsStepComponent', () => {
   it('calls create() with only the basics fields when there is no competition id yet', () => {
     fakeApi.create.mockReturnValue(of(detailFixture()));
     const fixture = createComponent();
-    fixture.componentInstance.form.setValue({
+    fixture.componentInstance['form'].setValue({
       name: 'Golden Ale Cup',
       venue: 'Town Hall',
       startDate: '2026-08-01',
       endDate: '2026-08-02',
     });
 
-    fixture.componentInstance.onNext();
+    fixture.componentInstance['onNext']();
 
     expect(fakeApi.create).toHaveBeenCalledWith({
       name: 'Golden Ale Cup',
@@ -129,7 +129,7 @@ describe('BasicsStepComponent', () => {
     );
     fixture.detectChanges();
 
-    fixture.componentInstance.onNext();
+    fixture.componentInstance['onNext']();
 
     expect(fakeApi.update).toHaveBeenCalledWith('c1', {
       name: 'Golden Ale Cup',
@@ -148,7 +148,7 @@ describe('BasicsStepComponent', () => {
     const detail = detailFixture({ id: 'new-id' });
     fakeApi.create.mockReturnValue(of(detail));
     const fixture = createComponent();
-    fixture.componentInstance.form.setValue({
+    fixture.componentInstance['form'].setValue({
       name: 'Golden Ale Cup',
       venue: 'Town Hall',
       startDate: '2026-08-01',
@@ -157,7 +157,7 @@ describe('BasicsStepComponent', () => {
     const emitted: CompetitionDetail[] = [];
     fixture.componentInstance.saved.subscribe((value) => emitted.push(value));
 
-    fixture.componentInstance.onNext();
+    fixture.componentInstance['onNext']();
 
     expect(emitted).toEqual([detail]);
   });
@@ -175,7 +175,7 @@ describe('BasicsStepComponent', () => {
       ),
     );
     const fixture = createComponent();
-    fixture.componentInstance.form.setValue({
+    fixture.componentInstance['form'].setValue({
       name: 'Golden Ale Cup',
       venue: 'Town Hall',
       startDate: '2026-08-01',
@@ -184,7 +184,7 @@ describe('BasicsStepComponent', () => {
     const emitted: CompetitionDetail[] = [];
     fixture.componentInstance.saved.subscribe((value) => emitted.push(value));
 
-    fixture.componentInstance.onNext();
+    fixture.componentInstance['onNext']();
     fixture.detectChanges();
 
     expect(emitted).toEqual([]);
@@ -197,7 +197,7 @@ describe('BasicsStepComponent', () => {
   it('saves as a draft and navigates to the organizer dashboard on "Guardar borrador"', () => {
     fakeApi.create.mockReturnValue(of(detailFixture()));
     const fixture = createComponent();
-    fixture.componentInstance.form.setValue({
+    fixture.componentInstance['form'].setValue({
       name: 'Golden Ale Cup',
       venue: 'Town Hall',
       startDate: '2026-08-01',
@@ -244,7 +244,7 @@ describe('BasicsStepComponent', () => {
     fixture.componentRef.setInput('initialValue', detailFixture());
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.form.getRawValue()).toEqual({
+    expect(fixture.componentInstance['form'].getRawValue()).toEqual({
       name: 'Golden Ale Cup',
       venue: 'Town Hall',
       startDate: '2026-08-01',
@@ -273,7 +273,7 @@ describe('BasicsStepComponent', () => {
     fixture.detectChanges();
 
     expect(emitted).toEqual([true]);
-    expect(fixture.componentInstance.form.dirty).toBe(true);
+    expect(fixture.componentInstance['form'].dirty).toBe(true);
   });
 
   // FR-061 / Session 2026-09-19 clarification: the wizard is read-only once the competition is
@@ -292,8 +292,8 @@ describe('BasicsStepComponent', () => {
     it('disables the form while still displaying the prefilled values', () => {
       const fixture = createReadOnlyComponent();
 
-      expect(fixture.componentInstance.form.disabled).toBe(true);
-      expect(fixture.componentInstance.form.getRawValue()).toEqual({
+      expect(fixture.componentInstance['form'].disabled).toBe(true);
+      expect(fixture.componentInstance['form'].getRawValue()).toEqual({
         name: 'Golden Ale Cup',
         venue: 'Town Hall',
         startDate: '2026-08-01',
@@ -329,7 +329,7 @@ describe('BasicsStepComponent', () => {
       const emitted: CompetitionDetail[] = [];
       fixture.componentInstance.saved.subscribe((value) => emitted.push(value));
 
-      fixture.componentInstance.onNext();
+      fixture.componentInstance['onNext']();
 
       expect(fakeApi.create).not.toHaveBeenCalled();
       expect(fakeApi.update).not.toHaveBeenCalled();
@@ -341,7 +341,7 @@ describe('BasicsStepComponent', () => {
       const emitted: CompetitionDetail[] = [];
       fixture.componentInstance.saved.subscribe((value) => emitted.push(value));
 
-      fixture.componentInstance.onNext();
+      fixture.componentInstance['onNext']();
 
       expect(emitted).toEqual([]);
     });
@@ -351,7 +351,7 @@ describe('BasicsStepComponent', () => {
   it('keeps the form editable and "Guardar borrador" visible when readOnly is false (default)', () => {
     const fixture = createComponent();
 
-    expect(fixture.componentInstance.form.disabled).toBe(false);
+    expect(fixture.componentInstance['form'].disabled).toBe(false);
     const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
       (button: HTMLButtonElement) => button.textContent?.trim(),
     );

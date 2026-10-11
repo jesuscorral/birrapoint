@@ -301,10 +301,10 @@ describe('JudgeTableOrderComponent', () => {
     fixture.detectChanges();
 
     const dropEvent = { previousIndex: 0, currentIndex: 2 } as CdkDragDrop<unknown>;
-    fixture.componentInstance.onDrop(dropEvent);
+    fixture.componentInstance['onDrop'](dropEvent);
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.samples().map((s) => s.beerEntryId)).toEqual([
+    expect(fixture.componentInstance['samples']().map((s) => s.beerEntryId)).toEqual([
       'e2',
       'e3',
       'e1',
@@ -319,7 +319,7 @@ describe('JudgeTableOrderComponent', () => {
     buttonWithLabel(fixture.nativeElement, 'Bajar AB12').click();
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.samples().map((s) => s.beerEntryId)).toEqual([
+    expect(fixture.componentInstance['samples']().map((s) => s.beerEntryId)).toEqual([
       'e2',
       'e1',
       'e3',
@@ -334,7 +334,7 @@ describe('JudgeTableOrderComponent', () => {
     buttonWithLabel(fixture.nativeElement, 'Subir CD34').click();
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.samples().map((s) => s.beerEntryId)).toEqual([
+    expect(fixture.componentInstance['samples']().map((s) => s.beerEntryId)).toEqual([
       'e2',
       'e1',
       'e3',
@@ -373,7 +373,7 @@ describe('JudgeTableOrderComponent', () => {
     fixture.detectChanges();
 
     expect(fakeApi.fixOrder).toHaveBeenCalledWith('t1', ['e1', 'e2', 'e3']);
-    expect(fixture.componentInstance.orderFixed()).toBe(true);
+    expect(fixture.componentInstance['orderFixed']()).toBe(true);
     expect(fixture.nativeElement.textContent).toContain('Ada Lovelace');
     expect(fixture.nativeElement.querySelector('button[aria-label="Subir AB12"]')).toBeNull();
   });
@@ -409,8 +409,8 @@ describe('JudgeTableOrderComponent', () => {
     fixture.detectChanges();
 
     expect(fakeApi.fixOrder).not.toHaveBeenCalled();
-    expect(fixture.componentInstance.orderFixed()).toBe(true);
-    expect(fixture.componentInstance.samples().map((s) => s.beerEntryId)).toEqual([
+    expect(fixture.componentInstance['orderFixed']()).toBe(true);
+    expect(fixture.componentInstance['samples']().map((s) => s.beerEntryId)).toEqual([
       'e2',
       'e1',
       'e3',
@@ -430,7 +430,7 @@ describe('JudgeTableOrderComponent', () => {
     });
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.orderFixed()).toBe(false);
+    expect(fixture.componentInstance['orderFixed']()).toBe(false);
   });
 
   it('shows "already fixed by {fixedBy}" and reconciles the order on a 409 order-already-fixed race', async () => {
@@ -463,7 +463,7 @@ describe('JudgeTableOrderComponent', () => {
     expect(fixture.nativeElement.textContent).toContain(
       'El orden ya ha sido fijado por Grace Hopper',
     );
-    expect(fixture.componentInstance.orderFixed()).toBe(true);
+    expect(fixture.componentInstance['orderFixed']()).toBe(true);
   });
 
   it('shows a plain message on a 409 invalid-state-transition', async () => {

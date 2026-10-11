@@ -56,7 +56,7 @@ describe('DetailsStepComponent', () => {
   it('calls update() with the full accumulated form state (basics + details) on Save Draft', () => {
     fakeApi.update.mockReturnValue(of(detailFixture()));
     const fixture = createComponent();
-    fixture.componentInstance.form.setValue({
+    fixture.componentInstance['form'].setValue({
       description: 'A friendly local competition',
       logoUrl: 'https://example.com/logo.png',
       entryLimit: 40,
@@ -64,7 +64,7 @@ describe('DetailsStepComponent', () => {
       registrationEnd: '2026-07-01',
     });
 
-    fixture.componentInstance.onSaveDraft();
+    fixture.componentInstance['onSaveDraft']();
 
     expect(fakeApi.update).toHaveBeenCalledWith('c1', {
       name: 'Golden Ale Cup',
@@ -90,7 +90,7 @@ describe('DetailsStepComponent', () => {
     ) as HTMLButtonElement;
     expect(button.disabled).toBe(false);
 
-    fixture.componentInstance.onSaveDraft();
+    fixture.componentInstance['onSaveDraft']();
 
     expect(fakeApi.update).toHaveBeenCalledWith('c1', {
       name: 'Golden Ale Cup',
@@ -107,7 +107,7 @@ describe('DetailsStepComponent', () => {
 
   it('never disables "Siguiente" on validation — an invalid entryLimit is left unsaved and the step advances anyway', () => {
     const fixture = createComponent();
-    fixture.componentInstance.form.patchValue({ entryLimit: 0 });
+    fixture.componentInstance['form'].patchValue({ entryLimit: 0 });
     fixture.detectChanges();
 
     const button = fixture.nativeElement.querySelector(
@@ -118,7 +118,7 @@ describe('DetailsStepComponent', () => {
     const emitted: CompetitionDetail[] = [];
     fixture.componentInstance.saved.subscribe((value) => emitted.push(value));
 
-    fixture.componentInstance.onSaveDraft();
+    fixture.componentInstance['onSaveDraft']();
 
     expect(fakeApi.update).not.toHaveBeenCalled();
     expect(emitted).toEqual([detailFixture()]);
@@ -126,7 +126,7 @@ describe('DetailsStepComponent', () => {
 
   it('never disables "Siguiente" when registrationEnd is before registrationStart — advances without saving instead', () => {
     const fixture = createComponent();
-    fixture.componentInstance.form.patchValue({
+    fixture.componentInstance['form'].patchValue({
       registrationStart: '2026-07-01',
       registrationEnd: '2026-06-01',
     });
@@ -140,7 +140,7 @@ describe('DetailsStepComponent', () => {
     const emitted: CompetitionDetail[] = [];
     fixture.componentInstance.saved.subscribe((value) => emitted.push(value));
 
-    fixture.componentInstance.onSaveDraft();
+    fixture.componentInstance['onSaveDraft']();
 
     expect(fakeApi.update).not.toHaveBeenCalled();
     expect(emitted).toEqual([detailFixture()]);
@@ -152,7 +152,7 @@ describe('DetailsStepComponent', () => {
     const router = TestBed.inject(Router);
     const navigateSpy = jest.spyOn(router, 'navigateByUrl');
 
-    fixture.componentInstance.onSaveDraft();
+    fixture.componentInstance['onSaveDraft']();
 
     expect(navigateSpy).not.toHaveBeenCalled();
   });
@@ -164,7 +164,7 @@ describe('DetailsStepComponent', () => {
     const emitted: CompetitionDetail[] = [];
     fixture.componentInstance.saved.subscribe((value) => emitted.push(value));
 
-    fixture.componentInstance.onSaveDraft();
+    fixture.componentInstance['onSaveDraft']();
 
     expect(emitted).toEqual([detail]);
   });
@@ -189,7 +189,7 @@ describe('DetailsStepComponent', () => {
     const router = TestBed.inject(Router);
     const navigateSpy = jest.spyOn(router, 'navigateByUrl');
 
-    fixture.componentInstance.onSaveDraft();
+    fixture.componentInstance['onSaveDraft']();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Something went wrong');
@@ -207,7 +207,7 @@ describe('DetailsStepComponent', () => {
       }),
     );
 
-    expect(fixture.componentInstance.form.getRawValue()).toEqual({
+    expect(fixture.componentInstance['form'].getRawValue()).toEqual({
       description: 'A friendly local competition',
       logoUrl: 'https://example.com/logo.png',
       entryLimit: 40,
@@ -238,7 +238,7 @@ describe('DetailsStepComponent', () => {
     fixture.detectChanges();
 
     expect(emitted).toEqual([true]);
-    expect(fixture.componentInstance.form.dirty).toBe(true);
+    expect(fixture.componentInstance['form'].dirty).toBe(true);
   });
 
   // FR-061 / Session 2026-09-19 clarification: read-only wizard once InEvaluation/Finalized.
@@ -257,8 +257,8 @@ describe('DetailsStepComponent', () => {
         detailFixture({ description: 'A friendly local competition', entryLimit: 40 }),
       );
 
-      expect(fixture.componentInstance.form.disabled).toBe(true);
-      expect(fixture.componentInstance.form.getRawValue().description).toBe(
+      expect(fixture.componentInstance['form'].disabled).toBe(true);
+      expect(fixture.componentInstance['form'].getRawValue().description).toBe(
         'A friendly local competition',
       );
       const descriptionField = fixture.nativeElement.querySelector(
@@ -282,7 +282,7 @@ describe('DetailsStepComponent', () => {
       const emitted: CompetitionDetail[] = [];
       fixture.componentInstance.saved.subscribe((value) => emitted.push(value));
 
-      fixture.componentInstance.onSaveDraft();
+      fixture.componentInstance['onSaveDraft']();
 
       expect(fakeApi.update).not.toHaveBeenCalled();
       expect(emitted).toEqual([detail]);
@@ -292,7 +292,7 @@ describe('DetailsStepComponent', () => {
   it('keeps the form editable and "Guardar borrador" visible when readOnly is false (default)', () => {
     const fixture = createComponent();
 
-    expect(fixture.componentInstance.form.disabled).toBe(false);
+    expect(fixture.componentInstance['form'].disabled).toBe(false);
     const buttons = [...fixture.nativeElement.querySelectorAll('.step-actions button')].map(
       (button: HTMLButtonElement) => button.textContent?.trim(),
     );
