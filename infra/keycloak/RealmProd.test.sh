@@ -13,7 +13,8 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 if command -v jq >/dev/null 2>&1; then
     jq "$(cat "$here/realm-prod.jq")" "$here/birrapoint-realm.json" >"$work/prod.json"
 else
-    docker run --rm -i alpine:3.22 sh -c 'apk add --no-cache -q jq && jq "$1"' _ "$(cat "$here/realm-prod.jq")"         <"$here/birrapoint-realm.json" >"$work/prod.json"
+    docker run --rm -i alpine:3.22 sh -c 'apk add --no-cache -q jq && jq "$1"' _ "$(cat "$here/realm-prod.jq")" \
+        <"$here/birrapoint-realm.json" >"$work/prod.json"
 fi
 
 PY="$(command -v python3 || command -v python)"

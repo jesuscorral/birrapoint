@@ -42,20 +42,30 @@ function Get-KcToken($user, $pass) {
 }
 function Kc($method, $path, $body) {
   $p = @{ Method = $method; Uri = "$kc/admin/realms/$path"; Headers = @{ Authorization = "Bearer $script:tok" } }
-  if ($body) { $p.Body = ($body | ConvertTo-Json -Depth 5); $p.ContentType = 'application/json' }
+  # -InputObject (not a pipe): a pipe unrolls a top-level array, and role-mappings needs `[ {...} ]`.
+  if ($null -ne $body) { $p.Body = ConvertTo-Json -InputObject $body -Depth 10; $p.ContentType = 'application/json' }
   Invoke-RestMethod @p
 }
 
-# 1. Create the permanent admin (pick a strong password; keep it in your password manager).
+# 1. Create the permanent admin. Use a long random password (>= 20 characters, from a password
+#    manager): the master realm is internet-reachable and this account has full admin rights.
 $tok = Get-KcToken 'admin' $boot
-$new = Read-Host 'New admin password'                      # visible; use a private terminal
+$sec = Read-Host 'New admin password' -AsSecureString      # not echoed
+$new = [System.Net.NetworkCredential]::new('', $sec).Password
 Kc Post 'master/users' @{ username = 'birrapoint-admin'; enabled = $true; email = '<you@example.com>'
   emailVerified = $true; credentials = @(@{ type = 'password'; value = $new; temporary = $false }) }
 $id = (Kc Get 'master/users?username=birrapoint-admin&exact=true')[0].id
 Kc Post "master/users/$id/role-mappings/realm" @(Kc Get 'master/roles/admin')
 
-# 2. Authenticate as the new admin, then delete the bootstrap one.
+# 2. Authenticate as the new admin, harden the master realm, then delete the bootstrap admin.
 $tok = Get-KcToken 'birrapoint-admin' $new
+#    The master realm's token endpoint (admin-cli, password grant) is public and `realm-prod.jq` only
+#    hardens the birrapoint realm: turn on the same temporary lockout (never permanent) here.
+$master = Kc Get 'master'
+$master.bruteForceProtected = $true; $master.permanentLockout = $false; $master.failureFactor = 5
+$master.waitIncrementSeconds = 60; $master.maxFailureWaitSeconds = 900; $master.minimumQuickLoginWaitSeconds = 60
+Kc Put 'master' $master
+Kc Get 'master' | Select-Object bruteForceProtected, permanentLockout, failureFactor   # verify: True / False / 5
 $bootId = (Kc Get 'master/users?username=admin&exact=true')[0].id
 Kc Delete "master/users/$bootId"
 Kc Get 'master/users' | Select-Object username

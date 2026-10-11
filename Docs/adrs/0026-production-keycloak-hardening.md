@@ -21,4 +21,5 @@ The production realm was the dev realm minus the seeded account and local secret
 - With the console off, realm administration is only via REST/`kcadm`, which is slower for ad-hoc changes.
 - Real misconfiguration (unset or placeholder secret) fails at startup instead of at the first judge provisioning.
 - Realm import runs on first start only. Existing environments must get the hardening applied through REST or be wiped and redeployed.
+- The `master` realm is not covered by the realm import (it already exists at first start), so its brute-force protection (same thresholds, temporary lockout) is a mandatory runbook step done with the permanent admin, not automated at image start: a post-start `kcadm` hook would race the server boot and need the bootstrap credentials in the entrypoint. Until an operator runs it, the public `admin-cli` password grant on `master` has no lockout. The permanent admin password must be long and random.
 - A stronger password policy (classes, history) is blocked until the temporary-password generator is changed.

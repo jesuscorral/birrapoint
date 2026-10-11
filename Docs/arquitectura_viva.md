@@ -73,7 +73,8 @@ and local-dev secret fallbacks are stripped (the build fails if they survive), a
 adds brute-force lockout (5 failures, temporary only, 60 s to 15 min), password policy
 `length(12) and notUsername and notEmail` and `verifyEmail=true` (ADR-0026). The realm is imported
 on first start only, so an existing environment needs the hardening applied via REST or a wipe.
-The temporary bootstrap admin is replaced per `infra/keycloak/admin-runbook.md`.
+The temporary bootstrap admin is replaced per `infra/keycloak/admin-runbook.md` (the same runbook
+enables brute-force lockout on the `master` realm, which the import cannot reach).
 
 **Deploy** (ADR-0022): Terraform only. `terraform init` + `terraform apply -var image_namespace=<ns>
 [-var release_version=X.Y.Z] [-var api_version=…]` from a workstation (`az login`, `terraform login`,

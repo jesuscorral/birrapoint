@@ -16,7 +16,8 @@ ARG KEYCLOAK_VERSION=26.2
 FROM alpine:3.22 AS realm
 RUN apk add --no-cache jq
 COPY birrapoint-realm.json realm-prod.jq /realm/
-RUN jq -f /realm/realm-prod.jq /realm/birrapoint-realm.json > /realm/birrapoint-realm.prod.json     && ! grep -q -e '"value": "organizer"' -e 'dev-only-secret' /realm/birrapoint-realm.prod.json
+RUN jq -f /realm/realm-prod.jq /realm/birrapoint-realm.json > /realm/birrapoint-realm.prod.json \
+    && ! grep -q -e '"value": "organizer"' -e 'dev-only-secret' /realm/birrapoint-realm.prod.json
 
 # Dapr secret loader (dapr-secrets/): compiled here, the runtime image only has a JRE.
 FROM eclipse-temurin:21-jdk-alpine AS dapr-secrets
@@ -32,7 +33,8 @@ FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION} AS builder
 ENV KC_DB=postgres \
     KC_CACHE=local \
     KC_HEALTH_ENABLED=true \
-    KC_METRICS_ENABLED=true     KC_FEATURES_DISABLED=admin
+    KC_METRICS_ENABLED=true \
+    KC_FEATURES_DISABLED=admin
 COPY themes/birrapoint /opt/keycloak/themes/birrapoint
 # Connection-pool validation tuning, see the file header (ADR-0025).
 COPY quarkus.properties /opt/keycloak/conf/quarkus.properties
