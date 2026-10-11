@@ -68,6 +68,39 @@ resource "azurerm_container_app" "api" {
       cpu    = 0.5
       memory = "1Gi"
 
+      # Probes hit /alive (liveness: no dependencies), NEVER /health: that one checks Postgres and a
+      # probe every few seconds would keep the Neon compute awake 24/7 (ADR-0025). A failed
+      # startup probe leaves the new revision unready, which the deploy's wait-revisions gate
+      # reports. Startup budget: 10 failures x 25 s = 250 s, above the worst case of
+      # migrations on start plus Dapr secret retries (~200 s); ACA caps failure_count_threshold
+      # at 10, so the period carries the budget. Readiness and liveness only start afterwards.
+      startup_probe {
+        transport               = "HTTP"
+        port                    = 8080
+        path                    = "/alive"
+        interval_seconds        = 25
+        timeout                 = 5
+        failure_count_threshold = 10
+      }
+
+      readiness_probe {
+        transport               = "HTTP"
+        port                    = 8080
+        path                    = "/alive"
+        interval_seconds        = 10
+        timeout                 = 5
+        failure_count_threshold = 3
+      }
+
+      liveness_probe {
+        transport               = "HTTP"
+        port                    = 8080
+        path                    = "/alive"
+        interval_seconds        = 30
+        timeout                 = 5
+        failure_count_threshold = 3
+      }
+
       env {
         name  = "ASPNETCORE_ENVIRONMENT"
         value = "Production"
