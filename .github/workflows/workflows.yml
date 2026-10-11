@@ -46,3 +46,4 @@ jobs:
       - run: bash .github/scripts/version.test.sh
       - run: bash .github/scripts/wait-revisions.test.sh
       - run: bash .github/scripts/ecs-health.test.sh
+      - run: bash .github/scripts/require-dockerhub-read.test.sh

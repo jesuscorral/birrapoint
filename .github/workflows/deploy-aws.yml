@@ -86,10 +86,13 @@ jobs:
           API: ${{ steps.versions.outputs.api }}
           WEB: ${{ steps.versions.outputs.web }}
           KEYCLOAK: ${{ steps.versions.outputs.keycloak }}
-          # Optional read-only token (private repositories); anonymous otherwise.
+          # Read-only token: required, the apps always pull with it (Docker Hub rate limits).
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_READ_TOKEN: ${{ secrets.DOCKERHUB_READ_TOKEN }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_READ_TOKEN }}
         run: |
+          # Fail before the approval gate: Terraform requires both values (T131).
+          .github/scripts/require-dockerhub-read.sh
           # Same file, same image_namespace as the apply below (ADR-0022): no separate variable.
           varfile="infra/aws/terraform/environments/${BIRRAPOINT_ENVIRONMENT,,}.tfvars"
           if [ ! -f "$varfile" ]; then
@@ -156,8 +159,8 @@ jobs:
       # Lowest-precedence fallback: environments/<environment>.tfvars sets the region.
       TF_VAR_region: ${{ vars.AWS_REGION || 'eu-central-1' }}
       TF_VAR_smtp_password: ${{ secrets.SMTP_PASSWORD }}
-      # Optional read-only token so the apps can pull private repositories; this job never gets
-      # the read/write token CI and releases push with.
+      # Required read-only token the apps pull images with (avoids anonymous rate limits); this job
+      # never gets the read/write token CI and releases push with.
       TF_VAR_dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
       TF_VAR_dockerhub_token: ${{ secrets.DOCKERHUB_READ_TOKEN }}
     steps:

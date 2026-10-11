@@ -32,10 +32,15 @@ gh secret set DOCKERHUB_USERNAME --body "<docker hub user>"
 gh secret set DOCKERHUB_TOKEN            # paste the token when prompted
 gh variable set IMAGE_NAMESPACE --body "<docker hub user or org>"
 
-# Optional, only needed for private repositories: a separate READ-ONLY token for the deploy
-# workflows, which never receive the read/write token above
+# Required by the deploy workflows (the apps always pull with Docker Hub credentials, to avoid
+# anonymous rate limits): a separate READ-ONLY token, since they never receive the read/write
+# token above. The deploy workflows fail early if DOCKERHUB_USERNAME or this one is missing.
 gh secret set DOCKERHUB_READ_TOKEN
 ```
+
+All three secrets must be **repository** secrets, not environment-scoped: the deploy workflows
+check them early in the `resolve` job, which runs without a GitHub environment (an
+environment-scoped secret would read as empty there and the run would fail).
 
 `IMAGE_NAMESPACE` is used by `ci.yml` and `release.yml` only (`deploy-azure.yml` and `deploy-aws.yml`
 read the namespace from `infra/<cloud>/terraform/environments/<env>.tfvars`; keep them equal). It must be a **variable**, not a

@@ -28,12 +28,65 @@ mock_provider "random" {}
 mock_provider "time" {}
 
 variables {
-  image_namespace   = "acme"
-  smtp_host         = "smtp.example.com"
-  smtp_from_address = "no-reply@example.com"
-  smtp_password     = "not-a-real-password"
-  environment       = "PROD"
-  release_version   = "latest"
+  image_namespace    = "acme"
+  smtp_host          = "smtp.example.com"
+  smtp_from_address  = "no-reply@example.com"
+  smtp_password      = "not-a-real-password"
+  dockerhub_username = "hubuser"
+  dockerhub_token    = "dckr_pat_fake"
+  environment        = "PROD"
+  release_version    = "latest"
+}
+
+run "empty_dockerhub_username_is_rejected" {
+  command = plan
+
+  variables {
+    dockerhub_username = ""
+  }
+
+  expect_failures = [var.dockerhub_username]
+}
+
+run "blank_dockerhub_username_is_rejected" {
+  command = plan
+
+  variables {
+    dockerhub_username = "   "
+  }
+
+  expect_failures = [var.dockerhub_username]
+}
+
+run "empty_dockerhub_token_is_rejected" {
+  command = plan
+
+  variables {
+    dockerhub_token = ""
+  }
+
+  expect_failures = [var.dockerhub_token]
+}
+
+run "blank_dockerhub_token_is_rejected" {
+  command = plan
+
+  variables {
+    dockerhub_token = "  "
+  }
+
+  expect_failures = [var.dockerhub_token]
+}
+
+run "registry_credentials_always_wired" {
+  command = plan
+
+  assert {
+    condition = alltrue([for app in [azurerm_container_app.api, azurerm_container_app.web, azurerm_container_app.keycloak] :
+      length(app.registry) == 1 && one(app.registry).server == "docker.io" && one(app.registry).username == "hubuser" && one(app.registry).password_secret_name == "dockerhub-token"
+    ])
+    error_message = "every Container App must pull from docker.io with the Docker Hub credentials"
+  }
 }
 
 run "latest_images_when_requested" {

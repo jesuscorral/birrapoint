@@ -11,7 +11,7 @@
 - **Functional scope complete**: user stories US1–US14 are implemented, each with unit,
   contract/integration and E2E coverage (`quickstart.md` scenarios).
 - **Open work** (`tasks.md`): T092 (SC-010 human usability study), T098 (health/telemetry in ACA),
-  T099 (first validated cloud deploy), T131 (PR #46 follow-up), T137 (CI/CD validation
+  T099 (first validated cloud deploy), T137 (CI/CD validation
   against a real deployment), T139 (E2E + a11y job in CI).
 - **Two cloud targets, one per deployment** (ADR-0023): Azure Container Apps is implemented under
   `infra/azure/`; AWS is implemented under `infra/aws/` (Terraform, `deploy-aws.yml`, `infra/aws/teardown.ps1`), deployable and tear-downable, but not yet applied to a real account (T099/T137; first-apply risks below).
@@ -48,7 +48,7 @@ AWS (`infra/aws/terraform/`; deploy via local `terraform apply` or `deploy-aws.y
 - Two CloudFront distributions (web, Keycloak) → one ALB (admits only the CloudFront prefix list plus a secret origin header; routes web vs Keycloak by that header) → ECS Fargate web / Keycloak.
 - API is internal (no target group), exactly 1 replica, reached by the web through a Cloud Map private DNS namespace (`api.birrapoint-<env>.local`).
 - Secrets Manager read through Dapr sidecars on API and Keycloak only; Neon for Postgres; CloudWatch logs; dedicated VPC, public subnets, no NAT. One environment per AWS account and region.
-- Open risks for the first apply: security-group rule quota with the CloudFront prefix list; Keycloak honoring the `Forwarded` header; API sees forwarded proto `http` (HSTS comes from a CloudFront response headers policy); daprd on Fargate (loopback only); Cloud Map registration; Docker Hub pull limits. Each API deploy stops the old task first (short outage).
+- Open risks for the first apply: security-group rule quota with the CloudFront prefix list; Keycloak honoring the `Forwarded` header; API sees forwarded proto `http` (HSTS comes from a CloudFront response headers policy); daprd on Fargate (loopback only); Cloud Map registration. Each API deploy stops the old task first (short outage).
 - **AWS teardown** (`infra/aws/teardown.ps1 [-WhatIf] [-Force]`): same full wipe as Azure (`terraform destroy`, Neon project `birrapoint-<env>-aws-neon` by state id, local `.terraform`) plus a sweep of leftovers found by exact name and the `application`/`environment` tags (Secrets Manager force-delete, ECS, ALB, Cloud Map, IAM, CloudFront, VPC), then a tagging-API check. Pester tests in `infra/aws/tests/`.
 - The ALB target-group health check uses `/health/live` (ADR-0025). Rationale and refinements: research R-21, ADR-0023.
 
@@ -66,9 +66,9 @@ ADR-0021).
 
 **Secrets** never enter an image or the repo. Neon passwords come from the provider; the Keycloak
 bootstrap admin and API admin-client secrets from `random_password`; SMTP and the
-optional Docker Hub token from `terraform.tfvars` (gitignored). Everything except the Docker Hub
-pull token (a Container Apps registry secret) is written to Key Vault and read at startup through
-Dapr. The production realm is derived at image build time from the local one: the seeded account
+mandatory read-only Docker Hub credentials (`dockerhub_username`/`dockerhub_token`, ADR-0027) from `terraform.tfvars` (gitignored). Everything except the Docker Hub
+pull token is written to the cloud's secret store (Key Vault on Azure, Secrets Manager on AWS) and read at startup through
+Dapr. The pull token is the exception: a Container Apps registry secret on Azure, a Secrets Manager secret read only by the ECS execution role on AWS. The production realm is derived at image build time from the local one: the seeded account
 and local-dev secret fallbacks are stripped (the build fails if they survive), and `infra/keycloak/realm-prod.jq`
 adds brute-force lockout (5 failures, temporary only, 60 s to 15 min), password policy
 `length(12) and notUsername and notEmail` and `verifyEmail=true` (ADR-0026). The realm is imported

@@ -27,7 +27,7 @@ committed `infra/azure/terraform/environments/prod.tfvars`.
 | 6 | Neon | Organization id (`org-...`), needed when your account uses organizations (Neon answers `org_id is required`) | Terraform; teardown `-NeonOrgId` | `TF_VAR_neon_org_id`; GitHub variable `NEON_ORG_ID` |
 | 7 | **Docker Hub** | Account (user or organization = image namespace) | Image hosting | `image_namespace` in `prod.tfvars`; GitHub variable `IMAGE_NAMESPACE` |
 | 8 | Docker Hub | **Personal access token, Read & Write** | `ci.yml`, `release.yml` push images | GitHub secrets `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` |
-| 9 | Docker Hub | *Optional:* **Read-only** access token (private repos, or to avoid pull rate limits) | Container Apps pull; `deploy-azure.yml` image check | `dockerhub_token` in `terraform.tfvars`; GitHub secret `DOCKERHUB_READ_TOKEN` |
+| 9 | Docker Hub | **Read-only** access token (required: the apps always pull with credentials to avoid anonymous rate limits) | Container Apps pull; `deploy-azure.yml` image check | `dockerhub_token` in `terraform.tfvars`; GitHub secret `DOCKERHUB_READ_TOKEN` |
 | 10 | **SMTP provider** | SMTP credentials + a **verified sender address** | API emails (judge invitations, results) | `smtp_*` in `prod.tfvars`; password in `terraform.tfvars` / GitHub secret `SMTP_PASSWORD` |
 | 11 | **Microsoft Entra ID** | App registration `birrapoint-github-deploy` with a federated credential (OIDC, no password) | `deploy-azure.yml` logs in to Azure | GitHub secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` |
 | 12 | Microsoft Entra ID | *Recommended:* security group `birrapoint-terraform-operators` holding you and the deploy identity | Key Vault Secrets Officer for everyone who runs Terraform | `key_vault_secrets_officer_principal_ids` in `prod.tfvars` |
@@ -117,7 +117,7 @@ $groupId   # goes into key_vault_secrets_officer_principal_ids
 
 ```powershell
 Copy-Item infra/azure/terraform/terraform.tfvars.example infra/azure/terraform/terraform.tfvars
-# edit: smtp_password = "...", optionally dockerhub_username / dockerhub_token (read-only)
+# edit: smtp_password = "...", dockerhub_username and dockerhub_token (both required; token read-only)
 ```
 
 ### A6. Apply
@@ -191,7 +191,7 @@ Here is everything `deploy-azure.yml` reads:
 | env secret | `NEON_API_KEY` | Neon API key |
 | env secret | `SMTP_PASSWORD` | SMTP password |
 | secret | `DOCKERHUB_USERNAME` | Docker Hub user (already set in A1) |
-| secret (optional) | `DOCKERHUB_READ_TOKEN` | Read-only Docker Hub token |
+| secret | `DOCKERHUB_READ_TOKEN` | Read-only Docker Hub token |
 | variable | `TF_CLOUD_ORGANIZATION`, `TF_WORKSPACE` | Same as A6 |
 | variable (optional) | `NEON_ORG_ID` | Neon organization id |
 | variable (optional) | `BIRRAPOINT_ENVIRONMENT` | Default `PROD` |

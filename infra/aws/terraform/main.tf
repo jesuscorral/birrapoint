@@ -48,9 +48,8 @@ locals {
   # TF_VAR_neon_org_id="" (an unset GitHub variable) means "the API key's default organization".
   neon_org_id = var.neon_org_id == "" ? null : var.neon_org_id
 
-  # Whether a Docker Hub login or an SMTP password exists is not itself a secret (only the value
-  # is), and resource count/for_each cannot take sensitive values.
-  has_dockerhub     = var.dockerhub_username != ""
+  # Whether an SMTP password exists is not itself a secret (only the value is), and resource
+  # count/for_each cannot take sensitive values.
   has_smtp_password = nonsensitive(var.smtp_password != "")
 }
 

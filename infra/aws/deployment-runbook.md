@@ -29,7 +29,7 @@ committed `infra/aws/terraform/environments/prod.tfvars`.
 | 6 | Neon | Organization id (`org-...`), needed when your account uses organizations (Neon answers `org_id is required`) | Terraform; teardown `-NeonOrgId` | `TF_VAR_neon_org_id`; GitHub variable `NEON_ORG_ID` |
 | 7 | **Docker Hub** | Account (user or organization = image namespace) | Image hosting | `image_namespace` in `prod.tfvars`; GitHub variable `IMAGE_NAMESPACE` |
 | 8 | Docker Hub | **Personal access token, Read & Write** | `ci.yml`, `release.yml` push images | GitHub secrets `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` |
-| 9 | Docker Hub | *Optional:* **Read-only** access token (private repos, or to avoid pull rate limits) | ECS image pull (`repositoryCredentials`); `deploy-aws.yml` image check | `dockerhub_token` in `terraform.tfvars`; GitHub secret `DOCKERHUB_READ_TOKEN` |
+| 9 | Docker Hub | **Read-only** access token (required: the apps always pull with credentials to avoid anonymous rate limits) | ECS image pull (`repositoryCredentials`); `deploy-aws.yml` image check | `dockerhub_token` in `terraform.tfvars`; GitHub secret `DOCKERHUB_READ_TOKEN` |
 | 10 | **SMTP provider** | SMTP credentials + a **verified sender address** | API emails (judge invitations, results), Keycloak mail | `smtp_*` in `prod.tfvars`; password in `terraform.tfvars` / GitHub secret `SMTP_PASSWORD` |
 | 11 | **AWS IAM** | OIDC provider for GitHub + role `birrapoint-github-deploy` (OIDC, no stored key) | `deploy-aws.yml` | GitHub environment secret `AWS_ROLE_ARN` |
 | 12 | **GitHub** | Repository admin; `aws-production` environment with required reviewers | `deploy-aws.yml` approval gate | Repository settings |
@@ -106,7 +106,7 @@ smtp_from_address = "<verified sender>"
 
 ```powershell
 Copy-Item infra/aws/terraform/terraform.tfvars.example infra/aws/terraform/terraform.tfvars
-# edit: smtp_password = "...", optionally dockerhub_username / dockerhub_token (read-only)
+# edit: smtp_password = "...", dockerhub_username and dockerhub_token (both required; token read-only)
 ```
 
 ### A6. Apply
@@ -205,7 +205,7 @@ Here is everything `deploy-aws.yml` reads:
 | env secret | `NEON_API_KEY` | Neon API key |
 | env secret | `SMTP_PASSWORD` | SMTP password |
 | secret | `DOCKERHUB_USERNAME` | Docker Hub user (already set in A1) |
-| secret (optional) | `DOCKERHUB_READ_TOKEN` | Read-only Docker Hub token |
+| secret | `DOCKERHUB_READ_TOKEN` | Read-only Docker Hub token |
 | env variable | `TF_CLOUD_ORGANIZATION`, `TF_WORKSPACE` | Same as A6 (the AWS workspace) |
 | env variable | `AWS_REGION` | Same as `region` in `prod.tfvars` (default `eu-central-1`) |
 | env variable (optional) | `NEON_ORG_ID` | Neon organization id |

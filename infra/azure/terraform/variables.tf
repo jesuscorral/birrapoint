@@ -110,16 +110,24 @@ variable "keycloak_version" {
 }
 
 variable "dockerhub_username" {
-  description = "Docker Hub username for pulling private repositories. Leave empty for public repositories."
+  description = "Docker Hub username used to pull the images (Container Apps registry credentials). Required: anonymous pulls share the platform's outbound IPs and hit Docker Hub rate limits."
   type        = string
-  default     = ""
+
+  validation {
+    condition     = trimspace(var.dockerhub_username) != ""
+    error_message = "dockerhub_username is required (non-empty): the images are always pulled with Docker Hub credentials."
+  }
 }
 
 variable "dockerhub_token" {
-  description = "Docker Hub read-only access token matching dockerhub_username. Leave empty for public repositories."
+  description = "Docker Hub read-only access token (Public Repo Read-only is enough) matching dockerhub_username. Required. Stored as a Container App secret."
   type        = string
-  default     = ""
   sensitive   = true
+
+  validation {
+    condition     = trimspace(var.dockerhub_token) != ""
+    error_message = "dockerhub_token is required (non-empty): create a read-only Docker Hub access token."
+  }
 }
 
 # --- Neon (R-18) --------------------------------------------------------------------------------
