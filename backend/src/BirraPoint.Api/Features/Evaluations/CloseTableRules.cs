@@ -7,7 +7,7 @@ namespace BirraPoint.Api.Features.Evaluations;
 /// precondition (FR-032) doesn't factor into a meaningful pure function — it's a single EF filter
 /// on DiscrepancyAlert.Status — so it stays inline in CloseTableCommandHandler.
 /// </summary>
-public static class CloseTableRules
+internal static class CloseTableRules
 {
     /// <summary>
     /// FR-033 completeness precondition: every judge in <paramref name="activeJudgeIds"/> must have

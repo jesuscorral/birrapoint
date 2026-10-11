@@ -4,7 +4,7 @@ using MimeKit;
 
 namespace BirraPoint.Api.Common.Email;
 
-public sealed class MailKitEmailSender(IConfiguration configuration) : IEmailSender
+internal sealed class MailKitEmailSender(IConfiguration configuration) : IEmailSender
 {
     public Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken cancellationToken) =>
         SendMessageAsync(toEmail, subject, htmlBody, attachments: null, cancellationToken);
@@ -36,7 +36,7 @@ public sealed class MailKitEmailSender(IConfiguration configuration) : IEmailSen
         string toEmail, string subject, string htmlBody, IReadOnlyList<EmailAttachment>? attachments, CancellationToken cancellationToken)
     {
         var settings = SmtpSettings.Resolve(configuration);
-        var message = BuildMessage(settings.From, toEmail, subject, htmlBody, attachments);
+        using var message = BuildMessage(settings.From, toEmail, subject, htmlBody, attachments);
 
         using var client = new SmtpClient();
         // Mailpit locally needs no TLS/auth (SmtpSettings resolves that shape unchanged); a

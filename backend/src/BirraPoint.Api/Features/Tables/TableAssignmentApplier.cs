@@ -237,7 +237,7 @@ internal static class TableAssignmentApplier
         return map;
     }
 
-    private static IReadOnlyDictionary<Guid, IReadOnlySet<string>> InvertOwnedEntriesByEmail(
+    private static Dictionary<Guid, IReadOnlySet<string>> InvertOwnedEntriesByEmail(
         IReadOnlyDictionary<string, HashSet<Guid>> ownedEntriesByEmail)
     {
         var result = new Dictionary<Guid, HashSet<string>>();

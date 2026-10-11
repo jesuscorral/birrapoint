@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace BirraPoint.Api.Common.Persistence.Configurations;
 
-public sealed class EntryCollaboratorConfiguration : IEntityTypeConfiguration<EntryCollaborator>
+internal sealed class EntryCollaboratorConfiguration : IEntityTypeConfiguration<EntryCollaborator>
 {
     public void Configure(EntityTypeBuilder<EntryCollaborator> builder)
     {

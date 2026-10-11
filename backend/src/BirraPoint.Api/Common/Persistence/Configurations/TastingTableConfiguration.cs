@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace BirraPoint.Api.Common.Persistence.Configurations;
 
-public sealed class TastingTableConfiguration : IEntityTypeConfiguration<TastingTable>
+internal sealed class TastingTableConfiguration : IEntityTypeConfiguration<TastingTable>
 {
     public void Configure(EntityTypeBuilder<TastingTable> builder)
     {

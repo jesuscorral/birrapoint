@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using BirraPoint.Api.Common.Behaviors;
 using FluentValidation;
 using MediatR;
@@ -9,15 +10,20 @@ namespace BirraPoint.Api.UnitTests.Common.Behaviors;
 /// open-generics gotcha) by sending a real request through a real container.</summary>
 public sealed class MediatRExtensionsTests
 {
-    public sealed record PingRequest(string Message) : IRequest<string>;
+    internal sealed record PingRequest(string Message) : IRequest<string>;
 
-    public sealed class PingHandler : IRequestHandler<PingRequest, string>
+    [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Instantiated by the DI container via MediatR assembly scanning.")]
+    internal sealed class PingHandler : IRequestHandler<PingRequest, string>
     {
-        public Task<string> Handle(PingRequest request, CancellationToken cancellationToken) =>
-            Task.FromResult($"pong:{request.Message}");
+        public Task<string> Handle(PingRequest request, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            return Task.FromResult($"pong:{request.Message}");
+        }
     }
 
-    public sealed class PingRequestValidator : AbstractValidator<PingRequest>
+    [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Instantiated by the DI container via MediatR assembly scanning.")]
+    internal sealed class PingRequestValidator : AbstractValidator<PingRequest>
     {
         public PingRequestValidator() => RuleFor(r => r.Message).NotEmpty();
     }
@@ -30,7 +36,7 @@ public sealed class MediatRExtensionsTests
     }
 
     [Fact]
-    public async Task Resolves_and_sends_a_request_through_the_full_pipeline()
+    public async Task ResolvesAndSendsARequestThroughTheFullPipeline()
     {
         var mediator = BuildMediator();
 
@@ -40,7 +46,7 @@ public sealed class MediatRExtensionsTests
     }
 
     [Fact]
-    public async Task Validation_failures_short_circuit_the_handler_via_the_open_behavior()
+    public async Task ValidationFailuresShortCircuitTheHandlerViaTheOpenBehavior()
     {
         var mediator = BuildMediator();
 

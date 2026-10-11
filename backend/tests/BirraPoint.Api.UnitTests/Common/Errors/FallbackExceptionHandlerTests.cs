@@ -11,7 +11,7 @@ public sealed class FallbackExceptionHandlerTests
         new(NullLogger<FallbackExceptionHandler>.Instance, ProblemDetailsServiceTestFactory.Create());
 
     [Fact]
-    public async Task Writes_a_generic_500_without_leaking_exception_details()
+    public async Task WritesAGeneric500WithoutLeakingExceptionDetails()
     {
         var context = new DefaultHttpContext { Response = { Body = new MemoryStream() } };
         var exception = new InvalidOperationException("connection string contains a password=hunter2");
@@ -20,23 +20,24 @@ public sealed class FallbackExceptionHandlerTests
 
         Assert.True(handled);
         Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
-        Assert.StartsWith("application/problem+json", context.Response.ContentType);
+        Assert.StartsWith("application/problem+json", context.Response.ContentType, StringComparison.Ordinal);
 
         context.Response.Body.Seek(0, SeekOrigin.Begin);
-        var raw = await new StreamReader(context.Response.Body).ReadToEndAsync(TestContext.Current.CancellationToken);
-        Assert.DoesNotContain("hunter2", raw);
-        Assert.DoesNotContain(nameof(InvalidOperationException), raw);
+        using var reader = new StreamReader(context.Response.Body);
+        var raw = await reader.ReadToEndAsync(TestContext.Current.CancellationToken);
+        Assert.DoesNotContain("hunter2", raw, StringComparison.Ordinal);
+        Assert.DoesNotContain(nameof(InvalidOperationException), raw, StringComparison.Ordinal);
 
         using var document = JsonDocument.Parse(raw);
         Assert.Equal(500, document.RootElement.GetProperty("status").GetInt32());
     }
 
     [Fact]
-    public async Task Always_handles_any_exception_type()
+    public async Task AlwaysHandlesAnyExceptionType()
     {
         var context = new DefaultHttpContext { Response = { Body = new MemoryStream() } };
 
-        var handled = await _handler.TryHandleAsync(context, new Exception("anything"), CancellationToken.None);
+        var handled = await _handler.TryHandleAsync(context, new InvalidOperationException("anything"), CancellationToken.None);
 
         Assert.True(handled);
     }

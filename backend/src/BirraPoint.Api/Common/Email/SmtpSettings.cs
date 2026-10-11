@@ -1,3 +1,4 @@
+using System.Globalization;
 using MailKit.Security;
 
 namespace BirraPoint.Api.Common.Email;
@@ -9,7 +10,7 @@ namespace BirraPoint.Api.Common.Email;
 /// supplies Smtp:Host/Smtp:Port, which must keep resolving to no TLS / no auth (pre-T095 behavior);
 /// a production relay additionally supplies Smtp:UseStartTls/Smtp:Username/Smtp:Password.
 /// </summary>
-public sealed record SmtpSettings(
+internal sealed record SmtpSettings(
     string Host,
     int Port,
     SecureSocketOptions SecureSocketOptions,
@@ -25,7 +26,7 @@ public sealed record SmtpSettings(
     public static SmtpSettings Resolve(IConfiguration configuration)
     {
         var host = configuration["Smtp:Host"] ?? throw new InvalidOperationException("Smtp:Host is not configured.");
-        var port = int.Parse(configuration["Smtp:Port"] ?? throw new InvalidOperationException("Smtp:Port is not configured."));
+        var port = int.Parse(configuration["Smtp:Port"] ?? throw new InvalidOperationException("Smtp:Port is not configured."), CultureInfo.InvariantCulture);
         var useStartTls = configuration.GetValue("Smtp:UseStartTls", false);
         var username = configuration["Smtp:Username"];
         var password = configuration["Smtp:Password"];

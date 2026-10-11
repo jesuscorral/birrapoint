@@ -88,7 +88,7 @@ public sealed class JudgeWorkbookParserTests
     }
 
     [Fact]
-    public void Parses_the_contract_worked_example_as_Valid_with_every_field_populated()
+    public void ParsesTheContractWorkedExampleAsValidWithEveryFieldPopulated()
     {
         var xlsx = BuildJudgeWorkbook(Row());
 
@@ -108,7 +108,7 @@ public sealed class JudgeWorkbookParserTests
     }
 
     [Fact]
-    public void Bjcp_id_placeholder_Pte_is_stored_verbatim()
+    public void BjcpIdPlaceholderPteIsStoredVerbatim()
     {
         var xlsx = BuildJudgeWorkbook(Row(bjcpId: "Pte"));
 
@@ -119,7 +119,7 @@ public sealed class JudgeWorkbookParserTests
     }
 
     [Fact]
-    public void Bare_numeric_bjcp_id_is_stored_verbatim_as_text()
+    public void BareNumericBjcpIdIsStoredVerbatimAsText()
     {
         var xlsx = BuildJudgeWorkbook(Row(bjcpId: "10649"));
 
@@ -130,7 +130,7 @@ public sealed class JudgeWorkbookParserTests
     }
 
     [Fact]
-    public void Literal_br_style_text_in_preferences_is_stored_verbatim_never_interpreted_as_markup()
+    public void LiteralBrStyleTextInPreferencesIsStoredVerbatimNeverInterpretedAsMarkup()
     {
         const string preferences =
             "Me gustaría compartir mesa con Pablo. <br>Mi pareja se ofrece para ayudar. <br>Un saludo.";
@@ -143,7 +143,7 @@ public sealed class JudgeWorkbookParserTests
     }
 
     [Fact]
-    public void Row_missing_name_is_marked_Invalid()
+    public void RowMissingNameIsMarkedInvalid()
     {
         var xlsx = BuildJudgeWorkbook(Row(name: null));
 
@@ -151,11 +151,11 @@ public sealed class JudgeWorkbookParserTests
 
         Assert.Single(rows);
         Assert.Equal(JudgeImportRowStatus.Invalid, rows[0].Status);
-        Assert.Contains("Nombre y apellidos", rows[0].ErrorMessage);
+        Assert.Contains("Nombre y apellidos", rows[0].ErrorMessage, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Row_missing_email_is_marked_Invalid()
+    public void RowMissingEmailIsMarkedInvalid()
     {
         var xlsx = BuildJudgeWorkbook(Row(email: null));
 
@@ -163,11 +163,11 @@ public sealed class JudgeWorkbookParserTests
 
         Assert.Single(rows);
         Assert.Equal(JudgeImportRowStatus.Invalid, rows[0].Status);
-        Assert.Contains("Correo electrónico", rows[0].ErrorMessage);
+        Assert.Contains("Correo electrónico", rows[0].ErrorMessage, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Row_with_a_malformed_email_is_marked_Invalid()
+    public void RowWithAMalformedEmailIsMarkedInvalid()
     {
         var xlsx = BuildJudgeWorkbook(Row(email: "not-an-email"));
 
@@ -175,11 +175,11 @@ public sealed class JudgeWorkbookParserTests
 
         Assert.Single(rows);
         Assert.Equal(JudgeImportRowStatus.Invalid, rows[0].Status);
-        Assert.Contains("Correo electrónico", rows[0].ErrorMessage);
+        Assert.Contains("Correo electrónico", rows[0].ErrorMessage, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Over_length_name_is_marked_Invalid()
+    public void OverLengthNameIsMarkedInvalid()
     {
         var xlsx = BuildJudgeWorkbook(Row(name: new string('A', 201)));
 
@@ -189,7 +189,7 @@ public sealed class JudgeWorkbookParserTests
     }
 
     [Fact]
-    public void Over_length_bjcp_rank_is_marked_Invalid()
+    public void OverLengthBjcpRankIsMarkedInvalid()
     {
         var xlsx = BuildJudgeWorkbook(Row(bjcpRank: new string('A', 101)));
 
@@ -199,7 +199,7 @@ public sealed class JudgeWorkbookParserTests
     }
 
     [Fact]
-    public void Over_length_bjcp_id_is_marked_Invalid()
+    public void OverLengthBjcpIdIsMarkedInvalid()
     {
         var xlsx = BuildJudgeWorkbook(Row(bjcpId: new string('9', 51)));
 
@@ -209,7 +209,7 @@ public sealed class JudgeWorkbookParserTests
     }
 
     [Fact]
-    public void Over_length_preferred_category_is_marked_Invalid()
+    public void OverLengthPreferredCategoryIsMarkedInvalid()
     {
         var xlsx = BuildJudgeWorkbook(Row(preferredCategory: new string('A', 201)));
 
@@ -219,7 +219,7 @@ public sealed class JudgeWorkbookParserTests
     }
 
     [Fact]
-    public void Over_length_preferences_is_marked_Invalid()
+    public void OverLengthPreferencesIsMarkedInvalid()
     {
         var xlsx = BuildJudgeWorkbook(Row(preferences: new string('A', 2001)));
 
@@ -229,7 +229,7 @@ public sealed class JudgeWorkbookParserTests
     }
 
     [Fact]
-    public void Optional_columns_may_be_entirely_absent_from_the_header_row()
+    public void OptionalColumnsMayBeEntirelyAbsentFromTheHeaderRow()
     {
         var xlsx = BuildWorkbook(
             headers: ["Nombre y apellidos", "Correo electrónico"],
@@ -245,7 +245,7 @@ public sealed class JudgeWorkbookParserTests
     }
 
     [Fact]
-    public void Headers_are_matched_case_insensitively_trimmed_and_in_any_order()
+    public void HeadersAreMatchedCaseInsensitivelyTrimmedAndInAnyOrder()
     {
         var xlsx = BuildWorkbook(
             headers: [" correo electrónico ", "NOMBRE Y APELLIDOS", "bjcp id", "rango bjcp"],
@@ -262,7 +262,7 @@ public sealed class JudgeWorkbookParserTests
     }
 
     [Fact]
-    public void Duplicate_emails_within_the_same_file_are_returned_as_independent_rows_unmodified()
+    public void DuplicateEmailsWithinTheSameFileAreReturnedAsIndependentRowsUnmodified()
     {
         // The parser never dedupes — duplicate-email resolution to a single upsert happens at
         // consolidation (FR-058, ConsolidateJudgeImport), not at parse time.
@@ -280,7 +280,7 @@ public sealed class JudgeWorkbookParserTests
     }
 
     [Fact]
-    public void Parsing_stops_at_the_first_fully_empty_row()
+    public void ParsingStopsAtTheFirstFullyEmptyRow()
     {
         var xlsx = BuildJudgeWorkbook(
             Row(email: "ana@brew.example", name: "Ana Gomez"),
@@ -294,7 +294,7 @@ public sealed class JudgeWorkbookParserTests
     }
 
     [Fact]
-    public void Missing_required_header_column_throws_invalid_import_file()
+    public void MissingRequiredHeaderColumnThrowsInvalidImportFile()
     {
         var xlsx = BuildWorkbook(
             headers: ["Nombre y apellidos"],
@@ -306,7 +306,7 @@ public sealed class JudgeWorkbookParserTests
     }
 
     [Fact]
-    public void Zero_data_rows_throws_invalid_import_file()
+    public void ZeroDataRowsThrowsInvalidImportFile()
     {
         var xlsx = BuildWorkbook(StandardHeaders, rows: []);
 
@@ -316,7 +316,7 @@ public sealed class JudgeWorkbookParserTests
     }
 
     [Fact]
-    public void Unreadable_bytes_throws_invalid_import_file()
+    public void UnreadableBytesThrowsInvalidImportFile()
     {
         var corrupt = new byte[] { 0x00, 0x01, 0x02, 0x03 };
 

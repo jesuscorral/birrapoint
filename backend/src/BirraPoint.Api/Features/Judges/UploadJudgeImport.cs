@@ -8,9 +8,9 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Judges;
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record UploadJudgeImportCommand(Guid CompetitionId, IFormFile File) : IRequest<JudgeImportBatchDto?>;
+internal sealed record UploadJudgeImportCommand(Guid CompetitionId, IFormFile File) : IRequest<JudgeImportBatchDto?>;
 
-public sealed class UploadJudgeImportCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class UploadJudgeImportCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<UploadJudgeImportCommand, JudgeImportBatchDto?>
 {
     public async Task<JudgeImportBatchDto?> Handle(UploadJudgeImportCommand request, CancellationToken cancellationToken)

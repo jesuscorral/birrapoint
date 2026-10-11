@@ -7,7 +7,7 @@ namespace BirraPoint.Api.Features.Import;
 /// <see cref="ImportBatchStatus.Pending"/> batch per competition — a new upload discards the
 /// prior unconsolidated one.
 /// </summary>
-public class ImportBatch : Entity
+internal class ImportBatch : Entity
 {
     public Guid CompetitionId { get; set; }
 
@@ -16,7 +16,7 @@ public class ImportBatch : Entity
     public ICollection<ImportRow> Rows { get; set; } = [];
 }
 
-public enum ImportBatchStatus
+internal enum ImportBatchStatus
 {
     Pending,
     Consolidated,

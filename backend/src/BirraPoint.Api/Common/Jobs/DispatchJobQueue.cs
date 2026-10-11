@@ -9,13 +9,13 @@ namespace BirraPoint.Api.Common.Jobs;
 /// commit, same convention as <see cref="Realtime.IEventPublisher"/> — enqueuing is itself a
 /// side effect that must not survive a rolled-back transaction.
 /// </summary>
-public interface IDispatchJobQueue
+internal interface IDispatchJobQueue
 {
     Task EnqueueAsync(
         Guid competitionId, DispatchJobType type, object payload, CancellationToken cancellationToken = default);
 }
 
-public sealed class DispatchJobQueue(AppDbContext db, IDispatchWakeUp wakeUp) : IDispatchJobQueue
+internal sealed class DispatchJobQueue(AppDbContext db, IDispatchWakeUp wakeUp) : IDispatchJobQueue
 {
     public async Task EnqueueAsync(
         Guid competitionId, DispatchJobType type, object payload, CancellationToken cancellationToken = default)

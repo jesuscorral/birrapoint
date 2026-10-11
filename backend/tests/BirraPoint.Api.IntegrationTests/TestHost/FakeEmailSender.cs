@@ -8,7 +8,9 @@ namespace BirraPoint.Api.IntegrationTests.TestHost;
 /// Registered as a singleton (see <see cref="ApiFactory"/>) so tests can inspect deliveries even
 /// though the sender runs inside DispatchWorker's own background DI scope, not the request scope.
 /// </summary>
-public sealed class FakeEmailSender : IEmailSender
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
+    Justification = "Instantiated by the DI container via AddSingleton<IEmailSender, FakeEmailSender>().")]
+internal sealed class FakeEmailSender : IEmailSender
 {
     private readonly ConcurrentQueue<(string ToEmail, string Subject, string HtmlBody, IReadOnlyList<EmailAttachment> Attachments)> _sent = new();
 

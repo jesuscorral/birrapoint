@@ -7,7 +7,7 @@ namespace BirraPoint.Api.Features.Import;
 /// the full-row-edit PUT or the exclude action (FR-011) before the batch can be consolidated.
 /// Mirrors the ACCE `.xlsx` column set 1:1 so the review screen operates purely off staged data.
 /// </summary>
-public class ImportRow : Entity
+internal class ImportRow : Entity
 {
     public Guid ImportBatchId { get; set; }
 
@@ -70,7 +70,7 @@ public class ImportRow : Entity
 /// (import-file.md); <see cref="Excluded"/> is a resolution outcome set only via the exclude
 /// action and — like <see cref="Valid"/> — never blocks consolidation (FR-011).
 /// </summary>
-public enum ImportRowStatus
+internal enum ImportRowStatus
 {
     Valid,
     StyleMismatch,

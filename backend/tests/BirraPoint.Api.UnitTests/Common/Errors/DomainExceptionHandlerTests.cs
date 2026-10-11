@@ -6,21 +6,23 @@ namespace BirraPoint.Api.UnitTests.Common.Errors;
 
 public sealed class DomainExceptionHandlerTests
 {
+    private static readonly string[] JudgeIds = ["judge-1"];
+
     private readonly DomainExceptionHandler _handler = new(ProblemDetailsServiceTestFactory.Create());
 
     [Fact]
-    public async Task Writes_the_catalog_urn_status_and_extensions_for_a_domain_exception()
+    public async Task WritesTheCatalogUrnStatusAndExtensionsForADomainException()
     {
         var context = new DefaultHttpContext { Response = { Body = new MemoryStream() } };
         var exception = new DomainException(
             DomainErrorType.ConflictOfInterest,
-            extensions: new Dictionary<string, object?> { ["conflicts"] = new[] { "judge-1" } });
+            extensions: new Dictionary<string, object?> { ["conflicts"] = JudgeIds });
 
         var handled = await _handler.TryHandleAsync(context, exception, CancellationToken.None);
 
         Assert.True(handled);
         Assert.Equal(StatusCodes.Status409Conflict, context.Response.StatusCode);
-        Assert.StartsWith("application/problem+json", context.Response.ContentType);
+        Assert.StartsWith("application/problem+json", context.Response.ContentType, StringComparison.Ordinal);
 
         var body = await ReadBodyAsync(context);
         Assert.Equal("urn:birrapoint:conflict-of-interest", body.GetProperty("type").GetString());
@@ -29,7 +31,7 @@ public sealed class DomainExceptionHandlerTests
     }
 
     [Fact]
-    public async Task Returns_false_for_exceptions_it_does_not_own()
+    public async Task ReturnsFalseForExceptionsItDoesNotOwn()
     {
         var context = new DefaultHttpContext { Response = { Body = new MemoryStream() } };
 

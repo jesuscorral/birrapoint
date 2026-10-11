@@ -7,12 +7,12 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Competitions;
 
 /// <summary>Summary wire shape for the organizer's own competitions list (contracts/rest-api.md §Competitions).</summary>
-public sealed record CompetitionSummaryDto(
+internal sealed record CompetitionSummaryDto(
     Guid Id, string Name, string Venue, DateOnly StartDate, DateOnly EndDate, CompetitionState State);
 
-public sealed record ListCompetitionsQuery : IRequest<IReadOnlyList<CompetitionSummaryDto>>;
+internal sealed record ListCompetitionsQuery : IRequest<IReadOnlyList<CompetitionSummaryDto>>;
 
-public sealed class ListCompetitionsQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class ListCompetitionsQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<ListCompetitionsQuery, IReadOnlyList<CompetitionSummaryDto>>
 {
     public async Task<IReadOnlyList<CompetitionSummaryDto>> Handle(

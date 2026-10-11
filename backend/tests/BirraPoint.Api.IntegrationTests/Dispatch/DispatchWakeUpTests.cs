@@ -193,7 +193,7 @@ public sealed class DispatchWakeUpTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task ForeignLease_ExpiringAfterStartupSweep_IsRecoveredAndProcessedWithoutThePoll()
+    public async Task ForeignLeaseExpiringAfterStartupSweepIsRecoveredAndProcessedWithoutThePoll()
     {
         var competitionId = await SeedCompetitionAsync();
         var handler = new CountingHandler();
@@ -218,7 +218,7 @@ public sealed class DispatchWakeUpTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task PendingJob_WithFutureNextAttemptAt_AtStartup_IsProcessedWithoutThePoll()
+    public async Task PendingJobWithFutureNextAttemptAtAtStartupIsProcessedWithoutThePoll()
     {
         var competitionId = await SeedCompetitionAsync();
         var handler = new CountingHandler();
@@ -237,7 +237,7 @@ public sealed class DispatchWakeUpTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task FailedSweep_AtScheduledWake_StillProcessesTheDueJobWithoutThePoll()
+    public async Task FailedSweepAtScheduledWakeStillProcessesTheDueJobWithoutThePoll()
     {
         var competitionId = await SeedCompetitionAsync();
         var handler = new CountingHandler();
@@ -262,7 +262,7 @@ public sealed class DispatchWakeUpTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Retry_dispatch_wakes_the_worker_without_the_safety_net_poll()
+    public async Task RetryDispatchWakesTheWorkerWithoutTheSafetyNetPoll()
     {
         await using var host = NewHost();
         using var organizer = host.CreateClient(); // starts the host: real handlers, FakeEmailSender

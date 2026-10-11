@@ -18,6 +18,7 @@ namespace BirraPoint.Api.IntegrationTests.Competitions;
 public sealed class CompetitionCategoriesApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private const string StyleCodeApa = "21A";
+    private static readonly string[] UnknownStyleCodes = ["99Z"];
     private const string StyleCodeBlonde = "1A";
 
     private HttpClient OrganizerClient(string sub)
@@ -42,7 +43,7 @@ public sealed class CompetitionCategoriesApiTests(ApiFactory factory) : IClassFi
     }
 
     [Fact]
-    public async Task Put_then_get_roundtrip_returns_the_same_categories_and_styles()
+    public async Task PutThenGetRoundtripReturnsTheSameCategoriesAndStyles()
     {
         using var client = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(client, "Roundtrip");
@@ -58,7 +59,7 @@ public sealed class CompetitionCategoriesApiTests(ApiFactory factory) : IClassFi
 
         Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
 
-        var getResponse = await client.GetAsync($"/api/v1/competitions/{competitionId}/categories", TestContext.Current.CancellationToken);
+        var getResponse = await client.GetAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/categories"), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
 
         using var document = JsonDocument.Parse(await getResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
@@ -72,7 +73,7 @@ public sealed class CompetitionCategoriesApiTests(ApiFactory factory) : IClassFi
     }
 
     [Fact]
-    public async Task Put_returns_404_for_a_competition_owned_by_a_different_organizer()
+    public async Task PutReturns404ForACompetitionOwnedByADifferentOrganizer()
     {
         using var ownerClient = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         using var otherClient = OrganizerClient($"organizer-{Guid.NewGuid():N}");
@@ -88,7 +89,7 @@ public sealed class CompetitionCategoriesApiTests(ApiFactory factory) : IClassFi
     }
 
     [Fact]
-    public async Task Put_returns_409_when_the_competition_is_finalized()
+    public async Task PutReturns409WhenTheCompetitionIsFinalized()
     {
         using var client = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(client, "Locked");
@@ -108,7 +109,7 @@ public sealed class CompetitionCategoriesApiTests(ApiFactory factory) : IClassFi
     }
 
     [Fact]
-    public async Task Put_returns_400_when_the_same_style_code_appears_in_two_categories()
+    public async Task PutReturns400WhenTheSameStyleCodeAppearsInTwoCategories()
     {
         using var client = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(client, "DuplicateCode");
@@ -126,21 +127,21 @@ public sealed class CompetitionCategoriesApiTests(ApiFactory factory) : IClassFi
     }
 
     [Fact]
-    public async Task Put_returns_400_for_an_unknown_style_code()
+    public async Task PutReturns400ForAnUnknownStyleCode()
     {
         using var client = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(client, "UnknownCode");
 
         var response = await client.PutAsJsonAsync($"/api/v1/competitions/{competitionId}/categories", new
         {
-            categories = new[] { new { name = "Classic Styles", displayOrder = 0, styleCodes = new[] { "99Z" } } },
+            categories = new[] { new { name = "Classic Styles", displayOrder = 0, styleCodes = UnknownStyleCodes } },
         }, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
-    public async Task Re_put_fully_replaces_the_previous_category_set()
+    public async Task RePutFullyReplacesThePreviousCategorySet()
     {
         using var client = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(client, "Replace");
@@ -157,7 +158,7 @@ public sealed class CompetitionCategoriesApiTests(ApiFactory factory) : IClassFi
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var getResponse = await client.GetAsync($"/api/v1/competitions/{competitionId}/categories", TestContext.Current.CancellationToken);
+        var getResponse = await client.GetAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/categories"), TestContext.Current.CancellationToken);
         using var document = JsonDocument.Parse(await getResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var categories = document.RootElement.GetProperty("categories").EnumerateArray().ToList();
 

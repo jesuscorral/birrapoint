@@ -1,7 +1,7 @@
 namespace BirraPoint.Api.Domain;
 
 /// <summary>Read-only BJCP 2021 catalog row, seeded via EF migration (FR-012, FR-049, R-12).</summary>
-public class BjcpStyle : ITimestamped
+internal class BjcpStyle : ITimestamped
 {
     /// <summary>Natural PK, e.g. "21A", or a slug for styles with no official letter subcode, e.g. "27-Sahti".</summary>
     public required string Code { get; set; }

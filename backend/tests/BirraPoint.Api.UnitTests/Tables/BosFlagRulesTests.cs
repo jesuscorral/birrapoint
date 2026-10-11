@@ -10,7 +10,7 @@ namespace BirraPoint.Api.UnitTests.Tables;
 public sealed class BosFlagRulesTests
 {
     [Fact]
-    public void EntriesOwnedByJudges_returns_the_entries_owned_by_a_newly_assigned_judge()
+    public void EntriesOwnedByJudgesReturnsTheEntriesOwnedByANewlyAssignedJudge()
     {
         var judgeId = Guid.NewGuid();
         var entryId = Guid.NewGuid();
@@ -23,7 +23,7 @@ public sealed class BosFlagRulesTests
     }
 
     [Fact]
-    public void EntriesOwnedByJudges_unions_across_multiple_judges_and_dedups()
+    public void EntriesOwnedByJudgesUnionsAcrossMultipleJudgesAndDedups()
     {
         var judgeAId = Guid.NewGuid();
         var judgeBId = Guid.NewGuid();
@@ -44,7 +44,7 @@ public sealed class BosFlagRulesTests
     }
 
     [Fact]
-    public void EntriesOwnedByJudges_returns_empty_for_a_judge_with_no_entries()
+    public void EntriesOwnedByJudgesReturnsEmptyForAJudgeWithNoEntries()
     {
         var judgeId = Guid.NewGuid();
 
@@ -55,13 +55,13 @@ public sealed class BosFlagRulesTests
     }
 
     [Fact]
-    public void IsEligibleForUnflag_true_when_no_remaining_assignments_and_no_evaluations()
+    public void IsEligibleForUnflagTrueWhenNoRemainingAssignmentsAndNoEvaluations()
     {
         Assert.True(BosFlagRules.IsEligibleForUnflag(remainingActiveTableAssignments: 0, hasSubmittedAnyEvaluation: false));
     }
 
     [Fact]
-    public void IsEligibleForUnflag_false_when_still_assigned_to_another_table()
+    public void IsEligibleForUnflagFalseWhenStillAssignedToAnotherTable()
     {
         Assert.False(BosFlagRules.IsEligibleForUnflag(remainingActiveTableAssignments: 1, hasSubmittedAnyEvaluation: false));
     }
@@ -71,16 +71,16 @@ public sealed class BosFlagRulesTests
     /// be lifted for that competition again — even after they lose every table assignment.
     /// </summary>
     [Fact]
-    public void IsEligibleForUnflag_false_once_judge_has_submitted_any_evaluation_even_with_zero_assignments()
+    public void IsEligibleForUnflagFalseOnceJudgeHasSubmittedAnyEvaluationEvenWithZeroAssignments()
     {
         Assert.False(BosFlagRules.IsEligibleForUnflag(remainingActiveTableAssignments: 0, hasSubmittedAnyEvaluation: true));
     }
 
     [Fact]
-    public void IsEligibleForUnflag_false_when_both_still_assigned_and_has_evaluated()
+    public void IsEligibleForUnflagFalseWhenBothStillAssignedAndHasEvaluated()
     {
         Assert.False(BosFlagRules.IsEligibleForUnflag(remainingActiveTableAssignments: 2, hasSubmittedAnyEvaluation: true));
     }
 
-    private static IReadOnlySet<Guid> Set(params Guid[] ids) => new HashSet<Guid>(ids);
+    private static HashSet<Guid> Set(params Guid[] ids) => new HashSet<Guid>(ids);
 }

@@ -11,7 +11,7 @@ namespace BirraPoint.Api.UnitTests.Evaluations;
 public sealed class DiscrepancyTests
 {
     [Fact]
-    public void Two_judges_exactly_7_apart_are_not_involved()
+    public void TwoJudgesExactly7ApartAreNotInvolved()
     {
         var judgeA = Guid.NewGuid();
         var judgeB = Guid.NewGuid();
@@ -23,7 +23,7 @@ public sealed class DiscrepancyTests
     }
 
     [Fact]
-    public void Two_judges_8_apart_are_both_involved()
+    public void TwoJudges8ApartAreBothInvolved()
     {
         var judgeA = Guid.NewGuid();
         var judgeB = Guid.NewGuid();
@@ -35,7 +35,7 @@ public sealed class DiscrepancyTests
     }
 
     [Fact]
-    public void Three_judges_only_the_outliers_more_than_7_apart_are_involved()
+    public void ThreeJudgesOnlyTheOutliersMoreThan7ApartAreInvolved()
     {
         var low = Guid.NewGuid();
         var mid = Guid.NewGuid();
@@ -50,7 +50,7 @@ public sealed class DiscrepancyTests
     }
 
     [Fact]
-    public void Single_judge_has_no_one_involved()
+    public void SingleJudgeHasNoOneInvolved()
     {
         var totals = new Dictionary<Guid, int> { [Guid.NewGuid()] = 40 };
 
@@ -60,7 +60,7 @@ public sealed class DiscrepancyTests
     }
 
     [Fact]
-    public void All_judges_within_7_of_each_other_resolve_to_an_empty_set()
+    public void AllJudgesWithin7OfEachOtherResolveToAnEmptySet()
     {
         var totals = new Dictionary<Guid, int>
         {

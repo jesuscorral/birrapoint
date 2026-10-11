@@ -1,7 +1,7 @@
 namespace BirraPoint.Api.Domain;
 
 /// <summary>Sample under evaluation. Created at import consolidation with its blind code (FR-013).</summary>
-public class BeerEntry : Entity
+internal class BeerEntry : Entity
 {
     public Guid CompetitionId { get; set; }
 

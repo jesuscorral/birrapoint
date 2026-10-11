@@ -9,7 +9,7 @@ namespace BirraPoint.Api.UnitTests.Judges;
 public sealed class JudgeRegistrationPlannerTests
 {
     [Fact]
-    public void Unique_emails_are_all_planned_for_creation()
+    public void UniqueEmailsAreAllPlannedForCreation()
     {
         var plan = JudgeRegistrationPlanner.Plan(
             ["alice@example.com", "bob@example.com"], existingEmails: EmptySet());
@@ -19,7 +19,7 @@ public sealed class JudgeRegistrationPlannerTests
     }
 
     [Fact]
-    public void Duplicate_in_list_is_skipped_with_duplicate_in_list_reason()
+    public void DuplicateInListIsSkippedWithDuplicateInListReason()
     {
         var plan = JudgeRegistrationPlanner.Plan(
             ["alice@example.com", "alice@example.com"], existingEmails: EmptySet());
@@ -31,7 +31,7 @@ public sealed class JudgeRegistrationPlannerTests
     }
 
     [Fact]
-    public void Duplicate_in_list_detection_is_case_insensitive()
+    public void DuplicateInListDetectionIsCaseInsensitive()
     {
         var plan = JudgeRegistrationPlanner.Plan(
             ["Alice@Example.com", "alice@example.com"], existingEmails: EmptySet());
@@ -43,7 +43,7 @@ public sealed class JudgeRegistrationPlannerTests
     }
 
     [Fact]
-    public void First_occurrence_of_a_duplicate_wins_and_keeps_its_original_casing()
+    public void FirstOccurrenceOfADuplicateWinsAndKeepsItsOriginalCasing()
     {
         var plan = JudgeRegistrationPlanner.Plan(
             ["Alice@Example.com", "ALICE@EXAMPLE.COM", "alice@example.com"], existingEmails: EmptySet());
@@ -54,7 +54,7 @@ public sealed class JudgeRegistrationPlannerTests
     }
 
     [Fact]
-    public void Already_registered_email_is_skipped_with_already_registered_reason()
+    public void AlreadyRegisteredEmailIsSkippedWithAlreadyRegisteredReason()
     {
         var plan = JudgeRegistrationPlanner.Plan(
             ["bob@example.com"], existingEmails: new HashSet<string>(["bob@example.com"], StringComparer.OrdinalIgnoreCase));
@@ -66,7 +66,7 @@ public sealed class JudgeRegistrationPlannerTests
     }
 
     [Fact]
-    public void Already_registered_detection_is_case_insensitive()
+    public void AlreadyRegisteredDetectionIsCaseInsensitive()
     {
         var plan = JudgeRegistrationPlanner.Plan(
             ["Bob@Example.com"], existingEmails: new HashSet<string>(["bob@example.com"], StringComparer.OrdinalIgnoreCase));
@@ -78,7 +78,7 @@ public sealed class JudgeRegistrationPlannerTests
     }
 
     [Fact]
-    public void In_list_duplicate_takes_priority_over_already_registered_for_later_occurrences()
+    public void InListDuplicateTakesPriorityOverAlreadyRegisteredForLaterOccurrences()
     {
         var plan = JudgeRegistrationPlanner.Plan(
             ["carol@example.com", "carol@example.com"],

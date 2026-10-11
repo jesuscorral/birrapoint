@@ -7,7 +7,7 @@ namespace BirraPoint.Api.Features.Dispatch;
 /// produces extra nesting inside the participant's folder, which is harmless and still opens fine
 /// in any ZIP reader (verified by the "awkward characters" test below).
 /// </summary>
-public static class DispatchPaths
+internal static class DispatchPaths
 {
     public static string ZipEntryPath(string competitionName, Guid participantId, string styleCode, string blindCode) =>
         $"{competitionName}/{participantId}/{styleCode}_{blindCode}.pdf";

@@ -18,7 +18,7 @@ public sealed class DaprSecretsTests
         new ConfigurationBuilder().AddInMemoryCollection(values).Build();
 
     [Fact]
-    public void Store_is_disabled_when_Dapr_SecretStore_is_not_configured()
+    public void StoreIsDisabledWhenDaprSecretStoreIsNotConfigured()
     {
         Assert.Null(DaprSecrets.ResolveStore(Build(new Dictionary<string, string?>())));
     }
@@ -26,7 +26,7 @@ public sealed class DaprSecretsTests
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public void Store_is_disabled_when_Dapr_SecretStore_is_blank(string value)
+    public void StoreIsDisabledWhenDaprSecretStoreIsBlank(string value)
     {
         var configuration = Build(new Dictionary<string, string?> { ["Dapr:SecretStore"] = value });
 
@@ -34,7 +34,7 @@ public sealed class DaprSecretsTests
     }
 
     [Fact]
-    public void Store_name_comes_from_Dapr_SecretStore()
+    public void StoreNameComesFromDaprSecretStore()
     {
         var configuration = Build(new Dictionary<string, string?> { ["Dapr:SecretStore"] = " secretstore " });
 
@@ -42,9 +42,9 @@ public sealed class DaprSecretsTests
     }
 
     [Fact]
-    public void Without_a_store_no_configuration_source_is_added()
+    public void WithoutAStoreNoConfigurationSourceIsAdded()
     {
-        var configuration = new ConfigurationManager();
+        using var configuration = new ConfigurationManager();
         var sourcesBefore = ((IConfigurationBuilder)configuration).Sources.Count;
 
         configuration.AddDaprSecrets();
@@ -53,7 +53,7 @@ public sealed class DaprSecretsTests
     }
 
     [Fact]
-    public void Source_requests_exactly_the_api_secrets_by_their_key_vault_names()
+    public void SourceRequestsExactlyTheApiSecretsByTheirKeyVaultNames()
     {
         var source = new DaprSecretStoreConfigurationSource();
         using var client = new DaprClientBuilder().Build();
@@ -68,7 +68,7 @@ public sealed class DaprSecretsTests
     }
 
     [Fact]
-    public void Only_the_smtp_password_is_optional()
+    public void OnlyTheSmtpPasswordIsOptional()
     {
         var source = new DaprSecretStoreConfigurationSource();
         using var client = new DaprClientBuilder().Build();
@@ -83,7 +83,7 @@ public sealed class DaprSecretsTests
     }
 
     [Fact]
-    public void Key_vault_double_dash_names_map_onto_configuration_sections()
+    public void KeyVaultDoubleDashNamesMapOntoConfigurationSections()
     {
         var source = new DaprSecretStoreConfigurationSource();
         using var client = new DaprClientBuilder().Build();
@@ -97,7 +97,7 @@ public sealed class DaprSecretsTests
     }
 
     [Fact]
-    public void Startup_waits_for_the_sidecar_instead_of_failing_immediately()
+    public void StartupWaitsForTheSidecarInsteadOfFailingImmediately()
     {
         var source = new DaprSecretStoreConfigurationSource();
         using var client = new DaprClientBuilder().Build();
@@ -109,7 +109,7 @@ public sealed class DaprSecretsTests
     }
 
     [Fact]
-    public void Loading_retries_while_the_store_refuses_and_returns_the_first_success()
+    public void LoadingRetriesWhileTheStoreRefusesAndReturnsTheFirstSuccess()
     {
         // A brand-new app's identity only gets its Key Vault role after the app exists, so the
         // first reads can be refused (403) until the assignment propagates.
@@ -127,7 +127,7 @@ public sealed class DaprSecretsTests
     }
 
     [Fact]
-    public void Loading_gives_up_after_the_last_attempt_with_the_store_error()
+    public void LoadingGivesUpAfterTheLastAttemptWithTheStoreError()
     {
         var attempts = 0;
 
@@ -138,11 +138,11 @@ public sealed class DaprSecretsTests
         }, maxAttempts: 4, delay: TimeSpan.Zero));
 
         Assert.Equal(4, attempts);
-        Assert.Contains("ForbiddenByRbac", error.Message);
+        Assert.Contains("ForbiddenByRbac", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Loading_retries_a_store_error_wrapped_by_the_configuration_provider()
+    public void LoadingRetriesAStoreErrorWrappedByTheConfigurationProvider()
     {
         var attempts = 0;
         var expected = new ConfigurationBuilder().Build();
@@ -160,7 +160,7 @@ public sealed class DaprSecretsTests
     }
 
     [Fact]
-    public void Loading_does_not_retry_errors_unrelated_to_the_store()
+    public void LoadingDoesNotRetryErrorsUnrelatedToTheStore()
     {
         var attempts = 0;
 

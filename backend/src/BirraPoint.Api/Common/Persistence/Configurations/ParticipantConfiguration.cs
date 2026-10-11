@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace BirraPoint.Api.Common.Persistence.Configurations;
 
-public sealed class ParticipantConfiguration : IEntityTypeConfiguration<Participant>
+internal sealed class ParticipantConfiguration : IEntityTypeConfiguration<Participant>
 {
     public void Configure(EntityTypeBuilder<Participant> builder)
     {

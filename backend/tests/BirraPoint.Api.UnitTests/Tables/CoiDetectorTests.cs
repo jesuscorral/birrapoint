@@ -9,7 +9,7 @@ namespace BirraPoint.Api.UnitTests.Tables;
 public sealed class CoiDetectorTests
 {
     [Fact]
-    public void No_conflict_when_no_email_matches()
+    public void NoConflictWhenNoEmailMatches()
     {
         var judgeId = Guid.NewGuid();
         var entryId = Guid.NewGuid();
@@ -26,7 +26,7 @@ public sealed class CoiDetectorTests
     }
 
     [Fact]
-    public void Conflict_when_judge_email_matches_entry_owner()
+    public void ConflictWhenJudgeEmailMatchesEntryOwner()
     {
         var judgeId = Guid.NewGuid();
         var entryId = Guid.NewGuid();
@@ -45,7 +45,7 @@ public sealed class CoiDetectorTests
     }
 
     [Fact]
-    public void Conflict_when_judge_email_matches_a_collaborator()
+    public void ConflictWhenJudgeEmailMatchesACollaborator()
     {
         var judgeId = Guid.NewGuid();
         var entryId = Guid.NewGuid();
@@ -64,7 +64,7 @@ public sealed class CoiDetectorTests
     }
 
     [Fact]
-    public void Matching_is_case_insensitive()
+    public void MatchingIsCaseInsensitive()
     {
         var judgeId = Guid.NewGuid();
         var entryId = Guid.NewGuid();
@@ -81,7 +81,7 @@ public sealed class CoiDetectorTests
     }
 
     [Fact]
-    public void Conflicts_are_grouped_per_judge_across_multiple_entries()
+    public void ConflictsAreGroupedPerJudgeAcrossMultipleEntries()
     {
         var judgeId = Guid.NewGuid();
         var ownedEntryId = Guid.NewGuid();
@@ -102,7 +102,7 @@ public sealed class CoiDetectorTests
     }
 
     [Fact]
-    public void Multiple_judges_can_each_produce_their_own_conflict()
+    public void MultipleJudgesCanEachProduceTheirOwnConflict()
     {
         var judgeAId = Guid.NewGuid();
         var judgeBId = Guid.NewGuid();
@@ -127,6 +127,6 @@ public sealed class CoiDetectorTests
         Assert.Contains(conflicts, c => c.JudgeId == judgeBId && c.BeerEntryIds.SequenceEqual([entryBId]));
     }
 
-    private static IReadOnlySet<string> Set(params string[] emails) =>
+    private static HashSet<string> Set(params string[] emails) =>
         new HashSet<string>(emails, StringComparer.OrdinalIgnoreCase);
 }

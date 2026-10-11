@@ -10,7 +10,7 @@ namespace BirraPoint.Api.Common.Persistence.Configurations;
 /// Running with LeaseOwner/LeaseExpiresAt, and finishes it only `WHERE LeaseOwner = me`. Running
 /// jobs whose lease expired (crashed worker) are recovered through the normal retry path.
 /// </summary>
-public sealed class DispatchJobConfiguration : IEntityTypeConfiguration<DispatchJob>
+internal sealed class DispatchJobConfiguration : IEntityTypeConfiguration<DispatchJob>
 {
     public void Configure(EntityTypeBuilder<DispatchJob> builder)
     {

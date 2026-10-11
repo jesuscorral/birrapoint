@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Competitions;
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record UpdateCompetitionCommand(
+internal sealed record UpdateCompetitionCommand(
     Guid Id,
     string Name,
     string Venue,
@@ -21,7 +21,7 @@ public sealed record UpdateCompetitionCommand(
     DateOnly? RegistrationStart,
     DateOnly? RegistrationEnd) : IRequest<CompetitionDetailDto?>;
 
-public sealed class UpdateCompetitionCommandValidator : AbstractValidator<UpdateCompetitionCommand>
+internal sealed class UpdateCompetitionCommandValidator : AbstractValidator<UpdateCompetitionCommand>
 {
     public UpdateCompetitionCommandValidator()
     {
@@ -40,7 +40,7 @@ public sealed class UpdateCompetitionCommandValidator : AbstractValidator<Update
     }
 }
 
-public sealed class UpdateCompetitionCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class UpdateCompetitionCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<UpdateCompetitionCommand, CompetitionDetailDto?>
 {
     public async Task<CompetitionDetailDto?> Handle(UpdateCompetitionCommand request, CancellationToken cancellationToken)

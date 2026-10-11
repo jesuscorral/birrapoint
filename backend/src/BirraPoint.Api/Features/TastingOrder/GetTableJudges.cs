@@ -8,9 +8,9 @@ namespace BirraPoint.Api.Features.TastingOrder;
 /// <summary>GET /me/tables/{tableId}/judges (contracts/rest-api.md §Judge workspace). Returns
 /// null when the caller is not an active member of this table — the endpoint maps that to a
 /// plain 404 (never reveals whether the table exists), same convention as GetTableSamples.</summary>
-public sealed record GetTableJudgesQuery(Guid TableId) : IRequest<IReadOnlyList<JudgeTableMemberDto>?>;
+internal sealed record GetTableJudgesQuery(Guid TableId) : IRequest<IReadOnlyList<JudgeTableMemberDto>?>;
 
-public sealed class GetTableJudgesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class GetTableJudgesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<GetTableJudgesQuery, IReadOnlyList<JudgeTableMemberDto>?>
 {
     public async Task<IReadOnlyList<JudgeTableMemberDto>?> Handle(GetTableJudgesQuery request, CancellationToken cancellationToken)

@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace BirraPoint.Api.Common.Auth;
 
-public static class AuthenticationExtensions
+internal static class AuthenticationExtensions
 {
     /// <summary>
     /// JWT bearer auth against Keycloak (T011): deny-by-default fallback policy (Principle VII —
@@ -43,7 +43,7 @@ public static class AuthenticationExtensions
                     {
                         var accessToken = context.Request.Query["access_token"];
                         if (!string.IsNullOrEmpty(accessToken) &&
-                            context.HttpContext.Request.Path.StartsWithSegments("/hubs/competition"))
+                            context.HttpContext.Request.Path.StartsWithSegments("/hubs/competition", StringComparison.OrdinalIgnoreCase))
                         {
                             context.Token = accessToken;
                         }

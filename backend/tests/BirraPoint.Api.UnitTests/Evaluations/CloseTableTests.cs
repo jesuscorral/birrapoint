@@ -16,7 +16,7 @@ public sealed class CloseTableTests
     // ---- ComputeMissingBlindCodes ----------------------------------------------------------------
 
     [Fact]
-    public void ComputeMissingBlindCodes_empty_when_every_active_judge_evaluated_every_sample()
+    public void ComputeMissingBlindCodesEmptyWhenEveryActiveJudgeEvaluatedEverySample()
     {
         var judgeA = Guid.NewGuid();
         var judgeB = Guid.NewGuid();
@@ -31,7 +31,7 @@ public sealed class CloseTableTests
     }
 
     [Fact]
-    public void ComputeMissingBlindCodes_returns_the_blind_code_of_a_sample_missing_one_judges_evaluation()
+    public void ComputeMissingBlindCodesReturnsTheBlindCodeOfASampleMissingOneJudgesEvaluation()
     {
         var judgeA = Guid.NewGuid();
         var judgeB = Guid.NewGuid();
@@ -47,7 +47,7 @@ public sealed class CloseTableTests
     }
 
     [Fact]
-    public void ComputeMissingBlindCodes_dedups_a_sample_missing_more_than_one_judge()
+    public void ComputeMissingBlindCodesDedupsASampleMissingMoreThanOneJudge()
     {
         var judgeA = Guid.NewGuid();
         var judgeB = Guid.NewGuid();
@@ -60,7 +60,7 @@ public sealed class CloseTableTests
     }
 
     [Fact]
-    public void ComputeMissingBlindCodes_empty_when_there_are_no_active_judges()
+    public void ComputeMissingBlindCodesEmptyWhenThereAreNoActiveJudges()
     {
         var sample1 = Guid.NewGuid();
         var blindCodes = new Dictionary<Guid, string> { [sample1] = "B001" };
@@ -71,7 +71,7 @@ public sealed class CloseTableTests
     }
 
     [Fact]
-    public void ComputeMissingBlindCodes_ignores_samples_with_no_active_judges_assigned_to_check()
+    public void ComputeMissingBlindCodesIgnoresSamplesWithNoActiveJudgesAssignedToCheck()
     {
         // Sanity: a table with zero samples never blocks close on completeness.
         var judgeA = Guid.NewGuid();
@@ -85,25 +85,25 @@ public sealed class CloseTableTests
     // ---- ComputeMean (FR-042) ---------------------------------------------------------------------
 
     [Fact]
-    public void ComputeMean_averages_the_given_totals()
+    public void ComputeMeanAveragesTheGivenTotals()
     {
         Assert.Equal(35m, CloseTableRules.ComputeMean([30, 40]));
     }
 
     [Fact]
-    public void ComputeMean_averages_three_totals_to_a_fractional_result()
+    public void ComputeMeanAveragesThreeTotalsToAFractionalResult()
     {
         Assert.Equal(33.33m, CloseTableRules.ComputeMean([30, 40, 30]));
     }
 
     [Fact]
-    public void ComputeMean_handles_a_single_total()
+    public void ComputeMeanHandlesASingleTotal()
     {
         Assert.Equal(42m, CloseTableRules.ComputeMean([42]));
     }
 
     [Fact]
-    public void ComputeMean_is_zero_for_no_totals()
+    public void ComputeMeanIsZeroForNoTotals()
     {
         Assert.Equal(0m, CloseTableRules.ComputeMean([]));
     }

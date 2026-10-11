@@ -5,7 +5,7 @@ namespace BirraPoint.Api.UnitTests.Realtime;
 public sealed class CompetitionGroupsTests
 {
     [Fact]
-    public void Organizers_formats_the_fixed_group_name()
+    public void OrganizersFormatsTheFixedGroupName()
     {
         var competitionId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
@@ -15,7 +15,7 @@ public sealed class CompetitionGroupsTests
     }
 
     [Fact]
-    public void Table_formats_the_fixed_group_name()
+    public void TableFormatsTheFixedGroupName()
     {
         var tableId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 

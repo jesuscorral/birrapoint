@@ -19,6 +19,8 @@ namespace BirraPoint.Api.IntegrationTests.TestHost;
 /// swaps JWT validation to trust <see cref="TestJwtIssuer"/> instead of a live Keycloak discovery
 /// round-trip.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1515:Consider making public types internal",
+    Justification = "xUnit requires fixtures used in public test-class constructors (IClassFixture<T>) to be public.")]
 public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:16").Build();
@@ -28,7 +30,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// test ever has to spin up a second host (<c>WithWebHostBuilder</c>) just to get an interceptor
     /// in — a second host would run its own <c>DispatchWorker</c> hosted service against the same
     /// database, which is unnecessary here.</summary>
-    public SubmitEvaluationRaceInterceptor EvaluationRaceInterceptor { get; } = new();
+    internal SubmitEvaluationRaceInterceptor EvaluationRaceInterceptor { get; } = new();
 
     /// <summary>Connection string of this factory's Testcontainer, for tests that seed or inspect
     /// rows directly without starting the API host (and thus its DispatchWorker).</summary>
@@ -55,6 +57,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment("Testing");
 
         builder.ConfigureAppConfiguration((_, config) =>

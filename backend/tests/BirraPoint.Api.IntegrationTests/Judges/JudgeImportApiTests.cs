@@ -123,11 +123,11 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         HttpClient client, Guid competitionId, byte[] xlsxBytes, string fileName = "judges.xlsx", string? contentType = null)
     {
         using var content = new MultipartFormDataContent();
-        var fileContent = new ByteArrayContent(xlsxBytes);
+        using var fileContent = new ByteArrayContent(xlsxBytes);
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(
             contentType ?? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         content.Add(fileContent, "file", fileName);
-        return await client.PostAsync($"/api/v1/competitions/{competitionId}/judge-imports", content);
+        return await client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/judge-imports"), content);
     }
 
     private static async Task<(Guid ImportId, List<JsonElement> Rows)> UploadJudgeRowsAsync(
@@ -143,7 +143,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     private static Task<HttpResponseMessage> GetImportAsync(HttpClient client, Guid competitionId, Guid importId) =>
-        client.GetAsync($"/api/v1/competitions/{competitionId}/judge-imports/{importId}");
+        client.GetAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/judge-imports/{importId}"));
 
     private static Task<HttpResponseMessage> EditRowAsync(
         HttpClient client, Guid competitionId, Guid importId, int rowNumber, object body) =>
@@ -151,10 +151,10 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
 
     private static Task<HttpResponseMessage> ExcludeRowAsync(
         HttpClient client, Guid competitionId, Guid importId, int rowNumber) =>
-        client.PostAsync($"/api/v1/competitions/{competitionId}/judge-imports/{importId}/rows/{rowNumber}/exclude", null);
+        client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/judge-imports/{importId}/rows/{rowNumber}/exclude"), null);
 
     private static Task<HttpResponseMessage> ConsolidateAsync(HttpClient client, Guid competitionId, Guid importId) =>
-        client.PostAsync($"/api/v1/competitions/{competitionId}/judge-imports/{importId}/consolidate", null);
+        client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/judge-imports/{importId}/consolidate"), null);
 
     /// <summary>Full editable-row body matching <c>EditJudgeImportRowRequest</c>'s camelCase wire
     /// shape. Like <see cref="Row"/>, <paramref name="email"/> defaults to a fixed literal so
@@ -206,7 +206,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- Upload: auth & ownership -----------------------------------------------------------
 
     [Fact]
-    public async Task Upload_without_a_bearer_token_is_rejected_with_401()
+    public async Task UploadWithoutABearerTokenIsRejectedWith401()
     {
         using var client = factory.CreateClient();
 
@@ -216,7 +216,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Upload_with_judge_role_is_forbidden_with_403()
+    public async Task UploadWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -228,7 +228,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Upload_for_a_competition_owned_by_a_different_organizer_returns_404()
+    public async Task UploadForACompetitionOwnedByADifferentOrganizerReturns404()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner);
@@ -242,7 +242,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- Upload: row-level parsing (contracts/judge-import-file.md) -------------------------
 
     [Fact]
-    public async Task Upload_with_a_valid_row_returns_201_with_status_Valid_and_the_full_data_envelope()
+    public async Task UploadWithAValidRowReturns201WithStatusValidAndTheFullDataEnvelope()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -263,7 +263,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Upload_row_missing_email_is_marked_Invalid_with_an_error_message()
+    public async Task UploadRowMissingEmailIsMarkedInvalidWithAnErrorMessage()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -277,7 +277,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Upload_row_missing_name_is_marked_Invalid_with_an_error_message()
+    public async Task UploadRowMissingNameIsMarkedInvalidWithAnErrorMessage()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -291,7 +291,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Upload_preserves_literal_br_style_text_in_preferences_without_interpreting_it_as_markup()
+    public async Task UploadPreservesLiteralBrStyleTextInPreferencesWithoutInterpretingItAsMarkup()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -305,7 +305,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- Upload: file-level rejections (400 invalid-import-file) ----------------------------
 
     [Fact]
-    public async Task Upload_a_non_xlsx_file_returns_400_invalid_import_file()
+    public async Task UploadANonXlsxFileReturns400InvalidImportFile()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -319,7 +319,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Upload_a_workbook_missing_a_required_header_column_returns_400_invalid_import_file()
+    public async Task UploadAWorkbookMissingARequiredHeaderColumnReturns400InvalidImportFile()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -335,7 +335,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Upload_while_the_competition_is_in_evaluation_is_rejected_with_409()
+    public async Task UploadWhileTheCompetitionIsInEvaluationIsRejectedWith409()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -352,7 +352,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- Upload: single active batch per competition -----------------------------------------
 
     [Fact]
-    public async Task Uploading_a_second_file_discards_the_prior_unconsolidated_batch()
+    public async Task UploadingASecondFileDiscardsThePriorUnconsolidatedBatch()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -374,7 +374,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- GET current row states --------------------------------------------------------------
 
     [Fact]
-    public async Task Get_import_returns_404_for_a_competition_owned_by_a_different_organizer()
+    public async Task GetImportReturns404ForACompetitionOwnedByADifferentOrganizer()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner);
@@ -387,7 +387,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Get_import_with_judge_role_is_forbidden_with_403()
+    public async Task GetImportWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -402,7 +402,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- Full row edit (EditJudgeImportRow) --------------------------------------------------
 
     [Fact]
-    public async Task Edit_row_with_judge_role_is_forbidden_with_403()
+    public async Task EditRowWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -415,7 +415,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Edit_row_resolving_a_missing_email_lets_consolidation_include_it()
+    public async Task EditRowResolvingAMissingEmailLetsConsolidationIncludeIt()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -437,7 +437,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Edit_row_leaving_the_email_unresolved_recomputes_status_Invalid()
+    public async Task EditRowLeavingTheEmailUnresolvedRecomputesStatusInvalid()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -451,7 +451,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Edit_row_on_an_excluded_row_returns_400()
+    public async Task EditRowOnAnExcludedRowReturns400()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -468,7 +468,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- Exclude a row ------------------------------------------------------------------------
 
     [Fact]
-    public async Task Exclude_row_with_judge_role_is_forbidden_with_403()
+    public async Task ExcludeRowWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -481,7 +481,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Exclude_row_sets_status_Excluded_and_it_is_no_longer_a_consolidation_blocker()
+    public async Task ExcludeRowSetsStatusExcludedAndItIsNoLongerAConsolidationBlocker()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -503,7 +503,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- Consolidate ---------------------------------------------------------------------------
 
     [Fact]
-    public async Task Consolidate_with_judge_role_is_forbidden_with_403()
+    public async Task ConsolidateWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -516,7 +516,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Consolidate_is_blocked_with_409_unresolved_import_rows_while_any_row_is_Invalid()
+    public async Task ConsolidateIsBlockedWith409UnresolvedImportRowsWhileAnyRowIsInvalid()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -531,7 +531,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Consolidate_a_second_time_on_the_same_batch_is_rejected_with_409()
+    public async Task ConsolidateASecondTimeOnTheSameBatchIsRejectedWith409()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -548,7 +548,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Consolidate_for_a_competition_owned_by_a_different_organizer_returns_404()
+    public async Task ConsolidateForACompetitionOwnedByADifferentOrganizerReturns404()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner);
@@ -561,7 +561,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Consolidate_success_creates_a_judge_with_every_roster_field_persisted()
+    public async Task ConsolidateSuccessCreatesAJudgeWithEveryRosterFieldPersisted()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -591,7 +591,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Consolidate_success_enqueues_ProvisionJudgeAccount_and_never_SendInvitation()
+    public async Task ConsolidateSuccessEnqueuesProvisionJudgeAccountAndNeverSendInvitation()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -616,7 +616,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Consolidate_reimporting_the_same_email_within_one_competition_updates_the_existing_judge()
+    public async Task ConsolidateReimportingTheSameEmailWithinOneCompetitionUpdatesTheExistingJudge()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -651,7 +651,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     /// (ProvisionJudgeAccountHandler's own Invitation.Status guard, exercised here by enqueueing
     /// directly so the assertion doesn't depend on the narrowing alone).</summary>
     [Fact]
-    public async Task ProvisionJudgeAccount_does_not_reset_the_password_once_the_judge_has_already_been_notified()
+    public async Task ProvisionJudgeAccountDoesNotResetThePasswordOnceTheJudgeHasAlreadyBeenNotified()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -662,7 +662,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
         Assert.Equal(HttpStatusCode.OK, consolidate.StatusCode);
         await WaitForDispatchJobCompletionAsync(competitionId, DispatchJobType.ProvisionJudgeAccount);
 
-        var notifyResponse = await organizer.PostAsync($"/api/v1/competitions/{competitionId}/judges/notify", null, TestContext.Current.CancellationToken);
+        var notifyResponse = await organizer.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/judges/notify"), null, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, notifyResponse.StatusCode);
         await WaitForDispatchJobCompletionAsync(competitionId, DispatchJobType.SendInvitation);
 
@@ -696,7 +696,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Consolidate_duplicate_emails_within_the_same_file_resolve_to_a_single_upsert()
+    public async Task ConsolidateDuplicateEmailsWithinTheSameFileResolveToASingleUpsert()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -726,7 +726,7 @@ public sealed class JudgeImportApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Consolidate_updating_a_judge_created_via_the_email_list_flow_does_not_duplicate_the_invitation()
+    public async Task ConsolidateUpdatingAJudgeCreatedViaTheEmailListFlowDoesNotDuplicateTheInvitation()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);

@@ -18,7 +18,9 @@ namespace BirraPoint.Api.IntegrationTests.Auth;
 /// are distinguishable HTTP outcomes — the hub throws the same HubException for both cases,
 /// which is exactly why it can't be reused for this test.
 /// </summary>
-public sealed class TestOnlyAuthorizationEndpointsStartupFilter : IStartupFilter
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
+    Justification = "Instantiated by the DI container / host, not by direct construction.")]
+internal sealed class TestOnlyAuthorizationEndpointsStartupFilter : IStartupFilter
 {
     public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
     {

@@ -6,9 +6,9 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Tables;
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record ListTablesQuery(Guid CompetitionId) : IRequest<IReadOnlyList<TableDto>?>;
+internal sealed record ListTablesQuery(Guid CompetitionId) : IRequest<IReadOnlyList<TableDto>?>;
 
-public sealed class ListTablesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class ListTablesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<ListTablesQuery, IReadOnlyList<TableDto>?>
 {
     public async Task<IReadOnlyList<TableDto>?> Handle(ListTablesQuery request, CancellationToken cancellationToken)

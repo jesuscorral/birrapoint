@@ -15,25 +15,26 @@ namespace BirraPoint.Api.IntegrationTests.Startup;
 public sealed class KeycloakAdminSecretStartupTests
 {
     [Fact]
-    public void Production_host_without_admin_client_secret_fails_to_start()
+    public void ProductionHostWithoutAdminClientSecretFailsToStart()
     {
         var ex = StartProduction(secret: "");
 
-        Assert.Contains("Keycloak:AdminClientSecret", ex.Message);
+        Assert.Contains("Keycloak:AdminClientSecret", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Production_host_with_placeholder_admin_client_secret_fails_to_start_without_leaking_it()
+    public void ProductionHostWithPlaceholderAdminClientSecretFailsToStartWithoutLeakingIt()
     {
         var ex = StartProduction(secret: KeycloakAdminOptions.LocalDevPlaceholder);
 
-        Assert.Contains("Keycloak:AdminClientSecret", ex.Message);
-        Assert.DoesNotContain(KeycloakAdminOptions.LocalDevPlaceholder, ex.Message);
+        Assert.Contains("Keycloak:AdminClientSecret", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(KeycloakAdminOptions.LocalDevPlaceholder, ex.Message, StringComparison.Ordinal);
     }
 
     private static OptionsValidationException StartProduction(string secret)
     {
-        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        using var baseFactory = new WebApplicationFactory<Program>();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Production");
             builder.ConfigureAppConfiguration((_, config) =>

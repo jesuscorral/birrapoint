@@ -23,11 +23,11 @@ public sealed class GetStyleDetailTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Known_style_code_returns_200_with_the_full_contracted_shape()
+    public async Task KnownStyleCodeReturns200WithTheFullContractedShape()
     {
         using var client = AuthenticatedClient();
 
-        var response = await client.GetAsync($"/api/v1/styles/{KnownStyleCode}", TestContext.Current.CancellationToken);
+        var response = await client.GetAsync(Urls.Rel($"/api/v1/styles/{KnownStyleCode}"), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
@@ -58,11 +58,11 @@ public sealed class GetStyleDetailTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Unknown_style_code_returns_404()
+    public async Task UnknownStyleCodeReturns404()
     {
         using var client = AuthenticatedClient();
 
-        var response = await client.GetAsync("/api/v1/styles/NOT-A-REAL-CODE", TestContext.Current.CancellationToken);
+        var response = await client.GetAsync(Urls.Rel("/api/v1/styles/NOT-A-REAL-CODE"), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }

@@ -10,7 +10,7 @@ namespace BirraPoint.Api.Common.Persistence;
 /// session-scoped and breaks under pgbouncer transaction pooling), falling back to
 /// ConnectionStrings:db (e.g. local AppHost/Testcontainers Postgres, which isn't pooled at all).
 /// </summary>
-public static class StartupMigrations
+internal static class StartupMigrations
 {
     public static bool ShouldMigrate(bool isDevelopment, IConfiguration configuration) =>
         isDevelopment || configuration.GetValue("Database:MigrateOnStartup", false);

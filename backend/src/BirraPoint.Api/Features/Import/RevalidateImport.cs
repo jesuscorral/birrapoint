@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Import;
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record RevalidateImportCommand(Guid CompetitionId, Guid ImportId) : IRequest<ImportBatchDto?>;
+internal sealed record RevalidateImportCommand(Guid CompetitionId, Guid ImportId) : IRequest<ImportBatchDto?>;
 
 /// <summary>
 /// FR-054: re-runs category/style/allow-list resolution (import-file.md §Revalidation) for every
@@ -20,7 +20,7 @@ public sealed record RevalidateImportCommand(Guid CompetitionId, Guid ImportId) 
 /// Consolidated (nothing left to fix). Invalid/Excluded rows are skipped — their status is
 /// unrelated to category/style state.
 /// </summary>
-public sealed class RevalidateImportCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class RevalidateImportCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<RevalidateImportCommand, ImportBatchDto?>
 {
     public async Task<ImportBatchDto?> Handle(RevalidateImportCommand request, CancellationToken cancellationToken)

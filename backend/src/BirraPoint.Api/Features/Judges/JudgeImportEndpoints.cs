@@ -3,7 +3,7 @@ using MediatR;
 namespace BirraPoint.Api.Features.Judges;
 
 /// <summary>Maps every Judge Roster Import endpoint (contracts/rest-api.md §Judge Roster Import, US14/T115) — ORGANIZER-only.</summary>
-public static class JudgeImportEndpoints
+internal static class JudgeImportEndpoints
 {
     public static IEndpointRouteBuilder MapJudgeImportEndpoints(this IEndpointRouteBuilder endpoints)
     {

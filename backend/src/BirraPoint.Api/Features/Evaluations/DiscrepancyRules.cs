@@ -5,7 +5,7 @@ namespace BirraPoint.Api.Features.Evaluations;
 /// beside the DB-touching handler" pattern already used by SubmitEvaluationRules,
 /// Features/TastingOrder/TastingOrderRules, Features/Tables/BosFlagRules and CoiDetector).
 /// </summary>
-public static class DiscrepancyRules
+internal static class DiscrepancyRules
 {
     /// <summary>Totals more than this many points apart, for the same sample, are a discrepancy
     /// (FR-031). Exactly 7 apart is still consensus.</summary>

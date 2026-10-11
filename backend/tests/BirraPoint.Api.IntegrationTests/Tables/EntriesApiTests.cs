@@ -49,7 +49,7 @@ public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFacto
     }
 
     private static Task<HttpResponseMessage> GetEntriesAsync(HttpClient client, Guid competitionId) =>
-        client.GetAsync($"/api/v1/competitions/{competitionId}/entries");
+        client.GetAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/entries"));
 
     private static Task<HttpResponseMessage> CreateTableAsync(
         HttpClient client, Guid competitionId, string name, IEnumerable<Guid> judgeIds, IEnumerable<Guid> beerEntryIds) =>
@@ -110,7 +110,7 @@ public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFacto
     }
 
     [Fact]
-    public async Task Get_without_a_bearer_token_is_rejected_with_401()
+    public async Task GetWithoutABearerTokenIsRejectedWith401()
     {
         using var client = factory.CreateClient();
 
@@ -120,7 +120,7 @@ public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFacto
     }
 
     [Fact]
-    public async Task Get_with_judge_role_is_forbidden_with_403()
+    public async Task GetWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -132,7 +132,7 @@ public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFacto
     }
 
     [Fact]
-    public async Task Get_for_a_competition_owned_by_a_different_organizer_returns_404()
+    public async Task GetForACompetitionOwnedByADifferentOrganizerReturns404()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner);
@@ -144,7 +144,7 @@ public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFacto
     }
 
     [Fact]
-    public async Task Get_returns_null_table_fields_before_assignment_and_the_table_after_assignment()
+    public async Task GetReturnsNullTableFieldsBeforeAssignmentAndTheTableAfterAssignment()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -178,7 +178,7 @@ public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFacto
     }
 
     [Fact]
-    public async Task Get_returns_the_entrys_actual_abv_percent()
+    public async Task GetReturnsTheEntrysActualAbvPercent()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -197,7 +197,7 @@ public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFacto
     // ---- GET /entries: competition category + BJCP taxonomy category (T124) --------------------
 
     [Fact]
-    public async Task Get_returns_the_organizer_defined_competition_category_and_the_bjcp_category()
+    public async Task GetReturnsTheOrganizerDefinedCompetitionCategoryAndTheBjcpCategory()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -221,7 +221,7 @@ public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFacto
     }
 
     [Fact]
-    public async Task Get_returns_a_null_competition_category_name_for_an_entry_without_one()
+    public async Task GetReturnsANullCompetitionCategoryNameForAnEntryWithoutOne()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);

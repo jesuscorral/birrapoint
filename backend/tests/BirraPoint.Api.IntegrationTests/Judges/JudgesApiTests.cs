@@ -58,16 +58,16 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         client.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/judges", new { emails });
 
     private static Task<HttpResponseMessage> GetJudgesAsync(HttpClient client, Guid competitionId) =>
-        client.GetAsync($"/api/v1/competitions/{competitionId}/judges");
+        client.GetAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/judges"));
 
     private static Task<HttpResponseMessage> UpdateJudgeEmailAsync(HttpClient client, Guid competitionId, Guid judgeId, string email) =>
         client.PutAsJsonAsync($"/api/v1/competitions/{competitionId}/judges/{judgeId}", new { email });
 
     private static Task<HttpResponseMessage> ResendInvitationAsync(HttpClient client, Guid competitionId, Guid judgeId) =>
-        client.PostAsync($"/api/v1/competitions/{competitionId}/judges/{judgeId}/invitation", null);
+        client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/judges/{judgeId}/invitation"), null);
 
     private static Task<HttpResponseMessage> NotifyJudgesAsync(HttpClient client, Guid competitionId) =>
-        client.PostAsync($"/api/v1/competitions/{competitionId}/judges/notify", null);
+        client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/judges/notify"), null);
 
     /// <summary>Seeds a Judge row (plus its required Invitation row — RegisterJudges always
     /// creates one alongside the Judge, and handlers assume it exists) directly via AppDbContext.
@@ -150,7 +150,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- POST /judges: auth & ownership -----------------------------------------------------
 
     [Fact]
-    public async Task Register_without_a_bearer_token_is_rejected_with_401()
+    public async Task RegisterWithoutABearerTokenIsRejectedWith401()
     {
         using var client = factory.CreateClient();
 
@@ -160,7 +160,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Register_with_judge_role_is_forbidden_with_403()
+    public async Task RegisterWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -172,7 +172,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Register_for_a_competition_owned_by_a_different_organizer_returns_404()
+    public async Task RegisterForACompetitionOwnedByADifferentOrganizerReturns404()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner);
@@ -186,7 +186,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- POST /judges: bulk creation with duplicate/already-registered reporting ------------
 
     [Fact]
-    public async Task Register_with_a_mixed_list_splits_created_and_skipped_with_reasons()
+    public async Task RegisterWithAMixedListSplitsCreatedAndSkippedWithReasons()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -199,7 +199,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
 
         var response = await RegisterJudgesAsync(
             organizer, competitionId,
-            newEmail, existingEmail, duplicateInListEmail, duplicateInListEmail.ToLowerInvariant());
+            newEmail, existingEmail, duplicateInListEmail, duplicateInListEmail.ToUpperInvariant());
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
@@ -221,7 +221,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Register_a_new_judge_enqueues_ProvisionJudgeAccount_and_the_invitation_stays_Pending()
+    public async Task RegisterANewJudgeEnqueuesProvisionJudgeAccountAndTheInvitationStaysPending()
     {
         // R-20/Session 2026-08-02: RegisterJudges (FR-014) no longer auto-sends an invitation —
         // it only provisions the Keycloak account in the background. Status only leaves Pending
@@ -244,7 +244,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- GET /judges --------------------------------------------------------------------------
 
     [Fact]
-    public async Task Get_judges_with_judge_role_is_forbidden_with_403()
+    public async Task GetJudgesWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -256,7 +256,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Get_judges_for_a_competition_owned_by_a_different_organizer_returns_404()
+    public async Task GetJudgesForACompetitionOwnedByADifferentOrganizerReturns404()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner);
@@ -268,7 +268,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Get_judges_returns_the_registered_profiles_with_delivery_status()
+    public async Task GetJudgesReturnsTheRegisteredProfilesWithDeliveryStatus()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -289,7 +289,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- PUT /judges/{judgeId}: email correction ----------------------------------------------
 
     [Fact]
-    public async Task Update_judge_email_with_judge_role_is_forbidden_with_403()
+    public async Task UpdateJudgeEmailWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -303,7 +303,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Update_judge_email_before_first_login_succeeds()
+    public async Task UpdateJudgeEmailBeforeFirstLoginSucceeds()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -322,7 +322,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Update_judge_email_after_first_login_is_rejected_with_409_judge_already_active()
+    public async Task UpdateJudgeEmailAfterFirstLoginIsRejectedWith409JudgeAlreadyActive()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -338,7 +338,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Update_judge_email_colliding_with_another_judge_in_the_same_competition_is_rejected_with_400()
+    public async Task UpdateJudgeEmailCollidingWithAnotherJudgeInTheSameCompetitionIsRejectedWith400()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -352,7 +352,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Update_judge_email_for_a_competition_owned_by_a_different_organizer_returns_404()
+    public async Task UpdateJudgeEmailForACompetitionOwnedByADifferentOrganizerReturns404()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner);
@@ -365,7 +365,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Update_judge_email_for_a_competition_owned_by_a_different_organizer_returns_404_even_when_the_email_is_taken_there()
+    public async Task UpdateJudgeEmailForACompetitionOwnedByADifferentOrganizerReturns404EvenWhenTheEmailIsTakenThere()
     {
         // senior-code-reviewer PR #18 finding: an unscoped uniqueness check would let a caller who
         // doesn't own this competition distinguish 400 (email taken) from 404 (wrong owner) —
@@ -386,7 +386,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- POST /judges/{judgeId}/invitation: resend --------------------------------------------
 
     [Fact]
-    public async Task Resend_invitation_with_judge_role_is_forbidden_with_403()
+    public async Task ResendInvitationWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -399,7 +399,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Resend_invitation_re_triggers_delivery_and_reaches_Sent_again()
+    public async Task ResendInvitationReTriggersDeliveryAndReachesSentAgain()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -419,7 +419,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Resend_invitation_for_a_competition_owned_by_a_different_organizer_returns_404()
+    public async Task ResendInvitationForACompetitionOwnedByADifferentOrganizerReturns404()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner);
@@ -434,7 +434,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- GET /judges: US14/FR-057 roster fields -----------------------------------------------
 
     [Fact]
-    public async Task Get_judges_response_includes_the_four_roster_fields_null_for_email_list_created_judges()
+    public async Task GetJudgesResponseIncludesTheFourRosterFieldsNullForEmailListCreatedJudges()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -456,7 +456,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     // ---- POST /judges/notify: FR-059 explicit "Notify judges" action --------------------------
 
     [Fact]
-    public async Task Notify_without_a_bearer_token_is_rejected_with_401()
+    public async Task NotifyWithoutABearerTokenIsRejectedWith401()
     {
         using var client = factory.CreateClient();
 
@@ -466,7 +466,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Notify_with_judge_role_is_forbidden_with_403()
+    public async Task NotifyWithJudgeRoleIsForbiddenWith403()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -478,7 +478,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Notify_for_a_competition_owned_by_a_different_organizer_returns_404()
+    public async Task NotifyForACompetitionOwnedByADifferentOrganizerReturns404()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner);
@@ -490,7 +490,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Notify_is_a_no_op_when_nothing_is_Pending()
+    public async Task NotifyIsANoOpWhenNothingIsPending()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -503,7 +503,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Notify_enqueues_SendInvitation_for_every_Pending_judge_and_they_reach_Sent()
+    public async Task NotifyEnqueuesSendInvitationForEveryPendingJudgeAndTheyReachSent()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -522,7 +522,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     }
 
     [Fact]
-    public async Task Notify_does_not_touch_a_judge_that_is_already_Sent()
+    public async Task NotifyDoesNotTouchAJudgeThatIsAlreadySent()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
@@ -544,7 +544,7 @@ public sealed class JudgesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
     /// using — see KeycloakAdminClientTests for the unit-level coverage of the underlying
     /// skip-reset logic.</summary>
     [Fact]
-    public async Task Notify_for_an_email_with_an_already_active_Keycloak_account_does_not_reset_its_password()
+    public async Task NotifyForAnEmailWithAnAlreadyActiveKeycloakAccountDoesNotResetItsPassword()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);

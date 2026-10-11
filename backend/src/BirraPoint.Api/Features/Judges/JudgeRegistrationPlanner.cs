@@ -1,6 +1,6 @@
 namespace BirraPoint.Api.Features.Judges;
 
-public sealed record JudgeRegistrationPlan(IReadOnlyList<string> ToCreate, IReadOnlyList<JudgeSkipDto> Skipped);
+internal sealed record JudgeRegistrationPlan(IReadOnlyList<string> ToCreate, IReadOnlyList<JudgeSkipDto> Skipped);
 
 /// <summary>
 /// Pure classification of a submitted email list (FR-014/FR-015): in-list duplicates (case-
@@ -8,7 +8,7 @@ public sealed record JudgeRegistrationPlan(IReadOnlyList<string> ToCreate, IRead
 /// so a duplicate of an already-registered address is reported once (on its first occurrence) and
 /// as a plain duplicate afterward.
 /// </summary>
-public static class JudgeRegistrationPlanner
+internal static class JudgeRegistrationPlanner
 {
     public static JudgeRegistrationPlan Plan(IReadOnlyList<string> emails, IReadOnlySet<string> existingEmails)
     {

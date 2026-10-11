@@ -13,7 +13,7 @@ public sealed class StartupMigrationsTests
         new ConfigurationBuilder().AddInMemoryCollection(values).Build();
 
     [Fact]
-    public void Development_always_migrates_even_without_the_config_flag()
+    public void DevelopmentAlwaysMigratesEvenWithoutTheConfigFlag()
     {
         var configuration = Build(new Dictionary<string, string?>());
 
@@ -21,7 +21,7 @@ public sealed class StartupMigrationsTests
     }
 
     [Fact]
-    public void Non_development_without_the_flag_does_not_migrate()
+    public void NonDevelopmentWithoutTheFlagDoesNotMigrate()
     {
         var configuration = Build(new Dictionary<string, string?>());
 
@@ -29,7 +29,7 @@ public sealed class StartupMigrationsTests
     }
 
     [Fact]
-    public void Non_development_with_MigrateOnStartup_true_migrates()
+    public void NonDevelopmentWithMigrateOnStartupTrueMigrates()
     {
         var configuration = Build(new Dictionary<string, string?>
         {
@@ -40,7 +40,7 @@ public sealed class StartupMigrationsTests
     }
 
     [Fact]
-    public void Non_development_with_MigrateOnStartup_false_does_not_migrate()
+    public void NonDevelopmentWithMigrateOnStartupFalseDoesNotMigrate()
     {
         var configuration = Build(new Dictionary<string, string?>
         {
@@ -51,7 +51,7 @@ public sealed class StartupMigrationsTests
     }
 
     [Fact]
-    public void Prefers_the_direct_connection_string_when_configured()
+    public void PrefersTheDirectConnectionStringWhenConfigured()
     {
         var configuration = Build(new Dictionary<string, string?>
         {
@@ -63,7 +63,7 @@ public sealed class StartupMigrationsTests
     }
 
     [Fact]
-    public void Falls_back_to_the_pooled_connection_string_when_no_direct_string_is_configured()
+    public void FallsBackToThePooledConnectionStringWhenNoDirectStringIsConfigured()
     {
         var configuration = Build(new Dictionary<string, string?>
         {
@@ -74,7 +74,7 @@ public sealed class StartupMigrationsTests
     }
 
     [Fact]
-    public void Throws_when_neither_connection_string_is_configured()
+    public void ThrowsWhenNeitherConnectionStringIsConfigured()
     {
         var configuration = Build(new Dictionary<string, string?>());
 

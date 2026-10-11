@@ -11,7 +11,7 @@ namespace BirraPoint.Api.IntegrationTests.TestHost;
 /// test-only key so <see cref="ApiFactory"/> can validate tokens statically (no metadata fetch);
 /// the `realm_access` claim matches the shape <c>KeycloakRolesClaimsTransformation</c> parses.
 /// </summary>
-public static class TestJwtIssuer
+internal static class TestJwtIssuer
 {
     public const string Audience = "birrapoint-api";
     private const string Issuer = "https://test-issuer.birrapoint.local/realms/birrapoint";

@@ -31,7 +31,7 @@ public sealed class AuditWriterTests(PostgresFixture fixture) : IClassFixture<Po
     private AppDbContext NewContext() => new(fixture.Options);
 
     [Fact]
-    public async Task Record_stages_an_audit_log_row_that_persists_on_the_callers_save_changes()
+    public async Task RecordStagesAnAuditLogRowThatPersistsOnTheCallersSaveChanges()
     {
         await using var db = NewContext();
         var writer = new AuditWriter(db, new FakeCurrentUser("kc-organizer-42"));
@@ -56,7 +56,7 @@ public sealed class AuditWriterTests(PostgresFixture fixture) : IClassFixture<Po
     }
 
     [Fact]
-    public async Task Record_accepts_a_null_before_for_creation_style_actions()
+    public async Task RecordAcceptsANullBeforeForCreationStyleActions()
     {
         await using var db = NewContext();
         var writer = new AuditWriter(db, new FakeCurrentUser("kc-organizer-1"));
@@ -74,7 +74,7 @@ public sealed class AuditWriterTests(PostgresFixture fixture) : IClassFixture<Po
     }
 
     [Fact]
-    public async Task Does_not_persist_when_the_caller_never_calls_save_changes()
+    public async Task DoesNotPersistWhenTheCallerNeverCallsSaveChanges()
     {
         await using var db = NewContext();
         var writer = new AuditWriter(db, new FakeCurrentUser("kc-organizer-1"));

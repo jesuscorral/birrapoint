@@ -8,18 +8,18 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Features.Judges;
 
-public sealed record ConsolidatedJudgeDto(Guid Id, string Email);
+internal sealed record ConsolidatedJudgeDto(Guid Id, string Email);
 
-public sealed record ConsolidateJudgeImportResult(
+internal sealed record ConsolidateJudgeImportResult(
     IReadOnlyList<ConsolidatedJudgeDto> Created,
     IReadOnlyList<ConsolidatedJudgeDto> Updated,
     int Excluded,
     IReadOnlyList<JudgeSkipDto> Skipped);
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record ConsolidateJudgeImportCommand(Guid CompetitionId, Guid ImportId) : IRequest<ConsolidateJudgeImportResult?>;
+internal sealed record ConsolidateJudgeImportCommand(Guid CompetitionId, Guid ImportId) : IRequest<ConsolidateJudgeImportResult?>;
 
-public sealed class ConsolidateJudgeImportCommandHandler(
+internal sealed class ConsolidateJudgeImportCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, IDispatchJobQueue dispatchJobQueue)
     : IRequestHandler<ConsolidateJudgeImportCommand, ConsolidateJudgeImportResult?>
 {

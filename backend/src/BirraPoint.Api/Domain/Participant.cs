@@ -1,7 +1,7 @@
 namespace BirraPoint.Api.Domain;
 
 /// <summary>Brewer — never exposed to judges (BR-01/FR-019).</summary>
-public class Participant : Entity
+internal class Participant : Entity
 {
     public Guid CompetitionId { get; set; }
 

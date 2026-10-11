@@ -3,7 +3,7 @@ using FluentValidation;
 
 namespace BirraPoint.Api.Common.Behaviors;
 
-public static class MediatRExtensions
+internal static class MediatRExtensions
 {
     /// <summary>
     /// Registers MediatR handlers, FluentValidation validators, and <see cref="ValidationBehavior{TRequest,TResponse}"/>
@@ -11,7 +11,7 @@ public static class MediatRExtensions
     /// </summary>
     public static IServiceCollection AddMediatRWithValidation(this IServiceCollection services, Assembly assembly)
     {
-        services.AddValidatorsFromAssembly(assembly);
+        services.AddValidatorsFromAssembly(assembly, includeInternalTypes: true);
         services.AddMediatR(configuration =>
         {
             configuration.RegisterServicesFromAssembly(assembly);

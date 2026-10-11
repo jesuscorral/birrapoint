@@ -7,7 +7,7 @@ namespace BirraPoint.Api.Domain;
 /// BJCP style may belong to at most one category within the same competition" without a
 /// cross-table subquery constraint.
 /// </summary>
-public class CompetitionCategoryStyle : ITimestamped
+internal class CompetitionCategoryStyle : ITimestamped
 {
     public Guid CompetitionCategoryId { get; set; }
 

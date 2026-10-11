@@ -25,6 +25,8 @@ namespace BirraPoint.Api.IntegrationTests.Persistence;
 /// API replica, which migrates against Neon on every start), including the BJCP seed that ships
 /// as migration data.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1515:Consider making public types internal",
+    Justification = "xUnit requires fixtures used in public test-class constructors (IClassFixture<T>) to be public.")]
 public sealed class MigrateOnStartupApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:16").Build();
@@ -41,6 +43,7 @@ public sealed class MigrateOnStartupApiFactory : WebApplicationFactory<Program>,
     {
         // Any non-Development name exercises the same branch as a real deployment; Production
         // mirrors what the ACA revision actually sets ASPNETCORE_ENVIRONMENT to.
+        ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment("Production");
 
         builder.ConfigureAppConfiguration((_, config) =>
@@ -78,13 +81,13 @@ public sealed class MigrateOnStartupApiFactory : WebApplicationFactory<Program>,
 public sealed class StartupMigrationApiTests(MigrateOnStartupApiFactory factory) : IClassFixture<MigrateOnStartupApiFactory>
 {
     [Fact]
-    public async Task Database_MigrateOnStartup_applies_the_schema_and_the_bjcp_seed_on_a_fresh_database()
+    public async Task DatabaseMigrateOnStartupAppliesTheSchemaAndTheBjcpSeedOnAFreshDatabase()
     {
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", TestJwtIssuer.IssueToken(sub: "kc-user-startup-migration"));
 
-        var response = await client.GetAsync("/api/v1/styles", TestContext.Current.CancellationToken);
+        var response = await client.GetAsync(Urls.Rel("/api/v1/styles"), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
@@ -95,7 +98,7 @@ public sealed class StartupMigrationApiTests(MigrateOnStartupApiFactory factory)
     }
 
     [Fact]
-    public async Task Forwarded_https_proto_over_plain_http_is_not_redirected_and_emits_hsts()
+    public async Task ForwardedHttpsProtoOverPlainHttpIsNotRedirectedAndEmitsHsts()
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/styles");
@@ -121,7 +124,7 @@ public sealed class StartupMigrationApiTests(MigrateOnStartupApiFactory factory)
     }
 
     [Fact]
-    public async Task Missing_forwarded_proto_header_does_not_emit_hsts()
+    public async Task MissingForwardedProtoHeaderDoesNotEmitHsts()
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/styles");
@@ -145,6 +148,8 @@ public sealed class StartupMigrationApiTests(MigrateOnStartupApiFactory factory)
 /// migration path ever regressed to preferring ConnectionStrings:db, the migration would throw
 /// against the unreachable endpoint and this factory would fail to start.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1515:Consider making public types internal",
+    Justification = "xUnit requires fixtures used in public test-class constructors (IClassFixture<T>) to be public.")]
 public sealed class MigrateOnStartupViaDbDirectApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:16").Build();
@@ -163,6 +168,7 @@ public sealed class MigrateOnStartupViaDbDirectApiFactory : WebApplicationFactor
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment("Production");
 
         builder.ConfigureAppConfiguration((_, config) =>
@@ -203,7 +209,7 @@ public sealed class StartupMigrationViaDbDirectApiTests(MigrateOnStartupViaDbDir
     : IClassFixture<MigrateOnStartupViaDbDirectApiFactory>
 {
     [Fact]
-    public async Task Database_MigrateOnStartup_migrates_over_dbDirect_when_db_is_unreachable()
+    public async Task DatabaseMigrateOnStartupMigratesOverDbDirectWhenDbIsUnreachable()
     {
         // Accessing Server is what makes WebApplicationFactory actually build and start the host
         // (running Program.cs's startup-migration branch) — deliberately not issuing any HTTP

@@ -1,7 +1,7 @@
 namespace BirraPoint.Api.Common.Errors;
 
 /// <summary>Urn/status/title metadata for each <see cref="DomainErrorType"/>, per contracts/rest-api.md §Error catalog.</summary>
-public static class DomainErrorCatalog
+internal static class DomainErrorCatalog
 {
     public static readonly IReadOnlyDictionary<DomainErrorType, (string Urn, int Status, string Title)> Entries =
         new Dictionary<DomainErrorType, (string, int, string)>

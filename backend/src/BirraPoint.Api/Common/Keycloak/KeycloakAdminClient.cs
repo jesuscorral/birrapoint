@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 
 namespace BirraPoint.Api.Common.Keycloak;
 
-public sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration configuration) : IKeycloakAdminClient
+internal sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration configuration) : IKeycloakAdminClient
 {
     private readonly string _authority = configuration["Keycloak:Authority"]
         ?? throw new InvalidOperationException("Keycloak:Authority is not configured.");
@@ -14,7 +14,7 @@ public sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration co
         ?? throw new InvalidOperationException("Keycloak:AdminClientSecret is not configured.");
 
     // ".../realms/birrapoint" -> ".../admin/realms/birrapoint" — no separate config key needed.
-    private string AdminRealmBaseUrl => _authority.Replace("/realms/", "/admin/realms/");
+    private string AdminRealmBaseUrl => _authority.Replace("/realms/", "/admin/realms/", StringComparison.Ordinal);
 
     public async Task<string?> EnsureUserWithTemporaryPasswordAsync(string email, CancellationToken cancellationToken)
     {
@@ -76,8 +76,9 @@ public sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration co
             ["client_secret"] = _clientSecret,
         };
 
+        using var content = new FormUrlEncodedContent(form);
         using var response = await httpClient.PostAsync(
-            $"{_authority}/protocol/openid-connect/token", new FormUrlEncodedContent(form), cancellationToken);
+            new Uri($"{_authority}/protocol/openid-connect/token", UriKind.Absolute), content, cancellationToken);
         response.EnsureSuccessStatusCode();
 
         var payload = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken);

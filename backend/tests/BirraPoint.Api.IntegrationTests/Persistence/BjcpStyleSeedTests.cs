@@ -13,7 +13,7 @@ public sealed class BjcpStyleSeedTests(PostgresFixture fixture) : IClassFixture<
     private AppDbContext NewContext() => new(fixture.Options);
 
     [Fact]
-    public async Task Migration_seeds_the_full_catalog()
+    public async Task MigrationSeedsTheFullCatalog()
     {
         await using var db = NewContext();
 
@@ -21,7 +21,7 @@ public sealed class BjcpStyleSeedTests(PostgresFixture fixture) : IClassFixture<
     }
 
     [Fact]
-    public async Task American_ipa_row_carries_vital_statistics_and_description()
+    public async Task AmericanIpaRowCarriesVitalStatisticsAndDescription()
     {
         await using var db = NewContext();
 
@@ -38,7 +38,7 @@ public sealed class BjcpStyleSeedTests(PostgresFixture fixture) : IClassFixture<
     }
 
     [Fact]
-    public async Task Historical_style_with_a_synthetic_slug_code_is_seeded()
+    public async Task HistoricalStyleWithASyntheticSlugCodeIsSeeded()
     {
         await using var db = NewContext();
 
@@ -51,7 +51,7 @@ public sealed class BjcpStyleSeedTests(PostgresFixture fixture) : IClassFixture<
     }
 
     [Fact]
-    public async Task Specialty_style_with_no_fixed_vital_statistics_is_seeded_with_null_ranges()
+    public async Task SpecialtyStyleWithNoFixedVitalStatisticsIsSeededWithNullRanges()
     {
         await using var db = NewContext();
 
@@ -63,7 +63,7 @@ public sealed class BjcpStyleSeedTests(PostgresFixture fixture) : IClassFixture<
     }
 
     [Fact]
-    public async Task Every_seeded_row_has_valid_json_description()
+    public async Task EverySeededRowHasValidJsonDescription()
     {
         await using var db = NewContext();
 

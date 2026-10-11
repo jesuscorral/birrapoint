@@ -33,11 +33,11 @@ namespace BirraPoint.Api.Features.Tables;
 /// party to could never resolve: the only other paths that call reconciliation (SubmitEvaluation,
 /// AdjustEvaluation) both require an active table membership the removed judge no longer has, and
 /// CloseTable hard-blocks on any Open alert, so without this the table could never close.</summary>
-public sealed record RemoveJudgeCommand(Guid CompetitionId, Guid TableId, Guid JudgeId) : IRequest<RemoveJudgeResult?>;
+internal sealed record RemoveJudgeCommand(Guid CompetitionId, Guid TableId, Guid JudgeId) : IRequest<RemoveJudgeResult?>;
 
-public sealed record RemoveJudgeResult(Guid TableId, Guid JudgeId);
+internal sealed record RemoveJudgeResult(Guid TableId, Guid JudgeId);
 
-public sealed class RemoveJudgeCommandHandler(
+internal sealed class RemoveJudgeCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter, IEventPublisher eventPublisher)
     : IRequestHandler<RemoveJudgeCommand, RemoveJudgeResult?>
 {
@@ -181,7 +181,7 @@ public sealed class RemoveJudgeCommandHandler(
 /// <summary>Pure helper for RemoveJudgeCommandHandler — no EF/DB dependency, so it's unit-testable
 /// directly (same "pure rule class beside the DB-touching handler" pattern as
 /// Features/Evaluations/CloseTableRules and Features/Evaluations/SubmitEvaluationRules).</summary>
-public static class RemoveJudgeRules
+internal static class RemoveJudgeRules
 {
     /// <summary>Composite (TastingTableId, JudgeId) PK has no single Guid id to key the audit row
     /// on, and AuditLog.EntityId is capped at 50 chars (AuditLogConfiguration.cs) — too short for

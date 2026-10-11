@@ -8,9 +8,9 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Import;
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record UploadImportCommand(Guid CompetitionId, IFormFile File) : IRequest<ImportBatchDto?>;
+internal sealed record UploadImportCommand(Guid CompetitionId, IFormFile File) : IRequest<ImportBatchDto?>;
 
-public sealed class UploadImportCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class UploadImportCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<UploadImportCommand, ImportBatchDto?>
 {
     public async Task<ImportBatchDto?> Handle(UploadImportCommand request, CancellationToken cancellationToken)

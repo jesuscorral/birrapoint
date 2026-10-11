@@ -5,7 +5,7 @@ namespace BirraPoint.Api.UnitTests.Dispatch;
 public sealed class DispatchPathsTests
 {
     [Fact]
-    public void ZipEntryPath_builds_the_FR_040_hierarchy()
+    public void ZipEntryPathBuildsTheFR040Hierarchy()
     {
         var participantId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
@@ -15,7 +15,7 @@ public sealed class DispatchPathsTests
     }
 
     [Fact]
-    public void ZipEntryPath_does_not_throw_or_strip_characters_that_would_be_awkward_in_a_real_filesystem_path()
+    public void ZipEntryPathDoesNotThrowOrStripCharactersThatWouldBeAwkwardInARealFilesystemPath()
     {
         var participantId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 

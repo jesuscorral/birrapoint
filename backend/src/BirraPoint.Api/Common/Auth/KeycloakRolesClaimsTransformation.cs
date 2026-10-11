@@ -10,7 +10,7 @@ namespace BirraPoint.Api.Common.Auth;
 /// <see cref="ClaimTypes.Role"/> claims instead. ASP.NET Core may invoke a claims transformation
 /// more than once per request, so this guards against adding duplicate role claims.
 /// </summary>
-public sealed class KeycloakRolesClaimsTransformation : IClaimsTransformation
+internal sealed class KeycloakRolesClaimsTransformation : IClaimsTransformation
 {
     public Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
     {

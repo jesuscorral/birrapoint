@@ -8,13 +8,13 @@ namespace BirraPoint.Api.UnitTests.Evaluations;
 public sealed class EvaluationDescriptorsSerializerTests
 {
     [Fact]
-    public void Deserialize_of_null_returns_null()
+    public void DeserializeOfNullReturnsNull()
     {
         Assert.Null(EvaluationDescriptorsSerializer.Deserialize(null));
     }
 
     [Fact]
-    public void Deserialize_of_malformed_json_returns_null_instead_of_throwing()
+    public void DeserializeOfMalformedJsonReturnsNullInsteadOfThrowing()
     {
         var result = EvaluationDescriptorsSerializer.Deserialize("{ not valid json ");
 
@@ -22,7 +22,7 @@ public sealed class EvaluationDescriptorsSerializerTests
     }
 
     [Fact]
-    public void Deserialize_of_json_that_does_not_match_the_dto_shape_returns_null_instead_of_throwing()
+    public void DeserializeOfJsonThatDoesNotMatchTheDtoShapeReturnsNullInsteadOfThrowing()
     {
         var result = EvaluationDescriptorsSerializer.Deserialize("""{ "someUnrelatedField": 123 }""");
 
@@ -34,7 +34,7 @@ public sealed class EvaluationDescriptorsSerializerTests
     }
 
     [Fact]
-    public void Serialize_then_deserialize_round_trips_camelCase_correctly()
+    public void SerializeThenDeserializeRoundTripsCamelCaseCorrectly()
     {
         var original = new EvaluationDescriptorsDto(
             new AppearanceDescriptorsDto("Golden", null, false, "Clear", false, "White", null, false, 60, false, "Silky", null),
@@ -55,7 +55,7 @@ public sealed class EvaluationDescriptorsSerializerTests
         Assert.Equal(90, roundTripped.Overall?.Vitality);
         Assert.Equal(["Diacetyl", "Oxidized"], roundTripped.OffFlavors);
         // camelCase on the wire (senior-review M2/ADR-0015's own claim, now actually pinned).
-        Assert.Contains("\"color\":\"Golden\"", json);
-        Assert.Contains("\"offFlavors\":", json);
+        Assert.Contains("\"color\":\"Golden\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"offFlavors\":", json, StringComparison.Ordinal);
     }
 }

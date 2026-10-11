@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace BirraPoint.Api.Common.Persistence.Configurations;
 
-public sealed class BjcpStyleConfiguration : IEntityTypeConfiguration<BjcpStyle>
+internal sealed class BjcpStyleConfiguration : IEntityTypeConfiguration<BjcpStyle>
 {
     public void Configure(EntityTypeBuilder<BjcpStyle> builder)
     {

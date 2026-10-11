@@ -27,4 +27,8 @@
   <ItemGroup>
     <EmbeddedResource Include="Features/Catalog/Data/bjcp-2021.json"/>
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="BirraPoint.Api.UnitTests"/>
+    <InternalsVisibleTo Include="BirraPoint.Api.IntegrationTests"/>
+  </ItemGroup>
 </Project>

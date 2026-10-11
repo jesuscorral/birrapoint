@@ -8,7 +8,7 @@ namespace BirraPoint.Api.Features.Judges;
 /// discards the prior unconsolidated one. Mirrors Features/Import/ImportBatch.cs exactly
 /// (US14/R-20), independent of the beer-entry import's own single-active-batch rule.
 /// </summary>
-public class JudgeImportBatch : Entity
+internal class JudgeImportBatch : Entity
 {
     public Guid CompetitionId { get; set; }
 
@@ -17,7 +17,7 @@ public class JudgeImportBatch : Entity
     public ICollection<JudgeImportRow> Rows { get; set; } = [];
 }
 
-public enum JudgeImportBatchStatus
+internal enum JudgeImportBatchStatus
 {
     Pending,
     Consolidated,

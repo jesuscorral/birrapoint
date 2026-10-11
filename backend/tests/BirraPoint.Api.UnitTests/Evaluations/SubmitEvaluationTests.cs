@@ -17,7 +17,7 @@ public sealed class SubmitEvaluationTests
     // ---- IsNextInSequence -----------------------------------------------------------------------
 
     [Fact]
-    public void IsNextInSequence_true_when_requested_id_is_the_first_not_yet_submitted()
+    public void IsNextInSequenceTrueWhenRequestedIdIsTheFirstNotYetSubmitted()
     {
         var a = Guid.NewGuid();
         var b = Guid.NewGuid();
@@ -27,7 +27,7 @@ public sealed class SubmitEvaluationTests
     }
 
     [Fact]
-    public void IsNextInSequence_false_when_requested_id_is_not_the_first_not_yet_submitted()
+    public void IsNextInSequenceFalseWhenRequestedIdIsNotTheFirstNotYetSubmitted()
     {
         var a = Guid.NewGuid();
         var b = Guid.NewGuid();
@@ -37,7 +37,7 @@ public sealed class SubmitEvaluationTests
     }
 
     [Fact]
-    public void IsNextInSequence_true_for_the_first_sample_when_nothing_has_been_submitted_yet()
+    public void IsNextInSequenceTrueForTheFirstSampleWhenNothingHasBeenSubmittedYet()
     {
         var a = Guid.NewGuid();
         var b = Guid.NewGuid();
@@ -46,7 +46,7 @@ public sealed class SubmitEvaluationTests
     }
 
     [Fact]
-    public void IsNextInSequence_true_for_the_last_sample_when_all_but_the_last_are_submitted()
+    public void IsNextInSequenceTrueForTheLastSampleWhenAllButTheLastAreSubmitted()
     {
         var a = Guid.NewGuid();
         var b = Guid.NewGuid();
@@ -56,7 +56,7 @@ public sealed class SubmitEvaluationTests
     }
 
     [Fact]
-    public void IsNextInSequence_false_when_every_sample_has_already_been_submitted()
+    public void IsNextInSequenceFalseWhenEverySampleHasAlreadyBeenSubmitted()
     {
         var a = Guid.NewGuid();
         var b = Guid.NewGuid();
@@ -65,7 +65,7 @@ public sealed class SubmitEvaluationTests
     }
 
     [Fact]
-    public void IsNextInSequence_false_when_the_requested_id_is_not_in_the_ordered_list_at_all()
+    public void IsNextInSequenceFalseWhenTheRequestedIdIsNotInTheOrderedListAtAll()
     {
         var a = Guid.NewGuid();
         var b = Guid.NewGuid();
@@ -77,7 +77,7 @@ public sealed class SubmitEvaluationTests
     // ---- CanSubmitInState -------------------------------------------------------------------------
 
     [Fact]
-    public void CanSubmitInState_true_only_for_InEvaluation()
+    public void CanSubmitInStateTrueOnlyForInEvaluation()
     {
         Assert.True(SubmitEvaluationRules.CanSubmitInState(CompetitionState.InEvaluation));
     }
@@ -86,7 +86,7 @@ public sealed class SubmitEvaluationTests
     [InlineData(CompetitionState.Draft)]
     [InlineData(CompetitionState.Active)]
     [InlineData(CompetitionState.Finalized)]
-    public void CanSubmitInState_false_outside_InEvaluation(CompetitionState state)
+    public void CanSubmitInStateFalseOutsideInEvaluation(CompetitionState state)
     {
         Assert.False(SubmitEvaluationRules.CanSubmitInState(state));
     }
@@ -107,7 +107,7 @@ public sealed class SubmitEvaluationTests
         Feedback: null);
 
     [Fact]
-    public void Command_with_valid_scores_and_comments_is_valid()
+    public void CommandWithValidScoresAndCommentsIsValid()
     {
         Assert.True(Validator.Validate(ValidCommand()).IsValid);
     }
@@ -115,7 +115,7 @@ public sealed class SubmitEvaluationTests
     [Theory]
     [InlineData(0)]
     [InlineData(12)]
-    public void Aroma_score_accepted_at_its_bounds(int score)
+    public void AromaScoreAcceptedAtItsBounds(int score)
     {
         var command = ValidCommand() with { Scores = ValidCommand().Scores with { Aroma = score } };
         Assert.True(Validator.Validate(command).IsValid);
@@ -124,7 +124,7 @@ public sealed class SubmitEvaluationTests
     [Theory]
     [InlineData(-1)]
     [InlineData(13)]
-    public void Aroma_score_rejected_outside_its_0_to_12_cap(int score)
+    public void AromaScoreRejectedOutsideIts0To12Cap(int score)
     {
         var command = ValidCommand() with { Scores = ValidCommand().Scores with { Aroma = score } };
         var result = Validator.Validate(command);
@@ -135,7 +135,7 @@ public sealed class SubmitEvaluationTests
     [Theory]
     [InlineData(0)]
     [InlineData(3)]
-    public void Appearance_score_accepted_at_its_bounds(int score)
+    public void AppearanceScoreAcceptedAtItsBounds(int score)
     {
         var command = ValidCommand() with { Scores = ValidCommand().Scores with { Appearance = score } };
         Assert.True(Validator.Validate(command).IsValid);
@@ -144,7 +144,7 @@ public sealed class SubmitEvaluationTests
     [Theory]
     [InlineData(-1)]
     [InlineData(4)]
-    public void Appearance_score_rejected_outside_its_0_to_3_cap(int score)
+    public void AppearanceScoreRejectedOutsideIts0To3Cap(int score)
     {
         var command = ValidCommand() with { Scores = ValidCommand().Scores with { Appearance = score } };
         var result = Validator.Validate(command);
@@ -155,7 +155,7 @@ public sealed class SubmitEvaluationTests
     [Theory]
     [InlineData(0)]
     [InlineData(20)]
-    public void Flavor_score_accepted_at_its_bounds(int score)
+    public void FlavorScoreAcceptedAtItsBounds(int score)
     {
         var command = ValidCommand() with { Scores = ValidCommand().Scores with { Flavor = score } };
         Assert.True(Validator.Validate(command).IsValid);
@@ -164,7 +164,7 @@ public sealed class SubmitEvaluationTests
     [Theory]
     [InlineData(-1)]
     [InlineData(21)]
-    public void Flavor_score_rejected_outside_its_0_to_20_cap(int score)
+    public void FlavorScoreRejectedOutsideIts0To20Cap(int score)
     {
         var command = ValidCommand() with { Scores = ValidCommand().Scores with { Flavor = score } };
         var result = Validator.Validate(command);
@@ -175,7 +175,7 @@ public sealed class SubmitEvaluationTests
     [Theory]
     [InlineData(0)]
     [InlineData(5)]
-    public void Mouthfeel_score_accepted_at_its_bounds(int score)
+    public void MouthfeelScoreAcceptedAtItsBounds(int score)
     {
         var command = ValidCommand() with { Scores = ValidCommand().Scores with { Mouthfeel = score } };
         Assert.True(Validator.Validate(command).IsValid);
@@ -184,7 +184,7 @@ public sealed class SubmitEvaluationTests
     [Theory]
     [InlineData(-1)]
     [InlineData(6)]
-    public void Mouthfeel_score_rejected_outside_its_0_to_5_cap(int score)
+    public void MouthfeelScoreRejectedOutsideIts0To5Cap(int score)
     {
         var command = ValidCommand() with { Scores = ValidCommand().Scores with { Mouthfeel = score } };
         var result = Validator.Validate(command);
@@ -195,7 +195,7 @@ public sealed class SubmitEvaluationTests
     [Theory]
     [InlineData(0)]
     [InlineData(10)]
-    public void Overall_score_accepted_at_its_bounds(int score)
+    public void OverallScoreAcceptedAtItsBounds(int score)
     {
         var command = ValidCommand() with { Scores = ValidCommand().Scores with { Overall = score } };
         Assert.True(Validator.Validate(command).IsValid);
@@ -204,7 +204,7 @@ public sealed class SubmitEvaluationTests
     [Theory]
     [InlineData(-1)]
     [InlineData(11)]
-    public void Overall_score_rejected_outside_its_0_to_10_cap(int score)
+    public void OverallScoreRejectedOutsideIts0To10Cap(int score)
     {
         var command = ValidCommand() with { Scores = ValidCommand().Scores with { Overall = score } };
         var result = Validator.Validate(command);
@@ -215,7 +215,7 @@ public sealed class SubmitEvaluationTests
     // ---- SubmitEvaluationCommandValidator: comment length (FR-025) -----------------------------
 
     [Fact]
-    public void Comment_of_exactly_20_characters_is_accepted()
+    public void CommentOfExactly20CharactersIsAccepted()
     {
         var twentyChars = new string('x', 20);
         var command = ValidCommand() with { Comments = ValidCommand().Comments with { Aroma = twentyChars } };
@@ -224,7 +224,7 @@ public sealed class SubmitEvaluationTests
     }
 
     [Fact]
-    public void Comment_under_20_characters_is_rejected()
+    public void CommentUnder20CharactersIsRejected()
     {
         var nineteenChars = new string('x', 19);
         var command = ValidCommand() with { Comments = ValidCommand().Comments with { Aroma = nineteenChars } };
@@ -239,7 +239,7 @@ public sealed class SubmitEvaluationTests
     [InlineData("Flavor")]
     [InlineData("Mouthfeel")]
     [InlineData("Overall")]
-    public void Every_comment_section_enforces_the_same_minimum_length(string section)
+    public void EveryCommentSectionEnforcesTheSameMinimumLength(string section)
     {
         var tooShort = "short";
         var comments = ValidCommand().Comments;
@@ -261,13 +261,13 @@ public sealed class SubmitEvaluationTests
     // optional; these only assert that a SUPPLIED value is range/catalog-checked. -----------------
 
     [Fact]
-    public void Absent_descriptors_are_valid()
+    public void AbsentDescriptorsAreValid()
     {
         Assert.True(Validator.Validate(ValidCommand() with { Descriptors = null }).IsValid);
     }
 
     [Fact]
-    public void Empty_descriptors_object_is_valid()
+    public void EmptyDescriptorsObjectIsValid()
     {
         var descriptors = new EvaluationDescriptorsDto(null, null, null, null, null, null);
         Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
@@ -276,7 +276,7 @@ public sealed class SubmitEvaluationTests
     [Theory]
     [InlineData(0)]
     [InlineData(3)]
-    public void Discrete_intensity_slider_accepted_at_its_bounds(int value)
+    public void DiscreteIntensitySliderAcceptedAtItsBounds(int value)
     {
         var descriptors = new EvaluationDescriptorsDto(
             null, new AromaDescriptorsDto(value, false, null, false, null, false), null, null, null, null);
@@ -286,7 +286,7 @@ public sealed class SubmitEvaluationTests
     [Theory]
     [InlineData(-1)]
     [InlineData(4)]
-    public void Discrete_intensity_slider_rejected_outside_0_to_3(int value)
+    public void DiscreteIntensitySliderRejectedOutside0To3(int value)
     {
         var descriptors = new EvaluationDescriptorsDto(
             null, new AromaDescriptorsDto(value, false, null, false, null, false), null, null, null, null);
@@ -298,7 +298,7 @@ public sealed class SubmitEvaluationTests
     [Theory]
     [InlineData(0)]
     [InlineData(100)]
-    public void Bipolar_slider_accepted_at_its_bounds(int value)
+    public void BipolarSliderAcceptedAtItsBounds(int value)
     {
         var descriptors = new EvaluationDescriptorsDto(
             null, null, null, null, new OverallDescriptorsDto(value, false, null, false, null, false), null);
@@ -308,7 +308,7 @@ public sealed class SubmitEvaluationTests
     [Theory]
     [InlineData(-1)]
     [InlineData(101)]
-    public void Bipolar_slider_rejected_outside_0_to_100(int value)
+    public void BipolarSliderRejectedOutside0To100(int value)
     {
         var descriptors = new EvaluationDescriptorsDto(
             null, null, null, null, new OverallDescriptorsDto(value, false, null, false, null, false), null);
@@ -318,7 +318,7 @@ public sealed class SubmitEvaluationTests
     }
 
     [Fact]
-    public void Color_outside_the_closed_list_is_rejected()
+    public void ColorOutsideTheClosedListIsRejected()
     {
         var descriptors = new EvaluationDescriptorsDto(
             new AppearanceDescriptorsDto("Purple", null, false, null, false, null, null, false, null, false, null, null),
@@ -331,7 +331,7 @@ public sealed class SubmitEvaluationTests
     [Theory]
     [InlineData("Yellow")]
     [InlineData("Other")]
-    public void Color_in_the_closed_list_is_accepted(string color)
+    public void ColorInTheClosedListIsAccepted(string color)
     {
         var descriptors = new EvaluationDescriptorsDto(
             new AppearanceDescriptorsDto(color, null, false, null, false, null, null, false, null, false, null, null),
@@ -340,7 +340,7 @@ public sealed class SubmitEvaluationTests
     }
 
     [Fact]
-    public void Off_flavor_term_outside_the_closed_list_is_rejected()
+    public void OffFlavorTermOutsideTheClosedListIsRejected()
     {
         var descriptors = new EvaluationDescriptorsDto(null, null, null, null, null, ["NotARealDescriptor"]);
         var result = Validator.Validate(ValidCommand() with { Descriptors = descriptors });
@@ -348,14 +348,14 @@ public sealed class SubmitEvaluationTests
     }
 
     [Fact]
-    public void Off_flavor_terms_from_the_closed_list_are_accepted()
+    public void OffFlavorTermsFromTheClosedListAreAccepted()
     {
         var descriptors = new EvaluationDescriptorsDto(null, null, null, null, null, ["Diacetyl", "Oxidized"]);
         Assert.True(Validator.Validate(ValidCommand() with { Descriptors = descriptors }).IsValid);
     }
 
     [Fact]
-    public void Off_flavor_list_longer_than_the_closed_list_itself_is_rejected()
+    public void OffFlavorListLongerThanTheClosedListItselfIsRejected()
     {
         // Every entry is individually valid (a repeated real term) — this exercises the *count*
         // cap, not the closed-list membership check (senior-review B2).
@@ -366,7 +366,7 @@ public sealed class SubmitEvaluationTests
     }
 
     [Fact]
-    public void Free_text_descriptor_field_over_500_characters_is_rejected()
+    public void FreeTextDescriptorFieldOver500CharactersIsRejected()
     {
         // senior-review B2: unbounded free text was the one input path that escaped both EF and
         // FluentValidation length checks — Texture is one of five such fields (ColorOther,
@@ -381,7 +381,7 @@ public sealed class SubmitEvaluationTests
     }
 
     [Fact]
-    public void Free_text_descriptor_field_at_exactly_500_characters_is_accepted()
+    public void FreeTextDescriptorFieldAtExactly500CharactersIsAccepted()
     {
         var atLimit = new string('x', 500);
         var descriptors = new EvaluationDescriptorsDto(
@@ -391,7 +391,7 @@ public sealed class SubmitEvaluationTests
     }
 
     [Fact]
-    public void Feedback_over_4000_characters_is_rejected()
+    public void FeedbackOver4000CharactersIsRejected()
     {
         var command = ValidCommand() with { Feedback = new string('x', 4001) };
 

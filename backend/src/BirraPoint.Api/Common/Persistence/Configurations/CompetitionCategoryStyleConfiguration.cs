@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace BirraPoint.Api.Common.Persistence.Configurations;
 
-public sealed class CompetitionCategoryStyleConfiguration : IEntityTypeConfiguration<CompetitionCategoryStyle>
+internal sealed class CompetitionCategoryStyleConfiguration : IEntityTypeConfiguration<CompetitionCategoryStyle>
 {
     public void Configure(EntityTypeBuilder<CompetitionCategoryStyle> builder)
     {

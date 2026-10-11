@@ -1,6 +1,6 @@
 namespace BirraPoint.Api.Domain;
 
-public enum DispatchJobType
+internal enum DispatchJobType
 {
     GeneratePdfs,
     BundleZip,

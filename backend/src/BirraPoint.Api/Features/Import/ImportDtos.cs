@@ -5,7 +5,7 @@ namespace BirraPoint.Api.Features.Import;
 /// the raw parsed cell text (may not resolve to anything); <see cref="CompetitionCategoryId"/>/
 /// <see cref="ResolvedStyleCode"/> are the resolved references, set at parse time or by the
 /// organizer via the full row edit.</summary>
-public sealed record ImportRowDataDto(
+internal sealed record ImportRowDataDto(
     string? ParticipantName,
     string? ParticipantEmail,
     string? AcceMemberNumber,
@@ -27,7 +27,7 @@ public sealed record ImportRowDataDto(
     string? BeerName);
 
 /// <summary>Wire shape `{ rowNumber, status, data, error? }` (contracts/rest-api.md §Entry Import).</summary>
-public sealed record ImportRowDto(int RowNumber, ImportRowStatus Status, ImportRowDataDto Data, string? Error)
+internal sealed record ImportRowDto(int RowNumber, ImportRowStatus Status, ImportRowDataDto Data, string? Error)
 {
     public static ImportRowDto FromEntity(ImportRow row) => new(
         row.RowNumber,
@@ -56,7 +56,7 @@ public sealed record ImportRowDto(int RowNumber, ImportRowStatus Status, ImportR
 }
 
 /// <summary>Wire shape `{ importId, rows: [...] }` shared by upload and GET (contracts/rest-api.md §Entry Import).</summary>
-public sealed record ImportBatchDto(Guid ImportId, IReadOnlyList<ImportRowDto> Rows)
+internal sealed record ImportBatchDto(Guid ImportId, IReadOnlyList<ImportRowDto> Rows)
 {
     public static ImportBatchDto FromEntity(ImportBatch batch) => new(
         batch.Id,

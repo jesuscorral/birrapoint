@@ -7,14 +7,14 @@ namespace BirraPoint.Api.Features.Competitions;
 
 /// <summary>Wire shape for organizer-defined categories grouping allowed BJCP styles (wizard step
 /// 3, contracts/rest-api.md §Competitions).</summary>
-public sealed record CompetitionCategoriesDto(IReadOnlyList<CompetitionCategoryDto> Categories);
+internal sealed record CompetitionCategoriesDto(IReadOnlyList<CompetitionCategoryDto> Categories);
 
-public sealed record CompetitionCategoryDto(Guid Id, string Name, int DisplayOrder, IReadOnlyList<string> StyleCodes);
+internal sealed record CompetitionCategoryDto(Guid Id, string Name, int DisplayOrder, IReadOnlyList<string> StyleCodes);
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record GetCompetitionCategoriesQuery(Guid CompetitionId) : IRequest<CompetitionCategoriesDto?>;
+internal sealed record GetCompetitionCategoriesQuery(Guid CompetitionId) : IRequest<CompetitionCategoriesDto?>;
 
-public sealed class GetCompetitionCategoriesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class GetCompetitionCategoriesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<GetCompetitionCategoriesQuery, CompetitionCategoriesDto?>
 {
     public async Task<CompetitionCategoriesDto?> Handle(GetCompetitionCategoriesQuery request, CancellationToken cancellationToken)

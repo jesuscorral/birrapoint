@@ -5,7 +5,7 @@ namespace BirraPoint.Api.Common.Errors;
 /// member here requires a contract amendment (Principle VI) — this enum is not meant to grow ad
 /// hoc as new slices are added.
 /// </summary>
-public enum DomainErrorType
+internal enum DomainErrorType
 {
     Validation,
     InvalidImportFile,

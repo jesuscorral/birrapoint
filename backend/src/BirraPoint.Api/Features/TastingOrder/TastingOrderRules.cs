@@ -8,7 +8,7 @@ namespace BirraPoint.Api.Features.TastingOrder;
 /// unit-testable directly (same "pure rule class beside the DB-touching handler" pattern already
 /// used by Features/Tables/BosFlagRules and CoiDetector).
 /// </summary>
-public static class TastingOrderRules
+internal static class TastingOrderRules
 {
     /// <summary>True only when <paramref name="submitted"/> has no duplicates and is exactly the
     /// same set as <paramref name="currentSampleIds"/> (same count, same elements).</summary>

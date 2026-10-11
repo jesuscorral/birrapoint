@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Common.Persistence;
 
-public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+internal class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<Competition> Competitions => Set<Competition>();
 

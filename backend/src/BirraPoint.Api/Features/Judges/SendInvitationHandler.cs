@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Judges;
 
 /// <summary>Payload shape enqueued by RegisterJudges/ResendInvitation — no secrets (the temp password is generated fresh inside HandleAsync).</summary>
-public sealed record SendInvitationPayload(Guid JudgeId);
+internal sealed record SendInvitationPayload(Guid JudgeId);
 
 /// <summary>
 /// First real <see cref="IDispatchJobHandler"/> (T041). Tracks outcome on the <see
@@ -18,7 +18,7 @@ public sealed record SendInvitationPayload(Guid JudgeId);
 /// on failure it rethrows so <see cref="DispatchWorker"/>'s existing retry/backoff
 /// (<see cref="DispatchRetryPolicy"/>) schedules the reattempt; this handler never retries on its own.
 /// </summary>
-public sealed class SendInvitationHandler(
+internal sealed class SendInvitationHandler(
     AppDbContext dbContext, IKeycloakAdminClient keycloakAdminClient, IEmailSender emailSender, IConfiguration configuration)
     : IDispatchJobHandler
 {

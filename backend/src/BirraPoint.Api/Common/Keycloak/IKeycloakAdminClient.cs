@@ -1,7 +1,7 @@
 namespace BirraPoint.Api.Common.Keycloak;
 
 /// <summary>Judge provisioning via the Keycloak Admin REST API (R-10) — kept to the two calls this codebase needs, not a general SDK.</summary>
-public interface IKeycloakAdminClient
+internal interface IKeycloakAdminClient
 {
     /// <summary>
     /// Idempotent on an existing account (one person's Keycloak user can be shared across

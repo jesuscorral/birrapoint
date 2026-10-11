@@ -6,7 +6,7 @@ namespace BirraPoint.Api.Features.Evaluations;
 /// <summary>Shared (de)serialization for Evaluation.DescriptorsJson — camelCase, matching this
 /// app's own HTTP JSON convention (Program.cs's ConfigureHttpJsonOptions), so the exact same DTO
 /// shape round-trips through the wire and the jsonb column without a re-shaping step.</summary>
-public static class EvaluationDescriptorsSerializer
+internal static class EvaluationDescriptorsSerializer
 {
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
 
@@ -45,7 +45,7 @@ public static class EvaluationDescriptorsSerializer
 /// this mirrors. Stored as-is (camelCase, this app's own HTTP JSON convention) in
 /// Evaluation.DescriptorsJson — see ADR for why a jsonb string column instead of ~25 new columns.
 /// </summary>
-public sealed record EvaluationDescriptorsDto(
+internal sealed record EvaluationDescriptorsDto(
     AppearanceDescriptorsDto? Appearance,
     AromaDescriptorsDto? Aroma,
     FlavorDescriptorsDto? Flavor,
@@ -58,7 +58,7 @@ public sealed record EvaluationDescriptorsDto(
 /// Retention is a continuous 0–100 slider (Baja↔Alta, no discrete labels on the paper sheet).
 /// Session 2026-09-21 (organizer follow-up): every rated attribute carries its own Inappropriate
 /// flag — Texture/Notes are free-text annotations, not ratings, so they don't get one.</summary>
-public sealed record AppearanceDescriptorsDto(
+internal sealed record AppearanceDescriptorsDto(
     string? Color,
     string? ColorOther,
     bool ColorInappropriate,
@@ -74,7 +74,7 @@ public sealed record AppearanceDescriptorsDto(
 
 /// <summary>Aroma. Malt/Hops/Fermentation are discrete 4-stop intensity sliders (Nada/Bajo/Medio/Alto
 /// = 0–3), matching the paper sheet exactly. Every attribute carries its own Inappropriate flag.</summary>
-public sealed record AromaDescriptorsDto(
+internal sealed record AromaDescriptorsDto(
     int? Malt,
     bool MaltInappropriate,
     int? Hops,
@@ -85,7 +85,7 @@ public sealed record AromaDescriptorsDto(
 /// <summary>Sabor. Malt/Hops/Bitterness/Fermentation are the same 0–3 discrete sliders as Aroma;
 /// Balance and Finish are continuous 0–100 bipolar sliders (Lupulado↔Maltoso, Seco↔Dulce). Every
 /// attribute carries its own Inappropriate flag.</summary>
-public sealed record FlavorDescriptorsDto(
+internal sealed record FlavorDescriptorsDto(
     int? Malt,
     bool MaltInappropriate,
     int? Hops,
@@ -101,7 +101,7 @@ public sealed record FlavorDescriptorsDto(
 
 /// <summary>Sensación en boca. All five attributes are 0–3 discrete sliders, each with its own
 /// Inappropriate flag.</summary>
-public sealed record MouthfeelDescriptorsDto(
+internal sealed record MouthfeelDescriptorsDto(
     int? Body,
     bool BodyInappropriate,
     int? Carbonation,
@@ -117,7 +117,7 @@ public sealed record MouthfeelDescriptorsDto(
 /// <summary>Impresión general. Three continuous 0–100 bipolar sliders (Ejemplo clásico↔No acorde al
 /// estilo, Sin defectos↔Defectos significativos, Maravillosa↔Sin vida), each with its own
 /// Inappropriate flag.</summary>
-public sealed record OverallDescriptorsDto(
+internal sealed record OverallDescriptorsDto(
     int? ClassicExample,
     bool ClassicExampleInappropriate,
     int? Defects,
@@ -132,7 +132,7 @@ public sealed record OverallDescriptorsDto(
 /// English tokens, same convention as EvaluationStatus/CompetitionState — the frontend maps these to
 /// their Spanish display labels; the wire/storage values themselves stay English.
 /// </summary>
-public static class EvaluationDescriptorCatalog
+internal static class EvaluationDescriptorCatalog
 {
     public static readonly IReadOnlyList<string> ColorOptions =
         ["Yellow", "Golden", "Amber", "Copper", "Brown", "Black", "Other"];
@@ -160,7 +160,7 @@ public static class EvaluationDescriptorCatalog
 /// duplicated per this codebase's existing convention, this one is new enough (Session 2026-09-21)
 /// to start shared instead.
 /// </summary>
-public sealed class EvaluationDescriptorsDtoValidator : AbstractValidator<EvaluationDescriptorsDto>
+internal sealed class EvaluationDescriptorsDtoValidator : AbstractValidator<EvaluationDescriptorsDto>
 {
     public EvaluationDescriptorsDtoValidator()
     {

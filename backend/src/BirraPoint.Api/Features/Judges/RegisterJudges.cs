@@ -9,9 +9,9 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Judges;
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record RegisterJudgesCommand(Guid CompetitionId, IReadOnlyList<string> Emails) : IRequest<RegisterJudgesResult?>;
+internal sealed record RegisterJudgesCommand(Guid CompetitionId, IReadOnlyList<string> Emails) : IRequest<RegisterJudgesResult?>;
 
-public sealed class RegisterJudgesCommandValidator : AbstractValidator<RegisterJudgesCommand>
+internal sealed class RegisterJudgesCommandValidator : AbstractValidator<RegisterJudgesCommand>
 {
     public RegisterJudgesCommandValidator()
     {
@@ -20,7 +20,7 @@ public sealed class RegisterJudgesCommandValidator : AbstractValidator<RegisterJ
     }
 }
 
-public sealed class RegisterJudgesCommandHandler(
+internal sealed class RegisterJudgesCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, IDispatchJobQueue dispatchJobQueue)
     : IRequestHandler<RegisterJudgesCommand, RegisterJudgesResult?>
 {
@@ -50,7 +50,7 @@ public sealed class RegisterJudgesCommandHandler(
             {
                 CompetitionId = competition.Id,
                 Email = email,
-                DisplayName = email[..email.IndexOf('@')],
+                DisplayName = email[..email.IndexOf('@', StringComparison.Ordinal)],
             };
             dbContext.Judges.Add(judge);
             dbContext.Invitations.Add(new Invitation { JudgeId = judge.Id });

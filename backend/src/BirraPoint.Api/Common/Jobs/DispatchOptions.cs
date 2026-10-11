@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 namespace BirraPoint.Api.Common.Jobs;
 
 /// <summary>Bound from the <c>Dispatch</c> configuration section (T129, T132).</summary>
-public sealed class DispatchOptions
+internal sealed class DispatchOptions
 {
     public const string SectionName = "Dispatch";
 
@@ -40,7 +40,7 @@ public sealed class DispatchOptions
     }
 }
 
-public sealed class DispatchOptionsValidator : IValidateOptions<DispatchOptions>
+internal sealed class DispatchOptionsValidator : IValidateOptions<DispatchOptions>
 {
     public ValidateOptionsResult Validate(string? name, DispatchOptions options) =>
         options.Validate() is { } error ? ValidateOptionsResult.Fail(error) : ValidateOptionsResult.Success;

@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace BirraPoint.Api.Common.Persistence.Configurations;
 
-public sealed class TableJudgeConfiguration : IEntityTypeConfiguration<TableJudge>
+internal sealed class TableJudgeConfiguration : IEntityTypeConfiguration<TableJudge>
 {
     public void Configure(EntityTypeBuilder<TableJudge> builder)
     {

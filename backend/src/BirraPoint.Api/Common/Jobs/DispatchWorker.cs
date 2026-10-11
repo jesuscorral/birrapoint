@@ -25,7 +25,7 @@ namespace BirraPoint.Api.Common.Jobs;
 /// <c>BackgroundServiceExceptionBehavior</c> is <c>StopHost</c>, so an unguarded transient DB
 /// error here would take down the entire API — the opposite of R-06's "survive restarts" premise.
 /// </summary>
-public sealed class DispatchWorker(
+internal sealed partial class DispatchWorker(
     IServiceScopeFactory scopeFactory,
     Channel<Guid> wakeUpChannel,
     IEventPublisher eventPublisher,
@@ -98,13 +98,14 @@ public sealed class DispatchWorker(
             retryDelay = SafetyNetPollInterval;
         }
 
-        logger.LogWarning("DispatchWorker sweep failed ({Failures} in a row); retrying in {Delay}.",
-            _consecutiveFailedSweeps, retryDelay);
+        LogSweepFailed(logger, _consecutiveFailedSweeps, retryDelay);
         StartWake(retryDelay, stoppingToken);
     }
 
     /// <summary>A transient fault in a cycle must never fault <see cref="ExecuteAsync"/> — that
     /// would stop the whole host under the default exception behavior.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types",
+        Justification = "Background-service resilience boundary: any fault in a cycle is logged and retried; it must never fault ExecuteAsync and stop the host.")]
     private async Task<bool> RunGuardedAsync(Func<CancellationToken, Task> cycle, CancellationToken stoppingToken)
     {
         try
@@ -119,7 +120,8 @@ public sealed class DispatchWorker(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "DispatchWorker cycle failed; a retry wake is scheduled.");
+            // Deliberately broad: a transient fault must never fault ExecuteAsync (see summary above).
+            LogCycleFailed(logger, ex);
             return false;
         }
     }
@@ -163,7 +165,7 @@ public sealed class DispatchWorker(
             await db.SaveChangesAsync(stoppingToken);
             await transaction.CommitAsync(stoppingToken);
 
-            logger.LogWarning("Recovered {Count} DispatchJob(s) with an expired lease.", expired.Count);
+            LogExpiredLeasesRecovered(logger, expired.Count);
             foreach (var (job, outcome) in outcomes)
             {
                 await AfterFailureRecordedAsync(job, outcome, exception: null, stoppingToken);
@@ -264,7 +266,7 @@ public sealed class DispatchWorker(
             if (await TryFinishAsync(job, DispatchJobStatus.Completed, attempts: null, lastError: null, nextAttemptAt: null))
             {
                 job.Status = DispatchJobStatus.Completed;
-                logger.LogInformation("DispatchJob {JobId} ({Type}) completed.", job.Id, job.Type);
+                LogJobCompleted(logger, job.Id, job.Type);
                 await PublishProgressSafely(job, detail: null);
             }
         }
@@ -309,13 +311,13 @@ public sealed class DispatchWorker(
                         .ExecuteUpdateAsync(s => s.SetProperty(j => j.LeaseExpiresAt, expiresAt), cancellationToken);
                     if (rows == 0)
                     {
-                        logger.LogWarning("DispatchJob {JobId} lease was lost; stopping renewal.", jobId);
+                        LogLeaseLost(logger, jobId);
                         return;
                     }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    logger.LogWarning(ex, "Failed to renew the lease of DispatchJob {JobId}; will retry.", jobId);
+                    LogLeaseRenewalFailed(logger, ex, jobId);
                 }
             }
         }
@@ -354,9 +356,7 @@ public sealed class DispatchWorker(
 
         if (rows == 0)
         {
-            logger.LogWarning(
-                "DispatchJob {JobId} ({Type}) lost its lease before the outcome was recorded; result discarded.",
-                job.Id, job.Type);
+            LogOutcomeDiscarded(logger, job.Id, job.Type);
         }
 
         return rows > 0;
@@ -389,15 +389,11 @@ public sealed class DispatchWorker(
     {
         if (exception is not null)
         {
-            logger.LogError(
-                exception, "DispatchJob {JobId} ({Type}) failed attempt {Attempts}; next status {Status}.",
-                job.Id, job.Type, job.Attempts, job.Status);
+            LogJobAttemptFailed(logger, exception, job.Id, job.Type, job.Attempts, job.Status);
         }
         else
         {
-            logger.LogWarning(
-                "DispatchJob {JobId} ({Type}) recorded as a failed attempt {Attempts} ({Reason}); next status {Status}.",
-                job.Id, job.Type, job.Attempts, job.LastError, job.Status);
+            LogJobAttemptRecorded(logger, job.Id, job.Type, job.Attempts, job.LastError, job.Status);
         }
 
         await PublishProgressSafely(job, job.LastError);
@@ -406,6 +402,8 @@ public sealed class DispatchWorker(
     /// <summary>The DispatchProgress notification is fire-and-forget, not the source of truth
     /// (contracts/signalr-hub.md) — a publish failure must never revert a job's already-persisted
     /// outcome, so this is isolated from the caller's try/catch.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types",
+        Justification = "DispatchProgress is fire-and-forget; any publish failure is logged and must not revert the persisted job outcome.")]
     private async Task PublishProgressSafely(DispatchJob job, string? detail)
     {
         try
@@ -416,9 +414,45 @@ public sealed class DispatchWorker(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to publish DispatchProgress for job {JobId}.", job.Id);
+            LogProgressPublishFailed(logger, ex, job.Id);
         }
     }
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Warning,
+        Message = "DispatchWorker sweep failed ({Failures} in a row); retrying in {Delay}.")]
+    private static partial void LogSweepFailed(ILogger logger, int failures, TimeSpan delay);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Error, Message = "DispatchWorker cycle failed; a retry wake is scheduled.")]
+    private static partial void LogCycleFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Warning, Message = "Recovered {Count} DispatchJob(s) with an expired lease.")]
+    private static partial void LogExpiredLeasesRecovered(ILogger logger, int count);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Information, Message = "DispatchJob {JobId} ({Type}) completed.")]
+    private static partial void LogJobCompleted(ILogger logger, Guid jobId, DispatchJobType type);
+
+    [LoggerMessage(EventId = 5, Level = LogLevel.Warning, Message = "DispatchJob {JobId} lease was lost; stopping renewal.")]
+    private static partial void LogLeaseLost(ILogger logger, Guid jobId);
+
+    [LoggerMessage(EventId = 6, Level = LogLevel.Warning, Message = "Failed to renew the lease of DispatchJob {JobId}; will retry.")]
+    private static partial void LogLeaseRenewalFailed(ILogger logger, Exception exception, Guid jobId);
+
+    [LoggerMessage(EventId = 7, Level = LogLevel.Warning,
+        Message = "DispatchJob {JobId} ({Type}) lost its lease before the outcome was recorded; result discarded.")]
+    private static partial void LogOutcomeDiscarded(ILogger logger, Guid jobId, DispatchJobType type);
+
+    [LoggerMessage(EventId = 8, Level = LogLevel.Error,
+        Message = "DispatchJob {JobId} ({Type}) failed attempt {Attempts}; next status {Status}.")]
+    private static partial void LogJobAttemptFailed(
+        ILogger logger, Exception exception, Guid jobId, DispatchJobType type, int attempts, DispatchJobStatus status);
+
+    [LoggerMessage(EventId = 9, Level = LogLevel.Warning,
+        Message = "DispatchJob {JobId} ({Type}) recorded as a failed attempt {Attempts} ({Reason}); next status {Status}.")]
+    private static partial void LogJobAttemptRecorded(
+        ILogger logger, Guid jobId, DispatchJobType type, int attempts, string? reason, DispatchJobStatus status);
+
+    [LoggerMessage(EventId = 10, Level = LogLevel.Warning, Message = "Failed to publish DispatchProgress for job {JobId}.")]
+    private static partial void LogProgressPublishFailed(ILogger logger, Exception exception, Guid jobId);
 
     private static readonly TimeSpan WakeMargin = TimeSpan.FromSeconds(1);
 

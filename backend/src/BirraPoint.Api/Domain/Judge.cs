@@ -1,7 +1,7 @@
 namespace BirraPoint.Api.Domain;
 
 /// <summary>Competition-scoped judge profile; identity lives in Keycloak (Principle VII).</summary>
-public class Judge : Entity
+internal class Judge : Entity
 {
     public Guid CompetitionId { get; set; }
 

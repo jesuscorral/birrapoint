@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace BirraPoint.Api.Common.Persistence.Configurations;
 
-public sealed class BeerEntryConfiguration : IEntityTypeConfiguration<BeerEntry>
+internal sealed class BeerEntryConfiguration : IEntityTypeConfiguration<BeerEntry>
 {
     public void Configure(EntityTypeBuilder<BeerEntry> builder)
     {

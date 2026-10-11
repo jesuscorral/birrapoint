@@ -14,7 +14,7 @@ namespace BirraPoint.Api.Common.Secrets;
 /// Enabled only when <c>Dapr:SecretStore</c> names the component; locally the Aspire AppHost keeps
 /// injecting plain settings and no sidecar is needed.
 /// </summary>
-public static class DaprSecrets
+internal static class DaprSecrets
 {
     public const string SecretStoreKey = "Dapr:SecretStore";
 

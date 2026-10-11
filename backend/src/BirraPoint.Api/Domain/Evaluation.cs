@@ -5,7 +5,7 @@ namespace BirraPoint.Api.Domain;
 /// (FR-030/FR-031/FR-034). Score caps and comment lengths are enforced at the API boundary;
 /// the (JudgeId, BeerEntryId) unique index is the idempotency backstop (FR-029, R-07).
 /// </summary>
-public class Evaluation : Entity
+internal class Evaluation : Entity
 {
     public Guid TastingTableId { get; set; }
 

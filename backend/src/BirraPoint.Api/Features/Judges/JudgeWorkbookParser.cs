@@ -5,7 +5,7 @@ using ClosedXML.Excel;
 namespace BirraPoint.Api.Features.Judges;
 
 /// <summary>One parsed data row, before any staging entity exists (T114/US14).</summary>
-public sealed record ParsedJudgeImportRow(
+internal sealed record ParsedJudgeImportRow(
     int RowNumber,
     string? Name,
     string? Email,
@@ -26,7 +26,7 @@ public sealed record ParsedJudgeImportRow(
 /// <see cref="DomainErrorType.InvalidImportFile"/> — the caller does not need to catch anything
 /// else.
 /// </summary>
-public static class JudgeWorkbookParser
+internal static class JudgeWorkbookParser
 {
     private static readonly string[] RequiredHeaders =
     [

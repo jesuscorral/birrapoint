@@ -15,7 +15,7 @@ public sealed class OrganizerResolverTests(PostgresFixture fixture) : IClassFixt
     private AppDbContext NewContext() => new(fixture.Options);
 
     [Fact]
-    public async Task Creates_an_organizer_row_on_first_resolution()
+    public async Task CreatesAnOrganizerRowOnFirstResolution()
     {
         var sub = $"kc-organizer-{Guid.NewGuid():N}";
         var email = $"organizer-{Guid.NewGuid():N}@example.test";
@@ -36,7 +36,7 @@ public sealed class OrganizerResolverTests(PostgresFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task Replay_returns_the_same_row_without_creating_a_duplicate()
+    public async Task ReplayReturnsTheSameRowWithoutCreatingADuplicate()
     {
         var sub = $"kc-organizer-{Guid.NewGuid():N}";
         var email = $"organizer-{Guid.NewGuid():N}@example.test";
@@ -59,7 +59,7 @@ public sealed class OrganizerResolverTests(PostgresFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task Relinks_the_existing_row_when_the_same_email_resolves_under_a_new_sub()
+    public async Task RelinksTheExistingRowWhenTheSameEmailResolvesUnderANewSub()
     {
         var originalSub = $"kc-organizer-{Guid.NewGuid():N}";
         var newSub = $"kc-organizer-{Guid.NewGuid():N}";
@@ -89,7 +89,7 @@ public sealed class OrganizerResolverTests(PostgresFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task Falls_back_to_placeholder_names_when_given_or_family_name_claims_are_absent()
+    public async Task FallsBackToPlaceholderNamesWhenGivenOrFamilyNameClaimsAreAbsent()
     {
         var sub = $"kc-organizer-{Guid.NewGuid():N}";
         var email = $"organizer-{Guid.NewGuid():N}@example.test";

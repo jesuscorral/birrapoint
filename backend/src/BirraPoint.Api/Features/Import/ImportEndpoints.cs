@@ -3,7 +3,7 @@ using MediatR;
 namespace BirraPoint.Api.Features.Import;
 
 /// <summary>Maps every Entry Import endpoint (contracts/rest-api.md §Entry Import, T035) — ORGANIZER-only.</summary>
-public static class ImportEndpoints
+internal static class ImportEndpoints
 {
     public static IEndpointRouteBuilder MapImportEndpoints(this IEndpointRouteBuilder endpoints)
     {

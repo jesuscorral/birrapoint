@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace BirraPoint.Api.Common.Errors;
 
 /// <summary>Maps a FluentValidation <see cref="ValidationException"/> to a 400 with a per-field error map.</summary>
-public sealed class ValidationExceptionHandler(IProblemDetailsService problemDetailsService) : IExceptionHandler
+internal sealed class ValidationExceptionHandler(IProblemDetailsService problemDetailsService) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {

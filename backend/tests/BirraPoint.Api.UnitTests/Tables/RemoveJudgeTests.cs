@@ -16,7 +16,7 @@ namespace BirraPoint.Api.UnitTests.Tables;
 public sealed class RemoveJudgeTests
 {
     [Fact]
-    public void ComputeAuditEntityId_is_deterministic_for_the_same_pair()
+    public void ComputeAuditEntityIdIsDeterministicForTheSamePair()
     {
         var tableId = Guid.NewGuid();
         var judgeId = Guid.NewGuid();
@@ -28,7 +28,7 @@ public sealed class RemoveJudgeTests
     }
 
     [Fact]
-    public void ComputeAuditEntityId_differs_when_the_table_differs()
+    public void ComputeAuditEntityIdDiffersWhenTheTableDiffers()
     {
         var judgeId = Guid.NewGuid();
 
@@ -39,7 +39,7 @@ public sealed class RemoveJudgeTests
     }
 
     [Fact]
-    public void ComputeAuditEntityId_differs_when_the_judge_differs()
+    public void ComputeAuditEntityIdDiffersWhenTheJudgeDiffers()
     {
         var tableId = Guid.NewGuid();
 
@@ -50,7 +50,7 @@ public sealed class RemoveJudgeTests
     }
 
     [Fact]
-    public void ComputeAuditEntityId_fits_within_AuditLog_EntityIds_50_character_column_cap()
+    public void ComputeAuditEntityIdFitsWithinAuditLogEntityIds50CharacterColumnCap()
     {
         var entityId = RemoveJudgeRules.ComputeAuditEntityId(Guid.NewGuid(), Guid.NewGuid());
 

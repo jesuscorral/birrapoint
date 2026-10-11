@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace BirraPoint.Api.Common.Persistence.Configurations;
 
-public sealed class DiscrepancyAlertConfiguration : IEntityTypeConfiguration<DiscrepancyAlert>
+internal sealed class DiscrepancyAlertConfiguration : IEntityTypeConfiguration<DiscrepancyAlert>
 {
     public void Configure(EntityTypeBuilder<DiscrepancyAlert> builder)
     {

@@ -1,6 +1,6 @@
 namespace BirraPoint.Api.Domain;
 
-public class Competition : Entity
+internal class Competition : Entity
 {
     public required string Name { get; set; }
 

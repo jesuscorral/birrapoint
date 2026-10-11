@@ -6,7 +6,7 @@ namespace BirraPoint.Api.Common.Jobs;
 /// retryable via API (FR-041)" (data-model.md) — <see cref="MaxAttempts"/> and the backoff curve
 /// are an engineering choice, not a contract value.
 /// </summary>
-public static class DispatchRetryPolicy
+internal static class DispatchRetryPolicy
 {
     public const int MaxAttempts = 5;
 

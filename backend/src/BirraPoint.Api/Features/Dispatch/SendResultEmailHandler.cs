@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Dispatch;
 
 /// <summary>Payload shape enqueued by BundleZipHandler.</summary>
-public sealed record SendResultEmailPayload(Guid ParticipantId);
+internal sealed record SendResultEmailPayload(Guid ParticipantId);
 
 /// <summary>
 /// T074/FR-041: emails a participant every PDF scoresheet for their own entries. Unlike <see
@@ -18,7 +18,7 @@ public sealed record SendResultEmailPayload(Guid ParticipantId);
 /// IS the delivery-status record, so a failure simply rethrows for <see cref="DispatchWorker"/>'s
 /// existing retry/backoff to handle; this handler never retries on its own.
 /// </summary>
-public sealed class SendResultEmailHandler(AppDbContext dbContext, IEmailSender emailSender) : IDispatchJobHandler
+internal sealed class SendResultEmailHandler(AppDbContext dbContext, IEmailSender emailSender) : IDispatchJobHandler
 {
     public DispatchJobType Type => DispatchJobType.SendResultEmail;
 

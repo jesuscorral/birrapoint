@@ -6,9 +6,9 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Judges;
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record GetJudgesQuery(Guid CompetitionId) : IRequest<IReadOnlyList<JudgeProfileDto>?>;
+internal sealed record GetJudgesQuery(Guid CompetitionId) : IRequest<IReadOnlyList<JudgeProfileDto>?>;
 
-public sealed class GetJudgesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class GetJudgesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<GetJudgesQuery, IReadOnlyList<JudgeProfileDto>?>
 {
     public async Task<IReadOnlyList<JudgeProfileDto>?> Handle(GetJudgesQuery request, CancellationToken cancellationToken)

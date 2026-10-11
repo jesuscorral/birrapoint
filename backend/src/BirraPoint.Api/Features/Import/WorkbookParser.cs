@@ -6,20 +6,20 @@ using ClosedXML.Excel;
 namespace BirraPoint.Api.Features.Import;
 
 /// <summary>Lightweight catalog projection used for style matching, avoiding a DB dependency in the parser itself.</summary>
-public sealed record StyleCatalogEntry(string Code, string Name);
+internal sealed record StyleCatalogEntry(string Code, string Name);
 
 /// <summary>Lightweight projection of this competition's own organizer-defined categories (wizard step 3).</summary>
-public sealed record CategoryCatalogEntry(Guid Id, string Name);
+internal sealed record CategoryCatalogEntry(Guid Id, string Name);
 
 /// <summary>One allowed (category, style) pairing under this competition's FR-052 configuration —
 /// projected from <see cref="BirraPoint.Api.Domain.CompetitionCategoryStyle"/>, used for the
 /// FR-053 cross-check. Public (not internal) because it's a parameter type of the public
 /// <see cref="WorkbookParser.Parse"/> method, same as <see cref="StyleCatalogEntry"/>/
 /// <see cref="CategoryCatalogEntry"/>.</summary>
-public sealed record CategoryStyleCatalogEntry(Guid CategoryId, string StyleCode);
+internal sealed record CategoryStyleCatalogEntry(Guid CategoryId, string StyleCode);
 
 /// <summary>One parsed data row, before any staging entity exists (T031/T034).</summary>
-public sealed record ParsedImportRow(
+internal sealed record ParsedImportRow(
     int RowNumber,
     string? ParticipantName,
     string? ParticipantEmail,
@@ -52,7 +52,7 @@ public sealed record ParsedImportRow(
 /// throw <see cref="DomainException"/> with <see cref="DomainErrorType.InvalidImportFile"/> — the
 /// caller does not need to catch anything else.
 /// </summary>
-public static class WorkbookParser
+internal static class WorkbookParser
 {
     private static readonly string[] RequiredHeaders =
     [

@@ -10,13 +10,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Features.Competitions;
 
-public sealed record ChangeCompetitionStateResult(CompetitionState State);
+internal sealed record ChangeCompetitionStateResult(CompetitionState State);
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record ChangeCompetitionStateCommand(Guid Id, CompetitionState Target)
+internal sealed record ChangeCompetitionStateCommand(Guid Id, CompetitionState Target)
     : IRequest<ChangeCompetitionStateResult?>;
 
-public sealed class ChangeCompetitionStateCommandHandler(
+internal sealed class ChangeCompetitionStateCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter, IEventPublisher eventPublisher,
     IDispatchJobQueue dispatchJobQueue)
     : IRequestHandler<ChangeCompetitionStateCommand, ChangeCompetitionStateResult?>

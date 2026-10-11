@@ -1,7 +1,7 @@
 namespace BirraPoint.Api.Domain;
 
 /// <summary>DB-persisted background job (R-06 — no broker); handlers must be idempotent.</summary>
-public class DispatchJob : Entity
+internal class DispatchJob : Entity
 {
     public Guid CompetitionId { get; set; }
 

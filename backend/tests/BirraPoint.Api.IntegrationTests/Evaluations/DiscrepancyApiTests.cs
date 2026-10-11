@@ -131,7 +131,7 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
 
     /// <summary>Mirrors what POST .../order (FixOrder) would do, without the extra HTTP round-trip
     /// (same convention as SubmitEvaluationApiTests/CloseTableApiTests).</summary>
-    private async Task FixOrderDirectlyAsync(Guid tableId, Guid judgeId, IReadOnlyList<Guid> orderedEntryIds)
+    private async Task FixOrderDirectlyAsync(Guid tableId, Guid judgeId, List<Guid> orderedEntryIds)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -179,15 +179,15 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
         overall = LongComment,
     };
 
-    private static Task<HttpResponseMessage> SubmitAsync(
+    private static async Task<HttpResponseMessage> SubmitAsync(
         HttpClient client, Guid tableId, Guid beerEntryId, object scores, object? comments = null)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/me/tables/{tableId}/evaluations")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/me/tables/{tableId}/evaluations")
         {
             Content = JsonContent.Create(new { beerEntryId, scores, comments = comments ?? ValidComments() }),
         };
         request.Headers.Add("X-Idempotency-Key", $"comp:{tableId}:judge:{beerEntryId}");
-        return client.SendAsync(request);
+        return await client.SendAsync(request);
     }
 
     private static Task<HttpResponseMessage> AdjustAsync(
@@ -197,10 +197,10 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
             new { scores, comments = comments ?? ValidComments() });
 
     private static Task<HttpResponseMessage> GetDiscrepanciesAsync(HttpClient client, Guid tableId) =>
-        client.GetAsync($"/api/v1/me/tables/{tableId}/discrepancies");
+        client.GetAsync(Urls.Rel($"/api/v1/me/tables/{tableId}/discrepancies"));
 
     private static Task<HttpResponseMessage> CloseAsync(HttpClient client, Guid tableId) =>
-        client.PostAsync($"/api/v1/me/tables/{tableId}/close", content: null);
+        client.PostAsync(Urls.Rel($"/api/v1/me/tables/{tableId}/close"), content: null);
 
     /// <summary>Seeds a competition, one table with a single sample, and <paramref name="judgeCount"/>
     /// actively-assigned judges — ready for submission (competition InEvaluation, order fixed by the
@@ -235,7 +235,7 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- Divergent submission opens a discrepancy (FR-031) ----------------------------------------
 
     [Fact]
-    public async Task Two_judges_more_than_7_apart_are_both_held_PendingConsensus_with_a_discrepancy()
+    public async Task TwoJudgesMoreThan7ApartAreBothHeldPendingConsensusWithADiscrepancy()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
@@ -277,7 +277,7 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- ≥3 judges: only the pair(s) more than 7 apart are involved (spec edge case) --------------
 
     [Fact]
-    public async Task Three_judges_only_the_outlier_pair_more_than_7_apart_are_involved()
+    public async Task ThreeJudgesOnlyTheOutlierPairMoreThan7ApartAreInvolved()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer, judgeCount: 3);
@@ -313,7 +313,7 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- PUT adjustment: only an involved judge, only while the alert is open (Clarification Q2) --
 
     [Fact]
-    public async Task Adjustment_by_an_involved_judge_that_converges_everyone_resolves_the_discrepancy()
+    public async Task AdjustmentByAnInvolvedJudgeThatConvergesEveryoneResolvesTheDiscrepancy()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
@@ -344,7 +344,7 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Adjustment_of_an_evaluation_with_no_open_discrepancy_returns_409_evaluation_locked()
+    public async Task AdjustmentOfAnEvaluationWithNoOpenDiscrepancyReturns409EvaluationLocked()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer, judgeCount: 1);
@@ -357,11 +357,11 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("evaluation-locked", document.RootElement.GetProperty("type").GetString());
+        Assert.Contains("evaluation-locked", document.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task Adjustment_of_someone_elses_evaluation_returns_404()
+    public async Task AdjustmentOfSomeoneElsesEvaluationReturns404()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
@@ -381,7 +381,7 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- FR-032: table close is blocked while a discrepancy is open, succeeds once resolved -------
 
     [Fact]
-    public async Task Close_is_blocked_by_an_open_discrepancy_and_succeeds_once_it_is_resolved()
+    public async Task CloseIsBlockedByAnOpenDiscrepancyAndSucceedsOnceItIsResolved()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
@@ -397,7 +397,7 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
 
         Assert.Equal(HttpStatusCode.Conflict, blockedClose.StatusCode);
         using var blockedDocument = JsonDocument.Parse(await blockedClose.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("discrepancy-open", blockedDocument.RootElement.GetProperty("type").GetString());
+        Assert.Contains("discrepancy-open", blockedDocument.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
 
         var resolve = await AdjustAsync(judgeA, fixture.TableId, evaluationIdA, Scores(6, 1, 12, 3, 3)); // 25, diff to 20 is 5
         Assert.Equal(HttpStatusCode.OK, resolve.StatusCode);
@@ -410,7 +410,7 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
     // ---- Concurrency race on the alert insert itself, not just the evaluation insert -------------
 
     [Fact]
-    public async Task Two_different_judges_submitting_divergent_totals_concurrently_leave_exactly_one_open_alert()
+    public async Task TwoDifferentJudgesSubmittingDivergentTotalsConcurrentlyLeaveExactlyOneOpenAlert()
     {
         // Regression test for a real race PR review caught: two DIFFERENT judges (so the
         // evaluation's own (JudgeId, BeerEntryId) unique index never engages — SubmitEvaluationApiTests'
@@ -425,9 +425,9 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
         using var judgeA = JudgeClient(fixture.Judges[0].JudgeSub);
         using var judgeB = JudgeClient(fixture.Judges[1].JudgeSub);
 
-        var taskA = SubmitAsync(judgeA, fixture.TableId, fixture.EntryId, Scores(10, 2, 16, 4, 8)); // 40
-        var taskB = SubmitAsync(judgeB, fixture.TableId, fixture.EntryId, Scores(5, 1, 10, 2, 2)); // 20, diff 20 -> both involved
-        var responses = await Task.WhenAll(taskA, taskB);
+        var responses = await Task.WhenAll(
+            SubmitAsync(judgeA, fixture.TableId, fixture.EntryId, Scores(10, 2, 16, 4, 8)), // 40
+            SubmitAsync(judgeB, fixture.TableId, fixture.EntryId, Scores(5, 1, 10, 2, 2))); // 20, diff 20 -> both involved
 
         Assert.All(responses, r => Assert.Equal(HttpStatusCode.Created, r.StatusCode));
 

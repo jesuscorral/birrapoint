@@ -6,7 +6,7 @@ using MediatR;
 
 namespace BirraPoint.Api.Features.Competitions;
 
-public sealed record CreateCompetitionCommand(
+internal sealed record CreateCompetitionCommand(
     string Name,
     string Venue,
     DateOnly StartDate,
@@ -17,7 +17,7 @@ public sealed record CreateCompetitionCommand(
     DateOnly? RegistrationStart,
     DateOnly? RegistrationEnd) : IRequest<CompetitionDetailDto>;
 
-public sealed class CreateCompetitionCommandValidator : AbstractValidator<CreateCompetitionCommand>
+internal sealed class CreateCompetitionCommandValidator : AbstractValidator<CreateCompetitionCommand>
 {
     public CreateCompetitionCommandValidator()
     {
@@ -36,7 +36,7 @@ public sealed class CreateCompetitionCommandValidator : AbstractValidator<Create
     }
 }
 
-public sealed class CreateCompetitionCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class CreateCompetitionCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<CreateCompetitionCommand, CompetitionDetailDto>
 {
     public async Task<CompetitionDetailDto> Handle(CreateCompetitionCommand request, CancellationToken cancellationToken)

@@ -2,11 +2,11 @@ using MediatR;
 
 namespace BirraPoint.Api.Features.Tables;
 
-public sealed record TableAssignmentRequest(string Name, IReadOnlyList<Guid> JudgeIds, IReadOnlyList<Guid> BeerEntryIds);
+internal sealed record TableAssignmentRequest(string Name, IReadOnlyList<Guid> JudgeIds, IReadOnlyList<Guid> BeerEntryIds);
 
 /// <summary>Maps CreateTable/UpdateTable/ListTables (contracts/rest-api.md §Tables, T047) and
 /// RemoveJudge (contracts/rest-api.md §Tables, T086, FR-039) — ORGANIZER-only.</summary>
-public static class TablesEndpoints
+internal static class TablesEndpoints
 {
     public static IEndpointRouteBuilder MapTablesEndpoints(this IEndpointRouteBuilder endpoints)
     {

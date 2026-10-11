@@ -1,7 +1,7 @@
 namespace BirraPoint.Api.Common.Persistence.Seeding;
 
 /// <summary>Shape of one entry in the embedded bjcp-2021.json seed resource (T010, R-12).</summary>
-public sealed class BjcpStyleSeedRecord
+internal sealed class BjcpStyleSeedRecord
 {
     public required string Code { get; init; }
 
@@ -16,7 +16,7 @@ public sealed class BjcpStyleSeedRecord
     public required StyleDescriptionSeed Description { get; init; }
 }
 
-public sealed class VitalStatisticsSeed
+internal sealed class VitalStatisticsSeed
 {
     public decimal? OgLow { get; init; }
 
@@ -39,7 +39,7 @@ public sealed class VitalStatisticsSeed
     public decimal? AbvHigh { get; init; }
 }
 
-public sealed class StyleDescriptionSeed
+internal sealed class StyleDescriptionSeed
 {
     public required string OverallImpression { get; init; }
 

@@ -45,3 +45,15 @@ indent_size = 2
 
 [*.csproj]
 indent_size = 2
+
+# CA2007 (ConfigureAwait) only applies to libraries; Api/AppHost are executables.
+[*.cs]
+dotnet_code_quality.CA2007.output_kind = DynamicallyLinkedLibrary
+
+# Generated EF Core migrations are not hand-edited.
+[**/Migrations/*.cs]
+generated_code = true
+
+# CA2007 conflicts with xUnit1030 (never ConfigureAwait(false) in tests).
+[tests/**.cs]
+dotnet_diagnostic.CA2007.severity = none

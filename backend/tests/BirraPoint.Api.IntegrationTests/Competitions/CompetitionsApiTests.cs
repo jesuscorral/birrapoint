@@ -37,7 +37,7 @@ public sealed class CompetitionsApiTests(ApiFactory factory) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task Create_returns_201_with_draft_state()
+    public async Task CreateReturns201WithDraftState()
     {
         using var client = OrganizerClient($"organizer-{Guid.NewGuid():N}");
 
@@ -50,7 +50,7 @@ public sealed class CompetitionsApiTests(ApiFactory factory) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task Create_returns_400_when_name_is_missing()
+    public async Task CreateReturns400WhenNameIsMissing()
     {
         using var client = OrganizerClient($"organizer-{Guid.NewGuid():N}");
 
@@ -65,7 +65,7 @@ public sealed class CompetitionsApiTests(ApiFactory factory) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task Create_returns_400_when_end_date_is_before_start_date()
+    public async Task CreateReturns400WhenEndDateIsBeforeStartDate()
     {
         using var client = OrganizerClient($"organizer-{Guid.NewGuid():N}");
 
@@ -81,7 +81,7 @@ public sealed class CompetitionsApiTests(ApiFactory factory) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task List_returns_only_the_callers_own_competitions()
+    public async Task ListReturnsOnlyTheCallersOwnCompetitions()
     {
         using var ownerClient = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         using var otherClient = OrganizerClient($"organizer-{Guid.NewGuid():N}");
@@ -89,7 +89,7 @@ public sealed class CompetitionsApiTests(ApiFactory factory) : IClassFixture<Api
         await CreateCompetitionAsync(ownerClient, "Mine");
         await CreateCompetitionAsync(otherClient, "TheirsOnly");
 
-        var response = await ownerClient.GetAsync("/api/v1/competitions", TestContext.Current.CancellationToken);
+        var response = await ownerClient.GetAsync(Urls.Rel("/api/v1/competitions"), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
@@ -99,36 +99,36 @@ public sealed class CompetitionsApiTests(ApiFactory factory) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task Get_by_id_returns_404_for_a_competition_owned_by_a_different_organizer()
+    public async Task GetByIdReturns404ForACompetitionOwnedByADifferentOrganizer()
     {
         using var ownerClient = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         using var otherClient = OrganizerClient($"organizer-{Guid.NewGuid():N}");
 
         var id = await CreateCompetitionAsync(ownerClient, "Cross");
 
-        var response = await otherClient.GetAsync($"/api/v1/competitions/{id}", TestContext.Current.CancellationToken);
+        var response = await otherClient.GetAsync(Urls.Rel($"/api/v1/competitions/{id}"), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
-    public async Task Get_by_id_returns_404_when_the_competition_does_not_exist()
+    public async Task GetByIdReturns404WhenTheCompetitionDoesNotExist()
     {
         using var client = OrganizerClient($"organizer-{Guid.NewGuid():N}");
 
-        var response = await client.GetAsync($"/api/v1/competitions/{Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var response = await client.GetAsync(Urls.Rel($"/api/v1/competitions/{Guid.NewGuid()}"), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
-    public async Task Get_by_id_returns_the_full_detail_for_the_owner()
+    public async Task GetByIdReturnsTheFullDetailForTheOwner()
     {
         using var client = OrganizerClient($"organizer-{Guid.NewGuid():N}");
 
         var id = await CreateCompetitionAsync(client, "Detail");
 
-        var response = await client.GetAsync($"/api/v1/competitions/{id}", TestContext.Current.CancellationToken);
+        var response = await client.GetAsync(Urls.Rel($"/api/v1/competitions/{id}"), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
@@ -137,7 +137,7 @@ public sealed class CompetitionsApiTests(ApiFactory factory) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task Update_replaces_editable_fields_while_in_draft()
+    public async Task UpdateReplacesEditableFieldsWhileInDraft()
     {
         using var client = OrganizerClient($"organizer-{Guid.NewGuid():N}");
 
@@ -158,7 +158,7 @@ public sealed class CompetitionsApiTests(ApiFactory factory) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task Update_returns_404_for_a_competition_owned_by_a_different_organizer()
+    public async Task UpdateReturns404ForACompetitionOwnedByADifferentOrganizer()
     {
         using var ownerClient = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         using var otherClient = OrganizerClient($"organizer-{Guid.NewGuid():N}");
@@ -171,7 +171,7 @@ public sealed class CompetitionsApiTests(ApiFactory factory) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task Update_returns_409_when_the_competition_is_in_evaluation()
+    public async Task UpdateReturns409WhenTheCompetitionIsInEvaluation()
     {
         using var client = OrganizerClient($"organizer-{Guid.NewGuid():N}");
 
@@ -187,7 +187,7 @@ public sealed class CompetitionsApiTests(ApiFactory factory) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task State_transition_moves_forward_through_the_full_lifecycle()
+    public async Task StateTransitionMovesForwardThroughTheFullLifecycle()
     {
         using var client = OrganizerClient($"organizer-{Guid.NewGuid():N}");
 
@@ -207,7 +207,7 @@ public sealed class CompetitionsApiTests(ApiFactory factory) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task State_transition_rejects_skipping_a_state()
+    public async Task StateTransitionRejectsSkippingAState()
     {
         using var client = OrganizerClient($"organizer-{Guid.NewGuid():N}");
 
@@ -221,7 +221,7 @@ public sealed class CompetitionsApiTests(ApiFactory factory) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task State_transition_rejects_moving_backward()
+    public async Task StateTransitionRejectsMovingBackward()
     {
         using var client = OrganizerClient($"organizer-{Guid.NewGuid():N}");
 
@@ -234,7 +234,7 @@ public sealed class CompetitionsApiTests(ApiFactory factory) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task State_transition_returns_404_for_a_competition_owned_by_a_different_organizer()
+    public async Task StateTransitionReturns404ForACompetitionOwnedByADifferentOrganizer()
     {
         using var ownerClient = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         using var otherClient = OrganizerClient($"organizer-{Guid.NewGuid():N}");

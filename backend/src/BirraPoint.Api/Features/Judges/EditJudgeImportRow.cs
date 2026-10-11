@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Judges;
 
 /// <summary>Full-replace editable row shape (contracts/judge-import-file.md §Full row edit).</summary>
-public sealed record EditJudgeImportRowRequest(
+internal sealed record EditJudgeImportRowRequest(
     string? Name,
     string? Email,
     string? BjcpRank,
@@ -17,7 +17,7 @@ public sealed record EditJudgeImportRowRequest(
     string? Preferences);
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
-public sealed record EditJudgeImportRowCommand(Guid CompetitionId, Guid ImportId, int RowNumber, EditJudgeImportRowRequest Row)
+internal sealed record EditJudgeImportRowCommand(Guid CompetitionId, Guid ImportId, int RowNumber, EditJudgeImportRowRequest Row)
     : IRequest<JudgeImportRowDto?>;
 
 /// <summary>
@@ -27,7 +27,7 @@ public sealed record EditJudgeImportRowCommand(Guid CompetitionId, Guid ImportId
 /// separate mismatch/unresolved-reference workflow for judge-roster fields (no catalog involved)
 /// that would justify forcing a stricter shape the way category/style do for beer entries.
 /// </summary>
-public sealed class EditJudgeImportRowCommandValidator : AbstractValidator<EditJudgeImportRowCommand>
+internal sealed class EditJudgeImportRowCommandValidator : AbstractValidator<EditJudgeImportRowCommand>
 {
     public EditJudgeImportRowCommandValidator()
     {
@@ -45,7 +45,7 @@ public sealed class EditJudgeImportRowCommandValidator : AbstractValidator<EditJ
     }
 }
 
-public sealed class EditJudgeImportRowCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class EditJudgeImportRowCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<EditJudgeImportRowCommand, JudgeImportRowDto?>
 {
     public async Task<JudgeImportRowDto?> Handle(EditJudgeImportRowCommand request, CancellationToken cancellationToken)

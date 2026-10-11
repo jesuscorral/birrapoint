@@ -25,6 +25,7 @@ namespace BirraPoint.Api.IntegrationTests.Dispatch;
 public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private const string StyleCodeApa = "21A";
+    private static readonly string[] InFlightOrCompletedStatuses = ["Pending", "Running", "Completed"];
     private const string LongComment = "This comment is long enough to satisfy the minimum length rule.";
 
     private static readonly TimeSpan PollTimeout = TimeSpan.FromSeconds(10);
@@ -223,7 +224,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
         }
 
         using var judgeClient = JudgeClient(judgeSub);
-        var closeResponse = await judgeClient.PostAsync($"/api/v1/me/tables/{tableId}/close", content: null);
+        var closeResponse = await judgeClient.PostAsync(Urls.Rel($"/api/v1/me/tables/{tableId}/close"), content: null);
         Assert.Equal(HttpStatusCode.OK, closeResponse.StatusCode);
 
         var toInEvaluation = await TransitionToActiveAndInEvaluationAsync(organizer, competitionId);
@@ -233,10 +234,10 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     private static Task<HttpResponseMessage> GetResultsArchiveAsync(HttpClient client, Guid competitionId) =>
-        client.GetAsync($"/api/v1/competitions/{competitionId}/results/archive");
+        client.GetAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/results/archive"));
 
     private static Task<HttpResponseMessage> GetDispatchStatusAsync(HttpClient client, Guid competitionId) =>
-        client.GetAsync($"/api/v1/competitions/{competitionId}/dispatch");
+        client.GetAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/dispatch"));
 
     private static Task<HttpResponseMessage> RetryDispatchAsync(HttpClient client, Guid competitionId, params Guid[] participantIds) =>
         client.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/dispatch/retries", new { participantIds });
@@ -286,7 +287,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
     // ---- ChangeState backfill: Finalize's tables-still-open gate (previously untested) ---------
 
     [Fact]
-    public async Task Finalize_with_an_open_table_returns_409_tables_still_open_with_the_blocking_table_id()
+    public async Task FinalizeWithAnOpenTableReturns409TablesStillOpenWithTheBlockingTableId()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer, "OpenTable");
@@ -304,7 +305,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task Finalize_a_fully_closed_competition_succeeds_and_enqueues_a_GeneratePdfs_job()
+    public async Task FinalizeAFullyClosedCompetitionSucceedsAndEnqueuesAGeneratePdfsJob()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var (competitionId, _, _) = await SeedClosedTableCompetitionAsync(organizer, "Closed", entryCount: 1);
@@ -323,7 +324,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
     // ---- Full pipeline: GeneratePdfs -> BundleZip -> SendResultEmail ----------------------------
 
     [Fact]
-    public async Task Full_pipeline_generates_a_zip_at_the_FR040_path_and_emails_every_participant_with_attachments()
+    public async Task FullPipelineGeneratesAZipAtTheFR040PathAndEmailsEveryParticipantWithAttachments()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var (competitionId, competitionName, entries) =
@@ -342,12 +343,12 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
             var zipEntry = zipArchive.GetEntry(expectedPath);
             Assert.NotNull(zipEntry);
 
-            using var entryStream = zipEntry!.Open();
+            await using var entryStream = await zipEntry!.OpenAsync(TestContext.Current.CancellationToken);
             using var pdfBytes = new MemoryStream();
             await entryStream.CopyToAsync(pdfBytes, TestContext.Current.CancellationToken);
             // %PDF is the standard PDF magic header — enough to confirm this is a real PDF, not
             // parsing its content (not required by this test).
-            Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString(pdfBytes.ToArray(), 0, 4));
+            Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString(pdfBytes.ToArray(), 0, 4), StringComparison.Ordinal);
         }
 
         var dispatchRows = await PollForAllDispatchRowsCompletedAsync(organizer, competitionId, entries.Count);
@@ -370,7 +371,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
     // handler contract (senior-code-reviewer finding on PR #25) ------------------------------------
 
     [Fact]
-    public async Task Resetting_a_completed_BundleZip_job_back_to_Pending_does_not_double_enqueue_SendResultEmail_jobs()
+    public async Task ResettingACompletedBundleZipJobBackToPendingDoesNotDoubleEnqueueSendResultEmailJobs()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var (competitionId, _, entries) =
@@ -457,7 +458,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task Get_results_archive_before_the_pipeline_completes_returns_202_with_status()
+    public async Task GetResultsArchiveBeforeThePipelineCompletesReturns202WithStatus()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer, "Pending");
@@ -479,7 +480,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
     // The wake-up guarantee (no safety-net poll needed) is covered deterministically by
     // DispatchWakeUpTests.Retry_dispatch_wakes_the_worker_without_the_safety_net_poll.
     [Fact]
-    public async Task Retry_dispatch_resets_a_failed_job_and_it_gets_reprocessed()
+    public async Task RetryDispatchResetsAFailedJobAndItGetsReprocessed()
     {
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer, "Retry");
@@ -500,7 +501,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
         var statusResponse = await GetDispatchStatusAsync(organizer, competitionId);
         using var document = JsonDocument.Parse(await statusResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var row = document.RootElement.EnumerateArray().Single();
-        Assert.Contains(row.GetProperty("status").GetString(), new[] { "Pending", "Running", "Completed" });
+        Assert.Contains(row.GetProperty("status").GetString(), InFlightOrCompletedStatuses);
         Assert.Null(row.GetProperty("lastError").GetString());
 
         await PollForAllDispatchRowsCompletedAsync(organizer, competitionId, expectedCount: 1, PollTimeout);
@@ -508,7 +509,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task Retry_dispatch_leaves_completed_and_running_jobs_untouched()
+    public async Task RetryDispatchLeavesCompletedAndRunningJobsUntouched()
     {
         // FR-041 retries failures only: resetting a Completed job would resend the email, and
         // resetting a Running job (live lease, possibly another revision's worker, T129) would run
@@ -557,7 +558,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
     // ---- Ownership scoping (404, never leaking existence) ---------------------------------------
 
     [Fact]
-    public async Task Results_dispatch_endpoints_for_a_competition_owned_by_a_different_organizer_return_404()
+    public async Task ResultsDispatchEndpointsForACompetitionOwnedByADifferentOrganizerReturn404()
     {
         using var owner = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(owner, "Cross");

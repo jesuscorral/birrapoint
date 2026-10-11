@@ -1,7 +1,7 @@
 namespace BirraPoint.Api.Domain;
 
 /// <summary>Composite PK (TastingTableId, BeerEntryId); an entry belongs to at most one table.</summary>
-public class TableSample : ITimestamped
+internal class TableSample : ITimestamped
 {
     public Guid TastingTableId { get; set; }
 

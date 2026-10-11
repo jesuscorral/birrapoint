@@ -4,7 +4,7 @@ namespace BirraPoint.Api.Common.Keycloak;
 
 /// <summary>Bound from the <c>Keycloak</c> configuration section (T130). Only the admin client
 /// secret is validated here; <see cref="KeycloakAdminClient"/> still reads the other keys directly.</summary>
-public sealed class KeycloakAdminOptions
+internal sealed class KeycloakAdminOptions
 {
     public const string SectionName = "Keycloak";
 
@@ -16,7 +16,7 @@ public sealed class KeycloakAdminOptions
 
 /// <summary>Fails startup outside Development/Testing when <c>Keycloak:AdminClientSecret</c> is
 /// missing, blank or the local-dev placeholder. The message names the setting, never the value.</summary>
-public sealed class KeycloakAdminOptionsValidator(IHostEnvironment environment) : IValidateOptions<KeycloakAdminOptions>
+internal sealed class KeycloakAdminOptionsValidator(IHostEnvironment environment) : IValidateOptions<KeycloakAdminOptions>
 {
     public ValidateOptionsResult Validate(string? name, KeycloakAdminOptions options)
     {

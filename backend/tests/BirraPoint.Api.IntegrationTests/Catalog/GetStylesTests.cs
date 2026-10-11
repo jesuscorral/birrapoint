@@ -12,23 +12,23 @@ namespace BirraPoint.Api.IntegrationTests.Catalog;
 public sealed class GetStylesTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     [Fact]
-    public async Task Request_without_a_bearer_token_is_rejected()
+    public async Task RequestWithoutABearerTokenIsRejected()
     {
         using var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/api/v1/styles", TestContext.Current.CancellationToken);
+        var response = await client.GetAsync(Urls.Rel("/api/v1/styles"), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
-    public async Task Authenticated_caller_of_any_role_receives_the_full_catalog_in_category_order()
+    public async Task AuthenticatedCallerOfAnyRoleReceivesTheFullCatalogInCategoryOrder()
     {
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", TestJwtIssuer.IssueToken(sub: "kc-user-1"));
 
-        var response = await client.GetAsync("/api/v1/styles", TestContext.Current.CancellationToken);
+        var response = await client.GetAsync(Urls.Rel("/api/v1/styles"), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
