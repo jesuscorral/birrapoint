@@ -133,7 +133,9 @@ and writes a summary with the URLs and versions.
 
 Outputs: `web_url`, `keycloak_url` (CloudFront domains), `environment`, `region`,
 `ecs_cluster_name`, `ecs_service_names`, `neon_project_id`, and the sensitive
-`keycloak_admin_password` (`terraform output -raw keycloak_admin_password`; user `admin`).
+`keycloak_admin_password` (`terraform output -raw keycloak_admin_password`; temporary bootstrap user
+`admin`). The production Keycloak has no admin console: replace the bootstrap admin through the Admin
+REST API as described in [`../../keycloak/admin-runbook.md`](../../keycloak/admin-runbook.md).
 
 Tests, with no credentials: `terraform -chdir=infra/aws/terraform init -backend=false`, then
 `terraform -chdir=infra/aws/terraform test` (mocked providers), and the Pester tests of the teardown

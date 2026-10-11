@@ -60,7 +60,8 @@ jobs:
       - run: terraform -chdir=infra/${{ matrix.cloud }}/terraform validate
       - run: terraform -chdir=infra/${{ matrix.cloud }}/terraform test
 
-  # The Keycloak image's Dapr secret loader (T142): JDK 21 is preinstalled on the runner.
+  # The Keycloak image's Dapr secret loader (T142), entrypoint guard and production realm (T130):
+  # JDK 21 is preinstalled on the runner.
   keycloak-dapr-secrets:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -69,6 +70,9 @@ jobs:
         with:
           persist-credentials: false
       - run: PATH="$JAVA_HOME_21_X64/bin:$PATH" bash infra/keycloak/dapr-secrets/DaprSecretsEnv.test.sh
+      - run: bash infra/keycloak/dapr-secrets/ApiAdminSecretGuard.test.sh
+      # Production realm hardening (T130); jq and python3 are preinstalled on the runner.
+      - run: bash infra/keycloak/RealmProd.test.sh
 
   pester:
     name: pester (${{ matrix.cloud }})

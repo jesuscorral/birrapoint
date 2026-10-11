@@ -4,14 +4,14 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-10-10
+**Last updated:** 2026-10-11
 
 ## Status
 
 - **Functional scope complete**: user stories US1–US14 are implemented, each with unit,
   contract/integration and E2E coverage (`quickstart.md` scenarios).
 - **Open work** (`tasks.md`): T092 (SC-010 human usability study), T098 (health/telemetry in ACA),
-  T099 (first validated cloud deploy), T130–T131 (PR #46 follow-ups), T137 (CI/CD validation
+  T099 (first validated cloud deploy), T131 (PR #46 follow-up), T137 (CI/CD validation
   against a real deployment), T139 (E2E + a11y job in CI).
 - **Two cloud targets, one per deployment** (ADR-0023): Azure Container Apps is implemented under
   `infra/azure/`; AWS is implemented under `infra/aws/` (Terraform, `deploy-aws.yml`, `infra/aws/teardown.ps1`), deployable and tear-downable, but not yet applied to a real account (T099/T137; first-apply risks below).
@@ -61,7 +61,7 @@ ADR-0021).
 | `-kv` | Key Vault (RBAC, soft-delete 7 d, purged on destroy) + Dapr component `secretstore` | public, RBAC-only | all app secrets; `Key Vault Secrets User` granted **per secret** to the app that uses it |
 | `-web` | `birrapoint-web`: Angular build → `nginx-unprivileged` | external | writes `/config.json` from env at start; reverse-proxies `/api/` and `/hubs/` (WebSocket) to the API (ADR-0017); security headers; hashed assets cached 1 year |
 | `-api` | `birrapoint-api`: `aspnet:10.0`, non-root | **internal** | exactly 1 replica (SignalR without backplane, single job consumer); Dapr sidecar loads `ConnectionStrings:db` (Neon pooled), `ConnectionStrings:dbDirect` (direct, migrations only), `Keycloak:AdminClientSecret`, `Smtp:Password` |
-| `-kc` | `birrapoint-keycloak`: optimized build + theme + production realm + Dapr secret loader | external | entrypoint loads its 5 secrets from the sidecar (≤180 s retry), then `start --optimized --import-realm`; readiness probe on `/health/live` (port 9000), liveness-only so it does not touch the DB (ADR-0025) |
+| `-kc` | `birrapoint-keycloak`: optimized build + theme + production realm + Dapr secret loader | external | entrypoint loads its 5 secrets from the sidecar (≤180 s retry; exits if `API_ADMIN_CLIENT_SECRET` is missing), then `start --optimized --import-realm`; admin console disabled (`KC_FEATURES_DISABLED=admin`, `admin-api` stays on); readiness probe on `/health/live` (port 9000), liveness-only so it does not touch the DB (ADR-0025) |
 | `-neon` | Neon project (`kislerdm/neon` provider), PG 16 | — | databases `birrapoint` and `keycloak` on one branch, so a PITR restores both consistently; compute autoscaling minimum 0.25 CU; Free plan = 100 CU-h/month, idle estimate about 20 CU-h with the Keycloak image set to `KC_CACHE=local`, no background pool validation and a 6 h housekeeping interval (measured on Keycloak 26.2: image defaults never let compute suspend, about 182 CU-h); live events need the Launch plan (ADR-0025, budget in `infra/<cloud>/terraform/README.md`) |
 
 **Secrets** never enter an image or the repo. Neon passwords come from the provider; the Keycloak
@@ -69,7 +69,12 @@ bootstrap admin and API admin-client secrets from `random_password`; SMTP and th
 optional Docker Hub token from `terraform.tfvars` (gitignored). Everything except the Docker Hub
 pull token (a Container Apps registry secret) is written to Key Vault and read at startup through
 Dapr. The production realm is derived at image build time from the local one: the seeded account
-and local-dev secret fallbacks are stripped (the build fails if they survive).
+and local-dev secret fallbacks are stripped (the build fails if they survive), and `infra/keycloak/realm-prod.jq`
+adds brute-force lockout (5 failures, temporary only, 60 s to 15 min), password policy
+`length(12) and notUsername and notEmail` and `verifyEmail=true` (ADR-0026). The realm is imported
+on first start only, so an existing environment needs the hardening applied via REST or a wipe.
+The temporary bootstrap admin is replaced per `infra/keycloak/admin-runbook.md` (the same runbook
+enables brute-force lockout on the `master` realm, which the import cannot reach).
 
 **Deploy** (ADR-0022): Terraform only. `terraform init` + `terraform apply -var image_namespace=<ns>
 [-var release_version=X.Y.Z] [-var api_version=…]` from a workstation (`az login`, `terraform login`,
@@ -151,7 +156,9 @@ Projects: `BirraPoint.Api` (modular monolith), `BirraPoint.AppHost`, `BirraPoint
 - **Keycloak Admin** (`Common/Keycloak/`): client-credentials as `birrapoint-api-admin`.
   `EnsureUserWithTemporaryPasswordAsync` finds or creates the user, always grants `JUDGE`, and
   resets a temporary password (`UPDATE_PASSWORD` required action) only for accounts that never
-  completed first login; returns `null` otherwise.
+  completed first login; returns `null` otherwise. `KeycloakAdminOptionsValidator`
+  (`ValidateOnStart`) rejects a missing, blank or dev-placeholder `AdminClientSecret` outside
+  Development/Testing.
 - **Email** (`Common/Email/`): MailKit `IEmailSender` (`SendAsync`, `SendWithAttachmentsAsync`);
   optional SMTP auth/STARTTLS.
 - **Realtime** (`Realtime/`): `CompetitionHub` at `/hubs/competition`, server → client only.
@@ -251,7 +258,7 @@ Shared primitives live in `shared/components/` (`bp-button`, `bp-input`, `bp-ale
 | E2E + a11y | `cd frontend && npm run e2e` | Playwright (Chromium) per story + `e2e/a11y/routes.a11y.spec.ts` axe sweep; needs the full Aspire stack |
 | Performance | `k6 run infra/perf/api-budgets.js`, `npm run build:budget` | API p95 budgets (needs a bearer token); gzip initial-bundle gate |
 | Lint/format | `ng lint`, `npm run format:check`, `dotnet format --verify-no-changes` | CI gates |
-| Infra | `terraform -chdir=infra/azure/terraform test`, `Invoke-Pester infra/azure/tests`, `version.test.sh`, `DaprSecretsEnv.test.sh` | Terraform image/naming rules, teardown logic, release versioning, Keycloak secret loader |
+| Infra | `terraform -chdir=infra/azure/terraform test`, `Invoke-Pester infra/azure/tests`, `version.test.sh`, `DaprSecretsEnv.test.sh`, `RealmProd.test.sh`, `ApiAdminSecretGuard.test.sh` | Terraform image/naming rules, teardown logic, release versioning, Keycloak secret loader, production realm derivation, admin-secret guard |
 
 ## Known gaps and debt
 
@@ -262,8 +269,9 @@ Shared primitives live in `shared/components/` (`bp-button`, `bp-input`, `bp-ale
 - **Health endpoints** `/health`, `/alive` are Development-only; ACA uses default probes (T098).
 - **Probes no longer reflect DB reachability** (Keycloak ACA probe, AWS ALB check use `/health/live`; ADR-0025). Keycloak runs one replica (`KC_CACHE=local`): AWS deploys stop-then-start (short Keycloak outage); Azure revisions overlap during a deploy, so an in-progress login or Admin-API password reset can hit the other node. Deploy outside live events. Neon billing behaviour and the probes are unverified on real accounts (T099/T137).
 - **Single API replica**: scaling out needs a SignalR backplane and a migration job (the job queue is already multi-worker safe, ADR-0024).
-- **Keycloak production hardening** pending (T130: brute-force, password policy, admin console
-  exposure); Keycloak's JDBC uses `sslmode=require` (API uses `VerifyFull`).
+- **Keycloak**: JDBC uses `sslmode=require` (API uses `VerifyFull`). The password policy is
+  limited to length and username/email rules until the judge temp-password generator changes
+  (ADR-0026).
 - **`UpdateJudgeEmail`** does not re-run COI/BOS checks against the new email (contract says it
   should).
 - **Monitor "Order fixed by"** note comes only from the live event; no REST backfill.
