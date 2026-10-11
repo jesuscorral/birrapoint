@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 # BirraPoint API — multi-stage image (FR-043, constitution Containerization constraint).
-# Build context is `backend/` (needs Directory.*.props and BirraPoint.ServiceDefaults):
+# Build context is `backend/` (needs Directory.*.props, .editorconfig and BirraPoint.ServiceDefaults;
+# .editorconfig carries the analyzer settings the warnings-as-errors build depends on):
 #   docker build -f backend/src/BirraPoint.Api/Dockerfile backend
 # No secrets or environment-specific configuration are baked in: connection strings, Keycloak,
 # SMTP and Frontend__BaseUrl all arrive as environment variables at container start (FR-046).
@@ -14,6 +15,7 @@ COPY src/BirraPoint.ServiceDefaults/BirraPoint.ServiceDefaults.csproj src/BirraP
 COPY src/BirraPoint.Api/BirraPoint.Api.csproj src/BirraPoint.Api/
 RUN dotnet restore src/BirraPoint.Api/BirraPoint.Api.csproj
 
+COPY .editorconfig ./
 COPY src/BirraPoint.ServiceDefaults/ src/BirraPoint.ServiceDefaults/
 COPY src/BirraPoint.Api/ src/BirraPoint.Api/
 RUN dotnet publish src/BirraPoint.Api/BirraPoint.Api.csproj \
