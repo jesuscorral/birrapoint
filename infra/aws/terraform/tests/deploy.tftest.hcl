@@ -768,7 +768,7 @@ run "no_health_probe_hits_the_api_or_the_db_check" {
     error_message = "the API is reached through Cloud Map only; it has no target group"
   }
   assert {
-    condition     = alltrue([for c in jsondecode(aws_ecs_task_definition.api.container_definitions) : !contains(keys(c), "healthCheck") || !strcontains(jsonencode(c.healthCheck), "/health\"")])
-    error_message = "no API container health check may call /health"
+    condition     = alltrue([for c in jsondecode(aws_ecs_task_definition.api.container_definitions) : !contains(keys(c), "healthCheck")])
+    error_message = "the API container must define no healthCheck at all (no curl in the image; /health or /health/ready would keep Neon awake)"
   }
 }

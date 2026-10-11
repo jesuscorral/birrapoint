@@ -62,7 +62,7 @@ public static class Extensions
         }
 
         builder.Services.AddOpenTelemetry()
-            .ConfigureResource(resource => resource.AddService(serviceName))
+            .ConfigureResource(resource => resource.AddService(serviceName, autoGenerateServiceInstanceId: false))
             .WithMetrics(metrics =>
             {
                 metrics.AddAspNetCoreInstrumentation()

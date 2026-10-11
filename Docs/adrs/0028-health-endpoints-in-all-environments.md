@@ -19,5 +19,5 @@
 ## Consequences
 - Positive: ACA detects an API that started but cannot serve; the same endpoints work in every environment; no DB traffic from probes.
 - Negative: `/alive` does not prove DB reachability, so a Neon outage is not seen by probes. AWS gets no API liveness signal beyond ECS task state.
-- Cloud telemetry stays console logs (Log Analytics on ACA, CloudWatch on ECS). OTLP export only activates when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, and no cloud sets it. Validation in ACA/ECS is deferred to T099.
+- Cloud telemetry scope is defined by FR-048 and the spec clarification of 2026-10-11 (platform-collected console logs; metrics and traces via OTLP only where an endpoint is configured). Implementation: OTLP export activates only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, and no cloud sets it. Cloud validation is part of T099.
 - Follow-up (T099): the Keycloak ACA startup probe uses `failure_count_threshold = 30`, above the documented maximum of 10.

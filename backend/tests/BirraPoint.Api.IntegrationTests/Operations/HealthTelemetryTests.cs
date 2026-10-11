@@ -64,6 +64,26 @@ public sealed class ProductionDbDownApiFactory : WebApplicationFactory<Program>
     }
 }
 
+/// <summary>Host that, like Aspire, supplies service.instance.id through OTEL_RESOURCE_ATTRIBUTES.
+/// No container needed: the telemetry resource is built without touching the database.</summary>
+public sealed class AspireResourceAttributesApiFactory : WebApplicationFactory<Program>
+{
+    public const string InstanceId = "aspire-instance-abc";
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseEnvironment("Production");
+        builder.ConfigureAppConfiguration((_, config) =>
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:db"] = "Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x;Timeout=1",
+                ["Frontend:BaseUrl"] = "http://localhost:4200",
+                ["Keycloak:AdminClientSecret"] = "integration-test-secret",
+                ["OTEL_RESOURCE_ATTRIBUTES"] = $"service.instance.id={InstanceId}",
+            }));
+    }
+}
+
 public sealed class HealthEndpointsProductionTests(ProductionHealthyApiFactory factory)
     : IClassFixture<ProductionHealthyApiFactory>
 {
@@ -183,5 +203,19 @@ public sealed class TelemetryRegistrationTests(ApiFactory factory) : IClassFixtu
         Assert.False(string.IsNullOrWhiteSpace(serviceName));
         Assert.False(serviceName!.StartsWith("unknown_service", StringComparison.Ordinal),
             $"service.name was '{serviceName}'");
+    }
+}
+
+public sealed class TelemetryResourceInstanceIdTests(AspireResourceAttributesApiFactory factory)
+    : IClassFixture<AspireResourceAttributesApiFactory>
+{
+    [Fact]
+    public void Explicit_service_name_does_not_overwrite_service_instance_id_from_OTEL_RESOURCE_ATTRIBUTES()
+    {
+        var instanceId = factory.Services.GetRequiredService<TracerProvider>()
+            .GetResource().Attributes
+            .Single(a => a.Key == "service.instance.id").Value as string;
+
+        Assert.Equal(AspireResourceAttributesApiFactory.InstanceId, instanceId);
     }
 }

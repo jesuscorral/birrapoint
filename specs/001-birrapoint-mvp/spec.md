@@ -75,6 +75,10 @@
 
 - Q: Must the cloud target stay Azure only? → A: No — BirraPoint is deployable to either Azure (Container Apps) or AWS (ECS Fargate), as independently as possible; a single deployment never targets both (user decision; constitution v1.5.0, ADR-0023, research R-21). FR-045/FR-046/SC-011 are cloud-agnostic and apply to each target unchanged: each has its own IaC root, remote state, teardown and pipeline; only the Docker Hub images, the Keycloak image and the Neon account are shared.
 
+### Session 2026-10-11
+
+- Q: FR-048 requires logs, metrics and traces "in both local and cloud environments". Does the MVP need a cloud telemetry backend for metrics and traces? → A: No (user decision). Locally, logs, metrics and traces go to the Aspire dashboard. In the cloud, telemetry is the structured console logs collected by the platform (Log Analytics on ACA, CloudWatch Logs on ECS); metrics and traces are exported via OTLP only where an OTLP endpoint is configured, and no paid cloud telemetry backend is provisioned in the MVP. Health endpoints stay mandatory in every service and environment; cloud probes use the liveness endpoint only, so probes never wake the Neon database (ADR-0025, ADR-0028).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Secure Access with Role-Based Entry (Priority: P1)
@@ -518,7 +522,7 @@ the duplicate reported.
 - **FR-045**: All cloud infrastructure MUST be defined declaratively (infrastructure as code); a fresh environment MUST be provisionable and the full system deployable end to end with a single command and zero manual configuration steps.
 - **FR-046**: The production environment MUST host the frontend (publicly reachable), the backend API, and the identity provider (reachable for login flows) as separately deployable containers inside one secured environment boundary; all configuration and secrets are injected at deploy time (environment variables / secret store).
 - **FR-047**: The production database MUST be a managed PostgreSQL service outside the container environment, provisioned by the same infrastructure-as-code as the rest of the system; its connection strings are injected into consuming containers as secrets at deploy time, and the provider's point-in-time recovery MUST be documented as the restore procedure (no self-managed backup job).
-- **FR-048**: Every service MUST expose health-check endpoints and emit standardized telemetry (logs, metrics, traces) in both local and cloud environments.
+- **FR-048**: Every service MUST expose health-check endpoints in every environment and emit standardized telemetry. Locally, logs, metrics and traces MUST be visible in the Aspire dashboard. In the cloud, logs MUST be collected by the platform log service (Log Analytics on ACA, CloudWatch Logs on ECS); metrics and traces MUST be exported via OTLP when an OTLP endpoint is configured (none is provisioned in the MVP; see Clarifications 2026-10-11).
 - **FR-064**: Image publication and deployment MUST be automated by three separate pipelines: (a) integration — every change merged to `main` that affects build inputs MUST publish `latest` images of all three containers after quality gates pass (documentation-only changes and the release version bump publish nothing, as they change no image content); (b) release — a manually triggered pipeline MUST build a selected branch or commit and publish immutable, semver-tagged images to dedicated release repositories, taking the version from a file in the repository and advancing it for the next release; (c) deploy — a manually triggered, approval-gated pipeline MUST deploy a chosen released version to production. A version, once released, MUST NOT be overwritten.
 
 **Style Reference (US7)**

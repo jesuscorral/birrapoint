@@ -22,7 +22,7 @@ public sealed class DatabaseHealthCheck(AppDbContext db) : IHealthCheck
                 ? HealthCheckResult.Healthy()
                 : HealthCheckResult.Unhealthy("Database unreachable.");
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             return HealthCheckResult.Unhealthy("Database check timed out.");
         }

@@ -137,8 +137,9 @@ Each scenario maps to a spec user story (US) and must pass before that story is 
   `sync.service.spec.ts`, more precise than an E2E wall-clock assertion) both within budget; API
   p95 budgets verified with `k6 run infra/perf/api-budgets.js`; initial bundle gzip size gated by
   `npm run build:budget` (500 KB, Principle IX).
-- Operations: health endpoints + OpenTelemetry visible for every service in the Aspire dashboard
-  and in ACA (FR-048); a fresh `terraform apply` into a clean resource group + Neon project
+- Operations: health endpoints for every service; locally logs, metrics and traces in the Aspire
+  dashboard; in the cloud, service logs in Log Analytics (ACA) or CloudWatch Logs (ECS), metrics
+  and traces only where an OTLP endpoint is configured (FR-048, Clarifications 2026-10-11); a fresh `terraform apply` into a clean resource group + Neon project
   completes with zero manual steps beyond the documented prerequisites (SC-011); Neon's
   point-in-time recovery documented as the restore path in place of a self-managed backup job
   (FR-047).

@@ -265,7 +265,7 @@ Shared primitives live in `shared/components/` (`bp-button`, `bp-input`, `bp-ale
   no E2E/axe coverage.
 - **No integration tests** for `CompetitionHub` join authorization or for the `DispatchWorker`
   DB loop.
-- **Health/telemetry**: `/alive` (no DB) and `/health` (incl. `db` check) are mapped anonymously in all environments (ADR-0028). ACA API probes use `/alive` (startup 250 s); AWS API has no probe. Cloud telemetry is console logs only; ACA/ECS visibility is unvalidated (T099). Keycloak ACA startup probe threshold 30 exceeds the ACA maximum of 10 (T099).
+- **Health/telemetry**: `/alive` (no DB) and `/health` (incl. `db` check) are mapped anonymously in all environments (ADR-0028). ACA API probes use `/alive` (startup 250 s); AWS API has no probe. Cloud telemetry is platform-collected console logs; metrics/traces only if an OTLP endpoint is set (FR-048, spec clarification 2026-10-11); ACA/ECS visibility is unvalidated (T099). Keycloak ACA startup probe threshold 30 exceeds the ACA maximum of 10 (T099).
 - **Probes no longer reflect DB reachability** (Keycloak ACA probe, AWS ALB check use `/health/live`; ADR-0025). Keycloak runs one replica (`KC_CACHE=local`): AWS deploys stop-then-start (short Keycloak outage); Azure revisions overlap during a deploy, so an in-progress login or Admin-API password reset can hit the other node. Deploy outside live events. Neon billing behaviour and the probes are unverified on real accounts (T099/T137).
 - **Single API replica**: scaling out needs a SignalR backplane and a migration job (the job queue is already multi-worker safe, ADR-0024).
 - **Keycloak**: JDBC uses `sslmode=require` (API uses `VerifyFull`). The password policy is

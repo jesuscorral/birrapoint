@@ -315,8 +315,8 @@ run "api_probes_use_alive_never_health" {
     error_message = "the API startup, readiness and liveness probes must all use /alive"
   }
   assert {
-    condition     = alltrue([for c in concat(azurerm_container_app.api.template[0].container, azurerm_container_app.keycloak.template[0].container, azurerm_container_app.web.template[0].container) : alltrue([for p in concat(c.startup_probe, c.readiness_probe, c.liveness_probe) : p.path != "/health"])])
-    error_message = "no probe may use /health: its Postgres check would keep Neon awake 24/7 (ADR-0025)"
+    condition     = alltrue([for c in concat(azurerm_container_app.api.template[0].container, azurerm_container_app.keycloak.template[0].container, azurerm_container_app.web.template[0].container) : alltrue([for p in concat(c.startup_probe, c.readiness_probe, c.liveness_probe) : !contains(["/health", "/health/ready"], p.path)])])
+    error_message = "no probe may use /health or /health/ready: its Postgres check would keep Neon awake 24/7 (ADR-0025)"
   }
   assert {
     condition     = alltrue([for p in [azurerm_container_app.api.template[0].container[0].startup_probe[0], azurerm_container_app.api.template[0].container[0].readiness_probe[0], azurerm_container_app.api.template[0].container[0].liveness_probe[0]] : p.port == 8080 && p.transport == "HTTP"])
