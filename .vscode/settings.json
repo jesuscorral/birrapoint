@@ -23,9 +23,6 @@
     },
     "files.trimTrailingWhitespace": true,
     "files.insertFinalNewline": true,
-
-    // --- C# / .NET (whole-solution diagnostics like Visual Studio) ---
-    "dotnet.defaultSolution": "backend/BirraPoint.sln",
     "dotnet.backgroundAnalysis.analyzerDiagnosticsScope": "fullSolution",
     "dotnet.backgroundAnalysis.compilerDiagnosticsScope": "fullSolution",
     "dotnet.completion.showCompletionItemsFromUnimportedNamespaces": true,

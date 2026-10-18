@@ -78,9 +78,13 @@ internal sealed class GetEntryEvaluationsQueryHandler(AppDbContext dbContext, IC
 
         // Mirrors CloseTableRules.ComputeMean's rounding convention without importing across feature
         // folders (deliberate — small pure-arithmetic duplication over cross-slice coupling).
-        decimal? consolidatedMean = tableAssignment.State == TableState.Closed
-            ? (evaluations.Count == 0 ? 0m : Math.Round(evaluations.Average(x => (decimal)x.Evaluation.Total), 2, MidpointRounding.AwayFromZero))
-            : null;
+        decimal? consolidatedMean = null;
+        if (tableAssignment.State == TableState.Closed)
+        {
+            consolidatedMean = evaluations.Count == 0
+                ? 0m
+                : Math.Round(evaluations.Average(x => (decimal)x.Evaluation.Total), 2, MidpointRounding.AwayFromZero);
+        }
 
         return new EntryEvaluationsResult(entry.BlindCode, items, consolidatedMean);
     }

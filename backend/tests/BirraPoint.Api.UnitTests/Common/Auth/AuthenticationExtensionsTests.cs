@@ -63,7 +63,7 @@ public sealed class AuthenticationExtensionsTests
         var fallback = await policyProvider.GetFallbackPolicyAsync();
 
         Assert.NotNull(fallback);
-        Assert.Contains(fallback!.Requirements, r => r is DenyAnonymousAuthorizationRequirement);
+        Assert.Contains(fallback.Requirements, r => r is DenyAnonymousAuthorizationRequirement);
     }
 
     [Fact]

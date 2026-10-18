@@ -62,10 +62,10 @@ internal static class TableAssignmentApplier
             throw new DomainException(
                 DomainErrorType.ConflictOfInterest,
                 "One or more judges have a conflict of interest with the beers assigned to this table.",
-                new Dictionary<string, object?>
+                new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
                     ["conflicts"] = conflicts
-                        .Select(c => new Dictionary<string, object?> { ["judgeId"] = c.JudgeId, ["beerEntryIds"] = c.BeerEntryIds })
+                        .Select(c => new Dictionary<string, object?>(StringComparer.Ordinal) { ["judgeId"] = c.JudgeId, ["beerEntryIds"] = c.BeerEntryIds })
                         .ToList(),
                 });
         }
@@ -136,7 +136,7 @@ internal static class TableAssignmentApplier
             {
                 var ownerEmails = entryOwnerEmailsById.TryGetValue(entryId, out var emails)
                     ? emails
-                    : (IReadOnlySet<string>)new HashSet<string>();
+                    : (IReadOnlySet<string>)new HashSet<string>(StringComparer.Ordinal);
 
                 var coOwnerJudgeIds = await dbContext.Judges
                     .Where(j => j.CompetitionId == table.CompetitionId && ownerEmails.Contains(j.Email))

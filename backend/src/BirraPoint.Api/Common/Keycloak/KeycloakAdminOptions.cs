@@ -31,7 +31,7 @@ internal sealed class KeycloakAdminOptionsValidator(IHostEnvironment environment
                 "Keycloak:AdminClientSecret is not configured (Key Vault / Secrets Manager name Keycloak--AdminClientSecret).");
         }
 
-        if (options.AdminClientSecret == KeycloakAdminOptions.LocalDevPlaceholder)
+        if (string.Equals(options.AdminClientSecret, KeycloakAdminOptions.LocalDevPlaceholder, StringComparison.Ordinal))
         {
             return ValidateOptionsResult.Fail(
                 "Keycloak:AdminClientSecret is still the local-development placeholder; set a real secret.");

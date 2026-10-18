@@ -93,7 +93,7 @@ public sealed class DaprSecretsTests
         // Key Vault secret names allow only alphanumerics and '-', so "--" stands for ':'
         // (ConnectionStrings--db -> ConnectionStrings:db).
         Assert.True(source.NormalizeKey);
-        Assert.Contains("--", source.KeyDelimiters!);
+        Assert.Contains("--", source.KeyDelimiters);
     }
 
     [Fact]
@@ -164,10 +164,10 @@ public sealed class DaprSecretsTests
     {
         var attempts = 0;
 
-        Assert.Throws<ArgumentException>(() => DaprSecrets.LoadWithRetry(() =>
+        Assert.Throws<InvalidOperationException>(() => DaprSecrets.LoadWithRetry(() =>
         {
             attempts++;
-            throw new ArgumentException("bad configuration");
+            throw new InvalidOperationException("bad configuration");
         }, maxAttempts: 5, delay: TimeSpan.Zero));
 
         Assert.Equal(1, attempts);

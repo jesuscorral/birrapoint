@@ -64,7 +64,7 @@ internal static class WorkbookParser
         "Grado alcohol: (%)",
     ];
 
-    internal static readonly Regex EmailPattern = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled);
+    internal static readonly Regex EmailPattern = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     private const decimal MaxAbvPercent = 99.99m;
 
@@ -213,7 +213,7 @@ internal static class WorkbookParser
         if (cell.DataType == XLDataType.Number)
         {
             var number = cell.GetDouble();
-            return number == Math.Truncate(number)
+            return double.IsInteger(number)
                 ? ((long)number).ToString(CultureInfo.InvariantCulture)
                 : number.ToString(CultureInfo.InvariantCulture);
         }

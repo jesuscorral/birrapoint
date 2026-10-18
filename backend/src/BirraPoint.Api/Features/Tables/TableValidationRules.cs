@@ -41,7 +41,9 @@ internal static class TableValidationRules
         return await dbContext.TastingTables.AllAsync(
             t => t.Id == excludeTableId
                 || t.CompetitionId != competitionId
+#pragma warning disable MA0011, RCS1155 // EF Core translates ToLower() to SQL LOWER().
                 || t.Name.ToLower() != name.ToLower(),
+#pragma warning restore MA0011, RCS1155
             cancellationToken);
     }
 

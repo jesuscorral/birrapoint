@@ -44,14 +44,7 @@ internal static class SubmitEvaluationRules
     {
         var submitted = alreadySubmittedIds as ISet<Guid> ?? new HashSet<Guid>(alreadySubmittedIds);
 
-        foreach (var sampleId in orderedSampleIds)
-        {
-            if (!submitted.Contains(sampleId))
-            {
-                return sampleId == requestedBeerEntryId;
-            }
-        }
-
-        return false;
+        var firstPending = orderedSampleIds.FirstOrDefault(sampleId => !submitted.Contains(sampleId));
+        return firstPending != Guid.Empty && firstPending == requestedBeerEntryId;
     }
 }

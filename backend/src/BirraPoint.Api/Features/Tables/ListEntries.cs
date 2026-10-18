@@ -60,11 +60,11 @@ internal sealed class ListEntriesQueryHandler(AppDbContext dbContext, ICurrentUs
             })
             .ToListAsync(cancellationToken);
 
-        var styleCodes = entries.Select(e => e.StyleCode).Distinct().ToList();
+        var styleCodes = entries.Select(e => e.StyleCode).Distinct(StringComparer.Ordinal).ToList();
         var styleByCode = await dbContext.BjcpStyles
             .Where(s => styleCodes.Contains(s.Code))
             .Select(s => new { s.Code, s.Name, s.ABVLow, s.ABVHigh, s.CategoryNumber, s.CategoryName })
-            .ToDictionaryAsync(s => s.Code, cancellationToken);
+            .ToDictionaryAsync(s => s.Code, StringComparer.Ordinal, cancellationToken);
 
         // T124: the organizer-defined competition category (wizard step 3) is a separate axis from
         // the BJCP taxonomy category carried on the style row — the organizer's own grouping is
@@ -112,7 +112,7 @@ internal sealed class ListEntriesQueryHandler(AppDbContext dbContext, ICurrentUs
                     style?.CategoryNumber,
                     style?.CategoryName);
             })
-            .OrderBy(e => e.BlindCode)
+            .OrderBy(e => e.BlindCode, StringComparer.CurrentCulture)
             .ToList();
     }
 }

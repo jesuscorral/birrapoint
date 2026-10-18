@@ -60,7 +60,7 @@ internal sealed class ConsolidateJudgeImportCommandHandler(
             throw new DomainException(
                 DomainErrorType.UnresolvedImportRows,
                 "The judge import has unresolved rows that must be corrected or excluded before consolidation.",
-                new Dictionary<string, object?> { ["rowNumbers"] = unresolvedRowNumbers });
+                new Dictionary<string, object?>(StringComparer.Ordinal) { ["rowNumbers"] = unresolvedRowNumbers });
         }
 
         var existingJudges = await dbContext.Judges

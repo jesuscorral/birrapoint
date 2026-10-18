@@ -49,18 +49,18 @@ internal sealed class SetCompetitionCategoriesCommandValidator : AbstractValidat
     }
 
     private static bool HaveUniqueNames(IReadOnlyList<SetCategoryItem> categories) =>
-        categories.Select(category => category.Name).Distinct().Count() == categories.Count;
+        categories.Select(category => category.Name).Distinct(StringComparer.Ordinal).Count() == categories.Count;
 
     private static bool HaveNoDuplicateStyleCodes(IReadOnlyList<SetCategoryItem> categories)
     {
         var allCodes = categories.SelectMany(category => category.StyleCodes).ToList();
-        return allCodes.Distinct().Count() == allCodes.Count;
+        return allCodes.Distinct(StringComparer.Ordinal).Count() == allCodes.Count;
     }
 
     private static async Task<bool> AllStyleCodesExistAsync(
         AppDbContext dbContext, IReadOnlyList<SetCategoryItem> categories, CancellationToken cancellationToken)
     {
-        var codes = categories.SelectMany(category => category.StyleCodes).Distinct().ToList();
+        var codes = categories.SelectMany(category => category.StyleCodes).Distinct(StringComparer.Ordinal).ToList();
         if (codes.Count == 0)
         {
             return true;

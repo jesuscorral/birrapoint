@@ -64,7 +64,7 @@ public sealed class ValidationExceptionHandlerTests
     private static async Task<JsonElement> ReadBodyAsync(HttpContext context)
     {
         context.Response.Body.Seek(0, SeekOrigin.Begin);
-        using var document = await JsonDocument.ParseAsync(context.Response.Body);
+        using var document = await JsonDocument.ParseAsync(context.Response.Body, cancellationToken: context.RequestAborted);
         return document.RootElement.Clone();
     }
 }

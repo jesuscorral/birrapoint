@@ -25,17 +25,14 @@ internal sealed class JudgeResolver(AppDbContext db) : IJudgeResolver
         var judges = await db.Judges.Where(judge => judge.Email == email).ToListAsync(ct);
 
         var changed = false;
-        foreach (var judge in judges)
+        foreach (var judge in judges.Where(judge => judge.KeycloakUserId is null))
         {
-            if (judge.KeycloakUserId is null)
+            judge.KeycloakUserId = sub;
+            if (name is not null)
             {
-                judge.KeycloakUserId = sub;
-                if (name is not null)
-                {
-                    judge.DisplayName = name;
-                }
-                changed = true;
+                judge.DisplayName = name;
             }
+            changed = true;
         }
 
         // Unlike IAuditWriter (which deliberately defers to the caller's own SaveChangesAsync to

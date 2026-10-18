@@ -169,7 +169,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         string? otherIngredients = null,
         string? entryInstructions = null) =>
     [
-        submittedAt ?? new DateTime(2025, 9, 1, 9, 21, 16),
+        submittedAt ?? new DateTime(2025, 9, 1, 9, 21, 16, DateTimeKind.Unspecified),
         email,
         acceMemberNumber,
         name,
@@ -179,8 +179,8 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         style,
         abv,
         bottles,
-        brewDate ?? new DateTime(2025, 8, 12),
-        bottlingDate ?? new DateTime(2025, 8, 28),
+        brewDate ?? new DateTime(2025, 8, 12, 0, 0, 0, DateTimeKind.Unspecified),
+        bottlingDate ?? new DateTime(2025, 8, 28, 0, 0, 0, DateTimeKind.Unspecified),
         malts,
         hops,
         yeast,
@@ -396,7 +396,7 @@ public sealed class ImportApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         // No "Estilo" column at all.
         var xlsx = BuildWorkbook(
             headers: ["Marca temporal", "Dirección de correo electrónico", "Nombre y apellidos", "Categoria", "Grado alcohol: (%)"],
-            rows: [[new DateTime(2025, 9, 1), "ana@brew.example", "Ana Gomez", ClassicStylesCategory, 5.0]]);
+            rows: [[new DateTime(2025, 9, 1, 0, 0, 0, DateTimeKind.Unspecified), "ana@brew.example", "Ana Gomez", ClassicStylesCategory, 5.0]]);
 
         var response = await UploadAsync(organizer, competitionId, xlsx);
 

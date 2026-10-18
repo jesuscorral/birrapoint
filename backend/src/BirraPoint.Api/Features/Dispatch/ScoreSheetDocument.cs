@@ -107,11 +107,11 @@ internal sealed class ScoreSheetDocument(
         {
             AddSection(
                 "Appearance descriptors",
-                ("Color", appearance.Color == "Other" ? appearance.ColorOther : appearance.Color),
+                ("Color", string.Equals(appearance.Color, "Other", StringComparison.Ordinal) ? appearance.ColorOther : appearance.Color),
                 ("ColorInappropriate", appearance.ColorInappropriate),
                 ("Clarity", appearance.Clarity),
                 ("ClarityInappropriate", appearance.ClarityInappropriate),
-                ("Foam", appearance.Foam == "Other" ? appearance.FoamOther : appearance.Foam),
+                ("Foam", string.Equals(appearance.Foam, "Other", StringComparison.Ordinal) ? appearance.FoamOther : appearance.Foam),
                 ("FoamInappropriate", appearance.FoamInappropriate),
                 ("Retention", appearance.Retention),
                 ("RetentionInappropriate", appearance.RetentionInappropriate),

@@ -51,6 +51,8 @@ internal class Evaluation : Entity
     public string? FeedbackComment { get; set; }
 
     /// <summary>DB-computed (stored generated column) = sum of the five scores; never client-supplied (FR-024).</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S1144:Unused private types or members should be removed",
+        Justification = "EF Core materializes the generated column through this setter.")]
     public int Total { get; private set; }
 
     public EvaluationStatus Status { get; set; } = EvaluationStatus.Confirmed;

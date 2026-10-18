@@ -51,7 +51,7 @@ internal sealed class ChangeCompetitionStateCommandHandler(
                 throw new DomainException(
                     DomainErrorType.TablesStillOpen,
                     "Competition has tasting tables that are not closed.",
-                    new Dictionary<string, object?> { ["openTableIds"] = openTableIds });
+                    new Dictionary<string, object?>(StringComparer.Ordinal) { ["openTableIds"] = openTableIds });
             }
         }
 
