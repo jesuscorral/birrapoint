@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Stop hook: quality gate. Blocks Claude from finishing while changed code doesn't build, lint or
-// type-check (backend: dotnet build; frontend: ESLint on changed files + tsc).
+// type-check (backend: dotnet build; frontend: ESLint on changed files + tsc; infra: terraform fmt;
+// harness: guard.js tests).
 // Only checks stacks with uncommitted changes, and skips a check whose inputs already passed, so
 // docs-only or repeated turns cost nothing.
 const { execSync } = require('child_process');
@@ -26,7 +27,8 @@ process.stdin.on('end', () => {
   let changed = [];
   try {
     changed = sh('git status --porcelain --untracked-files=all', root, 15000)
-      .split('\n').filter(Boolean).map(l => l.slice(3).trim().replace(/^"|"$/g, ''));
+      // Renames print "old -> new"; only the new path exists.
+      .split('\n').filter(Boolean).map(l => l.slice(3).trim().split(' -> ').pop().replace(/^"|"$/g, ''));
   } catch { process.exit(0); }
 
   // Fingerprint = changed paths + their current content, per stack.
@@ -41,7 +43,10 @@ process.stdin.on('end', () => {
   let cache = {};
   try { cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8')); } catch {}
 
-  const frontendSources = changed.filter(f => /^frontend\/src\/.*\.(ts|html)$/.test(f) && fs.existsSync(path.join(root, f)));
+  // terraform is optional on dev machines; skip its check instead of failing when it's missing.
+  const hasTerraform = () => { try { sh('terraform version', root, 15000); return true; } catch { return false; } };
+
+  const frontendSources =changed.filter(f => /^frontend\/src\/.*\.(ts|html)$/.test(f) && fs.existsSync(path.join(root, f)));
   const checks = [
     {
       name: 'backend',
@@ -64,6 +69,20 @@ process.stdin.on('end', () => {
       cmd: 'node node_modules/typescript/bin/tsc --noEmit -p tsconfig.app.json',
       cwd: path.join(root, 'frontend'),
       label: 'Frontend type-check (tsc) FAILED'
+    },
+    {
+      name: 'terraform-fmt',
+      files: (tf => (tf.length && hasTerraform() ? tf : []))(changed.filter(f => /^infra\/.*\.(tf|tftest\.hcl)$/.test(f))),
+      cmd: 'terraform fmt -check -recursive infra',
+      cwd: root,
+      label: 'terraform fmt -check FAILED (run terraform fmt -recursive infra)'
+    },
+    {
+      name: 'guard-tests',
+      files: changed.filter(f => /^\.claude\/hooks\/guard(\.test)?\.js$/.test(f)),
+      cmd: 'node .claude/hooks/guard.test.js',
+      cwd: root,
+      label: 'guard.js tests FAILED'
     }
   ];
 

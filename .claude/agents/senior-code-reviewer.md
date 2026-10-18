@@ -37,7 +37,9 @@ files. Review what changed and what it breaks — don't audit untouched code.
    `core/api/`); accessibility (keyboard alternative for drag & drop, focus trap in dialogs, WCAG
    contrast).
 5. **Infra/CI** (when touched): least privilege, no secrets in images/logs/repo, idempotent
-   scripts, Terraform `fmt`/`validate`-clean, Pester coverage for new `.psm1` logic.
+   scripts, Terraform `fmt`/`validate`-clean, Pester coverage for new `.psm1` logic; a shared
+   behavior change applied to both cloud roots (`infra/azure`, `infra/aws`).
+6. **EF migrations** (when touched): the checks in `.claude/skills/migration-safety/SKILL.md`.
 
 Skip formatting and style nits: linters and formatters gate CI.
 
