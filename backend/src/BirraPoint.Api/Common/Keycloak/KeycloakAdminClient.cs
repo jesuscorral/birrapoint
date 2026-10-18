@@ -69,7 +69,7 @@ internal sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration 
 
     private async Task<string> GetAdminAccessTokenAsync(CancellationToken cancellationToken)
     {
-        var form = new Dictionary<string, string>
+        var form = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["grant_type"] = "client_credentials",
             ["client_id"] = _clientId,
@@ -142,7 +142,7 @@ internal sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration 
         availableRolesResponse.EnsureSuccessStatusCode();
 
         var availableRoles = await availableRolesResponse.Content.ReadFromJsonAsync<JsonArray>(cancellationToken);
-        var judgeRole = availableRoles?.OfType<JsonObject>().FirstOrDefault(role => role["name"]?.GetValue<string>() == "JUDGE");
+        var judgeRole = availableRoles?.OfType<JsonObject>().FirstOrDefault(role => string.Equals(role["name"]?.GetValue<string>(), "JUDGE", StringComparison.Ordinal));
         if (judgeRole is null)
         {
             // Absent from "available" is ambiguous by itself: it means either JUDGE is already
@@ -181,7 +181,7 @@ internal sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration 
         response.EnsureSuccessStatusCode();
 
         var assignedRoles = await response.Content.ReadFromJsonAsync<JsonArray>(cancellationToken);
-        return assignedRoles?.OfType<JsonObject>().Any(role => role["name"]?.GetValue<string>() == "JUDGE") ?? false;
+        return assignedRoles?.OfType<JsonObject>().Any(role => string.Equals(role["name"]?.GetValue<string>(), "JUDGE", StringComparison.Ordinal)) ?? false;
     }
 
     // An account still mid-setup (never completed its first login) has UPDATE_PASSWORD pending —
@@ -189,7 +189,7 @@ internal sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration 
     // its own real password, which must be left alone (see EnsureUserWithTemporaryPasswordAsync).
     private static bool HasPendingPasswordUpdate(JsonObject user) =>
         (user["requiredActions"] as JsonArray)?
-            .Any(action => action!.GetValue<string>() == "UPDATE_PASSWORD") ?? false;
+            .Any(action => string.Equals(action!.GetValue<string>(), "UPDATE_PASSWORD", StringComparison.Ordinal)) ?? false;
 
     private async Task PutUserAsync(string userId, JsonObject user, string token, CancellationToken cancellationToken)
     {

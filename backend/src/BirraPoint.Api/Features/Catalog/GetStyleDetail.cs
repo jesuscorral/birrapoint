@@ -64,7 +64,9 @@ internal sealed class GetStyleDetailQueryHandler(AppDbContext dbContext) : IRequ
         // matching (FR-010) — Code is a natural-key PK (e.g. "21A"), never expected to collide
         // case-insensitively within the catalog.
         var style = await dbContext.BjcpStyles
+#pragma warning disable MA0011, RCS1155 // EF Core translates ToUpper() to SQL UPPER(); culture/StringComparison overloads are not translatable.
             .FirstOrDefaultAsync(s => s.Code.ToUpper() == request.Code.ToUpper(), cancellationToken);
+#pragma warning restore MA0011, RCS1155
 
         if (style is null)
         {

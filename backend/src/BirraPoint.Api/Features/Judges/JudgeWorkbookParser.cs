@@ -34,7 +34,7 @@ internal static class JudgeWorkbookParser
         "Correo electrónico",
     ];
 
-    internal static readonly Regex EmailPattern = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled);
+    internal static readonly Regex EmailPattern = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     public static IReadOnlyList<ParsedJudgeImportRow> Parse(Stream fileStream)
     {

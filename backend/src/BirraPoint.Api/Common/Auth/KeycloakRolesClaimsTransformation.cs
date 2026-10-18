@@ -19,7 +19,7 @@ internal sealed class KeycloakRolesClaimsTransformation : IClaimsTransformation
             return Task.FromResult(principal);
         }
 
-        if (identity.HasClaim(claim => claim.Type == ClaimTypes.Role))
+        if (identity.HasClaim(claim => string.Equals(claim.Type, ClaimTypes.Role, StringComparison.Ordinal)))
         {
             return Task.FromResult(principal);
         }

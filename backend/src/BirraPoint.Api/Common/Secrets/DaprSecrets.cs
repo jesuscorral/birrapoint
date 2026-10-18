@@ -91,8 +91,10 @@ internal static class DaprSecrets
     /// </summary>
     public static IConfigurationRoot LoadWithRetry(Func<IConfigurationRoot> load, int maxAttempts, TimeSpan delay)
     {
-        for (var attempt = 1; ; attempt++)
+        var attempt = 0;
+        while (true)
         {
+            attempt++;
             try
             {
                 return load();

@@ -29,10 +29,10 @@ internal static class JudgeSampleProjector
             .Select(e => new { e.Id, e.BlindCode, e.StyleCode, e.AbvPercent, e.EntryInstructions })
             .ToListAsync(cancellationToken);
 
-        var styleCodes = entries.Select(e => e.StyleCode).Distinct().ToList();
+        var styleCodes = entries.Select(e => e.StyleCode).Distinct(StringComparer.Ordinal).ToList();
         var styleNameByCode = await dbContext.BjcpStyles
             .Where(s => styleCodes.Contains(s.Code))
-            .ToDictionaryAsync(s => s.Code, s => s.Name, cancellationToken);
+            .ToDictionaryAsync(s => s.Code, s => s.Name, StringComparer.Ordinal, cancellationToken);
 
         var sequenceByEntryId = samples.ToDictionary(s => s.BeerEntryId, s => s.SequenceOrder);
 

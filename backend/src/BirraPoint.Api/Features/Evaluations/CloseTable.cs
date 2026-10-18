@@ -81,7 +81,7 @@ internal sealed class CloseTableCommandHandler(AppDbContext dbContext, ICurrentU
             throw new DomainException(
                 DomainErrorType.EvaluationsIncomplete,
                 "Not every active judge has submitted every sample at this table.",
-                new Dictionary<string, object?> { ["missing"] = missingBlindCodes });
+                new Dictionary<string, object?>(StringComparer.Ordinal) { ["missing"] = missingBlindCodes });
         }
 
         var openDiscrepancyEntryIds = await dbContext.DiscrepancyAlerts
@@ -95,7 +95,7 @@ internal sealed class CloseTableCommandHandler(AppDbContext dbContext, ICurrentU
             throw new DomainException(
                 DomainErrorType.DiscrepancyOpen,
                 "This table has unresolved discrepancy alerts.",
-                new Dictionary<string, object?>
+                new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
                     ["blindCodes"] = openDiscrepancyEntryIds.Select(id => blindCodeByEntryId[id]).ToList(),
                 });

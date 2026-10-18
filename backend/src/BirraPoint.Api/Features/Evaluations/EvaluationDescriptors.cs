@@ -171,7 +171,7 @@ internal sealed class EvaluationDescriptorsDtoValidator : AbstractValidator<Eval
         RuleFor(d => d.Overall!).SetValidator(new OverallDescriptorsDtoValidator()).When(d => d.Overall is not null);
 
         RuleForEach(d => d.OffFlavors)
-            .Must(term => EvaluationDescriptorCatalog.OffFlavorTerms.Contains(term))
+            .Must(term => EvaluationDescriptorCatalog.OffFlavorTerms.Contains(term, StringComparer.Ordinal))
             .WithMessage("'{PropertyValue}' is not a recognized off-flavor descriptor.")
             .When(d => d.OffFlavors is not null);
 
@@ -207,10 +207,10 @@ file sealed class AppearanceDescriptorsDtoValidator : AbstractValidator<Appearan
 
     public AppearanceDescriptorsDtoValidator()
     {
-        RuleFor(d => d.Color).Must(v => EvaluationDescriptorCatalog.ColorOptions.Contains(v!)).When(d => d.Color is not null);
+        RuleFor(d => d.Color).Must(v => EvaluationDescriptorCatalog.ColorOptions.Contains(v!, StringComparer.Ordinal)).When(d => d.Color is not null);
         RuleFor(d => d.ColorOther).MaximumLength(FreeTextMaxLength);
-        RuleFor(d => d.Clarity).Must(v => EvaluationDescriptorCatalog.ClarityOptions.Contains(v!)).When(d => d.Clarity is not null);
-        RuleFor(d => d.Foam).Must(v => EvaluationDescriptorCatalog.FoamOptions.Contains(v!)).When(d => d.Foam is not null);
+        RuleFor(d => d.Clarity).Must(v => EvaluationDescriptorCatalog.ClarityOptions.Contains(v!, StringComparer.Ordinal)).When(d => d.Clarity is not null);
+        RuleFor(d => d.Foam).Must(v => EvaluationDescriptorCatalog.FoamOptions.Contains(v!, StringComparer.Ordinal)).When(d => d.Foam is not null);
         RuleFor(d => d.FoamOther).MaximumLength(FreeTextMaxLength);
         RuleFor(d => d.Retention).BipolarSlider();
         RuleFor(d => d.Texture).MaximumLength(FreeTextMaxLength);

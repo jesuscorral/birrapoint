@@ -52,7 +52,9 @@ internal sealed class UpdateJudgeEmailCommandValidator : AbstractValidator<Updat
         return await dbContext.Judges.AllAsync(
             j => j.Id == command.JudgeId
                 || j.CompetitionId != command.CompetitionId
+#pragma warning disable MA0011, RCS1155 // EF Core translates ToLower() to SQL LOWER().
                 || j.Email.ToLower() != command.Email.ToLower(),
+#pragma warning restore MA0011, RCS1155
             cancellationToken);
     }
 }

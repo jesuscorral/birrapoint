@@ -133,7 +133,7 @@ public sealed class WorkbookParserTests
         string? otherIngredients = null,
         string? entryInstructions = null) =>
     [
-        submittedAt ?? new DateTime(2025, 9, 1, 9, 21, 16),
+        submittedAt ?? new DateTime(2025, 9, 1, 9, 21, 16, DateTimeKind.Unspecified),
         email,
         acceMemberNumber,
         name,
@@ -143,8 +143,8 @@ public sealed class WorkbookParserTests
         style,
         abv,
         bottles,
-        brewDate ?? new DateTime(2025, 8, 12),
-        bottlingDate ?? new DateTime(2025, 8, 28),
+        brewDate ?? new DateTime(2025, 8, 12, 0, 0, 0, DateTimeKind.Unspecified),
+        bottlingDate ?? new DateTime(2025, 8, 28, 0, 0, 0, DateTimeKind.Unspecified),
         malts,
         hops,
         yeast,
@@ -389,7 +389,7 @@ public sealed class WorkbookParserTests
             rows:
             [
                 [
-                    new DateTime(2025, 9, 1), "ana@brew.example", null, "Ana Gomez", null, null,
+                    new DateTime(2025, 9, 1, 0, 0, 0, DateTimeKind.Unspecified), "ana@brew.example", null, "Ana Gomez", null, null,
                     "Estilos clásicos", "21A", 5.0, null, null, null, null, null, null, null, null,
                 ],
             ]);
@@ -415,7 +415,7 @@ public sealed class WorkbookParserTests
                 "Marca temporal", "Dirección de correo electrónico", "Nombre y apellidos", "Categoria", "Estilo",
                 "Grado alcohol: (%)",
             ],
-            rows: [[new DateTime(2025, 9, 1), "ana@brew.example", "Ana Gomez", "Estilos clásicos", "21A", 5.0]]);
+            rows: [[new DateTime(2025, 9, 1, 0, 0, 0, DateTimeKind.Unspecified), "ana@brew.example", "Ana Gomez", "Estilos clásicos", "21A", 5.0]]);
 
         var rows = Parse(xlsx);
 
@@ -434,7 +434,7 @@ public sealed class WorkbookParserTests
     {
         var xlsx = BuildWorkbook(
             headers: [" estilo ", "GRADO ALCOHOL: (%)", "categoria", "nombre y apellidos", "dirección de correo electrónico", "marca temporal"],
-            rows: [["21A", 5.0, "Estilos clásicos", "Ana Gomez", "ana@brew.example", new DateTime(2025, 9, 1)]]);
+            rows: [["21A", 5.0, "Estilos clásicos", "Ana Gomez", "ana@brew.example", new DateTime(2025, 9, 1, 0, 0, 0, DateTimeKind.Unspecified)]]);
 
         var rows = Parse(xlsx);
 
@@ -462,7 +462,7 @@ public sealed class WorkbookParserTests
     {
         var xlsx = BuildWorkbook(
             headers: ["Marca temporal", "Dirección de correo electrónico", "Nombre y apellidos"],
-            rows: [[new DateTime(2025, 9, 1), "ana@brew.example", "Ana Gomez"]]);
+            rows: [[new DateTime(2025, 9, 1, 0, 0, 0, DateTimeKind.Unspecified), "ana@brew.example", "Ana Gomez"]]);
 
         var exception = Assert.Throws<DomainException>(() => Parse(xlsx));
 

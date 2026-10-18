@@ -76,8 +76,6 @@ public sealed class EventPublisherTests
 
         public IClientProxy Groups(IReadOnlyList<string> groupNames) => throw new NotSupportedException();
 
-        public IClientProxy OthersInGroup(string groupName) => throw new NotSupportedException();
-
         public IClientProxy User(string userId) => throw new NotSupportedException();
 
         public IClientProxy Users(IReadOnlyList<string> userIds) => throw new NotSupportedException();

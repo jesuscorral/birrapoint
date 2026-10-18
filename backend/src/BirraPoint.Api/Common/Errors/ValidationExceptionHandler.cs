@@ -23,8 +23,8 @@ internal sealed class ValidationExceptionHandler(IProblemDetailsService problemD
         // API, silently breaking any client-side `errors[fieldName]` lookup (senior-code-reviewer,
         // T025-T030 review: caught because this handler had no real consumer before Competitions).
         var errors = validationException.Errors
-            .GroupBy(failure => ToCamelCase(failure.PropertyName))
-            .ToDictionary(group => group.Key, group => group.Select(failure => failure.ErrorMessage).ToArray());
+            .GroupBy(failure => ToCamelCase(failure.PropertyName), StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Select(failure => failure.ErrorMessage).ToArray(), StringComparer.Ordinal);
 
         var problemDetails = new ValidationProblemDetails(errors)
         {

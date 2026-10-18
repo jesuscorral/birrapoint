@@ -59,12 +59,12 @@ internal static class TableProjector
             .ToListAsync(cancellationToken);
         var entryById = entries.ToDictionary(e => e.Id);
 
-        var styleCodes = entries.Select(e => e.StyleCode).Distinct().ToList();
+        var styleCodes = entries.Select(e => e.StyleCode).Distinct(StringComparer.Ordinal).ToList();
         var styles = await dbContext.BjcpStyles
             .Where(s => styleCodes.Contains(s.Code))
             .Select(s => new { s.Code, s.Name, s.ABVLow, s.ABVHigh, s.CategoryNumber, s.CategoryName })
             .ToListAsync(cancellationToken);
-        var styleByCode = styles.ToDictionary(s => s.Code);
+        var styleByCode = styles.ToDictionary(s => s.Code, StringComparer.Ordinal);
 
         // T124: the organizer-defined competition category (wizard step 3) is a separate axis from
         // the BJCP taxonomy category carried on the style row — the organizer's own grouping is
@@ -131,7 +131,7 @@ internal static class TableProjector
                 // `style?.Name ?? e.StyleCode`), not from the catalog-joined `styles` rows — an entry
                 // whose StyleCode has no matching BjcpStyles row must still count here, the same
                 // "silently excluded" defect class just fixed for MeanAbv (PR #31 review #7).
-                var styleNames = samples.Select(s => s.StyleName).Distinct().OrderBy(name => name).ToList();
+                var styleNames = samples.Select(s => s.StyleName).Distinct(StringComparer.Ordinal).OrderBy(name => name, StringComparer.CurrentCulture).ToList();
                 var stats = new TableStatsDto(meanAbv, styleNames.Count, styleNames);
 
                 submittedByTableId.TryGetValue(id, out var submitted);

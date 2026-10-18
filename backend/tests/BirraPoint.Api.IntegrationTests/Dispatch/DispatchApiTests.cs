@@ -343,7 +343,7 @@ public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFact
             var zipEntry = zipArchive.GetEntry(expectedPath);
             Assert.NotNull(zipEntry);
 
-            await using var entryStream = await zipEntry!.OpenAsync(TestContext.Current.CancellationToken);
+            await using var entryStream = await zipEntry.OpenAsync(TestContext.Current.CancellationToken);
             using var pdfBytes = new MemoryStream();
             await entryStream.CopyToAsync(pdfBytes, TestContext.Current.CancellationToken);
             // %PDF is the standard PDF magic header — enough to confirm this is a real PDF, not

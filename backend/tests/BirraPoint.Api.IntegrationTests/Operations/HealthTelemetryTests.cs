@@ -210,7 +210,7 @@ public sealed class TelemetryRegistrationTests(ApiFactory factory) : IClassFixtu
             .Single(a => a.Key == "service.name").Value as string;
 
         Assert.False(string.IsNullOrWhiteSpace(serviceName));
-        Assert.False(serviceName!.StartsWith("unknown_service", StringComparison.Ordinal),
+        Assert.False(serviceName.StartsWith("unknown_service", StringComparison.Ordinal),
             $"service.name was '{serviceName}'");
     }
 }

@@ -159,16 +159,17 @@ internal sealed partial class DispatchWorker(
                 return;
             }
 
-            var outcomes = expired
-                .Select(job => (Job: job, Outcome: ApplyFailure(job, "Interrupted: lease expired while Running.")))
-                .ToList();
+            foreach (var job in expired)
+            {
+                ApplyFailure(job, "Interrupted: lease expired while Running.");
+            }
             await db.SaveChangesAsync(stoppingToken);
             await transaction.CommitAsync(stoppingToken);
 
             LogExpiredLeasesRecovered(logger, expired.Count);
-            foreach (var (job, outcome) in outcomes)
+            foreach (var job in expired)
             {
-                await AfterFailureRecordedAsync(job, outcome, exception: null, stoppingToken);
+                await AfterFailureRecordedAsync(job, exception: null);
             }
 
             if (expired.Count < RecoveryBatchSize)
@@ -191,6 +192,7 @@ internal sealed partial class DispatchWorker(
         // the upcoming full sweep already covers whatever they were signaling.
         while (wakeUpChannel.Reader.TryRead(out _))
         {
+            // Discard: the sweep below handles every pending job.
         }
     }
 
@@ -267,7 +269,7 @@ internal sealed partial class DispatchWorker(
             {
                 job.Status = DispatchJobStatus.Completed;
                 LogJobCompleted(logger, job.Id, job.Type);
-                await PublishProgressSafely(job, detail: null);
+                await PublishProgressSafelyAsync(job, detail: null);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -276,7 +278,7 @@ internal sealed partial class DispatchWorker(
             var outcome = ApplyFailure(job, ex.Message);
             if (await TryFinishAsync(job, outcome.Status, job.Attempts, job.LastError, outcome.NextAttemptAt))
             {
-                await AfterFailureRecordedAsync(job, outcome, ex, stoppingToken);
+                await AfterFailureRecordedAsync(job, ex);
             }
         }
         finally
@@ -362,6 +364,7 @@ internal sealed partial class DispatchWorker(
         return rows > 0;
     }
 
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
     private readonly record struct FailureOutcome(DispatchJobStatus Status, DateTimeOffset? NextAttemptAt, TimeSpan? Backoff);
 
     /// <summary>Applies the retry decision to the in-memory job (Attempts, LastError, Status,
@@ -384,8 +387,7 @@ internal sealed partial class DispatchWorker(
         return new FailureOutcome(job.Status, job.NextAttemptAt, backoff);
     }
 
-    private async Task AfterFailureRecordedAsync(
-        DispatchJob job, FailureOutcome outcome, Exception? exception, CancellationToken stoppingToken)
+    private async Task AfterFailureRecordedAsync(DispatchJob job, Exception? exception)
     {
         if (exception is not null)
         {
@@ -396,7 +398,7 @@ internal sealed partial class DispatchWorker(
             LogJobAttemptRecorded(logger, job.Id, job.Type, job.Attempts, job.LastError, job.Status);
         }
 
-        await PublishProgressSafely(job, job.LastError);
+        await PublishProgressSafelyAsync(job, job.LastError);
     }
 
     /// <summary>The DispatchProgress notification is fire-and-forget, not the source of truth
@@ -404,7 +406,7 @@ internal sealed partial class DispatchWorker(
     /// outcome, so this is isolated from the caller's try/catch.</summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types",
         Justification = "DispatchProgress is fire-and-forget; any publish failure is logged and must not revert the persisted job outcome.")]
-    private async Task PublishProgressSafely(DispatchJob job, string? detail)
+    private async Task PublishProgressSafelyAsync(DispatchJob job, string? detail)
     {
         try
         {

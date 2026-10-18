@@ -4,31 +4,32 @@
     <TargetFramework>$(BirraPointTargetFramework)</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="ClosedXML"/>
-    <PackageReference Include="Dapr.Extensions.Configuration"/>
-    <PackageReference Include="FluentValidation"/>
-    <PackageReference Include="FluentValidation.DependencyInjectionExtensions"/>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer"/>
-    <PackageReference Include="MailKit"/>
-    <PackageReference Include="MediatR"/>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi"/>
+    <PackageReference Include="ClosedXML" />
+    <PackageReference Include="Dapr.Extensions.Configuration" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="MessagePack" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="MailKit" />
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.OpenApi"/>
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
-    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI"/>
-    <PackageReference Include="QuestPDF"/>
+    <PackageReference Include="Microsoft.OpenApi" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" />
+    <PackageReference Include="QuestPDF" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\BirraPoint.ServiceDefaults\BirraPoint.ServiceDefaults.csproj"/>
+    <ProjectReference Include="..\BirraPoint.ServiceDefaults\BirraPoint.ServiceDefaults.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Features/Catalog/Data/bjcp-2021.json"/>
+    <EmbeddedResource Include="Features/Catalog/Data/bjcp-2021.json" />
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="BirraPoint.Api.UnitTests"/>
-    <InternalsVisibleTo Include="BirraPoint.Api.IntegrationTests"/>
+    <InternalsVisibleTo Include="BirraPoint.Api.UnitTests" />
+    <InternalsVisibleTo Include="BirraPoint.Api.IntegrationTests" />
   </ItemGroup>
 </Project>

@@ -17,6 +17,8 @@ namespace BirraPoint.Api.Realtime;
 /// harness exists; `contract-guardian` can verify this gap is closed.
 /// </summary>
 [Authorize]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE1006:Naming Styles",
+    Justification = "Hub method names are the SignalR wire contract (contracts/signalr-hub.md); an Async suffix would break clients.")]
 internal sealed class CompetitionHub(AppDbContext db) : Hub
 {
     private const string NotAuthorizedToJoinOrganizerGroup = "Not authorized to join this competition's organizer group.";

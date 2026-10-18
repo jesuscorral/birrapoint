@@ -64,7 +64,7 @@ internal sealed class GetProgressQueryHandler(AppDbContext dbContext, ICurrentUs
                 var percent = expected == 0 ? 0 : (int)Math.Round(completed * 100.0 / expected, MidpointRounding.AwayFromZero);
                 return new TableProgressSummaryDto(table.Id, table.Name, table.State.ToString(), completed, expected, percent);
             })
-            .OrderBy(r => r.Name)
+            .OrderBy(r => r.Name, StringComparer.CurrentCulture)
             .ToList();
     }
 }

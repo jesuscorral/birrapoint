@@ -12,7 +12,7 @@ namespace BirraPoint.Api.IntegrationTests.Persistence;
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1515:Consider making public types internal",
     Justification = "xUnit requires fixtures used in public test-class constructors (IClassFixture<T>) to be public.")]
-public sealed class PostgresFixture : IAsyncLifetime, IAsyncDisposable
+public sealed class PostgresFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:16").Build();
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using BirraPoint.Api.Common.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +23,7 @@ internal sealed class GetStylesQueryHandler(AppDbContext dbContext)
         // has to happen client-side in .NET — a plain OrderBy would sort it lexicographically
         // ("1", "10".."19", "2", "20", ...) instead of by actual category number.
         return styles
-            .OrderBy(style => int.TryParse(style.CategoryNumber, out var number) ? number : int.MaxValue)
+            .OrderBy(style => int.TryParse(style.CategoryNumber, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number) ? number : int.MaxValue)
             .ThenBy(style => style.CategoryNumber, StringComparer.Ordinal)
             .ThenBy(style => style.Code, StringComparer.Ordinal)
             .ToList();

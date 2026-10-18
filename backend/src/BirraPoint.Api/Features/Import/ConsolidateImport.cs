@@ -55,7 +55,7 @@ internal sealed class ConsolidateImportCommandHandler(AppDbContext dbContext, IC
             throw new DomainException(
                 DomainErrorType.UnresolvedImportRows,
                 "The import has unresolved rows that must be corrected or excluded before consolidation.",
-                new Dictionary<string, object?> { ["rowNumbers"] = unresolvedRowNumbers });
+                new Dictionary<string, object?>(StringComparer.Ordinal) { ["rowNumbers"] = unresolvedRowNumbers });
         }
 
         var participantsByEmail = (await dbContext.Participants
@@ -66,7 +66,7 @@ internal sealed class ConsolidateImportCommandHandler(AppDbContext dbContext, IC
         var existingBlindCodes = new HashSet<string>(await dbContext.BeerEntries
             .Where(e => e.CompetitionId == competition.Id)
             .Select(e => e.BlindCode)
-            .ToListAsync(cancellationToken));
+            .ToListAsync(cancellationToken), StringComparer.Ordinal);
 
         var random = Random.Shared;
         var createdEntries = new List<ConsolidatedEntryDto>();

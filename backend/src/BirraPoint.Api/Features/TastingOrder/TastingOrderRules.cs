@@ -45,7 +45,7 @@ internal static class TastingOrderRules
             throw new DomainException(
                 DomainErrorType.OrderAlreadyFixed,
                 "The tasting order for this table has already been fixed.",
-                new Dictionary<string, object?> { ["fixedBy"] = fixedByDisplayName });
+                new Dictionary<string, object?>(StringComparer.Ordinal) { ["fixedBy"] = fixedByDisplayName });
         }
 
         if (!CanFixOrderInState(competitionState))
