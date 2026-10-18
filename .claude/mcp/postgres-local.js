@@ -8,6 +8,9 @@
 // start and agents fall back to migrations and data-model.md.
 const { execFileSync, spawn } = require('child_process');
 
+// Pinned by digest: restricted mode is the only write barrier, so a moved tag must not change it.
+// To upgrade: docker pull crystaldba/postgres-mcp:latest, re-check restricted mode, update the digest.
+const IMAGE = 'crystaldba/postgres-mcp@sha256:dbbd346860d29f1543e991f30f3284bf4ab5f096d049ecc3426528f20b1b6e6b';
 const fail = msg => { console.error(`postgres-local: ${msg}`); process.exit(1); };
 const docker = args => execFileSync('docker', args, { stdio: ['ignore', 'pipe', 'ignore'], timeout: 10000 }).toString().trim();
 
@@ -30,7 +33,7 @@ if (!network) fail(`${container} has no Docker network.`);
 
 const child = spawn('docker', [
   'run', '-i', '--rm', '--network', network, '-e', 'DATABASE_URI',
-  'crystaldba/postgres-mcp:latest', '--access-mode=restricted', '--transport=stdio'
+  IMAGE, '--access-mode=restricted', '--transport=stdio'
 ], {
   stdio: 'inherit',
   env: {

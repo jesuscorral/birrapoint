@@ -5,8 +5,10 @@
 const { execSync } = require('child_process');
 
 const root = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+// Never open a credential prompt (Git Credential Manager GUI) at session start.
+const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' };
 const git = (args, timeout = 5000) => {
-  try { return execSync(`git ${args}`, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'], timeout }).toString().trim(); }
+  try { return execSync(`git ${args}`, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'], timeout, env }).toString().trim(); }
   catch { return ''; }
 };
 

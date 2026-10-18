@@ -63,6 +63,26 @@ const blocked = [
   'head -5 infra/aws/terraform/terraform.tfstate',
   'grep -i password backend/src/BirraPoint.Api/appsettings.Production.json',
   'cat ~/.aws/credentials',
+  // PR #75 review: pushes naming main, quoted/indirect secret reads, shell escapes
+  'git push -u origin main',
+  'git push --set-upstream origin main',
+  'git push origin +HEAD:refs/heads/main',
+  'git -C . push --force',
+  'git -c core.hooksPath=/dev/null commit -n -m x',
+  'cat ".env"',
+  "cat '.env'",
+  'export $(cat .env | xargs)',
+  'echo `cat .env`',
+  'git show HEAD:.env',
+  'gh api -X PUT repos/o/r/pulls/12/merge',
+  'gh api repos/o/r/pulls/12/reviews -f event=APPROVE',
+  'pwsh -Command terraform destroy',
+  'pwsh -EncodedCommand ZQBjAGgAbwA=',
+  'powershell -enc ZQBjAGgAbwA=',
+  'cmd /c "terraform apply"',
+  '& ./infra/aws/teardown.ps1',
+  'sleep 1 & terraform apply',
+  'bash <<EOF\nterraform apply\nEOF',
 ];
 
 // Blocked only while the current branch is main.
@@ -109,6 +129,17 @@ const allowed = [
   'git push',
   'git push -u origin HEAD',
   'git commit -m x',
+  // PR #75 review: false positives
+  'cp .env.example .env',
+  'cat backend/.env.development.example',
+  'cat infra/aws/terraform/terraform.tfvars.example',
+  'grep -rn TODO . --exclude=.env',
+  'gh api repos/o/r/pulls/12/reviews',
+  'gh api repos/o/r/pulls/12/merge',
+  "gh pr create --body 'Blocks commands like bash -c \"terraform apply\"'",
+  'cat > body.md <<EOF\nterraform apply\nbash -c "terraform destroy"\nEOF',
+  'git push origin feature/x:feature/x',
+  'dotnet test 2>&1 | tail -5',
 ];
 
 let failures = 0;

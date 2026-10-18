@@ -18,7 +18,7 @@
     "postgres-local": {
       "type": "stdio",
       "command": "node",
-      "args": [".claude/mcp/postgres-local.js"],
+      "args": ["${CLAUDE_PROJECT_DIR:-.}/.claude/mcp/postgres-local.js"],
       "env": {}
     }
   }
