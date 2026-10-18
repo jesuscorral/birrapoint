@@ -29,6 +29,7 @@
       "Bash(git switch:*)",
       "Bash(git branch:*)",
       "Bash(git stash:*)",
+      "Bash(git rev-parse:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr diff:*)",
       "Bash(gh pr checks:*)",
@@ -38,8 +39,21 @@
       "Bash(codegraph:*)",
       "Bash(terraform -chdir=infra/azure/terraform fmt:*)",
       "Bash(terraform -chdir=infra/azure/terraform validate:*)",
+      "Bash(terraform -chdir=infra/azure/terraform test:*)",
+      "Bash(terraform -chdir=infra/aws/terraform fmt:*)",
+      "Bash(terraform -chdir=infra/aws/terraform validate:*)",
+      "Bash(terraform -chdir=infra/aws/terraform test:*)",
+      "Bash(node .claude/hooks/guard.test.js)",
+      "Bash(bash .github/scripts/version.test.sh)",
+      "Bash(bash .github/scripts/wait-revisions.test.sh)",
+      "Bash(bash .github/scripts/ecs-health.test.sh)",
+      "Bash(bash .github/scripts/require-dockerhub-read.test.sh)",
+      "Bash(bash infra/keycloak/dapr-secrets/DaprSecretsEnv.test.sh)",
+      "Bash(bash infra/keycloak/dapr-secrets/ApiAdminSecretGuard.test.sh)",
+      "Bash(bash infra/keycloak/RealmProd.test.sh)",
       "Bash(docker info:*)",
       "Bash(docker ps:*)",
+      "Bash(docker build:*)",
       "mcp__codegraph__codegraph_explore",
       "mcp__microsoft-learn",
       "mcp__terraform",
@@ -49,23 +63,55 @@
       "mcp__postgres-local__get_object_details",
       "mcp__postgres-local__explain_query"
     ],
+    "ask": [
+      "Bash(git restore:*)",
+      "Bash(git checkout -- :*)",
+      "Bash(git checkout .:*)",
+      "Bash(git branch -D:*)",
+      "Bash(git branch --delete:*)",
+      "Bash(rm -rf:*)",
+      "Bash(rm -r:*)",
+      "Bash(gh pr close:*)",
+      "Bash(gh api -X DELETE:*)",
+      "Bash(gh api --method DELETE:*)",
+      "Bash(docker compose down:*)",
+      "Bash(docker rm:*)",
+      "Bash(terraform -chdir=infra/azure/terraform state:*)",
+      "Bash(terraform -chdir=infra/aws/terraform state:*)",
+      "Bash(terraform -chdir=infra/azure/terraform import:*)",
+      "Bash(terraform -chdir=infra/aws/terraform import:*)",
+      "Bash(terraform -chdir=infra/azure/terraform force-unlock:*)",
+      "Bash(terraform -chdir=infra/aws/terraform force-unlock:*)"
+    ],
     "deny": [
       "Bash(git push --force:*)",
       "Bash(dotnet ef database drop:*)",
-      "Read(./.env)",
-      "Read(./.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
       "Read(**/appsettings.Production.json)",
       "Read(**/secrets.json)",
       "Read(**/terraform.tfvars)",
       "Read(**/*.tfstate)",
-      "Read(**/*.tfstate.backup)"
+      "Read(**/*.tfstate.backup)",
+      "Read(**/*.pfx)",
+      "Read(**/*.key)",
+      "Read(~/.aws/**)",
+      "Read(~/.azure/**)"
     ]
   },
-  "enabledMcpjsonServers": ["microsoft-learn", "terraform"],
+  "enabledMcpjsonServers": ["microsoft-learn", "terraform", "postgres-local"],
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.js\"", "timeout": 20 }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|PowerShell",
         "hooks": [
           { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.js\"", "timeout": 10 }
         ]

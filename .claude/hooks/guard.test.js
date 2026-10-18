@@ -41,6 +41,55 @@ const blocked = [
   'az group delete --name rg',
   'git push --force origin feature/x',
   'git reset --hard',
+  // PRs are merged and approved by a human only
+  'gh pr merge 12 --squash',
+  'gh pr merge',
+  'gh pr review 12 --approve',
+  'gh pr review 12 --request-changes -b x',
+  'gh api -X PUT repos/o/r/pulls/12/merge',
+  // short-flag hook bypass
+  'git commit -n -m x',
+  'git commit -nm x',
+  // commands hidden inside a shell -c string
+  'bash -c "terraform apply"',
+  "sh -c 'git push --force origin x'",
+  'pwsh -NoProfile -Command "terraform destroy"',
+  'powershell -c "./infra/aws/teardown.ps1"',
+  // secrets read through the shell (Read() deny rules don't cover Bash)
+  'cat .env',
+  'cat backend/.env.local',
+  'type .env',
+  'Get-Content infra/azure/terraform/terraform.tfvars',
+  'head -5 infra/aws/terraform/terraform.tfstate',
+  'grep -i password backend/src/BirraPoint.Api/appsettings.Production.json',
+  'cat ~/.aws/credentials',
+  // PR #75 review: pushes naming main, quoted/indirect secret reads, shell escapes
+  'git push -u origin main',
+  'git push --set-upstream origin main',
+  'git push origin +HEAD:refs/heads/main',
+  'git -C . push --force',
+  'git -c core.hooksPath=/dev/null commit -n -m x',
+  'cat ".env"',
+  "cat '.env'",
+  'export $(cat .env | xargs)',
+  'echo `cat .env`',
+  'git show HEAD:.env',
+  'gh api -X PUT repos/o/r/pulls/12/merge',
+  'gh api repos/o/r/pulls/12/reviews -f event=APPROVE',
+  'pwsh -Command terraform destroy',
+  'pwsh -EncodedCommand ZQBjAGgAbwA=',
+  'powershell -enc ZQBjAGgAbwA=',
+  'cmd /c "terraform apply"',
+  '& ./infra/aws/teardown.ps1',
+  'sleep 1 & terraform apply',
+  'bash <<EOF\nterraform apply\nEOF',
+];
+
+// Blocked only while the current branch is main.
+const blockedOnMain = [
+  'git push',
+  'git push -u origin HEAD',
+  'git commit -m x',
 ];
 
 const allowed = [
@@ -65,13 +114,41 @@ const allowed = [
   'terraform fmt -check -recursive',
   'git push origin feature/T146',
   'Invoke-Pester infra/aws/tests',
+  'gh pr view 12',
+  'gh pr create --base main --title "x" --body-file b.md',
+  'gh pr comment 12 --body-file f.md',
+  'gh pr checks 12',
+  'git commit -m "never gh pr merge or cat .env"',
+  'git commit --amend -m x',
+  'cat .env.example',
+  'cat frontend/src/environments/environment.ts',
+  'cat infra/aws/terraform/environments/prod.tfvars',
+  'bash -c "dotnet build backend/BirraPoint.sln"',
+  'bash .github/scripts/version.test.sh',
+  // on a feature branch these are fine
+  'git push',
+  'git push -u origin HEAD',
+  'git commit -m x',
+  // PR #75 review: false positives
+  'cp .env.example .env',
+  'cat backend/.env.development.example',
+  'cat infra/aws/terraform/terraform.tfvars.example',
+  'grep -rn TODO . --exclude=.env',
+  'gh api repos/o/r/pulls/12/reviews',
+  'gh api repos/o/r/pulls/12/merge',
+  "gh pr create --body 'Blocks commands like bash -c \"terraform apply\"'",
+  'cat > body.md <<EOF\nterraform apply\nbash -c "terraform destroy"\nEOF',
+  'git push origin feature/x:feature/x',
+  'dotnet test 2>&1 | tail -5',
 ];
 
 let failures = 0;
-function exitCodeFor(command) {
+// GUARD_CURRENT_BRANCH overrides the git lookup so branch rules are testable.
+function exitCodeFor(command, branch = 'feature/test') {
   const result = spawnSync(process.execPath, [guard], {
     input: JSON.stringify({ tool_input: { command } }),
     encoding: 'utf8',
+    env: { ...process.env, GUARD_CURRENT_BRANCH: branch },
   });
   return result.status;
 }
@@ -79,6 +156,11 @@ for (const command of blocked) {
   const code = exitCodeFor(command);
   if (code === 2) console.log(`ok   - blocked: ${command}`);
   else { console.log(`FAIL - should be blocked (exit ${code}): ${command}`); failures++; }
+}
+for (const command of blockedOnMain) {
+  const code = exitCodeFor(command, 'main');
+  if (code === 2) console.log(`ok   - blocked on main: ${command}`);
+  else { console.log(`FAIL - should be blocked on main (exit ${code}): ${command}`); failures++; }
 }
 for (const command of allowed) {
   const code = exitCodeFor(command);

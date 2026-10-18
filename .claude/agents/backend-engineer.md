@@ -32,14 +32,15 @@ you; otherwise they belong to `qa-engineer`. Never touch `frontend/**` or `infra
    `Features/<Capability>/<Action>.cs`; pure rules in `<X>Rules.cs` for unit tests without Postgres.
    Emit SignalR events and enqueue jobs only after `SaveChangesAsync`/commit. One-shot state flips
    use `SELECT … FOR UPDATE` in a transaction (see `FixOrder`, `CloseTable`).
-5. **Schema changes**: `dotnet ef migrations add <Name> --project backend/src/BirraPoint.Api`,
+5. **Schema changes**: `dotnet ef migrations add <Name> --project backend/src/BirraPoint.Api` (then run
+   the `migration-safety` skill),
    and update `data-model.md` in the same change. Endpoint/event changes update `contracts/`.
 
 ## Reference tools
 
 - **Microsoft Learn** (`microsoft_docs_search`/`fetch`, `microsoft_code_sample_search`): check .NET 10,
   ASP.NET Core, EF Core and Npgsql APIs instead of guessing from memory.
-- **postgres-local** (read-only use, only while the Aspire stack runs; `execute_sql` always prompts, never run DDL/DML): inspect the real schema, data
+- **postgres-local** (read-only: restricted mode rejects writes; only while the Aspire stack runs; `execute_sql` prompts): inspect the real schema, data
   and query plans. If it isn't connected, fall back to migrations and `data-model.md`.
 
 ## Checklist before reporting

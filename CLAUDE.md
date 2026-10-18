@@ -27,34 +27,27 @@ first, never silently into code.
 - Spec Kit order: constitution → specify → clarify → plan → tasks → review → implement. Helper
   scripts are PowerShell only (`.specify/scripts/powershell/`); `.specify/feature.json` points at
   the active feature.
-- **Per task (`/speckit-implement`, mandatory, in order):**
+- **Per task (`/deliver <task-id>` drives it; mandatory, in order):**
   1. Branch `feature/<task-id>` off `main`.
   2. Tollgate: list files to create/modify, approach, test strategy. **Stop** until the user
      replies "Approved, proceed".
   3. TDD: tests first, verified failing, then code; build + test both stacks locally.
   4. Semantic commit, push, PR to `main` via `gh`.
   5. `/review-pr <n>`: runs `senior-code-reviewer` and posts its findings as an informational PR
-     comment (never approve/request changes — a human merges).
+     comment (never approve/request changes — a human merges). `/address-review <n>` fixes them.
   6. Docs in the same change (`docs-keeper` agent): ADR in `Docs/adrs/NNNN-kebab-title.md` (per
      `template.md`) for significant decisions; update `Docs/arquitectura_viva.md`. All docs in
      English.
-- Delegate work to subagents (`.claude/agents/`); orchestration (branch/tollgate/PR) stays in
-  the main session:
-
-  | Agent | Owns |
-  |---|---|
-  | `backend-engineer` | `backend/src/**` + unit tests |
-  | `frontend-engineer` | `frontend/src/**` + Jest, visual check in Chrome |
-  | `qa-engineer` | integration/contract tests, `frontend/e2e`, `infra/perf` |
-  | `infra-engineer` | `infra/**`, `.github/**`, Dockerfiles (never applies to Azure) |
-  | `docs-keeper` | step 6: living doc, ADRs, doc drift |
-  | `senior-code-reviewer` | step 5 review (read-only) |
-
-- Commands: `/review-pr <n>`, `/review-and-commit`, `/fix-tests [backend|frontend]`,
-  `/offline-audit`. Hooks (`.claude/hooks/`): `guard.js` blocks destructive/cloud commands,
-  `post-edit.js` formats edited files, `stop-check.js` builds/lints/type-checks changed stacks.
-- CodeGraph (`.codegraph/`, local-only): call `codegraph_explore` when you need to locate code or
-  see callers, before grep/read loops.
+- Delegate work to subagents (`.claude/agents/`: backend-, frontend-, qa-, infra-engineer,
+  docs-keeper, senior-code-reviewer — each states its scope); orchestration (branch/tollgate/PR)
+  stays in the main session. No agent ever applies to a cloud account.
+- Commands: `/deliver <task-id>`, `/review-pr <n>`, `/address-review <n>`, `/review-and-commit`,
+  `/fix-tests [backend|frontend]`, `/offline-audit`, `/stack-status`; skill `migration-safety` for
+  EF migrations. Hooks (`.claude/hooks/`): `session-start.js` prints branch + pending tasks,
+  `guard.js` blocks destructive/cloud/secret-reading commands, PR merges/approvals and commits or
+  pushes on `main`; `post-edit.js` formats edited files; `stop-check.js` builds/lints/type-checks
+  changed stacks.
+- MCP: `postgres-local` (read-only, `.claude/mcp/postgres-local.js`) needs the Aspire stack running.
 
 ## Commands
 
@@ -75,28 +68,12 @@ npx jest | npx ng lint | npm run format:check | npm run build:budget   # (from f
 npm run e2e                           # Playwright + axe; plain `npx playwright test` fails
 k6 run infra/perf/api-budgets.js      # needs bearer token, see script header
 
-# Azure (one cloud per deployment, ADR-0023)
-terraform -chdir=infra/azure/terraform init   # state in HCP Terraform: TF_CLOUD_ORGANIZATION, TF_WORKSPACE, terraform login
-terraform -chdir=infra/azure/terraform apply -var-file=environments/prod.tfvars -var release_version=X.Y.Z   # ADR-0022
-terraform -chdir=infra/azure/terraform test   # mocked providers, no credentials
-terraform -chdir=infra/aws/terraform init && terraform -chdir=infra/aws/terraform apply -var-file=environments/prod.tfvars -var release_version=X.Y.Z   # AWS, local apply (see its README)
-terraform -chdir=infra/aws/terraform test   # mocked providers, no credentials
-./infra/azure/teardown.ps1 [-Environment X] [-WhatIf] [-Force]   # wipes everything incl. Neon data
-./infra/aws/teardown.ps1 [-Environment X] [-WhatIf] [-Force]     # same for AWS
+# Cloud (one per deployment, ADR-0023): Terraform roots infra/azure|aws/terraform, state in HCP
+# Terraform; apply/teardown only by a human — see infra/<cloud>/deployment-runbook.md
 gh workflow run release.yml -f ref=main -f bump=patch   # ADR-0019
-gh workflow run deploy-azure.yml -f version=X.Y.Z       # terraform apply; see infra/azure/github-actions-setup.md
-gh workflow run deploy-aws.yml -f version=X.Y.Z         # AWS apply; see infra/aws/github-actions-setup.md
-bash .github/scripts/version.test.sh
-bash .github/scripts/wait-revisions.test.sh
-bash .github/scripts/ecs-health.test.sh
-bash .github/scripts/require-dockerhub-read.test.sh
-node .claude/hooks/guard.test.js
-bash infra/keycloak/dapr-secrets/DaprSecretsEnv.test.sh
-bash infra/keycloak/dapr-secrets/ApiAdminSecretGuard.test.sh
-bash infra/keycloak/RealmProd.test.sh
-Invoke-Pester infra/azure/tests       # Pester 5+
-Invoke-Pester infra/aws/tests
-docker build -f backend/src/BirraPoint.Api/Dockerfile backend | docker build frontend | docker build infra/keycloak
+gh workflow run deploy-azure.yml -f version=X.Y.Z       # or deploy-aws.yml
+# Infra/CI test gates (terraform test, Pester, .github/scripts/*.test.sh, Keycloak scripts):
+# listed in .claude/agents/infra-engineer.md. Harness: node .claude/hooks/guard.test.js
 ```
 
 ## Layout (binding — by business capability, never `controllers/`/`services/`/`repositories/`)

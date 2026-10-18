@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // PostToolUse: auto-format the edited file. Must stay fast (it runs after every edit): backend C#
 // gets a whitespace-only format (no MSBuild load, ~2 s), frontend sources get the pinned local
-// Prettier (<1 s). ESLint and type-checking run once per turn in stop-check.js, not per edit.
-// Files outside backend/ and frontend/ (docs, memory, scratchpad) are left untouched.
+// Prettier (<1 s), Terraform files get `terraform fmt` on that file (<1 s, skipped if terraform is
+// not installed). ESLint and type-checking run once per turn in stop-check.js, not per edit.
+// Other files (docs, memory, scratchpad) are left untouched.
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -31,6 +32,8 @@ process.stdin.on('end', () => {
     run(`dotnet format whitespace backend --folder --include "${posix(path.relative(path.join(root, 'backend'), file))}"`, root);
   } else if (/\.(ts|html|scss|css|json)$/.test(file) && posix(rel).startsWith('frontend/') && fs.existsSync(prettier)) {
     run(`node "${prettier}" --write "${path.relative(frontend, file)}"`, frontend);
+  } else if (/\.(tf|tftest\.hcl)$/.test(file) && posix(rel).startsWith('infra/')) {
+    run(`terraform fmt "${file}"`, root);
   }
   process.exit(0);
 });
