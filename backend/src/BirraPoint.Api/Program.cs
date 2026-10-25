@@ -49,10 +49,10 @@ builder.Services.AddHealthChecks()
 // audience validation pinned to Keycloak:ApiAudience via the birrapoint-spa audience mapper (T017/ADR-0009).
 builder.Services.AddKeycloakAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
 
-// Configure RateLimiting
+// Per-organizer throttle on POST .../judges/notify (T147/FR-065).
 builder.Services.ConfigureRateLimiting();
 
-// ProblemDetails + exception-handler chain for the 14 urn:birrapoint:* error types (T012).
+// ProblemDetails + exception-handler chain for the 15 urn:birrapoint:* error types (T012).
 builder.Services.AddProblemDetailsErrorHandling();
 
 // OpenAPI document, served at /openapi/v1.json in Development (T017 — arrives with the first
@@ -168,7 +168,7 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Rate Limiting (T018): NotifyJudges is the only rate-limited endpoint, so the default policy is a no-op.
+// Enforces the NotifyJudges rate limit (T147/FR-065); all other endpoints are unthrottled.
 app.UseRateLimiter();
 
 // /health and /alive endpoints (Development only by default).

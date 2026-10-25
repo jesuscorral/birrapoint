@@ -60,6 +60,7 @@ internal static class JudgesEndpoints
         .WithName("NotifyJudges")
         .Produces<NotifyJudgesResult>()
         .Produces(StatusCodes.Status404NotFound)
+        .ProducesProblem(StatusCodes.Status429TooManyRequests)
         .RequireRateLimiting(RateLimitingExtensions.NotifyJudgesPolicy);
 
         return endpoints;

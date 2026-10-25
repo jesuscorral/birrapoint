@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
@@ -18,24 +19,35 @@ internal sealed record NotifyJudgesCommand(Guid CompetitionId) : IRequest<Notify
 /// FR-059/R-20: the explicit "Notify judges" action, decoupled from both provisioning paths
 /// (RegisterJudges/FR-014, ConsolidateJudgeImport/FR-057) — enqueues SendInvitation for every
 /// judge in the competition whose invitation is still Pending. A judge already Sent/Failed is
-/// untouched (use the per-judge resend, ResendInvitation.cs, for those).
+/// untouched (use the per-judge resend, ResendInvitation.cs, for those). Judges that already have
+/// a Pending/Running SendInvitation job are skipped (T147), so repeated notifies never duplicate emails.
 /// </summary>
 internal sealed class NotifyJudgesCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IDispatchJobQueue dispatchJobQueue)
+    AppDbContext dbContext, ICurrentUser currentUser, IDispatchWakeUp dispatchWakeUp)
     : IRequestHandler<NotifyJudgesCommand, NotifyJudgesResult?>
 {
     public async Task<NotifyJudgesResult?> Handle(NotifyJudgesCommand request, CancellationToken cancellationToken)
     {
-        var competition = await dbContext.Competitions
-            .FirstOrDefaultAsync(c => c.Id == request.CompetitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
+        var owned = await dbContext.Competitions
+            .AnyAsync(c => c.Id == request.CompetitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
 
-        if (competition is null)
+        if (!owned)
         {
             return null;
         }
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        // T147/M1: the invitation only flips to Sent when the worker delivers, so two back-to-back
+        // notifies would otherwise both see Pending and enqueue duplicate jobs (second temp password
+        // + duplicate email). Row lock on the competition serializes concurrent notifies so the
+        // in-flight check below is race-free; the loser sees the winner's committed jobs.
+        _ = await dbContext.Competitions
+            .FromSqlInterpolated($"SELECT * FROM \"Competitions\" WHERE \"Id\" = {request.CompetitionId} FOR UPDATE")
+            .SingleAsync(cancellationToken);
+
         var pendingJudges = await dbContext.Judges
-            .Where(j => j.CompetitionId == competition.Id)
+            .Where(j => j.CompetitionId == request.CompetitionId)
             .Join(
                 dbContext.Invitations.Where(i => i.Status == InvitationStatus.Pending),
                 judge => judge.Id,
@@ -43,12 +55,35 @@ internal sealed class NotifyJudgesCommandHandler(
                 (judge, invitation) => judge)
             .ToListAsync(cancellationToken);
 
-        foreach (var judge in pendingJudges)
+        var inFlightPayloads = await dbContext.DispatchJobs
+            .Where(j => j.CompetitionId == request.CompetitionId
+                && j.Type == DispatchJobType.SendInvitation
+                && (j.Status == DispatchJobStatus.Pending || j.Status == DispatchJobStatus.Running))
+            .Select(j => j.PayloadJson)
+            .ToListAsync(cancellationToken);
+        var alreadyQueued = NotifyJudgesRules.JudgeIdsWithInFlightInvitation(inFlightPayloads);
+
+        var toQueue = pendingJudges.Where(j => !alreadyQueued.Contains(j.Id)).ToList();
+
+        foreach (var judge in toQueue)
         {
-            await dispatchJobQueue.EnqueueAsync(
-                competition.Id, DispatchJobType.SendInvitation, new { JudgeId = judge.Id }, cancellationToken);
+            dbContext.DispatchJobs.Add(new DispatchJob
+            {
+                CompetitionId = request.CompetitionId,
+                Type = DispatchJobType.SendInvitation,
+                PayloadJson = JsonSerializer.Serialize(new SendInvitationPayload(judge.Id)),
+            });
         }
 
-        return new NotifyJudgesResult(pendingJudges.Select(j => new NotifiedJudgeDto(j.Id, j.Email)).ToList());
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        // Wake the worker only after commit; the safety-net poll covers a missed signal.
+        if (toQueue.Count > 0)
+        {
+            dispatchWakeUp.Signal();
+        }
+
+        return new NotifyJudgesResult(toQueue.Select(j => new NotifiedJudgeDto(j.Id, j.Email)).ToList());
     }
 }

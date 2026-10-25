@@ -52,7 +52,7 @@ Conventions: `404` for resources outside the caller's scope (never reveal existe
 | `GET /competitions/{id}/judges` | ORGANIZER | `[{ id, email, displayName, bjcpRank, bjcpId, preferredCategory, preferences, invitationStatus, attempts, lastError, sentAt }]`. The four roster fields are `null` for judges created via the plain email-list flow above. |
 | `PUT /competitions/{id}/judges/{judgeId}` | ORGANIZER | Correct a judge's email before first login (edge case: bounced invitation). Body: `{ email }`. Re-validates uniqueness (FR-015), updates the Keycloak account. `409 judge-already-active` once the judge has authenticated. **COI matching / BOS re-flagging against the new address (FR-017/FR-018) is still not implemented here** — `Features/Tables` now exists (Phase 7), so the blocking dependency is resolved, but wiring this endpoint to `CoiDetector`/`BosFlagRules` was never in either phase's task scope; tracked as an explicit follow-up (see `Docs/arquitectura_viva.md` Recorded debt). |
 | `POST /competitions/{id}/judges/{judgeId}/invitation` | ORGANIZER | Re-send invitation to this one judge (edge case: bounced email after correction). Enqueues `SendInvitation` regardless of current `invitationStatus`. |
-| `POST /competitions/{id}/judges/notify` | ORGANIZER | *(added FR-059)* Enqueues `SendInvitation` for every judge in the competition whose `invitationStatus` is `Pending` — the explicit "Notify judges" action, decoupled from both provisioning paths above. → `200` `{ queued: [{ id, email }] }`. A judge already `Sent`/`Failed` is untouched by this bulk action (use the per-judge resend above for those). No-op (`queued: []`) when nothing is `Pending`. |
+| `POST /competitions/{id}/judges/notify` | ORGANIZER | *(added FR-059)* Enqueues `SendInvitation` for every judge in the competition whose `invitationStatus` is `Pending` — the explicit "Notify judges" action, decoupled from both provisioning paths above. → `200` `{ queued: [{ id, email }] }`. A judge already `Sent`/`Failed` is untouched by this bulk action (use the per-judge resend above for those). No-op (`queued: []`) when nothing is `Pending`. Judges that already have a queued or running `SendInvitation` job are skipped, so repeat calls never send a second invitation (FR-065). *(FR-065)* Rate-limited per organizer (default 2 calls / 30 s): beyond the limit → `429 rate-limited` with `Retry-After` (seconds), nothing enqueued. |
 
 ## Judge Roster Import
 
@@ -136,6 +136,7 @@ Anonymous, all environments, not routed publicly in the cloud (ADR-0028). Body i
 | `discrepancy-open` | 409 | FR-032 close precondition |
 | `tables-still-open` | 409 | FR-036 finalize precondition |
 | `judge-already-active` | 409 | judge email correction after first login |
+| `rate-limited` | 429 | FR-065 per-organizer limit on `POST .../judges/notify`; response carries `Retry-After` |
 
 Breaking changes to any of the above require a spec amendment and a `/api/v2` decision
 (Constitution Principle VI).
