@@ -8,6 +8,7 @@ using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Common.RateLimiting;
 using BirraPoint.Api.Common.Secrets;
 using BirraPoint.Api.Features.Catalog;
 using BirraPoint.Api.Features.Competitions;
@@ -47,6 +48,9 @@ builder.Services.AddHealthChecks()
 // JWT bearer against Keycloak, deny-by-default fallback policy, ORGANIZER/JUDGE role policies (T011),
 // audience validation pinned to Keycloak:ApiAudience via the birrapoint-spa audience mapper (T017/ADR-0009).
 builder.Services.AddKeycloakAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
+
+// Configure RateLimiting
+builder.Services.ConfigureRateLimiting();
 
 // ProblemDetails + exception-handler chain for the 14 urn:birrapoint:* error types (T012).
 builder.Services.AddProblemDetailsErrorHandling();
@@ -163,6 +167,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Rate Limiting (T018): NotifyJudges is the only rate-limited endpoint, so the default policy is a no-op.
+app.UseRateLimiter();
 
 // /health and /alive endpoints (Development only by default).
 app.MapDefaultEndpoints();
