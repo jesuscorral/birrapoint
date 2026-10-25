@@ -8,6 +8,7 @@ using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Common.RateLimiting;
 using BirraPoint.Api.Common.Secrets;
 using BirraPoint.Api.Features.Catalog;
 using BirraPoint.Api.Features.Competitions;
@@ -48,7 +49,10 @@ builder.Services.AddHealthChecks()
 // audience validation pinned to Keycloak:ApiAudience via the birrapoint-spa audience mapper (T017/ADR-0009).
 builder.Services.AddKeycloakAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
 
-// ProblemDetails + exception-handler chain for the 14 urn:birrapoint:* error types (T012).
+// Per-organizer throttle on POST .../judges/notify (T147/FR-065).
+builder.Services.ConfigureRateLimiting();
+
+// ProblemDetails + exception-handler chain for the 15 urn:birrapoint:* error types (T012).
 builder.Services.AddProblemDetailsErrorHandling();
 
 // OpenAPI document, served at /openapi/v1.json in Development (T017 — arrives with the first
@@ -163,6 +167,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Enforces the NotifyJudges rate limit (T147/FR-065); all other endpoints are unthrottled.
+app.UseRateLimiter();
 
 // /health and /alive endpoints (Development only by default).
 app.MapDefaultEndpoints();

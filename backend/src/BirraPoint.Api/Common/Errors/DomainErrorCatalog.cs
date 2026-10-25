@@ -20,5 +20,6 @@ internal static class DomainErrorCatalog
             [DomainErrorType.DiscrepancyOpen] = ("urn:birrapoint:discrepancy-open", StatusCodes.Status409Conflict, "Discrepancy still open"),
             [DomainErrorType.TablesStillOpen] = ("urn:birrapoint:tables-still-open", StatusCodes.Status409Conflict, "Tables still open"),
             [DomainErrorType.JudgeAlreadyActive] = ("urn:birrapoint:judge-already-active", StatusCodes.Status409Conflict, "Judge already active"),
+            [DomainErrorType.RateLimited] = ("urn:birrapoint:rate-limited", StatusCodes.Status429TooManyRequests, "Too many requests"),
         };
 }

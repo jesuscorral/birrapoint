@@ -1,3 +1,4 @@
+using BirraPoint.Api.Common.RateLimiting;
 using MediatR;
 
 namespace BirraPoint.Api.Features.Judges;
@@ -58,7 +59,9 @@ internal static class JudgesEndpoints
         })
         .WithName("NotifyJudges")
         .Produces<NotifyJudgesResult>()
-        .Produces(StatusCodes.Status404NotFound);
+        .Produces(StatusCodes.Status404NotFound)
+        .ProducesProblem(StatusCodes.Status429TooManyRequests)
+        .RequireRateLimiting(RateLimitingExtensions.NotifyJudgesPolicy);
 
         return endpoints;
     }

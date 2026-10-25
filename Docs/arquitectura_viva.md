@@ -4,7 +4,7 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-10-11
+**Last updated:** 2026-10-25
 
 ## Status
 
@@ -118,7 +118,7 @@ Projects: `BirraPoint.Api` (modular monolith), `BirraPoint.AppHost`, `BirraPoint
   Development or when `Database:MigrateOnStartup=true`, over `dbDirect` when present. Outside
   Development: `UseForwardedHeaders`, no HTTPS redirection (TLS ends at ACA), HSTS on.
 - **Middleware order**: exception handler → CORS (Development only, `localhost:4200`) →
-  authentication → authorization → endpoints. Production is same-origin, no CORS.
+  authentication → authorization → rate limiter → endpoints. Production is same-origin, no CORS.
 - **Auth** (`Common/Auth/`): JWT bearer against Keycloak, audience `birrapoint-api` validated
   (ADR-0009); `KeycloakRolesClaimsTransformation` maps `realm_access.roles` to role claims;
   deny-by-default fallback policy + `ORGANIZER`/`JUDGE` policies. The hub reads the token from
@@ -126,9 +126,14 @@ Projects: `BirraPoint.Api` (modular monolith), `BirraPoint.AppHost`, `BirraPoint
   sub/email/name/roles; `OrganizerResolver` creates the `Organizer` row lazily on first write;
   `JudgeResolver` backfills `Judge.KeycloakUserId` on every competition row sharing the email.
   Ownership checks use `Competition.CreatedByUserId == sub`; misses return `404`.
-- **Errors** (`Common/Errors/`): `DomainExceptionHandler` (14-entry `DomainErrorType` catalog →
+- **Errors** (`Common/Errors/`): `DomainExceptionHandler` (15-entry `DomainErrorType` catalog →
   `urn:birrapoint:*`), `ValidationExceptionHandler` (`400` + field map), fallback `500` without
   internals.
+- **Rate limiting** (`Common/RateLimiting/`, ADR-0029): policy `NotifyJudges` on `POST
+  /competitions/{id}/judges/notify` only. Fixed window per JWT `sub`; config
+  `RateLimiting:NotifyJudges:PermitLimit` (default 2, `AppHost` sets 1000 locally for shared-organizer
+  E2E) and `WindowSeconds` (default 30). Rejection: `429` `urn:birrapoint:rate-limited` + integer
+  `Retry-After`. In memory, so exact only because the API runs as one replica (Azure and AWS).
 - **Validation** (`Common/Behaviors/`): MediatR 12.5 + `ValidationBehavior` running every
   FluentValidation validator before the handler.
 - **Audit** (`Common/Audit/`): `IAuditWriter.Record(...)` stages an `AuditLog` row (`{before,
@@ -181,7 +186,7 @@ Entities: `Organizer`, `Competition`, `CompetitionCategory`, `CompetitionCategor
 | **Catalog** | `GET /styles`, `GET /styles/{code}` (any authenticated) | list sorted by numeric category; detail = vital stats + guide text (FR-049) |
 | **Competitions** | `GET/POST /competitions`, `GET/PUT /competitions/{id}`, `POST /competitions/{id}/state`, `GET/PUT /competitions/{id}/categories` (ORGANIZER) | new competitions are `Draft`; edits only in `Draft`/`Active`; `CompetitionStateMachine` enforces FR-006; `Finalized` requires every table `Closed` (`409 tables-still-open`) and enqueues `GeneratePdfs`; emits `CompetitionStateChanged`. Categories (FR-052) are organizer-defined groups of BJCP styles, full-replace `PUT`, a style in at most one category |
 | **Import** | `/competitions/{id}/imports`: upload, get, `PUT rows/{n}`, `POST rows/{n}/exclude`, `revalidate`, `consolidate` (ORGANIZER) | ACCE spreadsheet format (ADR-0011, `contracts/import-file.md`). Row statuses `Valid`, `StyleMismatch`, `CategoryMismatch`, `CategoryStyleMismatch`, `Invalid`, `Excluded`. One active batch per competition. Full-row edit; `revalidate` re-checks against current categories. Consolidate blocks on unresolved rows, is one-shot, dedupes participants by email (last import wins) and generates unique blind codes |
-| **Judges** | `/competitions/{id}/judges`: list, register (paste list), `PUT {judgeId}` (email), `POST {judgeId}/invitation` (resend), `POST notify`; `/competitions/{id}/judge-imports`: upload, get, edit/exclude row, consolidate (ORGANIZER) | registration and roster import (US14) create `Judge` + `Invitation(Pending)` and enqueue `ProvisionJudgeAccount` (account created, no email, R-20). Emails go out only on explicit **Notify** (all `Pending`, FR-059) or per-judge resend (`SendInvitation`). `UpdateJudgeEmail` is rejected once the judge has logged in (`409 judge-already-active`) |
+| **Judges** | `/competitions/{id}/judges`: list, register (paste list), `PUT {judgeId}` (email), `POST {judgeId}/invitation` (resend), `POST notify`; `/competitions/{id}/judge-imports`: upload, get, edit/exclude row, consolidate (ORGANIZER) | registration and roster import (US14) create `Judge` + `Invitation(Pending)` and enqueue `ProvisionJudgeAccount` (account created, no email, R-20). Emails go out only on explicit **Notify** (all `Pending`, FR-059) or per-judge resend (`SendInvitation`). Notify locks the competition row (`FOR UPDATE`) and skips judges with a `Pending`/`Running` `SendInvitation` job, so overlapping calls never double-send. `UpdateJudgeEmail` is rejected once the judge has logged in (`409 judge-already-active`) |
 | **Tables** | `/competitions/{id}/tables`: list, create, `PUT {tableId}` (full desired state), `DELETE {tableId}/judges/{judgeId}`; `GET /competitions/{id}/entries` (ORGANIZER) | `TableAssignmentApplier` validates conflict of interest over the whole submitted set before any write (`409 conflict-of-interest`, FR-017) and flags/unflags `NotValidForBos` competition-wide (FR-018: unflag only when every owner/collaborator judge is clear and none has evaluated). Stats per table: mean real ABV, style count/list. `RemoveJudge` (US12, `InEvaluation` only) soft-removes with a row lock, keeps submitted evaluations, re-reconciles open discrepancies, audits and emits `JudgeRemoved` |
 | **TastingOrder** | `/me/tables`: list, `{tableId}/samples`, `{tableId}/judges`, `POST {tableId}/order` (JUDGE) | blind DTOs (`JudgeDtos.cs`): blind code, style, ABV, entry instructions — never beer name or participant fields (FR-019, ADR-0011 exception for `EntryInstructions`). Fix order is one-shot under `SELECT … FOR UPDATE`; emits `TableOrderFixed` to judges and organizers |
 | **Evaluations** | `POST /me/tables/{tableId}/evaluations`, `PUT …/evaluations/{id}` (adjust), `GET /me/tables/{tableId}/discrepancies`, `POST /me/tables/{tableId}/close` (JUDGE); `PUT /competitions/{id}/evaluations/{id}` (ORGANIZER correction) | submit: replay check first (idempotent `200`), then gates (state `InEvaluation`, order fixed, table open, strict sequence), insert, unique-violation catch → replay (race-safe, R-07). Discrepancy: a judge is involved if their total differs by > 7 from another judge's on the same sample; `PendingConsensus` + one `DiscrepancyAlert`; only involved judges can adjust. Close: row lock, requires every active judge × sample and no open alert; emits `TableClosed` (`{tableId}` to judges, + consolidated means to organizers). Correction: any table state, same caps, audited (FR-035). Optional structured descriptors + feedback stored as jsonb (ADR-0015) |

@@ -79,6 +79,10 @@ var api = builder.AddProject<Projects.BirraPoint_Api>("api")
     // Fixed dev port (matches the SPA's :4200 below and its Keycloak redirect URIs) — used to
     // build the login link in invitation/result emails (T041).
     .WithEnvironment("Frontend__BaseUrl", "http://localhost:4200")
+    // Relaxed notify-judges limit for local/E2E (T147/FR-065): the Playwright suite logs in as one
+    // shared `organizer` with fullyParallel and hits notify from several specs, so the cloud
+    // default (2 per 30 s) would flake. Cloud deployments keep the default.
+    .WithEnvironment("RateLimiting__NotifyJudges__PermitLimit", "1000")
     .WithExternalHttpEndpoints();
 
 // Angular PWA via ng serve (fixed :4200, matching the SPA client redirect URIs). AddNodeApp's
