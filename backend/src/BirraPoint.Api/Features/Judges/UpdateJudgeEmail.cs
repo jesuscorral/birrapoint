@@ -25,19 +25,6 @@ internal sealed class UpdateJudgeEmailCommandValidator : AbstractValidator<Updat
                     .WithMessage("This email is already registered to another judge in this competition."));
     }
 
-    // Scoped to a competition the caller owns — an unscoped query would let a non-owner learn
-    // whether an email is registered in a competition they don't own before the handler's own
-    // ownership check ever runs, violating "404 for resources outside the caller's scope, never
-    // reveal existence" (rest-api.md convention, senior-code-reviewer PR #18 finding). If the
-    // caller doesn't own this competition, this passes trivially — the handler's separate
-    // ownership check still returns 404 for the request as a whole. (`Judge` has no `Competition`
-    // navigation property, so ownership is checked as its own query rather than a join.)
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo",
-        Justification = "EF Core query translated to SQL by Npgsql (lower()/upper() evaluated in PostgreSQL, culture-independent); Npgsql cannot translate ToXxxInvariant or string.Equals(string, StringComparison).")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version",
-        Justification = "EF Core query translated to SQL by Npgsql (lower()/upper() evaluated in PostgreSQL, culture-independent); Npgsql cannot translate ToXxxInvariant or string.Equals(string, StringComparison).")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1862:Use the StringComparison method overloads to perform case-insensitive string comparisons",
-        Justification = "EF Core query translated to SQL by Npgsql (lower()/upper() evaluated in PostgreSQL, culture-independent); Npgsql cannot translate ToXxxInvariant or string.Equals(string, StringComparison).")]
     private static async Task<bool> IsUniqueWithinOwnedCompetitionAsync(
         AppDbContext dbContext, ICurrentUser currentUser, UpdateJudgeEmailCommand command, CancellationToken cancellationToken)
     {
@@ -52,9 +39,7 @@ internal sealed class UpdateJudgeEmailCommandValidator : AbstractValidator<Updat
         return await dbContext.Judges.AllAsync(
             j => j.Id == command.JudgeId
                 || j.CompetitionId != command.CompetitionId
-#pragma warning disable MA0011, RCS1155 // EF Core translates ToLower() to SQL LOWER().
-                || j.Email.ToLower() != command.Email.ToLower(),
-#pragma warning restore MA0011, RCS1155
+                || !string.Equals(j.Email, command.Email, StringComparison.OrdinalIgnoreCase),
             cancellationToken);
     }
 }

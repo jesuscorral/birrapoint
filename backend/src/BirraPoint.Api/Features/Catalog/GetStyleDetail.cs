@@ -52,21 +52,13 @@ internal sealed class GetStyleDetailQueryHandler(AppDbContext dbContext) : IRequ
     // catalog's JSON shape.
     private static readonly JsonSerializerOptions DescriptionJsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo",
-        Justification = "EF Core query translated to SQL by Npgsql (lower()/upper() evaluated in PostgreSQL, culture-independent); Npgsql cannot translate ToXxxInvariant or string.Equals(string, StringComparison).")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version",
-        Justification = "EF Core query translated to SQL by Npgsql (lower()/upper() evaluated in PostgreSQL, culture-independent); Npgsql cannot translate ToXxxInvariant or string.Equals(string, StringComparison).")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1862:Use the StringComparison method overloads to perform case-insensitive string comparisons",
-        Justification = "EF Core query translated to SQL by Npgsql (lower()/upper() evaluated in PostgreSQL, culture-independent); Npgsql cannot translate ToXxxInvariant or string.Equals(string, StringComparison).")]
     public async Task<StyleDetailDto?> Handle(GetStyleDetailQuery request, CancellationToken cancellationToken)
     {
         // Case-insensitive code match, same convention WorkbookParser uses for import style
         // matching (FR-010) — Code is a natural-key PK (e.g. "21A"), never expected to collide
         // case-insensitively within the catalog.
         var style = await dbContext.BjcpStyles
-#pragma warning disable MA0011, RCS1155 // EF Core translates ToUpper() to SQL UPPER(); culture/StringComparison overloads are not translatable.
-            .FirstOrDefaultAsync(s => s.Code.ToUpper() == request.Code.ToUpper(), cancellationToken);
-#pragma warning restore MA0011, RCS1155
+            .FirstOrDefaultAsync(s => string.Equals(s.Code, request.Code, StringComparison.OrdinalIgnoreCase), cancellationToken);
 
         if (style is null)
         {

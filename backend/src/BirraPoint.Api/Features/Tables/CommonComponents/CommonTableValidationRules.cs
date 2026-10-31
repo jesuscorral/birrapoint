@@ -12,19 +12,13 @@ internal static class CommonTableValidationRules
         AppDbContext dbContext, ICurrentUser currentUser, Guid competitionId, CancellationToken cancellationToken) =>
         dbContext.Competitions.AnyAsync(c => c.Id == competitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo",
-        Justification = "EF Core query translated to SQL by Npgsql (lower()/upper() evaluated in PostgreSQL, culture-independent); Npgsql cannot translate ToXxxInvariant or string.Equals(string, StringComparison).")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version",
-        Justification = "EF Core query translated to SQL by Npgsql (lower()/upper() evaluated in PostgreSQL, culture-independent); Npgsql cannot translate ToXxxInvariant or string.Equals(string, StringComparison).")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1862:Use the StringComparison method overloads to perform case-insensitive string comparisons",
-        Justification = "EF Core query translated to SQL by Npgsql (lower()/upper() evaluated in PostgreSQL, culture-independent); Npgsql cannot translate ToXxxInvariant or string.Equals(string, StringComparison).")]
     public static async Task<bool> IsNameUniqueAsync(
-        AppDbContext dbContext,
-        ICurrentUser currentUser,
-        Guid competitionId,
-        Guid? excludeTableId,
-        string name,
-        CancellationToken cancellationToken)
+         AppDbContext dbContext,
+         ICurrentUser currentUser,
+         Guid competitionId,
+         Guid? excludeTableId,
+         string name,
+         CancellationToken cancellationToken)
     {
         if (!await IsOwnedCompetitionAsync(dbContext, currentUser, competitionId, cancellationToken))
         {
@@ -34,9 +28,7 @@ internal static class CommonTableValidationRules
         return await dbContext.TastingTables.AllAsync(
             t => t.Id == excludeTableId
                 || t.CompetitionId != competitionId
-#pragma warning disable MA0011, RCS1155 // EF Core translates ToLower() to SQL LOWER().
-                || t.Name.ToLower() != name.ToLower(),
-#pragma warning restore MA0011, RCS1155
+                || !t.Name.Equals(name, StringComparison.OrdinalIgnoreCase),
             cancellationToken);
     }
 
