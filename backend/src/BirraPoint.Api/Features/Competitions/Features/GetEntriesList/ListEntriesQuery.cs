@@ -3,10 +3,8 @@ using BirraPoint.Api.Common.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Features.Tables;
+namespace BirraPoint.Api.Features.Competitions.Features.GetEntriesList;
 
-/// <summary>Feeds T048's "Unassigned" source column — every entry in the competition plus its
-/// current table assignment, null when unassigned.</summary>
 internal sealed record EntryDto(
     Guid Id,
     string BlindCode,
@@ -19,14 +17,7 @@ internal sealed record EntryDto(
     bool NotValidForBos,
     Guid? TastingTableId,
     string? TastingTableName,
-    // T124: the organizer-defined competition category (wizard step 3) this entry was imported
-    // under — null for entries seeded outside the Import slice, which never get one assigned.
     string? CompetitionCategoryName,
-    // T124: the BJCP taxonomy's own category (e.g. "21"/"IPA"), a completely independent axis
-    // from CompetitionCategoryName. Nullable defensively only: BeerEntry.StyleCode is a required,
-    // non-nullable FK to BjcpStyles.Code with OnDelete(Restrict), and BjcpStyle.CategoryNumber /
-    // .CategoryName are both `required string`, so an entry whose style has no catalog row cannot
-    // exist. Treat null as unreachable rather than a state clients must handle.
     string? BjcpCategoryNumber,
     string? BjcpCategoryName);
 
@@ -66,15 +57,10 @@ internal sealed class ListEntriesQueryHandler(AppDbContext dbContext, ICurrentUs
             .Select(s => new { s.Code, s.Name, s.ABVLow, s.ABVHigh, s.CategoryNumber, s.CategoryName })
             .ToDictionaryAsync(s => s.Code, StringComparer.Ordinal, cancellationToken);
 
-        // T124: the organizer-defined competition category (wizard step 3) is a separate axis from
-        // the BJCP taxonomy category carried on the style row — the organizer's own grouping is
-        // what they assign beers to tables by, so both travel on the entry.
         var categoryIds = entries.Where(e => e.CompetitionCategoryId.HasValue)
             .Select(e => e.CompetitionCategoryId!.Value).Distinct().ToList();
         var categoryNameById = categoryIds.Count == 0
             ? new Dictionary<Guid, string>()
-            // Projected before materialising, so this read does not load (and track) whole
-            // CompetitionCategory entities the way the plain ToDictionaryAsync overload does.
             : (await dbContext.CompetitionCategories
                     .Where(c => categoryIds.Contains(c.Id))
                     .Select(c => new { c.Id, c.Name })

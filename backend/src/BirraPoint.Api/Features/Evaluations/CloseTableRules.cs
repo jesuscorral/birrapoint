@@ -3,7 +3,7 @@ namespace BirraPoint.Api.Features.Evaluations;
 /// <summary>
 /// Pure FR-033/FR-042 rules for closing a table — no EF/DB dependency, so these are unit-testable
 /// directly (same "pure rule class beside the DB-touching handler" pattern already used by
-/// SubmitEvaluationRules/TastingOrderRules/BosFlagRules/CoiDetector). The discrepancy-open
+/// SubmitEvaluationRules/TastingOrderRules/LiveEditRules). The discrepancy-open
 /// precondition (FR-032) doesn't factor into a meaningful pure function — it's a single EF filter
 /// on DiscrepancyAlert.Status — so it stays inline in CloseTableCommandHandler.
 /// </summary>

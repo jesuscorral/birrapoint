@@ -115,6 +115,7 @@ function tableSummaryFixture(overrides: Partial<TableSummary> = {}): TableSummar
     id: 't1',
     name: 'Mesa 1',
     judges: [{ id: 'j1', email: 'grace@example.com', displayName: 'Grace Hopper' }],
+    samples: [{ beerEntryId: 'e1' }, { beerEntryId: 'e2' }],
     ...overrides,
   };
 }
@@ -506,7 +507,9 @@ describe('CompetitionMonitorComponent', () => {
     });
 
     it('removes a judge only after the confirm step, updating the list without a refetch', async () => {
-      fakeTablesApi.removeJudge.mockReturnValue(of({ tableId: 't1', judgeId: 'j1' }));
+      fakeTablesApi.removeJudge.mockReturnValue(
+        of({ ...tableSummaryFixture({ judges: [] }), bosFlaggedEntryIds: [] }),
+      );
       const fixture = createComponent();
       await flush();
       fixture.detectChanges();
@@ -527,7 +530,7 @@ describe('CompetitionMonitorComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      expect(fakeTablesApi.removeJudge).toHaveBeenCalledWith('c1', 't1', 'j1');
+      expect(fakeTablesApi.removeJudge).toHaveBeenCalledWith('c1', tableSummaryFixture(), 'j1');
       expect(fixture.nativeElement.textContent).not.toContain('Grace Hopper');
       expect(fakeTablesApi.getTables).not.toHaveBeenCalled();
     });

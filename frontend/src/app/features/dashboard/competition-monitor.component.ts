@@ -450,7 +450,7 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
     this.confirmingRemoveJudge.set(null);
   }
 
-  // T087/US12: optimistic on success — the DELETE response is the source of truth for whether the
+  // T087/US12: optimistic on success — the PUT response is the source of truth for whether the
   // removal happened at all (a 404 rejects it below), so once it succeeds there's nothing left to
   // reconcile by re-fetching the whole table list just to drop one judge from one row.
   protected onConfirmRemoveJudge(): void {
@@ -458,10 +458,15 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
     if (!target || this.removingJudge()) {
       return;
     }
+    const table = this.tables().find((candidate) => candidate.id === target.tableId);
+    if (!table) {
+      this.confirmingRemoveJudge.set(null);
+      return;
+    }
     this.removingJudge.set(true);
     this.removeJudgeError.set(null);
 
-    this.tablesApi.removeJudge(this.competitionId, target.tableId, target.judgeId).subscribe({
+    this.tablesApi.removeJudge(this.competitionId, table, target.judgeId).subscribe({
       next: () => {
         this.removingJudge.set(false);
         this.confirmingRemoveJudge.set(null);

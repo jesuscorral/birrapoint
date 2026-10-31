@@ -424,6 +424,25 @@ public sealed class TablesApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         Assert.Equal("urn:birrapoint:table-closed", document.RootElement.GetProperty("type").GetString());
     }
 
+    [Fact]
+    public async Task UpdateInEvaluationWithANonRemovalChangeReturns409InvalidStateTransition()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer);
+        var judgeId = await SeedJudgeAsync(competitionId, $"judge-{Guid.NewGuid():N}@brew.example");
+        var tableName = $"Table {Guid.NewGuid():N}";
+        var createResponse = await CreateTableAsync(organizer, competitionId, tableName, [judgeId], []);
+        var tableId = (await createResponse.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("id").GetGuid();
+        await organizer.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/state", new { target = "Active" }, TestContext.Current.CancellationToken);
+        await organizer.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/state", new { target = "InEvaluation" }, TestContext.Current.CancellationToken);
+
+        var response = await UpdateTableAsync(organizer, competitionId, tableId, "Renamed live", [judgeId], []);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Equal("urn:birrapoint:invalid-state-transition", document.RootElement.GetProperty("type").GetString());
+    }
+
     // ---- PUT /tables/{tableId}: success, re-evaluated COI/BOS ---------------------------------
 
     [Fact]

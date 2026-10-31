@@ -1,18 +1,7 @@
-using BirraPoint.Api.Features.Tables;
+using BirraPoint.Api.Features.Tables.Features.UpdateTable;
 
 namespace BirraPoint.Api.UnitTests.Tables;
 
-/// <summary>
-/// T084: RemoveJudgeCommandHandler itself has no meaningful pure logic to isolate — its only
-/// branching is the ownership/active-membership lookup chain, which needs a real transaction
-/// against Postgres (Testcontainers) to exercise honestly; that end-to-end behavior (RemovedAt set
-/// with no hard delete, an already-submitted evaluation staying valid, the pre-existing
-/// JudgeTableAccess guard actually engaging once RemovedAt is set, and the hub group ejection via
-/// IEventPublisher) is covered by RemoveJudgeApiTests (T085). The one pure unit this slice does
-/// have is RemoveJudgeRules.ComputeAuditEntityId — TableJudge's composite (TastingTableId, JudgeId)
-/// PK has no single Guid id to key the audit row on, so this hashes the pair down to fit
-/// AuditLog.EntityId's 50-char cap; that hashing is exercised directly here.
-/// </summary>
 public sealed class RemoveJudgeTests
 {
     [Fact]

@@ -107,7 +107,7 @@ internal static class DiscrepancyReconciler
 
         // A removed judge's total must never keep an alert open (FR-039): once they're gone, their
         // score no longer represents anyone still tasting at this table, so it can't be allowed to
-        // block the remaining judges from converging. RemoveJudge.cs flushes RemovedAt before
+        // block the remaining judges from converging. LiveJudgeRemoval.cs (UpdateTable live removal) flushes RemovedAt before
         // triggering reconciliation, so this DB-level filter sees the removal that prompted this call.
         var removedJudgeIds = await dbContext.TableJudges
             .Where(tj => tj.TastingTableId == tableId && tj.RemovedAt != null)
@@ -124,7 +124,7 @@ internal static class DiscrepancyReconciler
         {
             // A removed judge's evaluation is left untouched, not flipped to Confirmed — reconciling
             // toward consensus is a live-table concept that no longer applies once they've left
-            // (same "already-submitted evaluations stay untouched" convention as RemoveJudge.cs).
+            // (same "already-submitted evaluations stay untouched" convention as LiveJudgeRemoval.cs).
             if (removedJudgeIdSet.Contains(evaluation.JudgeId))
             {
                 continue;

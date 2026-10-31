@@ -1,9 +1,11 @@
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Features.Tables.CommonComponents;
+using BirraPoint.Api.Features.Tables.CommonComponents.Dtos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Features.Tables;
+namespace BirraPoint.Api.Features.Tables.Features.ListTables;
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
 internal sealed record ListTablesQuery(Guid CompetitionId) : IRequest<IReadOnlyList<TableDto>?>;

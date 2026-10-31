@@ -2,16 +2,9 @@ using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Features.Tables;
+namespace BirraPoint.Api.Features.Tables.CommonComponents;
 
-/// <summary>
-/// Shared, DB-touching validation rules for CreateTable/UpdateTable (400s, not COI). Scoped to a
-/// competition the caller owns — if they don't own it, every check here passes trivially and the
-/// handler's own ownership check produces the 404 for the request as a whole (mirrors
-/// UpdateJudgeEmailCommandValidator's ownership scoping, so a non-owner can't learn about another
-/// organizer's tables/judges/entries from validation error content).
-/// </summary>
-internal static class TableValidationRules
+internal static class CommonTableValidationRules
 {
     public static bool HaveNoDuplicates(IReadOnlyList<Guid> ids) => ids.Distinct().Count() == ids.Count;
 

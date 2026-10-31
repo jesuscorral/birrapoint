@@ -8,7 +8,7 @@ namespace BirraPoint.Api.UnitTests.TastingOrder;
 /// T050: pure FixOrder rules (US6-4) — permutation validation and the one-shot/state-gating
 /// checks the handler runs under the table's row lock. Exercises <see cref="TastingOrderRules"/>
 /// directly (same "pure rule class beside the DB-touching handler" pattern already used by
-/// Features/Tables/BosFlagRules and CoiDetector) rather than the full MediatR handler, which
+/// Features/Tables/LiveEditRules) rather than the full MediatR handler, which
 /// needs a real transaction/row lock against Postgres (Testcontainers, integration-test
 /// territory per the constitution's ban on EF InMemory) — OrderApiTests.cs (T051) covers the
 /// end-to-end handler behavior, including the concurrent-fixer race.

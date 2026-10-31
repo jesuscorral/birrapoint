@@ -25,9 +25,9 @@ re-fetching `GET /competitions/{id}/progress` (organizer) or `GET /me/tables/{ta
 |-------|---------|---------|
 | `TableOrderFixed` | `{ tableId, orderedSamples: [{ beerEntryId, blindCode, sequenceOrder }], fixedByDisplayName }` | order fixed (FR-021); UI reorders ≤1 s and locks ordering |
 | `DiscrepancyRaised` | `{ alertId, tableId, blindCode, involvedJudgeIds }` | FR-031; involved judges open the alert UI |
-| `DiscrepancyResolved` | `{ alertId, tableId, blindCode }` | totals converged within 7 |
+| `DiscrepancyResolved` | `{ alertId, tableId, blindCode }` | totals converged within 7, or a judge removal via `PUT .../tables/{tableId}` re-reconciled the alert |
 | `TableClosed` | `{ tableId }` | FR-033; judge UI switches to read-only |
-| `JudgeRemoved` | `{ tableId, judgeId }` | FR-039; the removed judge's client ejects immediately (server also revokes REST access; clients not receiving the event are still locked out server-side) |
+| `JudgeRemoved` | `{ tableId, judgeId }` | FR-039; emitted by `PUT /competitions/{id}/tables/{tableId}` during `InEvaluation` (one event per removed judge); the removed judge's client ejects immediately (server also revokes REST access; clients not receiving the event are still locked out server-side) |
 
 Anonymity guard: payloads to this group are built exclusively from `JudgeSampleDto` projections —
 no entrant fields exist on the event types (BR-01/FR-019). Contract tests serialize every event

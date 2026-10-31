@@ -15,11 +15,6 @@ internal sealed record CorrectEvaluationRequest(
     EvaluationScoresDto Scores, EvaluationCommentsDto Comments,
     EvaluationDescriptorsDto? Descriptors = null, string? Feedback = null);
 
-/// <summary>Maps POST /me/tables/{tableId}/evaluations (contracts/rest-api.md §Judge workspace,
-/// T055-T058), PUT /me/tables/{tableId}/evaluations/{evaluationId} and
-/// GET /me/tables/{tableId}/evaluations/discrepancies (T081, FR-031), POST /me/tables/{tableId}/close
-/// (T062-T063, FR-033/FR-042) — all JUDGE-only — and PUT /competitions/{id}/evaluations/{evaluationId}
-/// (T064-T065, FR-035) — ORGANIZER-only.</summary>
 internal static class EvaluationsEndpoints
 {
     public static IEndpointRouteBuilder MapEvaluationsEndpoints(this IEndpointRouteBuilder endpoints)
@@ -35,10 +30,6 @@ internal static class EvaluationsEndpoints
             ISender sender,
             CancellationToken cancellationToken) =>
         {
-            // R-07: the header carries the offline client's deterministic
-            // {competitionId}:{tableId}:{judgeId}:{entryId} key; only its presence is a contract
-            // requirement here — the actual idempotency guarantee is the server-side
-            // (JudgeId, BeerEntryId) unique index (SubmitEvaluation.cs), not this header's content.
             if (string.IsNullOrWhiteSpace(idempotencyKey))
             {
                 return Results.BadRequest();

@@ -4,7 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
-using BirraPoint.Api.Features.Tables;
+using BirraPoint.Api.Features.Tables.Features.UpdateTable;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,14 +12,14 @@ using Microsoft.Extensions.DependencyInjection;
 namespace BirraPoint.Api.IntegrationTests.Tables;
 
 /// <summary>
-/// T085: HTTP-level contract tests for DELETE /competitions/{id}/tables/{tableId}/judges/{judgeId}
-/// (contracts/rest-api.md §Tables, FR-039) — live removal revokes the removed judge's access to
-/// every judge-workspace slice at that table immediately (via the pre-existing
-/// JudgeTableAccess.FindActiveMembershipAsync guard), is audit-logged, never leaks existence to a
-/// non-owning organizer or for a judge who was never assigned/already removed, and leaves the
-/// judge's already-submitted evaluations valid and readable by the organizer.
+/// HTTP-level contract tests for live judge removal via PUT /competitions/{id}/tables/{tableId}
+/// (contracts/rest-api.md §Tables, FR-039; replaces the removed DELETE .../judges/{judgeId}).
+/// In InEvaluation the PUT is accepted ONLY when it solely removes currently-active judges (same
+/// name, same samples, judgeIds a subset of the active set). Removal revokes the judge's access
+/// immediately, is audit-logged per judge, re-reconciles open discrepancies, never leaks existence
+/// to a non-owning organizer, and leaves already-submitted evaluations valid.
 /// </summary>
-public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
+public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private const string StyleCodeApa = "21A";
     private const string LongComment = "This comment is long enough to satisfy the minimum length rule.";
@@ -182,8 +182,52 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
     private static Task<HttpResponseMessage> GetSamplesAsync(HttpClient client, Guid tableId) =>
         client.GetAsync(Urls.Rel($"/api/v1/me/tables/{tableId}/samples"));
 
-    private static Task<HttpResponseMessage> RemoveJudgeAsync(HttpClient client, Guid competitionId, Guid tableId, Guid judgeId) =>
-        client.DeleteAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/tables/{tableId}/judges/{judgeId}"));
+    private static Task<HttpResponseMessage> PutTableAsync(
+        HttpClient client, Guid competitionId, Guid tableId, string name, IEnumerable<Guid> judgeIds, IEnumerable<Guid> beerEntryIds) =>
+        client.PutAsJsonAsync($"/api/v1/competitions/{competitionId}/tables/{tableId}", new { name, judgeIds, beerEntryIds });
+
+    /// <summary>Builds the PUT body that keeps the table's current name and samples and the current
+    /// active judges minus <paramref name="removedJudgeIds"/> — i.e. a pure live removal.</summary>
+    private async Task<HttpResponseMessage> RemoveJudgesAsync(
+        HttpClient client, Guid competitionId, Guid tableId, params Guid[] removedJudgeIds)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var name = await db.TastingTables.AsNoTracking().Where(t => t.Id == tableId).Select(t => t.Name).SingleAsync();
+        var activeJudges = await db.TableJudges.AsNoTracking()
+            .Where(tj => tj.TastingTableId == tableId && tj.RemovedAt == null).Select(tj => tj.JudgeId).ToListAsync();
+        var entries = await db.TableSamples.AsNoTracking()
+            .Where(ts => ts.TastingTableId == tableId).Select(ts => ts.BeerEntryId).ToListAsync();
+        return await PutTableAsync(client, competitionId, tableId, name, activeJudges.Except(removedJudgeIds), entries);
+    }
+
+    private Task<HttpResponseMessage> RemoveJudgeAsync(HttpClient client, Guid competitionId, Guid tableId, Guid judgeId) =>
+        RemoveJudgesAsync(client, competitionId, tableId, judgeId);
+
+    private async Task<(string Name, List<Guid> ActiveJudges, List<Guid> Samples, int RemovedCount)> SnapshotAsync(Guid tableId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var name = await db.TastingTables.AsNoTracking().Where(t => t.Id == tableId).Select(t => t.Name).SingleAsync();
+        var rows = await db.TableJudges.AsNoTracking().Where(tj => tj.TastingTableId == tableId).ToListAsync();
+        var samples = await db.TableSamples.AsNoTracking().Where(ts => ts.TastingTableId == tableId).Select(ts => ts.BeerEntryId).ToListAsync();
+        return (name, rows.Where(r => r.RemovedAt is null).Select(r => r.JudgeId).ToList(), samples, rows.Count(r => r.RemovedAt is not null));
+    }
+
+    private async Task<int> CountAuditRowsAsync(Guid tableId, Guid judgeId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var entityId = RemoveJudgeRules.ComputeAuditEntityId(tableId, judgeId);
+        return await db.AuditLogs.AsNoTracking().CountAsync(a => a.EntityId == entityId);
+    }
+
+    private static async Task AssertProblemTypeAsync(HttpResponseMessage response, HttpStatusCode status, string type)
+    {
+        Assert.Equal(status, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(type, document.RootElement.GetProperty("type").GetString());
+    }
 
     private static Task<HttpResponseMessage> GetEntryEvaluationsAsync(HttpClient client, Guid competitionId, Guid entryId) =>
         client.GetAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/entries/{entryId}/evaluations"));
@@ -295,84 +339,6 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
         var auditLog = await GetAuditLogAsync(RemoveJudgeRules.ComputeAuditEntityId(fixture.TableId, removedJudge.JudgeId));
         Assert.Equal("JudgeRemoved", auditLog.Action);
         Assert.Equal(nameof(TableJudge), auditLog.EntityType);
-    }
-
-    // ---- Competition state gate (FR-039 scopes removal to "the live event") ------------------------
-
-    [Fact]
-    public async Task RemoveWhileTheCompetitionIsStillDraftReturns409InvalidStateTransition()
-    {
-        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
-        var fixture = await SeedTableWithSamplesAsync(organizer, judgeCount: 1);
-
-        var response = await RemoveJudgeAsync(organizer, fixture.CompetitionId, fixture.TableId, fixture.Judges[0].JudgeId);
-
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Equal("urn:birrapoint:invalid-state-transition", document.RootElement.GetProperty("type").GetString());
-    }
-
-    [Fact]
-    public async Task RemoveWhileTheCompetitionIsActiveButNotYetInEvaluationReturns409InvalidStateTransition()
-    {
-        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
-        var fixture = await SeedTableWithSamplesAsync(organizer, judgeCount: 1);
-        await TransitionStateAsync(organizer, fixture.CompetitionId, "Active");
-
-        var response = await RemoveJudgeAsync(organizer, fixture.CompetitionId, fixture.TableId, fixture.Judges[0].JudgeId);
-
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Equal("urn:birrapoint:invalid-state-transition", document.RootElement.GetProperty("type").GetString());
-    }
-
-    // ---- Concurrency: the FOR UPDATE lock must survive a real race, not just sequential replay -----
-
-    [Fact]
-    public async Task FiftyConcurrentRemovalsOfTheSameJudgeYieldExactlyOneSuccessAndNoExceptions()
-    {
-        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
-        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 1);
-        var judgeId = fixture.Judges[0].JudgeId;
-
-        var results = await Task.WhenAll(Enumerable.Range(0, 50)
-            .Select(_ => RemoveJudgeAsync(organizer, fixture.CompetitionId, fixture.TableId, judgeId)));
-
-        Assert.Equal(1, results.Count(r => r.StatusCode == HttpStatusCode.OK));
-        Assert.Equal(49, results.Count(r => r.StatusCode == HttpStatusCode.NotFound));
-
-        var auditLog = await GetAuditLogAsync(RemoveJudgeRules.ComputeAuditEntityId(fixture.TableId, judgeId));
-        Assert.Equal("JudgeRemoved", auditLog.Action);
-    }
-
-    // ---- Never leaks existence (plain 404s) ---------------------------------------------------------
-
-    [Fact]
-    public async Task RemoveAJudgeNeverAssignedToTheTableReturns404()
-    {
-        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
-        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 1);
-
-        var neverAssignedJudgeId = Guid.NewGuid();
-
-        var response = await RemoveJudgeAsync(organizer, fixture.CompetitionId, fixture.TableId, neverAssignedJudgeId);
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task RemovingAnAlreadyRemovedJudgeReturns404OnTheSecondAttempt()
-    {
-        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
-        var fixture = await SeedReadyTableAsync(organizer);
-        var judge = fixture.Judges[0];
-
-        var firstRemoval = await RemoveJudgeAsync(organizer, fixture.CompetitionId, fixture.TableId, judge.JudgeId);
-        Assert.Equal(HttpStatusCode.OK, firstRemoval.StatusCode);
-
-        var secondRemoval = await RemoveJudgeAsync(organizer, fixture.CompetitionId, fixture.TableId, judge.JudgeId);
-
-        Assert.Equal(HttpStatusCode.NotFound, secondRemoval.StatusCode);
     }
 
     [Fact]
@@ -525,5 +491,257 @@ public sealed class RemoveJudgeApiTests(ApiFactory factory) : IClassFixture<ApiF
         Assert.Equal(HttpStatusCode.Conflict, close.StatusCode);
         using var closeDocument = JsonDocument.Parse(await close.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("discrepancy-open", closeDocument.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
+    }
+
+    // ---- Concurrency: the FOR UPDATE lock must survive a real race, not just sequential replay -----
+
+    [Fact]
+    public async Task FiftyConcurrentPutsRemovingTheSameJudgeWriteExactlyOneAuditRowAndNoServerErrors()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
+        var judgeId = fixture.Judges[0].JudgeId;
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 50)
+            .Select(_ => RemoveJudgesAsync(organizer, fixture.CompetitionId, fixture.TableId, judgeId)));
+
+        Assert.All(results, r => Assert.True(
+            r.StatusCode is HttpStatusCode.OK or HttpStatusCode.Conflict, $"unexpected {(int)r.StatusCode}"));
+        Assert.Contains(results, r => r.StatusCode == HttpStatusCode.OK);
+        Assert.Equal(1, await CountAuditRowsAsync(fixture.TableId, judgeId));
+        Assert.Equal(1, (await SnapshotAsync(fixture.TableId)).RemovedCount);
+    }
+
+    // ---- Response shape ----------------------------------------------------------------------------
+
+    [Fact]
+    public async Task RemovalResponseIsTheTableMutationResultWithoutTheRemovedJudge()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
+        var removed = fixture.Judges[0].JudgeId;
+        var kept = fixture.Judges[1].JudgeId;
+
+        var response = await RemoveJudgesAsync(organizer, fixture.CompetitionId, fixture.TableId, removed);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken);
+        Assert.Equal(fixture.TableId, body.GetProperty("id").GetGuid());
+        Assert.True(body.TryGetProperty("bosFlaggedEntryIds", out _));
+        var ids = body.GetProperty("judges").EnumerateArray()
+            .Select(j => j.TryGetProperty("judgeId", out var p) ? p.GetGuid() : j.GetProperty("id").GetGuid()).ToList();
+        Assert.DoesNotContain(removed, ids);
+        Assert.Contains(kept, ids);
+    }
+
+    // ---- Multi-judge removal ----------------------------------------------------------------------
+
+    [Fact]
+    public async Task OnePutRemovingTwoJudgesSoftRemovesBothAuditsEachAndRevokesBothAccesses()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 3);
+        var (removedA, removedB, kept) = (fixture.Judges[0], fixture.Judges[1], fixture.Judges[2]);
+
+        var response = await RemoveJudgesAsync(organizer, fixture.CompetitionId, fixture.TableId, removedA.JudgeId, removedB.JudgeId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var snapshot = await SnapshotAsync(fixture.TableId);
+        Assert.Equal([kept.JudgeId], snapshot.ActiveJudges);
+        Assert.Equal(2, snapshot.RemovedCount);
+        Assert.Equal(1, await CountAuditRowsAsync(fixture.TableId, removedA.JudgeId));
+        Assert.Equal(1, await CountAuditRowsAsync(fixture.TableId, removedB.JudgeId));
+
+        using var clientA = JudgeClient(removedA.JudgeSub);
+        using var clientB = JudgeClient(removedB.JudgeSub);
+        using var clientKept = JudgeClient(kept.JudgeSub);
+        Assert.Equal(HttpStatusCode.NotFound, (await GetSamplesAsync(clientA, fixture.TableId)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await GetSamplesAsync(clientB, fixture.TableId)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await GetSamplesAsync(clientKept, fixture.TableId)).StatusCode);
+    }
+
+    // ---- No-op ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task InEvaluationPutWithTheCurrentStateIsANoOpReturning200WithoutAuditOrRemoval()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
+
+        var response = await RemoveJudgesAsync(organizer, fixture.CompetitionId, fixture.TableId); // removes nobody
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var snapshot = await SnapshotAsync(fixture.TableId);
+        Assert.Equal(2, snapshot.ActiveJudges.Count);
+        Assert.Equal(0, snapshot.RemovedCount);
+        foreach (var judge in fixture.Judges)
+        {
+            Assert.Equal(0, await CountAuditRowsAsync(fixture.TableId, judge.JudgeId));
+        }
+    }
+
+    [Fact]
+    public async Task RepeatingTheSameRemovalPutIsAnIdempotent200NoOpWithASingleAuditRow()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
+        var judge = fixture.Judges[0];
+
+        Assert.Equal(HttpStatusCode.OK, (await RemoveJudgesAsync(organizer, fixture.CompetitionId, fixture.TableId, judge.JudgeId)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await RemoveJudgesAsync(organizer, fixture.CompetitionId, fixture.TableId, judge.JudgeId)).StatusCode);
+
+        Assert.Equal(1, await CountAuditRowsAsync(fixture.TableId, judge.JudgeId));
+        Assert.Equal(1, (await SnapshotAsync(fixture.TableId)).RemovedCount);
+    }
+
+    // ---- InEvaluation: anything other than a pure removal is rejected, nothing changes ---------------
+
+    [Fact]
+    public async Task InEvaluationPutThatRenamesTheTableReturns409AndChangesNothing()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
+        var before = await SnapshotAsync(fixture.TableId);
+
+        var response = await PutTableAsync(
+            organizer, fixture.CompetitionId, fixture.TableId, "Renamed live", before.ActiveJudges, before.Samples);
+
+        await AssertProblemTypeAsync(response, HttpStatusCode.Conflict, "urn:birrapoint:invalid-state-transition");
+        var after = await SnapshotAsync(fixture.TableId);
+        Assert.Equal(before.Name, after.Name);
+        Assert.Equal(0, after.RemovedCount);
+    }
+
+    [Fact]
+    public async Task InEvaluationPutThatChangesTheSamplesReturns409AndChangesNothing()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, sampleCount: 2, judgeCount: 2);
+        var before = await SnapshotAsync(fixture.TableId);
+
+        var response = await PutTableAsync(
+            organizer, fixture.CompetitionId, fixture.TableId, before.Name, before.ActiveJudges, [fixture.EntryIds[0]]);
+
+        await AssertProblemTypeAsync(response, HttpStatusCode.Conflict, "urn:birrapoint:invalid-state-transition");
+        var after = await SnapshotAsync(fixture.TableId);
+        Assert.Equal(before.Samples.Order(), after.Samples.Order());
+    }
+
+    [Fact]
+    public async Task InEvaluationPutThatAddsAJudgeReturns409AndChangesNothing()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 1);
+        var extraSub = $"extra-{Guid.NewGuid():N}";
+        var extraJudgeId = await SeedJudgeAsync(fixture.CompetitionId, $"{extraSub}@brew.example", extraSub);
+        var before = await SnapshotAsync(fixture.TableId);
+
+        var response = await PutTableAsync(
+            organizer, fixture.CompetitionId, fixture.TableId, before.Name, [.. before.ActiveJudges, extraJudgeId], before.Samples);
+
+        await AssertProblemTypeAsync(response, HttpStatusCode.Conflict, "urn:birrapoint:invalid-state-transition");
+        var after = await SnapshotAsync(fixture.TableId);
+        Assert.Equal(before.ActiveJudges, after.ActiveJudges);
+    }
+
+    [Fact]
+    public async Task InEvaluationPutThatMixesARemovalWithARenameReturns409AndTheJudgeStaysActive()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
+        var before = await SnapshotAsync(fixture.TableId);
+
+        var response = await PutTableAsync(
+            organizer, fixture.CompetitionId, fixture.TableId, "Renamed live", [fixture.Judges[1].JudgeId], before.Samples);
+
+        await AssertProblemTypeAsync(response, HttpStatusCode.Conflict, "urn:birrapoint:invalid-state-transition");
+        var after = await SnapshotAsync(fixture.TableId);
+        Assert.Equal(2, after.ActiveJudges.Count);
+        Assert.Equal(0, after.RemovedCount);
+        Assert.Equal(0, await CountAuditRowsAsync(fixture.TableId, fixture.Judges[0].JudgeId));
+    }
+
+    [Fact]
+    public async Task InEvaluationPutReAddingAnAlreadyRemovedJudgeReturns409()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
+        var removed = fixture.Judges[0].JudgeId;
+        Assert.Equal(HttpStatusCode.OK, (await RemoveJudgesAsync(organizer, fixture.CompetitionId, fixture.TableId, removed)).StatusCode);
+        var current = await SnapshotAsync(fixture.TableId);
+
+        var response = await PutTableAsync(
+            organizer, fixture.CompetitionId, fixture.TableId, current.Name, [.. current.ActiveJudges, removed], current.Samples);
+
+        await AssertProblemTypeAsync(response, HttpStatusCode.Conflict, "urn:birrapoint:invalid-state-transition");
+        Assert.Equal(1, (await SnapshotAsync(fixture.TableId)).RemovedCount);
+    }
+
+    [Fact]
+    public async Task InEvaluationPutNamingAJudgeNeverAssignedToTheTableReturns409()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 1);
+        var before = await SnapshotAsync(fixture.TableId);
+
+        var response = await PutTableAsync(
+            organizer, fixture.CompetitionId, fixture.TableId, before.Name, [Guid.NewGuid()], before.Samples);
+
+        await AssertProblemTypeAsync(response, HttpStatusCode.Conflict, "urn:birrapoint:invalid-state-transition");
+    }
+
+    // ---- Other gates ----------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task InEvaluationPutOnAClosedTableReturns409TableClosed()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var table = await db.TastingTables.SingleAsync(t => t.Id == fixture.TableId, TestContext.Current.CancellationToken);
+            table.State = TableState.Closed;
+            table.ClosedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var response = await RemoveJudgesAsync(organizer, fixture.CompetitionId, fixture.TableId, fixture.Judges[0].JudgeId);
+
+        await AssertProblemTypeAsync(response, HttpStatusCode.Conflict, "urn:birrapoint:table-closed");
+        Assert.Equal(0, (await SnapshotAsync(fixture.TableId)).RemovedCount);
+    }
+
+    [Fact]
+    public async Task PutOnAFinalizedCompetitionReturns409InvalidStateTransition()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var competition = await db.Competitions.SingleAsync(c => c.Id == fixture.CompetitionId, TestContext.Current.CancellationToken);
+            competition.State = CompetitionState.Finalized;
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var response = await RemoveJudgesAsync(organizer, fixture.CompetitionId, fixture.TableId, fixture.Judges[0].JudgeId);
+
+        await AssertProblemTypeAsync(response, HttpStatusCode.Conflict, "urn:birrapoint:invalid-state-transition");
+        Assert.Equal(0, (await SnapshotAsync(fixture.TableId)).RemovedCount);
+    }
+
+    [Fact]
+    public async Task PutAddressingATableOfAnotherCompetitionReturns404()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
+        var otherCompetitionId = await CreateCompetitionAsync(organizer, "Other");
+
+        var response = await PutTableAsync(
+            organizer, otherCompetitionId, fixture.TableId, "X", [fixture.Judges[1].JudgeId], fixture.EntryIds);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(0, (await SnapshotAsync(fixture.TableId)).RemovedCount);
     }
 }

@@ -6,7 +6,7 @@ namespace BirraPoint.Api.Features.TastingOrder;
 /// <summary>
 /// Pure FR-020/US6-4 rules for fixing a table's tasting order — no EF/DB dependency, so these are
 /// unit-testable directly (same "pure rule class beside the DB-touching handler" pattern already
-/// used by Features/Tables/BosFlagRules and CoiDetector).
+/// used by Features/Tables/LiveEditRules).
 /// </summary>
 internal static class TastingOrderRules
 {

@@ -17,11 +17,7 @@ export interface TableSummary {
   id: string;
   name: string;
   judges: TableJudge[];
-}
-
-export interface RemoveJudgeResult {
-  tableId: string;
-  judgeId: string;
+  samples: { beerEntryId: string }[];
 }
 
 // core/api/ home for table data consumed by a second feature (dashboard, T087) alongside
@@ -35,15 +31,18 @@ export class TablesApiService {
     return this.apiClient.get<TableSummary[]>(`/competitions/${competitionId}/tables`);
   }
 
-  // Live judge removal (FR-039/US12): 200 on success, 404 if not found/not owned (never reveals
-  // existence).
+  // Live judge removal (FR-039/US12) is a full-replace PUT of the table minus the judge; while
+  // InEvaluation the API only accepts it when name and samples are unchanged and judgeIds is a
+  // subset of the current judges (else 409). 404 if not found/not owned.
   removeJudge(
     competitionId: string,
-    tableId: string,
+    table: TableSummary,
     judgeId: string,
-  ): Observable<RemoveJudgeResult> {
-    return this.apiClient.delete<RemoveJudgeResult>(
-      `/competitions/${competitionId}/tables/${tableId}/judges/${judgeId}`,
-    );
+  ): Observable<TableSummary> {
+    return this.apiClient.put<TableSummary>(`/competitions/${competitionId}/tables/${table.id}`, {
+      name: table.name,
+      judgeIds: table.judges.filter((judge) => judge.id !== judgeId).map((judge) => judge.id),
+      beerEntryIds: table.samples.map((sample) => sample.beerEntryId),
+    });
   }
 }

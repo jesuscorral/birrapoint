@@ -1,3 +1,4 @@
+using BirraPoint.Api.Features.Competitions.Features.GetEntriesList;
 using MediatR;
 
 namespace BirraPoint.Api.Features.Competitions;
@@ -10,6 +11,8 @@ internal static class CompetitionsEndpoints
         var group = endpoints.MapGroup("/api/v1/competitions")
             .RequireAuthorization("ORGANIZER")
             .WithTags("Competitions");
+
+        group.MapGetEntriesListEndpoint();
 
         group.MapPost("/", async (CreateCompetitionCommand command, ISender sender, CancellationToken cancellationToken) =>
         {

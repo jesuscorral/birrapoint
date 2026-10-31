@@ -1,19 +1,11 @@
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.Features.Tables.CommonComponents.Dtos;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Features.Tables;
+namespace BirraPoint.Api.Features.Tables.CommonComponents;
 
-/// <summary>
-/// Shared CreateTable/UpdateTable core (FR-016/017/018). Validates COI atomically over the full
-/// submitted judge/entry sets before any mutation (nothing persisted on conflict — no
-/// SaveChangesAsync has run yet), diffs the submitted sets against the table's current
-/// TableJudge/TableSample rows, then flags/unflags BOS eligibility competition-wide as table
-/// membership changes. Callers are expected to have already added <paramref name="table"/> to the
-/// context (for a new table) or loaded it tracked with its Judges/Samples included (for an
-/// update) before calling this.
-/// </summary>
 internal static class TableAssignmentApplier
 {
     public static async Task<IReadOnlyList<Guid>> ApplyAsync(
@@ -56,7 +48,7 @@ internal static class TableAssignmentApplier
 
         var submittedJudgeEmailsById = judgeIdSet.ToDictionary(id => id, id => judgeEmailsById[id]);
 
-        var conflicts = CoiDetector.FindConflicts(submittedJudgeEmailsById, beerEntryIds, submittedEntryOwnerEmailsById);
+        var conflicts = FindConflicts(submittedJudgeEmailsById, beerEntryIds, submittedEntryOwnerEmailsById);
         if (conflicts.Count > 0)
         {
             throw new DomainException(
@@ -107,13 +99,8 @@ internal static class TableAssignmentApplier
                 ? (IReadOnlySet<Guid>)owned
                 : new HashSet<Guid>());
 
-        var flaggedEntryIds = BosFlagRules.EntriesOwnedByJudges(judgesToAdd, ownedEntriesByJudgeId);
+        var flaggedEntryIds = EntriesOwnedByJudges(judgesToAdd, ownedEntriesByJudgeId);
 
-        // Candidate entries: owned by a judge who just left this table. An entry can be
-        // co-owned (participant + collaborators), so a candidate is only actually eligible to
-        // unflag once EVERY owner/collaborator judge is clear — not just the one judge who left
-        // this particular table (senior-code-reviewer PR #19 finding: the original per-leaving-
-        // judge check ignored a co-owner still seated at a *different* table).
         var unflagCandidateEntryIds = new HashSet<Guid>();
         foreach (var row in judgeRowsToRemove)
         {
@@ -123,8 +110,6 @@ internal static class TableAssignmentApplier
             }
         }
 
-        // An entry co-owned by both a judge leaving this table and a judge just added to it (or
-        // still active) must stay flagged — never let the leaving judge's unflag win.
         unflagCandidateEntryIds.ExceptWith(flaggedEntryIds);
 
         if (unflagCandidateEntryIds.Count > 0)
@@ -163,7 +148,7 @@ internal static class TableAssignmentApplier
                     var hasSubmittedEvaluation = await dbContext.Evaluations.AnyAsync(
                         e => e.JudgeId == coOwnerJudgeId, cancellationToken);
 
-                    if (!BosFlagRules.IsEligibleForUnflag(remainingElsewhere, hasSubmittedEvaluation))
+                    if (!IsEligibleForUnflag(remainingElsewhere, hasSubmittedEvaluation))
                     {
                         anyCoOwnerStillKeepsFlagAlive = true;
                         break;
@@ -257,5 +242,47 @@ internal static class TableAssignmentApplier
         }
 
         return result.ToDictionary(kv => kv.Key, kv => (IReadOnlySet<string>)kv.Value);
+    }
+
+    private static List<TableConflict> FindConflicts(
+        IReadOnlyDictionary<Guid, string> judgeEmailsById,
+        IReadOnlyList<Guid> beerEntryIds,
+        Dictionary<Guid, IReadOnlySet<string>> entryOwnerEmailsById)
+    {
+        var conflicts = new List<TableConflict>();
+
+        foreach (var (judgeId, judgeEmail) in judgeEmailsById)
+        {
+            var conflictingEntryIds = beerEntryIds
+                .Where(entryId => entryOwnerEmailsById.TryGetValue(entryId, out var emails) && emails.Contains(judgeEmail))
+                .ToList();
+
+            if (conflictingEntryIds.Count > 0)
+            {
+                conflicts.Add(new TableConflict(judgeId, conflictingEntryIds));
+            }
+        }
+
+        return conflicts;
+    }
+
+    private static bool IsEligibleForUnflag(int remainingActiveTableAssignments, bool hasSubmittedAnyEvaluation) =>
+        remainingActiveTableAssignments == 0 && !hasSubmittedAnyEvaluation;
+
+    /// <summary>Union of the entries owned (as participant or collaborator) by the given judges.</summary>
+    private static HashSet<Guid> EntriesOwnedByJudges(
+        IEnumerable<Guid> judgeIds, Dictionary<Guid, IReadOnlySet<Guid>> ownedEntriesByJudgeId)
+    {
+        var result = new HashSet<Guid>();
+
+        foreach (var judgeId in judgeIds)
+        {
+            if (ownedEntriesByJudgeId.TryGetValue(judgeId, out var entries))
+            {
+                result.UnionWith(entries);
+            }
+        }
+
+        return result;
     }
 }
