@@ -6,7 +6,7 @@ import { ApiClient } from './api-client.service';
 export type JudgeImportRowStatus = 'Valid' | 'Invalid' | 'Excluded';
 
 // Wire shape `data` on JudgeImportRowDto (contracts/rest-api.md §Judge Roster Import,
-// contracts/judge-import-file.md) — unlike the beer-entry import, no field here resolves against
+// contracts/judge-import-file.md; backend/.../Features/Import/CommonComponents/Dtos/JudgeImport*Dto.cs) — unlike the beer-entry import, no field here resolves against
 // a catalog; every field is stored verbatim as free text.
 export interface JudgeImportRowData {
   name: string | null;
@@ -68,14 +68,14 @@ export class JudgeImportApiService {
     const body = new FormData();
     body.append('file', file);
     return this.apiClient.post<JudgeImportBatch>(
-      `/competitions/${competitionId}/judge-imports`,
+      `/competitions/${competitionId}/imports/judges`,
       body,
     );
   }
 
   getImport(competitionId: string, importId: string): Observable<JudgeImportBatch> {
     return this.apiClient.get<JudgeImportBatch>(
-      `/competitions/${competitionId}/judge-imports/${importId}`,
+      `/competitions/${competitionId}/imports/judges/${importId}`,
     );
   }
 
@@ -86,7 +86,7 @@ export class JudgeImportApiService {
     body: EditJudgeImportRowRequest,
   ): Observable<JudgeImportRow> {
     return this.apiClient.put<JudgeImportRow>(
-      `/competitions/${competitionId}/judge-imports/${importId}/rows/${rowNumber}`,
+      `/competitions/${competitionId}/imports/judges/${importId}/rows/${rowNumber}`,
       body,
     );
   }
@@ -97,14 +97,14 @@ export class JudgeImportApiService {
     rowNumber: number,
   ): Observable<JudgeImportRow> {
     return this.apiClient.post<JudgeImportRow>(
-      `/competitions/${competitionId}/judge-imports/${importId}/rows/${rowNumber}/exclude`,
+      `/competitions/${competitionId}/imports/judges/${importId}/rows/${rowNumber}/exclude`,
       {},
     );
   }
 
   consolidate(competitionId: string, importId: string): Observable<JudgeImportConsolidateResult> {
     return this.apiClient.post<JudgeImportConsolidateResult>(
-      `/competitions/${competitionId}/judge-imports/${importId}/consolidate`,
+      `/competitions/${competitionId}/imports/judges/${importId}/consolidate`,
       {},
     );
   }

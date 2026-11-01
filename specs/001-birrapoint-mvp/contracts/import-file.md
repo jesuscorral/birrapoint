@@ -1,6 +1,6 @@
 # Import File Contract: Beer Entry `.xlsx` (ACCE format)
 
-**Consumed by**: `POST /api/v1/competitions/{id}/imports` ([rest-api.md](./rest-api.md)) ·
+**Consumed by**: `POST /api/v1/competitions/{id}/imports/beers` ([rest-api.md](./rest-api.md)) ·
 **Parser**: first worksheet only; row 1 is the header; parsing stops at the first fully empty row.
 
 This is the real club (ACCE) entry-form export: Spanish headers, typed Excel date/number cells
@@ -50,7 +50,7 @@ header columns, zero data rows.
 
 ## Full row edit
 
-`PUT /api/v1/competitions/{id}/imports/{importId}/rows/{rowNumber}` is a full-replace edit of every
+`PUT /api/v1/competitions/{id}/imports/beers/{importId}/rows/{rowNumber}` is a full-replace edit of every
 organizer-editable field (participant name/email/ACCE#/DOB/phone, `competitionCategoryId`,
 `styleCode`, `submittedAt`, `abvPercent`, brew/bottling dates, malts/hops/yeast/other ingredients,
 `entryInstructions`, `beerName`). `competitionCategoryId` (if given) must belong to this
@@ -63,7 +63,7 @@ otherwise. Editing an `Excluded` row is rejected with `400 invalid-import-file`.
 
 ## Revalidation
 
-`POST /api/v1/competitions/{id}/imports/{importId}/revalidate` (FR-054) re-runs the category/
+`POST /api/v1/competitions/{id}/imports/beers/{importId}/revalidate` (FR-054) re-runs the category/
 style/allow-list resolution above for every row currently `Valid`/`CategoryMismatch`/
 `StyleMismatch`/`CategoryStyleMismatch` (skips `Invalid` — its cause is unrelated to categories —
 and `Excluded`, which is terminal), against the competition's **current** categories and style

@@ -23,9 +23,9 @@ internal class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(
 
     public DbSet<EntryCollaborator> EntryCollaborators => Set<EntryCollaborator>();
 
-    public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
+    public DbSet<BeerImportBatch> BeerImportBatches => Set<BeerImportBatch>();
 
-    public DbSet<ImportRow> ImportRows => Set<ImportRow>();
+    public DbSet<BeerImportRow> BeerImportRows => Set<BeerImportRow>();
 
     public DbSet<Judge> Judges => Set<Judge>();
 

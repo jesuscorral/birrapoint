@@ -97,7 +97,7 @@ infra/           azure/ and aws/, each: terraform/ (azure: ACA, Key Vault, Dapr,
 ## Backend conventions
 
 - Slice = request + handler + FluentValidation validator + endpoint under `Features/<X>/Features/<Slice>/`
-  (shared types in `CommonComponents/`; namespaces = folders, ADR-0031; judge-import slice not yet migrated).
+  (shared types in `CommonComponents/`; namespaces = folders, ADR-0031).
   Cross-slice only via MediatR messages or shared contracts. **MediatR pinned 12.x** (licensing).
 - Errors: RFC 7807 with `urn:birrapoint:*` types from `rest-api.md` error catalog (closed list).
   `400` validation, `409` state conflict, `404` for out-of-scope resources (never reveal existence).
