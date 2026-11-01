@@ -2,6 +2,8 @@ using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Features.Evaluations;
+using BirraPoint.Api.Features.Evaluations.CommonComponents;
+using BirraPoint.Api.Features.Evaluations.CommonComponents.Dtos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 

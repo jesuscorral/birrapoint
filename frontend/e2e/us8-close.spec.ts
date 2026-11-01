@@ -12,7 +12,7 @@ import { goToLogin, submitKeycloakLogin } from './support/auth';
 // AuditLog persistence for the organizer correction (Acceptance Scenario 3: "recorded with
 // who/when/what for audit") is already asserted directly against the database by the backend's
 // own CorrectEvaluation coverage
-// (backend/tests/BirraPoint.Api.IntegrationTests/Evaluations/CloseTableApiTests.cs,
+// (backend/tests/BirraPoint.Api.IntegrationTests/Evaluations/Features/CorrectEvaluation/CorrectEvaluationApiTests.cs,
 // GetAuditLogAsync) — there is no organizer-facing UI or GET endpoint in this phase's scope that
 // would let this E2E layer observe the AuditLog row, so a `200` + recomputed total here is the
 // full extent of what this test can (and needs to) prove at this layer.

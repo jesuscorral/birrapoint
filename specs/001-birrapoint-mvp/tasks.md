@@ -209,7 +209,7 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 ### Tests for User Story 7 (MANDATORY — write first, must fail) ⚠️
 
 - [X] T055 [P] [US7] Unit tests: SubmitEvaluation validator (caps 12/3/20/5/10, comments ≥20), preconditions (state, order fixed, next-in-sequence), locked-on-submit rule in `backend/tests/BirraPoint.Api.UnitTests/Evaluations/SubmitEvaluationTests.cs`
-- [X] T056 [P] [US7] Contract tests: `201` submit, idempotent replay `200` with stored result (`X-Idempotency-Key`), `409` order-not-fixed / out-of-sequence / invalid-state / evaluation-locked in `backend/tests/BirraPoint.Api.IntegrationTests/Evaluations/SubmitEvaluationApiTests.cs` — plus a real concurrent-race test (two simultaneous submits for the same judge+entry, exactly one row persists)
+- [X] T056 [P] [US7] Contract tests: `201` submit, idempotent replay `200` with stored result (`X-Idempotency-Key`), `409` order-not-fixed / out-of-sequence / invalid-state / evaluation-locked in `backend/tests/BirraPoint.Api.IntegrationTests/Evaluations/Features/SubmitEvaluation/SubmitEvaluationApiTests.cs` — plus a real concurrent-race test (two simultaneous submits for the same judge+entry, exactly one row persists)
 - [X] T057 [P] [US7] Jest unit tests: draft store writes ≤300 ms debounce contract, outbox replay (online event, app start, backoff, dedupe on replay-200) in `frontend/src/app/core/offline/sync.service.spec.ts`
 - [X] T057B [P] [US7] Contract test: `GET /styles/{code}` shape (vital statistics + description sections), `404` for unknown code in `backend/tests/BirraPoint.Api.IntegrationTests/Catalog/GetStyleDetailTests.cs` (FR-049)
 
@@ -235,7 +235,7 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 ### Tests for User Story 8 (MANDATORY — write first, must fail) ⚠️
 
 - [X] T062 [P] [US8] Unit tests: close preconditions (missing list), immutability guard incl. late offline sync, consolidated mean computation (FR-042) in `backend/tests/BirraPoint.Api.UnitTests/Evaluations/CloseTableTests.cs` — pure rules extracted to `CloseTableRules.cs` (missing-blind-code computation, mean averaging), same split as `SubmitEvaluationRules`
-- [X] T063 [P] [US8] Contract tests: `409 evaluations-incomplete`, post-close judge mutations → `409 table-closed`, organizer `PUT /competitions/{id}/evaluations/{evaluationId}` succeeds + AuditLog row in `backend/tests/BirraPoint.Api.IntegrationTests/Evaluations/CloseTableApiTests.cs`
+- [X] T063 [P] [US8] Contract tests: `409 evaluations-incomplete`, post-close judge mutations → `409 table-closed`, organizer `PUT /competitions/{id}/evaluations/{evaluationId}` succeeds + AuditLog row in `backend/tests/BirraPoint.Api.IntegrationTests/Evaluations/Features/CloseTable/CloseTableApiTests.cs` and `.../Features/CorrectEvaluation/CorrectEvaluationApiTests.cs`
 
 ### Implementation for User Story 8
 
@@ -300,7 +300,7 @@ shared kernel `Domain/` + `Common/`, hub in `Realtime/`), tests at `backend/test
 ### Tests for User Story 11 (MANDATORY — write first, must fail) ⚠️
 
 - [X] T079 [P] [US11] Unit tests: pairwise >7 detection (2 and ≥3 judges), `PendingConsensus` transition, resolution when all totals within 7, single-judge no-alert in `backend/tests/BirraPoint.Api.UnitTests/Evaluations/DiscrepancyTests.cs`
-- [X] T080 [P] [US11] Contract tests: divergent submit → `201 PendingConsensus` + alert; `PUT` evaluation allowed only for involved judges during open alert (`409 evaluation-locked` otherwise); close blocked with `409 discrepancy-open` in `backend/tests/BirraPoint.Api.IntegrationTests/Evaluations/DiscrepancyApiTests.cs`
+- [X] T080 [P] [US11] Contract tests: divergent submit → `201 PendingConsensus` + alert; `PUT` evaluation allowed only for involved judges during open alert (`409 evaluation-locked` otherwise); close blocked with `409 discrepancy-open` in `backend/tests/BirraPoint.Api.IntegrationTests/Evaluations/DiscrepancyApiTests.cs` and `.../Features/AdjustEvaluation/AdjustEvaluationApiTests.cs`
 
 ### Implementation for User Story 11
 

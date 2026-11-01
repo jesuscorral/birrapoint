@@ -1,0 +1,125 @@
+using BirraPoint.Api.Common.Audit;
+using BirraPoint.Api.Common.Auth;
+using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Domain;
+using BirraPoint.Api.Features.Evaluations.CommonComponents;
+using BirraPoint.Api.Features.Evaluations.CommonComponents.Dtos;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
+
+namespace BirraPoint.Api.Features.Evaluations.Features.CorrectEvaluation;
+
+/// <summary>PUT /competitions/{id}/evaluations/{evaluationId} (contracts/rest-api.md §Monitoring &amp;
+/// audit, T064-T065, FR-035). Returns null when the evaluation doesn't exist or belongs to a
+/// competition not owned by the caller — the endpoint maps that to a plain 404, never leaking
+/// existence. Allowed regardless of table state (the whole point is correcting a closed table's
+/// evaluation) — organizer-only, no table-state gate here.</summary>
+internal sealed record CorrectEvaluationCommand(
+    Guid CompetitionId, Guid EvaluationId, EvaluationScoresDto Scores, EvaluationCommentsDto Comments,
+    EvaluationDescriptorsDto? Descriptors, string? Feedback)
+    : IRequest<CorrectEvaluationResult?>;
+
+internal sealed record CorrectEvaluationResult(Guid EvaluationId, int Total, decimal ConsolidatedMean);
+
+
+internal sealed class CorrectEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter)
+    : IRequestHandler<CorrectEvaluationCommand, CorrectEvaluationResult?>
+{
+    public async Task<CorrectEvaluationResult?> Handle(CorrectEvaluationCommand request, CancellationToken cancellationToken)
+    {
+        var competitionExists = await dbContext.Competitions
+            .AnyAsync(c => c.Id == request.CompetitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
+        if (!competitionExists)
+        {
+            return null;
+        }
+
+        // Scoped through TastingTable.CompetitionId (Evaluation has no CompetitionId of its own) —
+        // this also prevents an evaluation id from a different competition being addressed via a
+        // route that happens to name a competition the caller does own.
+        var evaluation = await dbContext.Evaluations
+            .Where(e => e.Id == request.EvaluationId)
+            .Join(dbContext.TastingTables, e => e.TastingTableId, t => t.Id, (e, t) => new { Evaluation = e, t.CompetitionId })
+            .Where(x => x.CompetitionId == request.CompetitionId)
+            .Select(x => x.Evaluation)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (evaluation is null)
+        {
+            return null;
+        }
+
+        var before = new
+        {
+            evaluation.AromaScore,
+            evaluation.AppearanceScore,
+            evaluation.FlavorScore,
+            evaluation.MouthfeelScore,
+            evaluation.OverallScore,
+            evaluation.AromaComment,
+            evaluation.AppearanceComment,
+            evaluation.FlavorComment,
+            evaluation.MouthfeelComment,
+            evaluation.OverallComment,
+            evaluation.DescriptorsJson,
+            evaluation.FeedbackComment,
+        };
+
+        evaluation.AromaScore = request.Scores.Aroma;
+        evaluation.AppearanceScore = request.Scores.Appearance;
+        evaluation.FlavorScore = request.Scores.Flavor;
+        evaluation.MouthfeelScore = request.Scores.Mouthfeel;
+        evaluation.OverallScore = request.Scores.Overall;
+        evaluation.AromaComment = request.Comments.Aroma;
+        evaluation.AppearanceComment = request.Comments.Appearance;
+        evaluation.FlavorComment = request.Comments.Flavor;
+        evaluation.MouthfeelComment = request.Comments.Mouthfeel;
+        evaluation.OverallComment = request.Comments.Overall;
+        // senior-review M1: unlike Scores/Comments (required on every correction), Descriptors/
+        // Feedback are optional on this request — an organizer correcting just the five scores
+        // must not silently wipe the judge's tasting descriptors/feedback by omitting fields the
+        // contract never required them to resend. Only overwrite when the caller actually sent
+        // something; `null` on the request means "not part of this correction", not "clear it".
+        if (request.Descriptors is not null)
+        {
+            evaluation.DescriptorsJson = EvaluationDescriptorsSerializer.Serialize(request.Descriptors);
+        }
+        if (request.Feedback is not null)
+        {
+            evaluation.FeedbackComment = request.Feedback;
+        }
+
+        var after = new
+        {
+            evaluation.AromaScore,
+            evaluation.AppearanceScore,
+            evaluation.FlavorScore,
+            evaluation.MouthfeelScore,
+            evaluation.OverallScore,
+            evaluation.AromaComment,
+            evaluation.AppearanceComment,
+            evaluation.FlavorComment,
+            evaluation.MouthfeelComment,
+            evaluation.OverallComment,
+            evaluation.DescriptorsJson,
+            evaluation.FeedbackComment,
+        };
+
+        // Audit stages via the change tracker (does not call SaveChanges) — must run before our own
+        // SaveChangesAsync so both commit in the same transaction (mirrors ChangeCompetitionStateCommand.cs/FR-035).
+        auditWriter.Record("EvaluationCorrected", nameof(Evaluation), evaluation.Id.ToString(), before, after);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        // evaluation.Total is a DB-computed generated column; EF/Npgsql refreshes it as part of the
+        // SaveChangesAsync above (same pattern Features/SubmitEvaluation/SubmitEvaluationCommand.cs relies on) — no manual reload.
+        var totals = await dbContext.Evaluations
+            .Where(e => e.TastingTableId == evaluation.TastingTableId && e.BeerEntryId == evaluation.BeerEntryId)
+            .Select(e => e.Total)
+            .ToListAsync(cancellationToken);
+
+        var consolidatedMean = CloseTableRules.ComputeMean(totals);
+
+        return new CorrectEvaluationResult(evaluation.Id, evaluation.Total, consolidatedMean);
+    }
+}

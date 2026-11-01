@@ -13,171 +13,22 @@ namespace BirraPoint.Api.IntegrationTests.Evaluations;
 /// <summary>
 /// T080: HTTP-level contract tests for FR-031's discrepancy consensus alert — divergent submission
 /// → `PendingConsensus` + `DiscrepancyAlert`, the ≥3-judge "only the outliers are involved" edge
-/// case, `PUT /me/tables/{tableId}/evaluations/{evaluationId}` gated to involved judges only
-/// (Clarification Q2, `409 evaluation-locked` otherwise), and that a table can't close while a
-/// discrepancy is open (FR-032, `409 discrepancy-open` — the gate already lives in CloseTable.cs;
-/// this proves the new detection code actually populates the DiscrepancyAlert it depends on).
+/// case, that a table can't close while a discrepancy is open (FR-032, `409 discrepancy-open` — the
+/// gate already lives in Features/Evaluations/Features/CloseTable/CloseTableCommand.cs; this proves the
+/// new detection code actually populates the DiscrepancyAlert it depends on), and the alert-insert
+/// race. The per-judge adjustment endpoint is covered by AdjustEvaluationApiTests.
 /// </summary>
-public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
+public sealed class DiscrepancyApiTests(ApiFactory factory) : EvaluationsApiTestBase(factory), IClassFixture<ApiFactory>
 {
-    private const string StyleCodeApa = "21A";
-    private const string LongComment = "This comment is long enough to satisfy the minimum length rule.";
-
-    private HttpClient OrganizerClient(string sub)
-    {
-        var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", TestJwtIssuer.IssueToken(sub, null, "ORGANIZER"));
-        return client;
-    }
-
-    /// <summary>Same email convention as SubmitEvaluationApiTests/CloseTableApiTests —
-    /// GetJudgeRecordsAsync resolves Judge rows by email, not `sub`.</summary>
-    private HttpClient JudgeClient(string sub)
-    {
-        var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", TestJwtIssuer.IssueToken(sub, $"{sub}@brew.example", "JUDGE"));
-        return client;
-    }
-
-    private static async Task<Guid> CreateCompetitionAsync(HttpClient client, string namePrefix = "Discrepancy")
-    {
-        var response = await client.PostAsJsonAsync("/api/v1/competitions", new
-        {
-            name = $"{namePrefix} {Guid.NewGuid():N}",
-            venue = "Centro de Convenciones",
-            startDate = "2026-08-01",
-            endDate = "2026-08-03",
-        });
-        var created = await response.Content.ReadFromJsonAsync<JsonElement>();
-        return created.GetProperty("id").GetGuid();
-    }
-
-    private static Task<HttpResponseMessage> TransitionStateAsync(HttpClient client, Guid competitionId, string target) =>
-        client.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/state", new { target });
-
-    private static string NewBlindCode() => $"B{Guid.NewGuid():N}"[..8];
-
-    private async Task<Guid> SeedParticipantAsync(Guid competitionId, string name, string email)
-    {
-        await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var participant = new Participant { CompetitionId = competitionId, Name = name, Email = email };
-        db.Participants.Add(participant);
-        await db.SaveChangesAsync();
-        return participant.Id;
-    }
-
-    private async Task<Guid> SeedBeerEntryAsync(
-        Guid competitionId, Guid participantId, string beerName, string styleCode = StyleCodeApa)
-    {
-        await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var entry = new BeerEntry
-        {
-            CompetitionId = competitionId,
-            ParticipantId = participantId,
-            BeerName = beerName,
-            StyleCode = styleCode,
-            BlindCode = NewBlindCode(),
-        };
-        db.BeerEntries.Add(entry);
-        await db.SaveChangesAsync();
-        return entry.Id;
-    }
-
-    private async Task<Guid> SeedJudgeAsync(Guid competitionId, string email, string keycloakUserId)
-    {
-        await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var judge = new Judge
-        {
-            CompetitionId = competitionId,
-            Email = email,
-            DisplayName = email.Split('@')[0],
-            KeycloakUserId = keycloakUserId,
-        };
-        db.Judges.Add(judge);
-        await db.SaveChangesAsync();
-        return judge.Id;
-    }
-
-    private async Task<Guid> SeedTableAsync(Guid competitionId, string name)
-    {
-        await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var table = new TastingTable { CompetitionId = competitionId, Name = name };
-        db.TastingTables.Add(table);
-        await db.SaveChangesAsync();
-        return table.Id;
-    }
-
-    private async Task SeedTableJudgeAsync(Guid tableId, Guid judgeId)
-    {
-        await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.TableJudges.Add(new TableJudge { TastingTableId = tableId, JudgeId = judgeId });
-        await db.SaveChangesAsync();
-    }
-
-    private async Task SeedTableSampleAsync(Guid tableId, Guid beerEntryId)
-    {
-        await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.TableSamples.Add(new TableSample { TastingTableId = tableId, BeerEntryId = beerEntryId });
-        await db.SaveChangesAsync();
-    }
-
-    /// <summary>Mirrors what POST .../order (FixOrder) would do, without the extra HTTP round-trip
-    /// (same convention as SubmitEvaluationApiTests/CloseTableApiTests).</summary>
-    private async Task FixOrderDirectlyAsync(Guid tableId, Guid judgeId, List<Guid> orderedEntryIds)
-    {
-        await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var table = await db.TastingTables.SingleAsync(t => t.Id == tableId);
-        table.OrderFixedByJudgeId = judgeId;
-        table.OrderFixedAt = DateTimeOffset.UtcNow;
-
-        var samples = await db.TableSamples.Where(ts => ts.TastingTableId == tableId).ToListAsync();
-        for (var i = 0; i < orderedEntryIds.Count; i++)
-        {
-            samples.Single(s => s.BeerEntryId == orderedEntryIds[i]).SequenceOrder = i + 1;
-        }
-
-        await db.SaveChangesAsync();
-    }
-
-    private async Task<int> CountOpenAlertsAsync(Guid tableId, Guid beerEntryId)
-    {
-        await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        return await db.DiscrepancyAlerts.CountAsync(
-            a => a.TastingTableId == tableId && a.BeerEntryId == beerEntryId && a.Status == DiscrepancyStatus.Open);
-    }
-
     private async Task<List<EvaluationStatus>> GetEvaluationStatusesAsync(Guid tableId, Guid beerEntryId)
     {
-        await using var scope = factory.Services.CreateAsyncScope();
+        await using var scope = Factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return await db.Evaluations
             .Where(e => e.TastingTableId == tableId && e.BeerEntryId == beerEntryId)
             .Select(e => e.Status)
             .ToListAsync();
     }
-
-    private static object Scores(int aroma, int appearance, int flavor, int mouthfeel, int overall) =>
-        new { aroma, appearance, flavor, mouthfeel, overall };
-
-    private static object ValidComments() => new
-    {
-        aroma = LongComment,
-        appearance = LongComment,
-        flavor = LongComment,
-        mouthfeel = LongComment,
-        overall = LongComment,
-    };
 
     private static async Task<HttpResponseMessage> SubmitAsync(
         HttpClient client, Guid tableId, Guid beerEntryId, object scores, object? comments = null)
@@ -189,18 +40,6 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
         request.Headers.Add("X-Idempotency-Key", $"comp:{tableId}:judge:{beerEntryId}");
         return await client.SendAsync(request);
     }
-
-    private static Task<HttpResponseMessage> AdjustAsync(
-        HttpClient client, Guid tableId, Guid evaluationId, object scores, object? comments = null) =>
-        client.PutAsJsonAsync(
-            $"/api/v1/me/tables/{tableId}/evaluations/{evaluationId}",
-            new { scores, comments = comments ?? ValidComments() });
-
-    private static Task<HttpResponseMessage> GetDiscrepanciesAsync(HttpClient client, Guid tableId) =>
-        client.GetAsync(Urls.Rel($"/api/v1/me/tables/{tableId}/discrepancies"));
-
-    private static Task<HttpResponseMessage> CloseAsync(HttpClient client, Guid tableId) =>
-        client.PostAsync(Urls.Rel($"/api/v1/me/tables/{tableId}/close"), content: null);
 
     /// <summary>Seeds a competition, one table with a single sample, and <paramref name="judgeCount"/>
     /// actively-assigned judges — ready for submission (competition InEvaluation, order fixed by the
@@ -308,74 +147,6 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : IClassFixture<ApiF
         using var forC = JsonDocument.Parse(await discrepanciesForC.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         // Judge C is never involved, so no alert is returned for them specifically.
         Assert.Empty(forC.RootElement.EnumerateArray());
-    }
-
-    // ---- PUT adjustment: only an involved judge, only while the alert is open (Clarification Q2) --
-
-    [Fact]
-    public async Task AdjustmentByAnInvolvedJudgeThatConvergesEveryoneResolvesTheDiscrepancy()
-    {
-        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
-        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
-
-        using var judgeA = JudgeClient(fixture.Judges[0].JudgeSub);
-        using var judgeB = JudgeClient(fixture.Judges[1].JudgeSub);
-
-        var first = await SubmitAsync(judgeA, fixture.TableId, fixture.EntryId, Scores(10, 2, 16, 4, 8)); // 40
-        var evaluationIdA = (await first.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("evaluationId").GetGuid();
-
-        var second = await SubmitAsync(judgeB, fixture.TableId, fixture.EntryId, Scores(5, 1, 10, 2, 2)); // 20, diff 20 -> both involved
-        Assert.Equal("PendingConsensus", (await second.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("status").GetString());
-
-        var adjustment = await AdjustAsync(judgeA, fixture.TableId, evaluationIdA, Scores(6, 1, 12, 3, 3)); // 25, diff to 20 is 5
-
-        Assert.Equal(HttpStatusCode.OK, adjustment.StatusCode);
-        using var adjustedDocument = JsonDocument.Parse(await adjustment.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        var adjustedRoot = adjustedDocument.RootElement;
-        Assert.Equal("Confirmed", adjustedRoot.GetProperty("status").GetString());
-        Assert.Equal(25, adjustedRoot.GetProperty("total").GetInt32());
-        Assert.False(adjustedRoot.TryGetProperty("discrepancy", out var discrepancyAfter) && discrepancyAfter.ValueKind != JsonValueKind.Null);
-
-        Assert.Equal(0, await CountOpenAlertsAsync(fixture.TableId, fixture.EntryId));
-
-        var remainingDiscrepancies = await GetDiscrepanciesAsync(judgeB, fixture.TableId);
-        using var remaining = JsonDocument.Parse(await remainingDiscrepancies.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Empty(remaining.RootElement.EnumerateArray());
-    }
-
-    [Fact]
-    public async Task AdjustmentOfAnEvaluationWithNoOpenDiscrepancyReturns409EvaluationLocked()
-    {
-        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
-        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 1);
-        using var judge = JudgeClient(fixture.Judges[0].JudgeSub);
-
-        var submit = await SubmitAsync(judge, fixture.TableId, fixture.EntryId, Scores(10, 2, 16, 4, 8));
-        var evaluationId = (await submit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("evaluationId").GetGuid();
-
-        var response = await AdjustAsync(judge, fixture.TableId, evaluationId, Scores(9, 2, 15, 4, 8));
-
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("evaluation-locked", document.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task AdjustmentOfSomeoneElsesEvaluationReturns404()
-    {
-        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
-        var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
-
-        using var judgeA = JudgeClient(fixture.Judges[0].JudgeSub);
-        using var judgeB = JudgeClient(fixture.Judges[1].JudgeSub);
-
-        var first = await SubmitAsync(judgeA, fixture.TableId, fixture.EntryId, Scores(10, 2, 16, 4, 8)); // 40
-        var evaluationIdA = (await first.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("evaluationId").GetGuid();
-        await SubmitAsync(judgeB, fixture.TableId, fixture.EntryId, Scores(5, 1, 10, 2, 2)); // 20, opens the alert
-
-        var response = await AdjustAsync(judgeB, fixture.TableId, evaluationIdA, Scores(9, 2, 15, 4, 8));
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     // ---- FR-032: table close is blocked while a discrepancy is open, succeeds once resolved -------

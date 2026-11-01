@@ -1,7 +1,7 @@
 using BirraPoint.Api.Common.Email;
 using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.IntegrationTests.Evaluations;
+using BirraPoint.Api.IntegrationTests.Evaluations.Features.SubmitEvaluation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;

@@ -5,6 +5,8 @@ using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Features.Evaluations;
+using BirraPoint.Api.Features.Evaluations.CommonComponents;
+using BirraPoint.Api.Features.Evaluations.CommonComponents.Dtos;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 

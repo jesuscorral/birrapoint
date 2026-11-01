@@ -3,6 +3,7 @@ using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Features.Evaluations;
+using BirraPoint.Api.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Features.Tables.CommonComponents;
 using BirraPoint.Api.Features.Tables.CommonComponents.Dtos;
 using BirraPoint.Api.Realtime;
