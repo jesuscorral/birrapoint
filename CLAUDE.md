@@ -99,6 +99,10 @@ infra/           azure/ and aws/, each: terraform/ (azure: ACA, Key Vault, Dapr,
   Cross-slice only via MediatR messages or shared contracts. **MediatR pinned 12.x** (licensing).
 - Errors: RFC 7807 with `urn:birrapoint:*` types from `rest-api.md` error catalog (closed list).
   `400` validation, `409` state conflict, `404` for out-of-scope resources (never reveal existence).
+- Moving/renaming C# files: `git mv`, then `node .claude/scripts/move-namespace.mjs` (fixes namespaces +
+  usings, ~1 s; `--dry-run` to preview). Never write an ad hoc script for it. If namespaces were edited
+  by hand: `dotnet build ... 2>&1 | node .claude/scripts/move-namespace.mjs --fix-build`. `IDE0130`
+  (namespace = folder) is a build error; `dotnet build` stays the final check.
 - SignalR: one `CompetitionHub`, server→client only; groups `competition:{id}:organizers`,
   `table:{tableId}`; emit after commit; clients re-fetch on reconnect.
 - Background: DB `DispatchJob` queue + `BackgroundService`, idempotent, atomic lease-based claim (`SKIP LOCKED`), recovers expired leases.
