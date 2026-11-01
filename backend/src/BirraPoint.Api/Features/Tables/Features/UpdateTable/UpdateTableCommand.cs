@@ -73,6 +73,8 @@ internal sealed class UpdateTableCommandHandler(
         var bosFlaggedEntryIds = await TableAssignmentApplier.ApplyAsync(
             dbContext, table, request.JudgeIds, request.BeerEntryIds, cancellationToken);
 
+        await dbContext.SaveChangesAsync(cancellationToken);
+
         var dto = await TableProjector.ProjectAsync(dbContext, table.Id, cancellationToken);
 
         return TableMutationResult.From(dto, bosFlaggedEntryIds);

@@ -8,6 +8,10 @@ namespace BirraPoint.Api.Features.Tables.CommonComponents;
 
 internal static class TableAssignmentApplier
 {
+    /// <summary>Validates COI and stages the table's judge/sample diff plus the competition-wide
+    /// BOS flag changes on <paramref name="dbContext"/>. Does not save: the calling handler owns
+    /// the unit of work and calls SaveChangesAsync. Throws ConflictOfInterest before staging
+    /// anything.</summary>
     public static async Task<IReadOnlyList<Guid>> ApplyAsync(
         AppDbContext dbContext,
         TastingTable table,
@@ -185,8 +189,6 @@ internal static class TableAssignmentApplier
                 entry.NotValidForBos = false;
             }
         }
-
-        await dbContext.SaveChangesAsync(cancellationToken);
 
         return flaggedEntryIds.ToList();
     }

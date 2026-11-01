@@ -125,7 +125,8 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
         await db.SaveChangesAsync();
     }
 
-    /// <summary>Loads the table fresh (judges + samples) and applies the desired end state.</summary>
+    /// <summary>Loads the table fresh (judges + samples), applies the desired end state and saves —
+    /// the Applier only stages changes; persisting them is the caller's job (as in the handlers).</summary>
     private async Task<IReadOnlyList<Guid>> ApplyAsync(Guid tableId, Guid[] judgeIds, Guid[] beerEntryIds)
     {
         await using var db = NewDb();
@@ -133,7 +134,9 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
             .Include(t => t.Judges)
             .Include(t => t.Samples)
             .SingleAsync(t => t.Id == tableId);
-        return await TableAssignmentApplier.ApplyAsync(db, table, judgeIds, beerEntryIds, CancellationToken.None);
+        var flaggedEntryIds = await TableAssignmentApplier.ApplyAsync(db, table, judgeIds, beerEntryIds, CancellationToken.None);
+        await db.SaveChangesAsync();
+        return flaggedEntryIds;
     }
 
     private async Task<bool> IsNotValidForBosAsync(Guid entryId)
@@ -156,6 +159,33 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
         {
             Assert.False(await IsNotValidForBosAsync(entryId));
         }
+    }
+
+    // ---------------------------------------------------------------- persistence
+
+    [Fact]
+    public async Task ApplyStagesChangesWithoutPersistingThem()
+    {
+        var competitionId = await SeedCompetitionAsync();
+        var email = Email("owner");
+        var judgeId = await SeedJudgeAsync(competitionId, email);
+        var ownedEntryId = await SeedEntryAsync(competitionId, email);
+        var tableId = await SeedTableAsync(competitionId);
+
+        await using (var db = NewDb())
+        {
+            var table = await db.TastingTables
+                .Include(t => t.Judges)
+                .Include(t => t.Samples)
+                .SingleAsync(t => t.Id == tableId, TestContext.Current.CancellationToken);
+
+            // Judge owns ownedEntryId (unassigned), so adding them would flag it for BOS.
+            await TableAssignmentApplier.ApplyAsync(db, table, [judgeId], [], TestContext.Current.CancellationToken);
+
+            Assert.True(db.ChangeTracker.HasChanges());
+        }
+
+        await AssertNothingPersistedAsync(tableId, ownedEntryId);
     }
 
     // ---------------------------------------------------------------- COI (FR-017)
