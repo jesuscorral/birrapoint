@@ -351,7 +351,7 @@ test.describe('US9 — live organizer monitoring dashboard', () => {
     // --- Judge: independent browser context/session, real forced-password-change login. Order is
     // deliberately NOT fixed yet -- the organizer's monitor page below must already be open and
     // hub-connected to observe the TableOrderFixed live note, since GetProgressQuery's initial
-    // payload (backend/src/BirraPoint.Api/Features/Monitoring/GetProgress.cs) carries no
+    // payload (backend/src/BirraPoint.Api/Features/Monitoring/Features/GetProgress/GetProgressQuery.cs) carries no
     // order-fixed information at all; that note is populated purely from the live hub event. ---
     const judgeContext = await browser.newContext();
     const judgePage = await judgeContext.newPage();

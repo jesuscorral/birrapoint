@@ -6,6 +6,7 @@ using BirraPoint.Api.Domain;
 using BirraPoint.Api.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Features.Evaluations.CommonComponents.Dtos;
 using BirraPoint.Api.Features.TastingOrder;
+using BirraPoint.Api.Features.TastingOrder.CommonComponents;
 using BirraPoint.Api.Realtime;
 using MediatR;
 using Microsoft.EntityFrameworkCore;

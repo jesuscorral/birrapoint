@@ -5,7 +5,7 @@ namespace BirraPoint.Api.Features.Evaluations.CommonComponents;
 /// <summary>
 /// Pure FR-022/FR-023/FR-025 rules for submitting a judge evaluation — no EF/DB dependency, so
 /// these are unit-testable directly (same "pure rule class beside the DB-touching handler"
-/// pattern already used by Features/TastingOrder/TastingOrderRules, Features/Tables/LiveEditRules).
+/// pattern already used by Features/TastingOrder/CommonComponents/TastingOrderRules, Features/Tables/LiveEditRules).
 /// SubmitEvaluationCommandHandler runs these under no explicit lock — the
 /// (JudgeId, BeerEntryId) unique index (data-model.md) is what actually backstops a genuine race
 /// between two submissions for the same pair, not these gates.

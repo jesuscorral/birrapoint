@@ -21,8 +21,10 @@ checks the code matches them, not the other way around.
 
 **Documented exceptions (allowed, don't flag):** `EntryInstructions` (ADR-0011, FR-019) and
 `AbvPercent` (FR-062) on judge sample DTOs; tablemates' `DisplayName`/`BjcpRank` from
-`GET /me/tables/{tableId}/judges` (judge data, not entrant data). Judge DTOs live in
-`Features/TastingOrder/JudgeDtos.cs`; start there.
+`GET /me/tables/{tableId}/judges` (judge data, not entrant data). Judge DTOs live in `Features/TastingOrder/`:
+`CommonComponents/Dtos/JudgeSampleDto.cs`, `Features/GetMyTables/GetMyTablesQuery.cs`
+(`JudgeTableSummaryDto`) and `Features/GetTableJudges/GetTableJudgesQuery.cs`
+(`JudgeTableMemberDto`); start there.
 
 ## Steps
 

@@ -9,7 +9,7 @@ namespace BirraPoint.Api.UnitTests.Evaluations.Features.SubmitEvaluation;
 /// <summary>
 /// T055: pure SubmitEvaluation rules (FR-022/FR-023/FR-025) — strictly-sequential sample gating
 /// and the InEvaluation-only state gate — exercised directly (same "pure rule class beside the
-/// DB-touching handler" pattern already used by Features/TastingOrder/TastingOrderRules,
+/// DB-touching handler" pattern already used by Features/TastingOrder/CommonComponents/TastingOrderRules,
 /// Features/Tables/LiveEditRules), plus the FluentValidation score-cap/comment-
 /// length rules SubmitEvaluationCommandValidator enforces at the wire boundary. The full
 /// precondition chain (state/order-fixed/table-closed/out-of-sequence → 409, idempotent replay)

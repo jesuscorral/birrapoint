@@ -385,7 +385,7 @@ test.describe('US6 — blind table dynamics: shared fixed order', () => {
 
       // BR-01/FR-019: the blind sample view must never surface entrant data — structurally
       // asserted at the wire level by the backend contract test
-      // (OrderApiTests.GetTableSamples_payload_never_contains_entrant_fields); this is the UI-side
+      // (GetTableSamplesApiTests.GetTableSamplesPayloadNeverContainsEntrantFields); this is the UI-side
       // defensive check that none of it leaks into the rendered page either.
       for (const p of [pageA, pageB]) {
         const listText = await p.locator('ol.sample-order-list').innerText();

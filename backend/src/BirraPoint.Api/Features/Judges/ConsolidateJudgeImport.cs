@@ -89,7 +89,7 @@ internal sealed class ConsolidateJudgeImportCommandHandler(
             if (judgesByEmail.TryGetValue(email, out var judge))
             {
                 // Last-import-wins within this competition — same policy as beer-entry
-                // Participant matching (ConsolidateImport.cs). Duplicate emails within the same
+                // Participant matching (Features/Import/Features/ConsolidateImport/ConsolidateImportCommand.cs). Duplicate emails within the same
                 // file resolve to a single upsert (FR-058): the later row's values win since rows
                 // are processed in RowNumber order.
                 judge.DisplayName = row.Name!;

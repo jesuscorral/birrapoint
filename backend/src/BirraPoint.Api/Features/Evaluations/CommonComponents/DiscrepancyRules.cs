@@ -3,7 +3,7 @@ namespace BirraPoint.Api.Features.Evaluations.CommonComponents;
 /// <summary>
 /// Pure FR-031 rule — no EF/DB dependency, so it's unit-testable directly (same "pure rule class
 /// beside the DB-touching handler" pattern already used by SubmitEvaluationRules,
-/// Features/TastingOrder/TastingOrderRules, Features/Tables/LiveEditRules).
+/// Features/TastingOrder/CommonComponents/TastingOrderRules, Features/Tables/LiveEditRules).
 /// </summary>
 internal static class DiscrepancyRules
 {

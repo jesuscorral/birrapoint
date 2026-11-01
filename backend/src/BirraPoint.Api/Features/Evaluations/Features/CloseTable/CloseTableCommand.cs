@@ -4,6 +4,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Features.TastingOrder;
+using BirraPoint.Api.Features.TastingOrder.CommonComponents;
 using BirraPoint.Api.Realtime;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -38,7 +39,7 @@ internal sealed class CloseTableCommandHandler(AppDbContext dbContext, ICurrentU
         // Row lock to serialize concurrent closers — two judges racing POST .../close at the same
         // instant must not both pass the not-already-closed check and both commit Closed (which
         // would also double-emit TableClosed to the organizer group). Same pattern as
-        // Features/TastingOrder/FixOrder.cs's one-shot table-state flip. The active TableJudge row
+        // Features/TastingOrder/Features/FixOrder/FixOrderCommand.cs's one-shot table-state flip. The active TableJudge row
         // found above references an existing TastingTable (FK), so this is always found.
         var table = await dbContext.TastingTables
             .FromSqlInterpolated($"SELECT * FROM \"TastingTables\" WHERE \"Id\" = {request.TableId} FOR UPDATE")

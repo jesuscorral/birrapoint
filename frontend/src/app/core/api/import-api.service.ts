@@ -7,7 +7,7 @@ export type ImportRowStatus =
   'Valid' | 'StyleMismatch' | 'CategoryMismatch' | 'CategoryStyleMismatch' | 'Invalid' | 'Excluded';
 
 // Wire shape `data` on ImportRowDto (contracts/rest-api.md §Entry Import,
-// backend/.../Features/Import/ImportDtos.cs ImportRowDataDto) — category/style are the raw
+// backend/.../Features/Import/CommonComponents/Dtos/ImportRowDataDto.cs) — category/style are the raw
 // parsed cell text (may not resolve to anything); competitionCategoryId/resolvedStyleCode are
 // the resolved references, set at parse time or by the organizer via the full row edit below.
 export interface ImportRowData {

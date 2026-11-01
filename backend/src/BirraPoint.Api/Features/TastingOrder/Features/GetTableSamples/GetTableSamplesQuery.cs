@@ -1,0 +1,26 @@
+using BirraPoint.Api.Common.Auth;
+using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Features.TastingOrder.CommonComponents;
+using BirraPoint.Api.Features.TastingOrder.CommonComponents.Dtos;
+using MediatR;
+
+namespace BirraPoint.Api.Features.TastingOrder.Features.GetTableSamples;
+
+/// <summary>GET /me/tables/{tableId}/samples (contracts/rest-api.md §Judge workspace). Returns
+/// null when the caller is not an active member of this table — the endpoint maps that to a
+/// plain 404 (never reveals whether the table exists).</summary>
+internal sealed record GetTableSamplesQuery(Guid TableId) : IRequest<IReadOnlyList<JudgeSampleDto>?>;
+
+internal sealed class GetTableSamplesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+    : IRequestHandler<GetTableSamplesQuery, IReadOnlyList<JudgeSampleDto>?>
+{
+    public async Task<IReadOnlyList<JudgeSampleDto>?> Handle(GetTableSamplesQuery request, CancellationToken cancellationToken)
+    {
+        var judges = await currentUser.GetJudgeRecordsAsync(cancellationToken);
+        var judgeId = await JudgeTableAccess.FindActiveMembershipAsync(dbContext, judges, request.TableId, cancellationToken);
+
+        return judgeId is null
+            ? null
+            : await JudgeSampleProjector.ProjectAsync(dbContext, request.TableId, judgeId.Value, cancellationToken);
+    }
+}

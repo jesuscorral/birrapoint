@@ -27,7 +27,7 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
     private static readonly TimeSpan SafetyNetPollTimeout = TimeSpan.FromSeconds(35);
 
     /// <summary>Seeds one table with a single judge, closes it (mirrors
-    /// MonitoringApiTests' pattern of seeding evaluations directly and closing via the judge who
+    /// MonitoringApiTestBase's pattern of seeding evaluations directly and closing via the judge who
     /// submitted them), then transitions the competition through Active/InEvaluation. The caller
     /// still owns calling FinalizeAsync so tests can assert on the Finalize response itself.</summary>
     private async Task<(Guid CompetitionId, string CompetitionName, List<(Guid ParticipantId, string Email, Guid EntryId, string BlindCode)> Entries)>
