@@ -4,6 +4,8 @@ using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.Persistence;
+using BirraPoint.Api.Modules.Judging.Domain;
+using BirraPoint.Api.Modules.Organization.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.IntegrationTests.Audit;

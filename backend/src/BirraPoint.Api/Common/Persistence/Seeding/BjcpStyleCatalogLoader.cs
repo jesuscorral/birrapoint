@@ -5,7 +5,7 @@ namespace BirraPoint.Api.Common.Persistence.Seeding;
 
 /// <summary>
 /// Reads the embedded bjcp-2021.json seed resource (R-12). Lives in the shared persistence
-/// kernel — not under Features/Catalog/ — because the AddBjcpStyleCatalogDetails migration
+/// kernel — not under Modules/Organization/Features/Catalog/ — because the AddBjcpStyleCatalogDetails migration
 /// depends on it, and Common/Persistence/ must never depend on a feature slice.
 /// </summary>
 internal static class BjcpStyleCatalogLoader

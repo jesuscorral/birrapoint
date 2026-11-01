@@ -1,0 +1,26 @@
+using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Features.Import;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace BirraPoint.Api.Modules.Organization.Persistence;
+
+internal sealed class JudgeImportBatchConfiguration : IEntityTypeConfiguration<JudgeImportBatch>
+{
+    public void Configure(EntityTypeBuilder<JudgeImportBatch> builder)
+    {
+        builder.Property(b => b.Status).HasConversion<string>().HasMaxLength(20);
+
+        // At most one Pending batch per competition — a new upload discards the prior
+        // unconsolidated one (contracts/judge-import-file.md §Semantics), independent of the
+        // beer-entry import's own single-active-batch rule (BeerImportBatchConfiguration.cs).
+        builder.HasIndex(b => b.CompetitionId)
+            .IsUnique()
+            .HasFilter("\"Status\" = 'Pending'");
+
+        builder.HasOne<Competition>()
+            .WithMany()
+            .HasForeignKey(b => b.CompetitionId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}

@@ -1,0 +1,48 @@
+using BirraPoint.Api.Common.Auth;
+using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents.Dtos;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
+
+namespace BirraPoint.Api.Modules.Organization.Features.Import.Features.ExcludeBeerImportRow;
+
+/// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
+internal sealed record ExcludeBeerImportRowCommand(Guid CompetitionId, Guid ImportId, int RowNumber) : IRequest<BeerImportRowDto?>;
+
+internal sealed class ExcludeBeerImportRowCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+    : IRequestHandler<ExcludeBeerImportRowCommand, BeerImportRowDto?>
+{
+    public async Task<BeerImportRowDto?> Handle(ExcludeBeerImportRowCommand request, CancellationToken cancellationToken)
+    {
+        var competitionExists = await dbContext.Competitions
+            .AnyAsync(c => c.Id == request.CompetitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
+
+        if (!competitionExists)
+        {
+            return null;
+        }
+
+        var batchExists = await dbContext.BeerImportBatches
+            .AnyAsync(b => b.Id == request.ImportId && b.CompetitionId == request.CompetitionId, cancellationToken);
+
+        if (!batchExists)
+        {
+            return null;
+        }
+
+        var row = await dbContext.BeerImportRows
+            .FirstOrDefaultAsync(r => r.BeerImportBatchId == request.ImportId && r.RowNumber == request.RowNumber, cancellationToken);
+
+        if (row is null)
+        {
+            return null;
+        }
+
+        row.Status = BeerImportRowStatus.Excluded;
+        row.ErrorMessage = null;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return BeerImportRowDto.FromEntity(row);
+    }
+}

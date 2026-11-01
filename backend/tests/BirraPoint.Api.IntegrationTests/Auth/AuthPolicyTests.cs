@@ -1,8 +1,8 @@
 using System.Net;
 using System.Net.Http.Headers;
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
+using BirraPoint.Api.Modules.Organization.Domain;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;

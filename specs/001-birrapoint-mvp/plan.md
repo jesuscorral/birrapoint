@@ -161,20 +161,14 @@ backend/
 │   └── BirraPoint.Api/                 # Single deployable modular monolith
 │       ├── Program.cs                  # Minimal API bootstrap, auth, SignalR, OpenAPI
 │       ├── Dockerfile                  # Multi-stage: .NET SDK build → ASP.NET runtime
-│       ├── Domain/                     # Shared kernel: entities, enums, invariants
+│       ├── Domain/                     # Shared kernel: Entity, AuditLog, DispatchJob
 │       ├── Common/                     # Cross-cutting: MediatR behaviors (validation),
 │       │                               #   ProblemDetails mapping, auth policies,
 │       │                               #   persistence (DbContext), audit, job queue
-│       ├── Features/
-│       │   ├── Competitions/           # Wizard CRUD + state transitions
-│       │   ├── Catalog/                # BJCP 2021 styles (read-only, seeded)
-│       │   ├── Import/                 # xlsx upload, row validation, correction, consolidation
-│       │   ├── Judges/                 # Bulk registration, Keycloak provisioning, invitations
-│       │   ├── Tables/                 # Table CRUD, COI validation, BOS flag, live removal
-│       │   ├── TastingOrder/           # Fix order, sequence enforcement
-│       │   ├── Evaluations/            # Submit (idempotent), discrepancy detection, locking
-│       │   ├── Monitoring/             # Progress queries, audit read models, SignalR events
-│       │   └── Dispatch/               # Close event, PDF/ZIP jobs, result emails
+│       ├── Modules/                    # ADR-0033; each: Domain/, Persistence/, Features/
+│       │   ├── Organization/           # Catalog, Competitions, Import, Judges
+│       │   ├── Judging/                # Tables, TastingOrder, Evaluations, Monitoring
+│       │   └── Publication/            # Dispatch (PDF/ZIP jobs, result emails)
 │       └── Realtime/                   # CompetitionHub + group management
 └── tests/
     ├── BirraPoint.Api.UnitTests/       # Handler + validator tests per slice
@@ -224,8 +218,8 @@ infra/
 
 **Structure Decision**: Web application layout (backend + frontend at repo root, matching the
 constitution's modular-monolith + FSD mandate). Backend slices live under
-`backend/src/BirraPoint.Api/Features/`, one directory per business capability, with `Domain/` and
-`Common/` as the deliberately small shared kernel. Frontend mirrors the same capabilities under
+`backend/src/BirraPoint.Api/Modules/<Organization|Judging|Publication>/Features/` (ADR-0033), one
+directory per business capability, with `Domain/` and `Common/` as the deliberately small shared kernel. Frontend mirrors the same capabilities under
 `frontend/src/app/features/` with shared infrastructure in `core/`. Local orchestration lives in
 the Aspire `BirraPoint.AppHost` project; the cloud topology in `infra/azure/terraform/` or
 `infra/aws/terraform/` (one target per deployment; production PostgreSQL on Neon, everything else
@@ -233,8 +227,8 @@ in Azure Container Apps or ECS Fargate).
 
 **User Story 14 file locations** (the diagram above predates the ACCE-import wizard fold, ADR-0011,
 and is stale on where entry-import UI actually lives — this note is authoritative for the new work,
-not the diagram): backend adds the judge-import slices under `Features/Import/` (upload/get/edit-row/exclude/
-consolidate, ADR-0032) and `Features/Judges/ProvisionJudgeAccountHandler.cs`
+not the diagram): backend adds the judge-import slices under `Modules/Organization/Features/Import/` (upload/get/edit-row/exclude/
+consolidate, ADR-0032) and `Modules/Organization/Features/Judges/ProvisionJudgeAccountHandler.cs`
 (`IDispatchJobHandler` for the new job type) — no new feature directory. Frontend adds
 `features/competition-wizard/steps/judge-import-step.component.ts` (wizard step 5, sibling to
 `steps/beer-import-step.component.ts` which it structurally mirrors) and a `core/api/judge-import-

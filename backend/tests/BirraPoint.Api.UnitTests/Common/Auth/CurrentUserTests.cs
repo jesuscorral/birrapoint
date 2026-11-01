@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Domain;
+using BirraPoint.Api.Modules.Organization.Domain;
 using Microsoft.AspNetCore.Http;
 
 namespace BirraPoint.Api.UnitTests.Common.Auth;

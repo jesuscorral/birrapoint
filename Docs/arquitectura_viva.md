@@ -4,7 +4,7 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-11-01
+**Last updated:** 2026-11-01 (backend modules, ADR-0033)
 
 ## Status
 
@@ -144,7 +144,7 @@ Projects: `BirraPoint.Api` (modular monolith), `BirraPoint.AppHost`, `BirraPoint
   `BeerEntryId` on `TableSample`; unique `(TastingTableId, SequenceOrder)`; partial unique index on
   open `DiscrepancyAlert`s; date-window check constraints on `Competition`. The BJCP 2021 catalog
   (125 styles, full guide text) is seeded by migration from the embedded
-  `Features/Catalog/Data/bjcp-2021.json`, with its SHA-256 pinned by a unit test (ADR-0005).
+  `Modules/Organization/Features/Catalog/Data/bjcp-2021.json`, with its SHA-256 pinned by a unit test (ADR-0005).
 - **Background jobs** (`Common/Jobs/`, R-06): `DispatchJobQueue` inserts a `Pending` row and wakes
   `DispatchWorker` through a channel (plus a safety-net poll, `Dispatch:SafetyNetPollInterval`, default 30 s, floor 1 s; cloud deployments set 1 h, ADR-0025). The worker claims one eligible
   `Pending` job per transaction (`FOR UPDATE SKIP LOCKED`), marks it `Running` with
@@ -170,18 +170,33 @@ Projects: `BirraPoint.Api` (modular monolith), `BirraPoint.AppHost`, `BirraPoint
   membership), reading `Context.User`. `IEventPublisher` emits after commit; enums serialize as
   strings (ADR-0007).
 
-### Domain (`Domain/`)
+### Modules (ADR-0033)
+
+Code lives in `backend/src/BirraPoint.Api/Modules/<Module>/` (`Domain/`, `Persistence/` EF configurations,
+`Features/<Feature>/`, `<Module>ModuleEndpoints.cs`). One `AppDbContext` and one schema; no per-module DB.
+`Api/Domain/` is the shared kernel (`Entity` + `ITimestamped`, `AuditLog`, `DispatchJob`). `UnitTests/Architecture/ModuleLayoutTests.cs` checks the layout.
+
+| Module | Features | Entities |
+|---|---|---|
+| **Organization** | Catalog, Competitions, Import, Judges | `Organizer`, `Competition`, `CompetitionCategory`, `CompetitionCategoryStyle`, `BjcpStyle`, `Participant`, `BeerEntry`, `EntryCollaborator`, `Judge`, `Invitation`, import staging |
+| **Judging** | Tables, TastingOrder, Evaluations, Monitoring | `TastingTable`, `TableJudge`, `TableSample`, `Evaluation`, `DiscrepancyAlert` |
+| **Publication** | Dispatch | `GeneratedScoreSheet`, `ResultsArchive` |
+
+Status: phase 1 (pure move) done. Modules still access each other's entities directly (for example
+`CoiDetector`, TastingOrder and Dispatch). Phase 2 (contracts) and phase 3 (events, Judging-local copies) are open.
+
+### Domain
 
 Entities: `Organizer`, `Competition`, `CompetitionCategory`, `CompetitionCategoryStyle`,
 `BjcpStyle`, `Participant`, `BeerEntry`, `EntryCollaborator`, `Judge`, `Invitation`,
 `TastingTable`, `TableJudge`, `TableSample`, `Evaluation`, `DiscrepancyAlert`, `DispatchJob`,
 `GeneratedScoreSheet`, `ResultsArchive`, `AuditLog`. Slice-owned staging entities:
-`BeerImportBatch`/`BeerImportRow` and `JudgeImportBatch`/`JudgeImportRow` (`Features/Import/` root;
+`BeerImportBatch`/`BeerImportRow` and `JudgeImportBatch`/`JudgeImportRow` (`Modules/Organization/Features/Import/` root;
 the beer pair maps to tables `ImportBatches`/`ImportRows`, ADR-0032). Full schema: `data-model.md`.
 
-### Feature slices (`Features/`) — all under `/api/v1`
+### Feature slices (`Modules/<M>/Features/`) — all under `/api/v1`
 
-Layout (ADR-0031): each `Features/<Feature>/` holds `Base<Feature>Endpoints.cs` (route group, auth,
+Layout (ADR-0031): each `Modules/<M>/Features/<Feature>/` holds `Base<Feature>Endpoints.cs` (route group, auth,
 chains the per-slice `Map…Endpoint()`), `Features/<Slice>/` (command or query + handler, validator,
 endpoint, slice-only DTOs) and `CommonComponents/` (+`Dtos/`) for types shared across slices.
 Namespaces equal folders (IDE0130). Integration tests mirror it.

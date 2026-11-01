@@ -1,0 +1,351 @@
+using System.Text.Json.Serialization;
+using BirraPoint.Api.Common.Auth;
+using BirraPoint.Api.Common.Errors;
+using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Judging.Domain;
+using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
+using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
+using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Realtime;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+
+namespace BirraPoint.Api.Modules.Judging.Features.Evaluations.Features.SubmitEvaluation;
+
+/// <summary>POST /me/tables/{tableId}/evaluations (contracts/rest-api.md §Judge workspace,
+/// FR-022/FR-023/FR-025/FR-029). Returns null when the caller is not an active member of this table
+/// — the endpoint maps that to a plain 404, same convention as FixOrderCommand/GetTableSamplesQuery.</summary>
+internal sealed record SubmitEvaluationCommand(
+    Guid TableId, Guid BeerEntryId, EvaluationScoresDto Scores, EvaluationCommentsDto Comments,
+    EvaluationDescriptorsDto? Descriptors, string? Feedback)
+    : IRequest<SubmitEvaluationResult?>;
+
+/// <summary>contracts/rest-api.md §Judge workspace success shape: `{ evaluationId, status, total,
+/// discrepancy? }`. <see cref="Status"/> is "Confirmed" or "PendingConsensus" depending on whether
+/// this submission's total lands within 7 points of every other submitted total for the same
+/// sample (FR-031). <see cref="IsNewSubmission"/> is not part of the wire contract; the endpoint
+/// reads it to choose 201 (fresh insert) vs 200 (idempotent replay, FR-029/R-07) and then it's
+/// excluded from the body.</summary>
+internal sealed record SubmitEvaluationResult(Guid EvaluationId, string Status, int Total, DiscrepancyView? Discrepancy)
+{
+    [JsonIgnore]
+    public bool IsNewSubmission { get; init; }
+}
+
+/// <summary>
+/// EF <c>TagWith</c> constants for the handler's read queries — purely a SQL comment with zero
+/// runtime effect on production. They exist so the integration test suite's
+/// <c>SubmitEvaluationRaceInterceptor</c> (a <see cref="Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor"/>
+/// registered only in the test host) can recognize exactly which read is about to run and, when
+/// armed, inject a competing commit on a separate connection in that precise window —
+/// deterministically reproducing races that would otherwise need two real HTTP calls to interleave
+/// in exactly the right order (flaky).
+/// </summary>
+internal static class SubmitEvaluationQueryTags
+{
+    public const string AlreadySubmittedIds = "SubmitEvaluation.AlreadySubmittedIds";
+    public const string TableLoad = "SubmitEvaluation.TableLoad";
+    public const string GateReplayRecheck = "SubmitEvaluation.GateReplayRecheck";
+}
+
+internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher)
+    : IRequestHandler<SubmitEvaluationCommand, SubmitEvaluationResult?>
+{
+    public async Task<SubmitEvaluationResult?> Handle(SubmitEvaluationCommand request, CancellationToken cancellationToken)
+    {
+        var judges = await currentUser.GetJudgeRecordsAsync(cancellationToken);
+        var judgeId = await JudgeTableAccess.FindActiveMembershipAsync(dbContext, judges, request.TableId, cancellationToken);
+        if (judgeId is null)
+        {
+            return null;
+        }
+
+        // FR-029/R-07 idempotency MUST hold regardless of what happens to the table/competition
+        // after the original submission committed: a judge's evaluation is a fact once persisted,
+        // and a replay of it (the ack got lost, the outbox retries it later) must always return
+        // that stored result — even if the table has since closed or the competition has moved
+        // past InEvaluation. Checking this before any precondition gate below is what makes that
+        // true; gating first would 409 a legitimate replay simply because time passed since the
+        // original successful submit, which is exactly the scenario the outbox/replay engine
+        // exists to handle (frontend/src/app/core/offline/sync.service.ts).
+        var existingEvaluation = await dbContext.Evaluations
+            .SingleOrDefaultAsync(e => e.JudgeId == judgeId && e.BeerEntryId == request.BeerEntryId, cancellationToken);
+        if (existingEvaluation is not null)
+        {
+            return await BuildReplayResultAsync(existingEvaluation, request.TableId, judgeId.Value, cancellationToken);
+        }
+
+        // The active TableJudge row above references an existing TastingTable (FK), so this is
+        // always found — no need to null-check.
+        var table = await dbContext.TastingTables
+            .TagWith(SubmitEvaluationQueryTags.TableLoad)
+            .SingleAsync(t => t.Id == request.TableId, cancellationToken);
+
+        var competitionState = await dbContext.Competitions
+            .Where(c => c.Id == table.CompetitionId)
+            .Select(c => c.State)
+            .SingleAsync(cancellationToken);
+
+        // FR-029/R-07 idempotency must hold even if a genuinely concurrent submission for this same
+        // (judge, entry) pair commits — and the competition/table moves on — in the gap between the
+        // early replay check above and each gate read below. Re-checking for a stored row right
+        // before throwing (rather than only after all gates already passed, further down) is what
+        // stops that timing from turning a legitimate replay into a wrong 409.
+        if (!SubmitEvaluationRules.CanSubmitInState(competitionState))
+        {
+            return await ThrowUnlessReplayableAsync(
+                judgeId.Value, request.BeerEntryId, request.TableId,
+                DomainErrorType.InvalidStateTransition,
+                "Evaluations can only be submitted while the competition is InEvaluation.",
+                cancellationToken);
+        }
+
+        if (table.OrderFixedByJudgeId is null)
+        {
+            return await ThrowUnlessReplayableAsync(
+                judgeId.Value, request.BeerEntryId, request.TableId,
+                DomainErrorType.OrderNotFixed,
+                "The tasting order for this table has not been fixed yet.",
+                cancellationToken);
+        }
+
+        if (table.State != TableState.Open)
+        {
+            return await ThrowUnlessReplayableAsync(
+                judgeId.Value, request.BeerEntryId, request.TableId,
+                DomainErrorType.TableClosed,
+                "This table is closed; no further evaluations can be submitted.",
+                cancellationToken);
+        }
+
+        var orderedSampleIds = await dbContext.TableSamples
+            .Where(ts => ts.TastingTableId == request.TableId)
+            .OrderBy(ts => ts.SequenceOrder)
+            .Select(ts => ts.BeerEntryId)
+            .ToListAsync(cancellationToken);
+
+        // request.BeerEntryId is USUALLY absent from this judge's already-submitted set here — the
+        // early idempotent-replay return above already handled the case where it was present at the
+        // start of this request. But a genuinely concurrent submission for the same (judge, entry)
+        // pair can commit in the gap between that check and this query; when that happens the id
+        // shows up here even though it wasn't there a moment ago. That is a replay, not an
+        // out-of-sequence submission, and is handled immediately below before this reaches
+        // IsNextInSequence (which would otherwise reject it with a wrong 409).
+        var alreadySubmittedIds = await dbContext.Evaluations
+            .TagWith(SubmitEvaluationQueryTags.AlreadySubmittedIds)
+            .Where(e => e.TastingTableId == request.TableId && e.JudgeId == judgeId)
+            .Select(e => e.BeerEntryId)
+            .ToListAsync(cancellationToken);
+
+        if (alreadySubmittedIds.Contains(request.BeerEntryId))
+        {
+            var concurrentlyStored = await LoadStoredEvaluationAsync(judgeId.Value, request.BeerEntryId, cancellationToken);
+            return await BuildReplayResultAsync(concurrentlyStored, request.TableId, judgeId.Value, cancellationToken);
+        }
+
+        if (!SubmitEvaluationRules.IsNextInSequence(orderedSampleIds, alreadySubmittedIds, request.BeerEntryId))
+        {
+            throw new DomainException(
+                DomainErrorType.OutOfSequence,
+                "This sample is not the next one in the fixed tasting order.");
+        }
+
+        var evaluation = new Evaluation
+        {
+            TastingTableId = request.TableId,
+            JudgeId = judgeId.Value,
+            BeerEntryId = request.BeerEntryId,
+            AromaScore = request.Scores.Aroma,
+            AppearanceScore = request.Scores.Appearance,
+            FlavorScore = request.Scores.Flavor,
+            MouthfeelScore = request.Scores.Mouthfeel,
+            OverallScore = request.Scores.Overall,
+            AromaComment = request.Comments.Aroma,
+            AppearanceComment = request.Comments.Appearance,
+            FlavorComment = request.Comments.Flavor,
+            MouthfeelComment = request.Comments.Mouthfeel,
+            OverallComment = request.Comments.Overall,
+            DescriptorsJson = request.Descriptors is null ? null : EvaluationDescriptorsSerializer.Serialize(request.Descriptors),
+            FeedbackComment = request.Feedback,
+            // Discrepancy detection (>7-point spread → PendingConsensus + DiscrepancyAlert)
+            // activates in US11 — every submission today is simply Confirmed.
+            Status = EvaluationStatus.Confirmed,
+            SubmittedAt = DateTimeOffset.UtcNow,
+        };
+
+        dbContext.Evaluations.Add(evaluation);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            // FR-029/R-07 idempotency backstop for a *genuine concurrent* race the early
+            // existing-row check above couldn't see (both requests read "no row" before either
+            // committed) — the unique index (EvaluationConfiguration) is what actually serializes
+            // them. Detach the failed insert — it was never persisted — and return whatever is
+            // actually stored; the race is decided by whichever insert Postgres committed first,
+            // never assumed to match this request's body.
+            dbContext.Entry(evaluation).State = EntityState.Detached;
+
+            var existing = await LoadStoredEvaluationAsync(judgeId.Value, request.BeerEntryId, cancellationToken);
+
+            return await BuildReplayResultAsync(existing, request.TableId, judgeId.Value, cancellationToken);
+        }
+
+        // FR-031: compare this submission's total against every other already-submitted total for
+        // the same (table, sample); EF identity-maps the reconciler's query back to the `evaluation`
+        // instance already tracked above, so evaluation.Status reflects the reconciled state below
+        // without needing to re-fetch it. ReconcileAndSaveAsync owns its own save (and a retry if a
+        // concurrent submission for a different judge races the DiscrepancyAlert insert) — see its
+        // doc comment for why a bare catch-and-detach isn't enough here.
+        var outcome = await DiscrepancyReconciler.ReconcileAndSaveAsync(dbContext, request.TableId, request.BeerEntryId, cancellationToken);
+
+        var tableProgress = await ComputeTableProgressAsync(request.TableId, cancellationToken);
+        var blindCode = await dbContext.BeerEntries
+            .Where(e => e.Id == request.BeerEntryId)
+            .Select(e => e.BlindCode)
+            .SingleAsync(cancellationToken);
+        var judgeDisplayName = judges.First(j => j.Id == judgeId).DisplayName;
+
+        // Emitted only after SaveChangesAsync above commits (contracts/signalr-hub.md §Delivery
+        // semantics) — never before, to avoid a phantom event for a rolled-back insert.
+        await eventPublisher.PublishToOrganizersAsync(
+            table.CompetitionId,
+            "EvaluationCompleted",
+            new { tableId = request.TableId, blindCode, judgeDisplayName, tableProgress },
+            CancellationToken.None);
+
+        // Events describe the entry as a whole (any judge involved) — contracts/signalr-hub.md's
+        // DiscrepancyRaised/Resolved are entry-level notifications, not judge-scoped.
+        if (outcome.InvolvedJudgeIds.Count > 0)
+        {
+            var payload = new { alertId = outcome.AlertId, tableId = request.TableId, blindCode, involvedJudgeIds = outcome.InvolvedJudgeIds };
+            await eventPublisher.PublishToTableAsync(request.TableId, CompetitionEvents.DiscrepancyRaised, payload, CancellationToken.None);
+            await eventPublisher.PublishToOrganizersAsync(table.CompetitionId, CompetitionEvents.DiscrepancyRaised, payload, CancellationToken.None);
+        }
+        else if (outcome.AlertResolved)
+        {
+            var payload = new { alertId = outcome.AlertId, tableId = request.TableId, blindCode };
+            await eventPublisher.PublishToTableAsync(request.TableId, CompetitionEvents.DiscrepancyResolved, payload, CancellationToken.None);
+            await eventPublisher.PublishToOrganizersAsync(table.CompetitionId, CompetitionEvents.DiscrepancyResolved, payload, CancellationToken.None);
+        }
+
+        // Unlike the events above, the response body's `discrepancy` field reflects the ACTING
+        // judge's own situation — mirrors GET .../discrepancies' "involving the caller" semantics.
+        // A judge landing cleanly between two already-divergent totals gets Confirmed + null here,
+        // even though an alert remains open for this entry.
+        var discrepancy = outcome.InvolvedJudgeIds.Contains(judgeId.Value)
+            ? await DiscrepancyViewBuilder.BuildAsync(
+                dbContext, outcome.AlertId!.Value, request.TableId, request.BeerEntryId, judgeId.Value, cancellationToken)
+            : null;
+
+        return new SubmitEvaluationResult(evaluation.Id, evaluation.Status.ToString(), evaluation.Total, discrepancy)
+        {
+            IsNewSubmission = true,
+        };
+    }
+
+    /// <summary>
+    /// FR-029/R-07 gate guard: called right before the handler would otherwise throw a
+    /// state/order-fixed/table-closed <see cref="DomainException"/>. A genuinely concurrent
+    /// submission for this same (judge, entry) pair can commit — and the competition/table can move
+    /// on past it — in the gap between the handler's early replay check and any of these gate reads;
+    /// when that happens, the *fact* that the evaluation is already stored must win over a gate that
+    /// only failed because time (and this request's own reads) happened to land after that commit.
+    /// Re-checks for a stored row and returns its replay when found; otherwise throws
+    /// <paramref name="errorType"/>/<paramref name="message"/> exactly as the caller would have.
+    /// </summary>
+    private async Task<SubmitEvaluationResult> ThrowUnlessReplayableAsync(
+        Guid judgeId, Guid beerEntryId, Guid tableId, DomainErrorType errorType, string message, CancellationToken cancellationToken)
+    {
+        var stored = await dbContext.Evaluations
+            .TagWith(SubmitEvaluationQueryTags.GateReplayRecheck)
+            .SingleOrDefaultAsync(e => e.JudgeId == judgeId && e.BeerEntryId == beerEntryId, cancellationToken);
+
+        if (stored is not null)
+        {
+            return await BuildReplayResultAsync(stored, tableId, judgeId, cancellationToken);
+        }
+
+        throw new DomainException(errorType, message);
+    }
+
+    /// <summary>
+    /// FR-029/R-07: builds the full idempotent-replay response for an already-stored evaluation —
+    /// shared by every "return what is stored" path (the early replay check, the gate re-check above,
+    /// the concurrent-commit path caught via <c>alreadySubmittedIds</c>, and the unique-violation
+    /// catch path below) so they can never drift from each other. No new reconciliation ever runs
+    /// here — it already ran when the row was first inserted; a replay only reflects whatever
+    /// discrepancy state resulted from that. In particular, a replay may transiently report
+    /// <see cref="EvaluationStatus.Confirmed"/> with no discrepancy even though the winning
+    /// request's own reconciliation (<see cref="DiscrepancyReconciler.ReconcileAndSaveAsync"/>) has
+    /// not yet run its later save — replay paths must never run reconciliation themselves, only
+    /// reflect whatever is currently persisted.
+    /// </summary>
+    private async Task<SubmitEvaluationResult> BuildReplayResultAsync(
+        Evaluation storedEvaluation, Guid tableId, Guid callerJudgeId, CancellationToken cancellationToken)
+    {
+        var discrepancy = await BuildDiscrepancyViewIfPendingAsync(storedEvaluation, tableId, callerJudgeId, cancellationToken);
+        return new SubmitEvaluationResult(storedEvaluation.Id, storedEvaluation.Status.ToString(), storedEvaluation.Total, discrepancy)
+        {
+            IsNewSubmission = false,
+        };
+    }
+
+    private Task<Evaluation> LoadStoredEvaluationAsync(Guid judgeId, Guid beerEntryId, CancellationToken cancellationToken) =>
+        dbContext.Evaluations.SingleAsync(e => e.JudgeId == judgeId && e.BeerEntryId == beerEntryId, cancellationToken);
+
+    /// <summary>Builds the discrepancy view for an idempotent-replay/race-caught early-return path
+    /// (no new reconciliation — it already ran when the row was first inserted) by looking up the
+    /// Open alert for this (table, entry) when the stored row is currently PendingConsensus.</summary>
+    private async Task<DiscrepancyView?> BuildDiscrepancyViewIfPendingAsync(
+        Evaluation storedEvaluation, Guid tableId, Guid callerJudgeId, CancellationToken cancellationToken)
+    {
+        if (storedEvaluation.Status != EvaluationStatus.PendingConsensus)
+        {
+            return null;
+        }
+
+        var alertId = await dbContext.DiscrepancyAlerts
+            .Where(a => a.TastingTableId == tableId && a.BeerEntryId == storedEvaluation.BeerEntryId && a.Status == DiscrepancyStatus.Open)
+            .Select(a => (Guid?)a.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (alertId is null)
+        {
+            return null;
+        }
+
+        return await DiscrepancyViewBuilder.BuildAsync(
+            dbContext, alertId.Value, tableId, storedEvaluation.BeerEntryId, callerJudgeId, cancellationToken);
+    }
+
+    private async Task<object> ComputeTableProgressAsync(Guid tableId, CancellationToken cancellationToken)
+    {
+        var judgeCount = await dbContext.TableJudges
+            .CountAsync(tj => tj.TastingTableId == tableId && tj.RemovedAt == null, cancellationToken);
+        var sampleCount = await dbContext.TableSamples.CountAsync(ts => ts.TastingTableId == tableId, cancellationToken);
+        var expected = judgeCount * sampleCount;
+        var completed = await dbContext.Evaluations.CountAsync(e => e.TastingTableId == tableId, cancellationToken);
+        var percent = expected == 0 ? 0 : (int)Math.Round(completed * 100.0 / expected, MidpointRounding.AwayFromZero);
+
+        return new { completed, expected, percent };
+    }
+
+    /// <summary>
+    /// Npgsql wraps a unique-constraint violation in a <see cref="DbUpdateException"/> whose
+    /// <see cref="Exception.InnerException"/> is a <see cref="PostgresException"/> with
+    /// <c>SqlState == "23505"</c> (<see cref="PostgresErrorCodes.UniqueViolation"/>). No prior slice
+    /// in this codebase has needed to detect this — every other unique constraint (e.g. blind code,
+    /// participant email) is pre-checked with a query before insert — so this is a new pattern here,
+    /// required because locked-on-submit forbids ever pre-checking-then-upserting (R-07): the check
+    /// and the insert must be the same atomic operation for the idempotency guarantee to hold under
+    /// a genuine race.
+    /// </summary>
+    private static bool IsUniqueViolation(DbUpdateException ex) =>
+        ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
+}
