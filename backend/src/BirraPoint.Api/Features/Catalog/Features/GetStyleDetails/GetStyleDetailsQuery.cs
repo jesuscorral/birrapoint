@@ -3,7 +3,7 @@ using BirraPoint.Api.Common.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Features.Catalog;
+namespace BirraPoint.Api.Features.Catalog.Features.GetStyleDetails;
 
 /// <summary>Nested `vitalStatistics` shape (contracts/rest-api.md §Catalog, FR-049).</summary>
 internal sealed record StyleVitalStatisticsDto(
@@ -13,10 +13,6 @@ internal sealed record StyleVitalStatisticsDto(
     decimal? SrmLow, decimal? SrmHigh,
     decimal? AbvLow, decimal? AbvHigh);
 
-/// <summary>Nested `description` shape — the BJCP 2021 guide text (data-model.md §BjcpStyle.DescriptionJson,
-/// FR-049). Property names/casing match the jsonb column verbatim (see BjcpStyleCatalogLoader/the
-/// AddBjcpStyleCatalogDetails migration, which serializes with camelCase), so deserializing
-/// straight into this DTO round-trips without any manual remapping.</summary>
 internal sealed record StyleDescriptionDto(
     string OverallImpression,
     string Aroma,
@@ -54,11 +50,10 @@ internal sealed class GetStyleDetailQueryHandler(AppDbContext dbContext) : IRequ
 
     public async Task<StyleDetailDto?> Handle(GetStyleDetailQuery request, CancellationToken cancellationToken)
     {
-        // Case-insensitive code match, same convention WorkbookParser uses for import style
-        // matching (FR-010) — Code is a natural-key PK (e.g. "21A"), never expected to collide
-        // case-insensitively within the catalog.
+        // Case-insensitive code match (e.g. "21a" finds "21A"), evaluated in PostgreSQL.
+        var codePattern = LikePattern.Escape(request.Code);
         var style = await dbContext.BjcpStyles
-            .FirstOrDefaultAsync(s => string.Equals(s.Code, request.Code, StringComparison.OrdinalIgnoreCase), cancellationToken);
+            .FirstOrDefaultAsync(s => EF.Functions.ILike(s.Code, codePattern, LikePattern.EscapeCharacter), cancellationToken);
 
         if (style is null)
         {

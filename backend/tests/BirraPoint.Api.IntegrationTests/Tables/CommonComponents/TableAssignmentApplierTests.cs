@@ -5,7 +5,7 @@ using BirraPoint.Api.Features.Tables.CommonComponents;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.IntegrationTests.Tables;
+namespace BirraPoint.Api.IntegrationTests.Tables.CommonComponents;
 
 /// <summary>
 /// Drives <see cref="TableAssignmentApplier.ApplyAsync"/> directly against a real PostgreSQL

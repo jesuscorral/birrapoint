@@ -3,7 +3,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using BirraPoint.Api.IntegrationTests.TestHost;
 
-namespace BirraPoint.Api.IntegrationTests.Catalog;
+namespace BirraPoint.Api.IntegrationTests.Catalog.Features.GetStyles;
 
 /// <summary>
 /// T018: first HTTP-level contract test for the pipeline (GET /api/v1/styles, T017) — proves the

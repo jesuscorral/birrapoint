@@ -1,6 +1,6 @@
 using BirraPoint.Api.Features.Tables.Features.UpdateTable;
 
-namespace BirraPoint.Api.UnitTests.Tables;
+namespace BirraPoint.Api.UnitTests.Tables.Features.UpdateTable;
 
 /// <summary>Pure classification of an InEvaluation PUT (FR-039): only a request that keeps the
 /// name and sample set and names a subset of the active judges is accepted.</summary>

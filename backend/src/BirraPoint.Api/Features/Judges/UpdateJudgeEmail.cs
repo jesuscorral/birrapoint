@@ -36,10 +36,12 @@ internal sealed class UpdateJudgeEmailCommandValidator : AbstractValidator<Updat
             return true;
         }
 
+        // Case-insensitive, evaluated in PostgreSQL (see LikePattern).
+        var emailPattern = LikePattern.Escape(command.Email);
         return await dbContext.Judges.AllAsync(
             j => j.Id == command.JudgeId
                 || j.CompetitionId != command.CompetitionId
-                || !string.Equals(j.Email, command.Email, StringComparison.OrdinalIgnoreCase),
+                || !EF.Functions.ILike(j.Email, emailPattern, LikePattern.EscapeCharacter),
             cancellationToken);
     }
 }

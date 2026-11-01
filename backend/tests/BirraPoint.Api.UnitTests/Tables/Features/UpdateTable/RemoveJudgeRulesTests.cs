@@ -1,8 +1,8 @@
 using BirraPoint.Api.Features.Tables.Features.UpdateTable;
 
-namespace BirraPoint.Api.UnitTests.Tables;
+namespace BirraPoint.Api.UnitTests.Tables.Features.UpdateTable;
 
-public sealed class RemoveJudgeTests
+public sealed class RemoveJudgeRulesTests
 {
     [Fact]
     public void ComputeAuditEntityIdIsDeterministicForTheSamePair()

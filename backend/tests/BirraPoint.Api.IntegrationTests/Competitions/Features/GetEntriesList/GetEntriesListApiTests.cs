@@ -8,14 +8,14 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace BirraPoint.Api.IntegrationTests.Tables;
+namespace BirraPoint.Api.IntegrationTests.Competitions.Features.GetEntriesList;
 
 /// <summary>
 /// Contract tests for `GET /api/v1/competitions/{id}/entries` — feeds T048's "Unassigned" source
 /// column (every entry not currently on a table). ORGANIZER-only; `tastingTableId`/
 /// `tastingTableName` are null until an entry is assigned to a table via CreateTable/UpdateTable.
 /// </summary>
-public sealed class EntriesApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
+public sealed class GetEntriesListApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private const string StyleCodeApa = "21A";
 

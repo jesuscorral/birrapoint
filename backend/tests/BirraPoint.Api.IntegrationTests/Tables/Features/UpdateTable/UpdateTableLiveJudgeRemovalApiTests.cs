@@ -9,7 +9,7 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace BirraPoint.Api.IntegrationTests.Tables;
+namespace BirraPoint.Api.IntegrationTests.Tables.Features.UpdateTable;
 
 /// <summary>
 /// HTTP-level contract tests for live judge removal via PUT /competitions/{id}/tables/{tableId}

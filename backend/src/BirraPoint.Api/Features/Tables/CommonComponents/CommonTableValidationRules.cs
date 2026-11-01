@@ -25,10 +25,12 @@ internal static class CommonTableValidationRules
             return true;
         }
 
+        // Case-insensitive, evaluated in PostgreSQL (see LikePattern).
+        var namePattern = LikePattern.Escape(name);
         return await dbContext.TastingTables.AllAsync(
             t => t.Id == excludeTableId
                 || t.CompetitionId != competitionId
-                || !t.Name.Equals(name, StringComparison.OrdinalIgnoreCase),
+                || !EF.Functions.ILike(t.Name, namePattern, LikePattern.EscapeCharacter),
             cancellationToken);
     }
 
