@@ -81,8 +81,9 @@ gh workflow run deploy-azure.yml -f version=X.Y.Z       # or deploy-aws.yml
 ```text
 backend/src/BirraPoint.AppHost | ServiceDefaults | Api/
   Api/Domain/    shared kernel (keep small)     Api/Common/   auth, persistence, errors, behaviors, audit, job queue
-  Api/Features/  one slice per capability: Competitions, Catalog, Import, Judges, Tables,
-                 TastingOrder, Evaluations, Monitoring, Dispatch
+  Api/Features/  one folder per capability: Competitions, Catalog, Import, Judges, Tables,
+                 TastingOrder, Evaluations, Monitoring, Dispatch; each = Base<X>Endpoints.cs +
+                 Features/<Slice>/ (handler, validator, endpoint, DTOs) + CommonComponents/ (ADR-0031)
   Api/Realtime/  CompetitionHub + emit-after-commit publisher
 backend/tests/   UnitTests + IntegrationTests
 frontend/src/app/  FSD: core/ (auth, api, realtime, offline, layout), features/, shared/
@@ -95,7 +96,8 @@ infra/           azure/ and aws/, each: terraform/ (azure: ACA, Key Vault, Dapr,
 
 ## Backend conventions
 
-- Slice = request + handler + FluentValidation validator + endpoint under `Features/<X>/`.
+- Slice = request + handler + FluentValidation validator + endpoint under `Features/<X>/Features/<Slice>/`
+  (shared types in `CommonComponents/`; namespaces = folders, ADR-0031; judge-import slice not yet migrated).
   Cross-slice only via MediatR messages or shared contracts. **MediatR pinned 12.x** (licensing).
 - Errors: RFC 7807 with `urn:birrapoint:*` types from `rest-api.md` error catalog (closed list).
   `400` validation, `409` state conflict, `404` for out-of-scope resources (never reveal existence).
