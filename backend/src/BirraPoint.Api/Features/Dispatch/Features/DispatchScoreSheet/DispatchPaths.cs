@@ -1,4 +1,4 @@
-namespace BirraPoint.Api.Features.Dispatch;
+namespace BirraPoint.Api.Features.Dispatch.Features.DispatchScoreSheet;
 
 /// <summary>
 /// FR-040 results archive layout: <c>{CompetitionName}/{ParticipantId}/{StyleCode}_{BlindCode}.pdf</c>.

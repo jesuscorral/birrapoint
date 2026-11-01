@@ -5,7 +5,7 @@ using BirraPoint.Api.Features.Evaluations;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
 
-namespace BirraPoint.Api.Features.Dispatch;
+namespace BirraPoint.Api.Features.Dispatch.Features.DispatchScoreSheet;
 
 /// <summary>
 /// T074/FR-036/FR-040: renders one <see cref="GeneratedScoreSheet"/> per <see cref="BeerEntry"/> in

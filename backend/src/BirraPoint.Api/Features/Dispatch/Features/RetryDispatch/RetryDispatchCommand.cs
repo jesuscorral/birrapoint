@@ -3,22 +3,14 @@ using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
-using FluentValidation;
+using BirraPoint.Api.Features.Dispatch.CommonComponents;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Features.Dispatch;
+namespace BirraPoint.Api.Features.Dispatch.Features.RetryDispatch;
 
 /// <summary>Returns false when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
 internal sealed record RetryDispatchCommand(Guid CompetitionId, IReadOnlyList<Guid> ParticipantIds) : IRequest<bool>;
-
-internal sealed class RetryDispatchCommandValidator : AbstractValidator<RetryDispatchCommand>
-{
-    public RetryDispatchCommandValidator()
-    {
-        RuleFor(c => c.ParticipantIds).NotEmpty();
-    }
-}
 
 /// <summary>Re-queues failed result emails (FR-041) by resetting the SendResultEmail job back to a
 /// fresh attempt. Only Failed jobs: a Completed one would resend the email, a Running one may still

@@ -4,12 +4,10 @@ using BirraPoint.Api.Common.Email;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.Features.Dispatch.CommonComponents;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Features.Dispatch;
-
-/// <summary>Payload shape enqueued by BundleZipHandler.</summary>
-internal sealed record SendResultEmailPayload(Guid ParticipantId);
+namespace BirraPoint.Api.Features.Dispatch.Features.DispatchScoreSheet;
 
 /// <summary>
 /// T074/FR-041: emails a participant every PDF scoresheet for their own entries. Unlike <see

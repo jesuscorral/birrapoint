@@ -13,6 +13,7 @@ using BirraPoint.Api.Common.Secrets;
 using BirraPoint.Api.Features.Catalog;
 using BirraPoint.Api.Features.Competitions;
 using BirraPoint.Api.Features.Dispatch;
+using BirraPoint.Api.Features.Dispatch.Features.DispatchScoreSheet;
 using BirraPoint.Api.Features.Evaluations;
 using BirraPoint.Api.Features.Import;
 using BirraPoint.Api.Features.Judges;

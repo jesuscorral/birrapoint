@@ -3,9 +3,10 @@ using System.Text.Json;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.Features.Dispatch.CommonComponents;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Features.Dispatch;
+namespace BirraPoint.Api.Features.Dispatch.Features.DispatchScoreSheet;
 
 /// <summary>
 /// T074/FR-040: bundles every <see cref="GeneratedScoreSheet"/> for the competition into a single

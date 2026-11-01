@@ -4,7 +4,7 @@ using BirraPoint.Api.Domain;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Features.Dispatch;
+namespace BirraPoint.Api.Features.Dispatch.Features.GetResultsArchive;
 
 /// <summary>Exactly one of <see cref="ZipBytes"/>/<see cref="Status"/> is set: the archive is ready
 /// (200, stream the bytes) or it's still being generated (202, report the status).</summary>

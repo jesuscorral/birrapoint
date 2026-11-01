@@ -2,10 +2,11 @@ using System.Text.Json;
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.Features.Dispatch.CommonComponents;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Features.Dispatch;
+namespace BirraPoint.Api.Features.Dispatch.Features.GetDispatchStatus;
 
 /// <summary>Per-recipient result-email delivery status (FR-041, contracts/rest-api.md §Results &amp; dispatch).</summary>
 internal sealed record DispatchStatusDto(Guid ParticipantId, string Email, string Status, int Attempts, string? LastError);
