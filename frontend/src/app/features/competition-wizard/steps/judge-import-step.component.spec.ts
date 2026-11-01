@@ -125,7 +125,7 @@ describe('JudgeImportStepComponent', () => {
     return fixture;
   }
 
-  // T125: the shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
+  // The shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
   // forward. Previously each step rendered its own two-slot bar and they had drifted apart.
   it('renders the shared bar: Atrás, its own centre action, and Siguiente', () => {
     const fixture = createComponent();
@@ -503,7 +503,7 @@ describe('JudgeImportStepComponent', () => {
     );
   });
 
-  // T126-ish: the notify table/bulk action added right after a successful consolidation.
+  // The notify table/bulk action added right after a successful consolidation.
   describe('notify judges after consolidation', () => {
     function consolidatedFixture(judges: JudgeProfile[]) {
       const fixture = uploadedFixture([rowFixture({ rowNumber: 1, status: 'Valid' })]);

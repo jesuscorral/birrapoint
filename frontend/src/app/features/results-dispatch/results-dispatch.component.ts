@@ -26,7 +26,7 @@ const JOB_TYPE_LABEL: Record<string, string> = {
   SendResultEmail: 'Sending emails',
 };
 
-// T077/US10: post-Finalized results & dispatch screen. There is no cheap standalone "is the ZIP
+// US10: post-Finalized results & dispatch screen. There is no cheap standalone "is the ZIP
 // ready" check in the contract (contracts/rest-api.md GET .../results/archive is the readiness
 // check *and* the download in one call, returning the full blob body either way) — probing it on
 // load would mean eagerly fetching a potentially large archive just to find out. Readiness is
@@ -34,7 +34,7 @@ const JOB_TYPE_LABEL: Record<string, string> = {
 // (exact, but only observed while this page is open during the pipeline), and — for a page loaded
 // after the pipeline already finished, with no live event to catch — a fallback proxy: every
 // participant's email reaching a terminal status (Completed/Failed) implies BundleZip already ran,
-// since the pipeline is strictly GeneratePdfs -> BundleZip -> SendResultEmail (T075). This proxy
+// since the pipeline is strictly GeneratePdfs -> BundleZip -> SendResultEmail. This proxy
 // is conservative (the ZIP may in fact be ready earlier, mid-email-sending) but never wrong in the
 // unsafe direction. The archive endpoint itself is only ever called on an explicit user click.
 @Component({
@@ -306,7 +306,7 @@ export class ResultsDispatchComponent implements OnInit, OnDestroy {
   // right after click() (some engines, including iOS Safari — this PWA's stated offline-engine
   // constraint, R-08 — can cancel a still-in-flight download if the object URL is revoked too
   // eagerly). Chromium (the only E2E browser) tolerates both shortcuts, which is how this shipped
-  // originally (senior-code-reviewer finding on PR #25).
+  // originally.
   private triggerBlobDownload(blob: Blob): void {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');

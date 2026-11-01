@@ -29,7 +29,7 @@ function errorMessage(error: ApiError): string {
   return error.detail ?? error.title;
 }
 
-// T053/US6: post-login JUDGE landing — every table the caller is actively assigned to, across
+// US6: post-login JUDGE landing — every table the caller is actively assigned to, across
 // every competition that has left Draft (contracts/rest-api.md GET /me/tables). Selecting a
 // table navigates into its blind sample/order view.
 //
@@ -146,7 +146,7 @@ export class JudgeTablesListComponent {
   protected readonly loadError = signal<string | null>(null);
   protected readonly loading = signal(true);
 
-  // T087/US12: a one-time notice read off `history.state`, set by a component that redirected
+  // US12: a one-time notice read off `history.state`, set by a component that redirected
   // here after this judge was live-removed from a table (judge-table-order.component.ts,
   // evaluation-sheet.component.ts). Doesn't need to survive a reload — read once at construction.
   protected readonly ejectionNotice = signal(readEjectionNotice());

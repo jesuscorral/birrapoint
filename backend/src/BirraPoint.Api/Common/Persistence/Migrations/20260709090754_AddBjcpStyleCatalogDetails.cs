@@ -180,7 +180,7 @@ public partial class AddBjcpStyleCatalogDetails : Migration
     /// <summary>
     /// Seeds the full BJCP 2021 catalog (125 entries, categories 1–34 + Appendix B) from the
     /// embedded bjcp-2021.json resource — the JSON file stays the single source of truth
-    /// (T010, R-12); this migration never hardcodes catalog data.
+    /// (R-12); this migration never hardcodes catalog data.
     /// </summary>
     /// <remarks>
     /// This only runs once per database (EF tracks it as applied). Editing bjcp-2021.json after

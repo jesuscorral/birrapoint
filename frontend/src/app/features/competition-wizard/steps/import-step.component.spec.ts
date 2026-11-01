@@ -156,7 +156,7 @@ describe('ImportStepComponent', () => {
     return fixture;
   }
 
-  // T125: the shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
+  // The shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
   // forward. Previously each step rendered its own two-slot bar and they had drifted apart.
   it('renders the shared bar: Atrás, its own centre action, and Siguiente', () => {
     const fixture = createComponent();
@@ -380,7 +380,7 @@ describe('ImportStepComponent', () => {
     expect(fakeImportApi.consolidate).toHaveBeenCalledWith('c1', 'i1');
     expect(fixture.nativeElement.textContent).toContain('Importadas: 1');
     expect(savedEmitted.length).toBe(0);
-    // T125: once consolidated there is nothing left to consolidate, so the centre zone empties and
+    // Once consolidated there is nothing left to consolidate, so the centre zone empties and
     // only the shared bar's own Atrás/Siguiente remain.
     const buttons = [...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[];
     expect(buttons.some((button) => button.textContent?.trim() === 'Consolidar')).toBe(false);

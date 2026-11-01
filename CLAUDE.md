@@ -166,3 +166,8 @@ can't run, say why and what was verified instead.
 
 `feature/<task-id>` branches, PRs to `main`, small commits, spec artifacts committed with their
 implementation. Never force-push or `--no-verify`.
+
+Task ids (like `T` plus three digits) live in branch names, commit messages and PR titles only — never in code
+comments, test names or config under `backend/`, `frontend/`, `infra/`, `.github/` (enforced by
+`.github/scripts/check-no-task-ids.sh`, run by CI and the stop hook). In code, cite the requirement
+(`FR-`/`SC-`/`US`/ADR) or state the reason.

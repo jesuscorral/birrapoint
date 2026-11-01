@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Dispatch.Features.DispatchScoreSheet;
 
 /// <summary>
-/// T074/FR-040: bundles every <see cref="GeneratedScoreSheet"/> for the competition into a single
+/// FR-040: bundles every <see cref="GeneratedScoreSheet"/> for the competition into a single
 /// in-memory ZIP at <see cref="DispatchPaths.ZipEntryPath"/>, upserts the <see
 /// cref="ResultsArchive"/> row (by CompetitionId, so a retry never duplicates it), then enqueues one
 /// <see cref="DispatchJobType.SendResultEmail"/> job per participant (FR-041) — each recipient's
@@ -73,7 +73,7 @@ internal sealed class BundleZipHandler(AppDbContext dbContext, IDispatchJobQueue
         // crash or a transient failure marking THIS job Completed, even though the fan-out below
         // already committed durably on a prior attempt) — without this guard a re-run would
         // silently double-enqueue a full second round of SendResultEmail jobs, sending every
-        // participant their results twice (senior-code-reviewer finding on PR #25).
+        // participant their results twice.
         var alreadyQueuedPayloads = await dbContext.DispatchJobs
             .Where(j => j.CompetitionId == job.CompetitionId && j.Type == DispatchJobType.SendResultEmail)
             .Select(j => j.PayloadJson)

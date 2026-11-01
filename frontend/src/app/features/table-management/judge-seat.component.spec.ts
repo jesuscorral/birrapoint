@@ -25,7 +25,7 @@ describe('JudgeSeatComponent', () => {
     expect(seat.getAttribute('role')).toBe('button');
   });
 
-  // T124 — initials alone could not tell two judges apart while seating them at tables.
+  // Initials alone could not tell two judges apart while seating them at tables.
   it('shows the full display name under the avatar by default', () => {
     const fixture = createComponent(ada);
 
@@ -47,7 +47,7 @@ describe('JudgeSeatComponent', () => {
     expect(seat.textContent?.trim()).toBe('AL');
   });
 
-  // T125b: inside a rail card the stacked form is what made the cards tall — dense lays avatar
+  // Inside a rail card the stacked form is what made the cards tall — dense lays avatar
   // and name in a row, and the name still shows.
   it('keeps the name visible in the dense form used inside rail cards', () => {
     const fixture = createComponent(ada);

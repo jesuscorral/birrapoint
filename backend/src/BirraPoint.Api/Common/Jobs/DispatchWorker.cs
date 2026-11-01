@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 namespace BirraPoint.Api.Common.Jobs;
 
 /// <summary>
-/// Hosted worker for the <see cref="DispatchJob"/> queue (T016/R-06, T129). Wakes on
+/// Hosted worker for the <see cref="DispatchJob"/> queue (R-06). Wakes on
 /// <paramref name="wakeUpChannel"/> writes from <see cref="DispatchJobQueue"/>, with a periodic
 /// safety-net poll so a missed signal or a backoff-delayed retry is never lost. Every job is
 /// resolved through a fresh DI scope (AppDbContext is scoped; this worker is a singleton).
@@ -128,7 +128,7 @@ internal sealed partial class DispatchWorker(
 
     /// <summary>A Running job whose lease expired belongs to a crashed worker; treat it exactly like
     /// a failed attempt so it goes through the same retry/backoff decision. A job with no lease was
-    /// claimed by a pre-lease (pre-T129) revision, which may still be running it during the first
+    /// claimed by a pre-lease revision, which may still be running it during the first
     /// rollout: it counts as orphaned only once it has not been touched for a full lease duration.
     /// Claimed with SKIP LOCKED so concurrent recoverers never double-count an attempt.</summary>
     private async Task RecoverExpiredLeasesAsync(CancellationToken stoppingToken)

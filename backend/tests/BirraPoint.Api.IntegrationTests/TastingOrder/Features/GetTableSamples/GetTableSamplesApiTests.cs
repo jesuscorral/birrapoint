@@ -5,7 +5,7 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 namespace BirraPoint.Api.IntegrationTests.TastingOrder.Features.GetTableSamples;
 
 /// <summary>
-/// T051: HTTP-level contract tests for GET /me/tables/{tableId}/samples — membership scoping and the
+/// HTTP-level contract tests for GET /me/tables/{tableId}/samples — membership scoping and the
 /// BR-01 anonymity boundary on the serialized wire payload (not just the DTO's declared shape).
 /// </summary>
 public sealed class GetTableSamplesApiTests(ApiFactory factory) : TastingOrderApiTestBase(factory), IClassFixture<ApiFactory>

@@ -4,7 +4,7 @@ using ClosedXML.Excel;
 
 namespace BirraPoint.Api.Features.Judges;
 
-/// <summary>One parsed data row, before any staging entity exists (T114/US14).</summary>
+/// <summary>One parsed data row, before any staging entity exists (US14).</summary>
 internal sealed record ParsedJudgeImportRow(
     int RowNumber,
     string? Name,

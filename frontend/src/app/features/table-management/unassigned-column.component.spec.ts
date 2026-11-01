@@ -75,7 +75,7 @@ describe('UnassignedColumnComponent', () => {
     expect(headings[1].textContent?.trim()).toBe('Cervezas sin asignar (0)');
   });
 
-  // T124: this column is the only place wide enough to show what the organizer picks the next
+  // This column is the only place wide enough to show what the organizer picks the next
   // beer by, so its tokens render in the detailed `full` variant.
   it('renders unassigned beers in the full token variant, with style, category and ABV', () => {
     const fixture = createComponent();
@@ -185,10 +185,10 @@ describe('UnassignedColumnComponent', () => {
     });
   });
 
-  // T125c: the pool (full-variant) token's background is resolved from the board-supplied
+  // The pool (full-variant) token's background is resolved from the board-supplied
   // categoryColorMap, falling back to UNCATEGORIZED_COLOR for a category not in the map or a
   // null competitionCategoryName.
-  describe('category color (T125c)', () => {
+  describe('category color', () => {
     it("resolves a beer token's background from a known category in the map", () => {
       const fixture = createComponent(new Map([['Estilos clásicos', '#d7e6f4']]));
 

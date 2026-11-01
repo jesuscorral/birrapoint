@@ -2,7 +2,7 @@ using Microsoft.Extensions.Options;
 
 namespace BirraPoint.Api.Common.Keycloak;
 
-/// <summary>Bound from the <c>Keycloak</c> configuration section (T130). Only the admin client
+/// <summary>Bound from the <c>Keycloak</c> configuration section. Only the admin client
 /// secret is validated here; <see cref="KeycloakAdminClient"/> still reads the other keys directly.</summary>
 internal sealed class KeycloakAdminOptions
 {

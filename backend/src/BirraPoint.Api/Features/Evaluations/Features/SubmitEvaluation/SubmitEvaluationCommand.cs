@@ -14,7 +14,7 @@ using Npgsql;
 
 namespace BirraPoint.Api.Features.Evaluations.Features.SubmitEvaluation;
 
-/// <summary>POST /me/tables/{tableId}/evaluations (contracts/rest-api.md §Judge workspace, T055-T058,
+/// <summary>POST /me/tables/{tableId}/evaluations (contracts/rest-api.md §Judge workspace,
 /// FR-022/FR-023/FR-025/FR-029). Returns null when the caller is not an active member of this table
 /// — the endpoint maps that to a plain 404, same convention as FixOrderCommand/GetTableSamplesQuery.</summary>
 internal sealed record SubmitEvaluationCommand(

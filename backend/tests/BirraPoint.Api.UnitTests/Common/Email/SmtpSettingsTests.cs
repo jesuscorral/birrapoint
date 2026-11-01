@@ -5,11 +5,11 @@ using Microsoft.Extensions.Configuration;
 namespace BirraPoint.Api.UnitTests.Common.Email;
 
 /// <summary>
-/// T095-T097: <see cref="SmtpSettings.Resolve"/> is the pure decision layer extracted out of
+/// <see cref="SmtpSettings.Resolve"/> is the pure decision layer extracted out of
 /// <see cref="MailKitEmailSender"/> — socket security, sender address, and whether to
 /// authenticate — so those decisions are unit-testable without a real SMTP server. Local Mailpit
 /// only ever supplies Smtp:Host/Smtp:Port (as configured by the AppHost), so that minimal shape
-/// must keep resolving to the pre-T095 behavior: no TLS, no auth, default From address.
+/// must keep resolving to the previous behavior: no TLS, no auth, default From address.
 /// </summary>
 public sealed class SmtpSettingsTests
 {

@@ -107,7 +107,7 @@ export interface OverallDescriptors {
  * In-progress evaluation-sheet fields (data-model.md §Client-side stores), written ≤300 ms after
  * each change (SC-003) and deleted on successful submit. `tastingTableId` isn't part of the key
  * but is needed to know where the draft eventually submits — and, like `OutboxRow`'s own
- * `tastingTableId` index, is indexed (v2) because T087 needs to look up "drafts for this table"
+ * `tastingTableId` index, is indexed (v2) because judge removal needs to look up "drafts for this table"
  * directly when a judge is removed, not only the ones that happen to have a matching outbox row.
  */
 export interface DraftRow {
@@ -124,7 +124,7 @@ export interface DraftRow {
 /**
  * Submitted-but-unsynced evaluation payload + attempt metadata (R-08), keyed by the deterministic
  * `{competitionId}:{tableId}:{judgeId}:{entryId}` idempotency key (R-07). `tastingTableId` is
- * indexed (not just embedded in the key) because T087 needs to look up "outbox items for this
+ * indexed (not just embedded in the key) because judge removal needs to look up "outbox items for this
  * table" when a judge is removed.
  */
 export interface OutboxRow {
@@ -152,7 +152,7 @@ export class BirraPointDb extends Dexie {
       drafts: 'beerEntryId',
       outbox: 'idempotencyKey, tastingTableId',
     });
-    // v2 (T087): index drafts by tastingTableId too, so rejectOutboxForTable() can purge every
+    // v2: index drafts by tastingTableId too, so rejectOutboxForTable() can purge every
     // draft for a table directly — not only the ones that happen to already have a matching
     // outbox row.
     this.version(2).stores({

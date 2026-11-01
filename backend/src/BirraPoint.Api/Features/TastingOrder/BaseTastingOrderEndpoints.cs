@@ -5,8 +5,7 @@ using BirraPoint.Api.Features.TastingOrder.Features.GetTableSamples;
 
 namespace BirraPoint.Api.Features.TastingOrder;
 
-/// <summary>Maps GetMyTables/GetTableSamples/FixOrder (contracts/rest-api.md §Judge workspace,
-/// T050-T052) — JUDGE-only.</summary>
+/// <summary>Maps GetMyTables/GetTableSamples/FixOrder (contracts/rest-api.md §Judge workspace) — JUDGE-only.</summary>
 internal static class BaseTastingOrderEndpoints
 {
     public static IEndpointRouteBuilder MapTastingOrderEndpoints(this IEndpointRouteBuilder endpoints)

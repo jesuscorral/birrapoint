@@ -47,7 +47,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
               {{ competition()?.name || 'Registra tu competición' }}
             </h1>
           </div>
-          <!-- T125: hoisted out of the step action bars, where it existed on steps 1 and 3 only
+          <!-- Hoisted out of the step action bars, where it existed on steps 1 and 3 only
                and competed with "Atrás" for the same corner. One exit affordance, same place on
                all six steps, guarded by the wizard's own unsaved-changes dialog. -->
           <button type="button" class="back-to-list-link" (click)="onRequestExit()">
@@ -55,7 +55,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
           </button>
         </div>
 
-        <!-- T127/FR-061: the wizard is read-only once the competition has moved past Active
+        <!-- FR-061: the wizard is read-only once the competition has moved past Active
              (InEvaluation/Finalized) -- every step stays reachable for review, but the organizer
              can no longer change anything. -->
         @if (readOnly()) {
@@ -235,10 +235,10 @@ import { TablesStepComponent } from './steps/tables-step.component';
   `,
   styles: [
     `
-      /* T127: the shared bp-page-shell now owns the outer :host sizing/background and the gutter
+      /* The shared bp-page-shell now owns the outer :host sizing/background and the gutter
          (.page-main) rules this component used to duplicate as .wizard-shell/.wizard-main. */
 
-      /* T125: the organizer console is desktop-first. The shell now spans the viewport (capped so
+      /* The organizer console is desktop-first. The shell now spans the viewport (capped so
          it does not sprawl on ultrawide displays) and each step decides its own inner measure —
          the form steps wrap their fields in .step-form to keep a readable column, while the
          import and table-assignment steps use the full width they actually need. */
@@ -526,7 +526,7 @@ export class CompetitionWizardComponent {
   // Non-null while the "discard unsaved edits?" dialog is open; holds the step we'd move to if
   // the organizer confirms.
   protected readonly pendingStep = signal<1 | 2 | 3 | 4 | 5 | 6 | null>(null);
-  // T125's header "Volver al listado" shares pendingStep's dialog: same FR-007 question, different
+  // The header "Volver al listado" shares pendingStep's dialog: same FR-007 question, different
   // destination, so the two intents are tracked separately but rendered by one alertdialog.
   protected readonly pendingExit = signal(false);
 
@@ -572,7 +572,7 @@ export class CompetitionWizardComponent {
     this.competition() ? 'complete' : 'partial',
   );
 
-  // T127/FR-061 + clarification "Session 2026-09-19": the wizard opens in every competition
+  // FR-061 + clarification "Session 2026-09-19": the wizard opens in every competition
   // state, all 6 steps visible and reachable; it's read-only once the competition has moved past
   // Active (InEvaluation/Finalized) — nothing can be modified from there, only reviewed.
   protected readonly readOnly = computed(() => {
@@ -600,7 +600,7 @@ export class CompetitionWizardComponent {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.competitionId.set(id);
-      // T127/FR-061: deep link via ?step=N — only meaningful once an id exists (a brand-new,
+      // FR-061: deep link via ?step=N — only meaningful once an id exists (a brand-new,
       // unsaved competition at /new always starts at step 1, ignoring any stray query string).
       this.currentStep.set(this.parseStepParam());
       this.loading.set(true);
@@ -623,7 +623,7 @@ export class CompetitionWizardComponent {
       });
     }
 
-    // T127/FR-061: keep the URL's ?step= query in sync with the current step — a reload or a
+    // FR-061: keep the URL's ?step= query in sync with the current step — a reload or a
     // shared link then lands back on the same step. Only meaningful once competitionId is set;
     // a brand-new competition has no address of its own yet to rewrite. This is the wizard's only
     // writer of the address bar: onBasicsSaved used to also call replaceState for the id-just-

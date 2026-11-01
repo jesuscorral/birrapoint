@@ -64,9 +64,9 @@ describe('TablesStepComponent', () => {
     expect(h2?.textContent?.trim()).toBe('Mesas');
   });
 
-  // T125: the shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
+  // The shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
   // forward. Previously each step rendered its own two-slot bar and they had drifted apart.
-  // T125 gave step 6 a forward action it previously lacked. It is the last step, so the label is
+  // Step 6 now has a forward action it previously lacked. It is the last step, so the label is
   // "Finalizar" and it leaves the wizard instead of advancing (see the finished output below).
   it('renders the shared bar with "Atrás" and the terminal "Finalizar"', () => {
     const fixture = createComponent();

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for .github/scripts/wait-revisions.sh (T143). Run: bash .github/scripts/wait-revisions.test.sh
+# Tests for .github/scripts/wait-revisions.sh. Run: bash .github/scripts/wait-revisions.test.sh
 # `az` is a stub on PATH that serves canned answers from $STUB_DIR; time is virtual (no sleeping).
 set -u
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

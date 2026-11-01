@@ -3,7 +3,7 @@ using BirraPoint.Api.Features.Judges.Features.RegisterJudges;
 namespace BirraPoint.Api.UnitTests.Judges.Features.RegisterJudges;
 
 /// <summary>
-/// T038: bulk registration dedup — in-list duplicates (case-insensitive, first occurrence wins)
+/// Bulk registration dedup — in-list duplicates (case-insensitive, first occurrence wins)
 /// and already-registered emails, each with the correct skip reason (FR-014/FR-015).
 /// </summary>
 public sealed class JudgeRegistrationPlannerTests

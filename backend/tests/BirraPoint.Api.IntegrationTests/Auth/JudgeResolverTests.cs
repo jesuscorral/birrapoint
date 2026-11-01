@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.IntegrationTests.Auth;
 
 /// <summary>
-/// T023: JudgeResolver backfills Judge.KeycloakUserId (and DisplayName, when a `name` claim is
+/// JudgeResolver backfills Judge.KeycloakUserId (and DisplayName, when a `name` claim is
 /// present) the first time a judge authenticates, matching every Judge row across competitions
 /// that shares their email — the COI key (CompetitionId, Email) is not globally unique, so one
 /// person can judge several competitions.

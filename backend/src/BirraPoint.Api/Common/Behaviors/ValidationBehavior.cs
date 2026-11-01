@@ -5,7 +5,7 @@ namespace BirraPoint.Api.Common.Behaviors;
 
 /// <summary>
 /// Runs every registered <see cref="IValidator{T}"/> for the request before the handler; throws
-/// FluentValidation's <see cref="ValidationException"/> on any failure, which T012's
+/// FluentValidation's <see cref="ValidationException"/> on any failure, which the
 /// ValidationExceptionHandler maps to a 400 urn:birrapoint:validation ProblemDetails. A no-op
 /// when no validator is registered for the request type.
 /// </summary>

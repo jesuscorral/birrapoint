@@ -186,7 +186,7 @@ async function pointerDrag(page: Page, source: Locator, target: Locator): Promis
 }
 
 // Mirrors us8/us11's advanceCompetitionState: drives the real dashboard advance-state control
-// (T102/FR-051) rather than a token-capture workaround.
+// (FR-051) rather than a token-capture workaround.
 function competitionRow(page: Page, name: string): Locator {
   return page.locator('li.competition-list-row').filter({ hasText: name });
 }
@@ -317,7 +317,7 @@ interface TableSummaryBody {
   judges: TableJudgeBody[];
 }
 
-// Navigates the organizer to the live monitoring dashboard (T070/US9) and resolves judge A's real
+// Navigates the organizer to the live monitoring dashboard (US9) and resolves judge A's real
 // Judge.Id off the dashboard's own GET /tables response -- the DOM alone never exposes it, only
 // email/displayName (and displayName is unreliable to key off here: JudgeResolver backfills it
 // from the Keycloak profile name on first login, so once judge A has actually authenticated their

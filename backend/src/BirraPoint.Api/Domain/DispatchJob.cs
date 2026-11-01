@@ -20,7 +20,7 @@ internal class DispatchJob : Entity
     /// Pending job is eligible for dispatch only once this has passed (or is null).</summary>
     public DateTimeOffset? NextAttemptAt { get; set; }
 
-    /// <summary>Unique id of the worker process currently holding this job (T129); set on claim,
+    /// <summary>Unique id of the worker process currently holding this job; set on claim,
     /// cleared on completion/failure. Null for any job not currently Running.</summary>
     public string? LeaseOwner { get; set; }
 

@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output, signal } f
 
 import type { StyleSummary } from '../../core/api/catalog-api.service';
 
-// Filter-as-you-type over the BJCP catalog (T036) — plain signals, no ReactiveFormsModule/RxJS
+// Filter-as-you-type over the BJCP catalog — plain signals, no ReactiveFormsModule/RxJS
 // needed for two local input values.
 @Component({
   selector: 'app-style-picker',

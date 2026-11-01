@@ -20,7 +20,7 @@ export interface TableSummary {
   samples: { beerEntryId: string }[];
 }
 
-// core/api/ home for table data consumed by a second feature (dashboard, T087) alongside
+// core/api/ home for table data consumed by a second feature (dashboard) alongside
 // table-management — same "≥2 features -> core/api/" rule already applied to
 // CompetitionsApiService/EntriesApiService (Docs/arquitectura_viva.md).
 @Injectable({ providedIn: 'root' })

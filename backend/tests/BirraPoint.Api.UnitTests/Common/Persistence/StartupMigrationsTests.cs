@@ -4,7 +4,7 @@ using Microsoft.Extensions.Configuration;
 namespace BirraPoint.Api.UnitTests.Common.Persistence;
 
 /// <summary>
-/// T095-T097: pure decisions behind startup migrations — whether to run them, and which
+/// Pure decisions behind startup migrations — whether to run them, and which
 /// connection string to migrate over — kept out of Program.cs so they're unit-testable.
 /// </summary>
 public sealed class StartupMigrationsTests

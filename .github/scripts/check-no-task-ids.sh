@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Fails when a tasks.md id (T001, T125b, ...) appears in backend, frontend, infra or .github files.
+# Task ids belong in branch names, commit messages and PR titles; in code they point at a tracker
+# that outlives neither the code nor the reader. Cite the requirement (FR-/SC-/US/ADR-) or state
+# the reason instead.
+# Usage (repo root by default): bash .github/scripts/check-no-task-ids.sh [repo-dir]
+set -uo pipefail
+
+cd "${1:-$(git rev-parse --show-toplevel)}" || exit 2
+
+hits="$(git grep --untracked -nIEw 'T[0-9]{3}[A-Za-z]?' -- \
+  backend frontend infra .github \
+  ':!*package-lock.json' \
+  ':!.github/scripts/check-no-task-ids.sh' \
+  ':!.github/scripts/check-no-task-ids.test.sh')"
+
+if [ -n "$hits" ]; then
+  echo "Task ids (T###) found in code. Cite FR-/SC-/US/ADR or explain the reason instead:" >&2
+  echo "$hits" >&2
+  exit 1
+fi
+echo "ok - no task ids in backend, frontend, infra or .github"

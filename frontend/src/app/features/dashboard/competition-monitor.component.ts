@@ -44,7 +44,7 @@ function errorMessage(error: ApiError): string {
   return error.detail ?? error.title;
 }
 
-// T070/US9: live organizer monitoring dashboard. Table progress and closed state are updated
+// US9: live organizer monitoring dashboard. Table progress and closed state are updated
 // in place from EvaluationCompleted/TableClosed hub notifications (FR-037's "no reload, no
 // flicker" requirement) rather than a full refetch — the initial GETs remain the source of
 // truth, the hub events are just notifications layered on top per contracts/signalr-hub.md.
@@ -382,7 +382,7 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
     // Events are notifications, not the source of truth (contracts/signalr-hub.md) — anything
     // missed while disconnected (a network blip) must be reconciled by re-fetching once the hub
     // reconnects, not left stale until a manual reload. Only re-fetches on a *re*-connect, not the
-    // initial one (which loadAll() above already covers) — senior-code-reviewer finding on PR #24.
+    // initial one (which loadAll() above already covers).
     effect(() => {
       if (this.hub.state() === HubConnectionState.Connected) {
         if (this.hasConnectedBefore) {
@@ -453,7 +453,7 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
     this.confirmingRemoveJudge.set(null);
   }
 
-  // T087/US12: optimistic on success — the PUT response is the source of truth for whether the
+  // US12: optimistic on success — the PUT response is the source of truth for whether the
   // removal happened at all (a 404 rejects it below), so once it succeeds there's nothing left to
   // reconcile by re-fetching the whole table list just to drop one judge from one row.
   protected onConfirmRemoveJudge(): void {

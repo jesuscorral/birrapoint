@@ -6,7 +6,7 @@ using Dapr.Extensions.Configuration.DaprSecretStore;
 namespace BirraPoint.Api.Common.Secrets;
 
 /// <summary>
-/// T142 (ADR-0021): in Azure the API's secrets live in Key Vault and are read through the Dapr
+/// ADR-0021: in Azure the API's secrets live in Key Vault and are read through the Dapr
 /// secret store component (<c>secretstores.azure.keyvault</c>, authenticated with the Container
 /// App's system-assigned managed identity) instead of arriving as environment settings. The
 /// secrets are loaded once at startup into <see cref="IConfiguration"/> under their usual keys

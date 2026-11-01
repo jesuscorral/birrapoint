@@ -4,7 +4,7 @@ using BirraPoint.Api.Common.Email;
 namespace BirraPoint.Api.IntegrationTests.TestHost;
 
 /// <summary>
-/// T039 test double — records sent emails in-memory instead of dispatching through MailKit/SMTP.
+/// Test double — records sent emails in-memory instead of dispatching through MailKit/SMTP.
 /// Registered as a singleton (see <see cref="ApiFactory"/>) so tests can inspect deliveries even
 /// though the sender runs inside DispatchWorker's own background DI scope, not the request scope.
 /// </summary>

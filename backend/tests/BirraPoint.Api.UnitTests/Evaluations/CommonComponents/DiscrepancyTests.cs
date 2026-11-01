@@ -4,10 +4,10 @@ using BirraPoint.Api.Features.Evaluations.CommonComponents;
 namespace BirraPoint.Api.UnitTests.Evaluations.CommonComponents;
 
 /// <summary>
-/// T079: pure FR-031 discrepancy rule — pairwise >7-point spread detection across 2..N judges
+/// Pure FR-031 discrepancy rule — pairwise >7-point spread detection across 2..N judges
 /// (same "pure rule class beside the DB-touching handler" pattern as SubmitEvaluationRules). The
 /// full reconciliation (Evaluation.Status transitions, DiscrepancyAlert open/resolve) needs a real
-/// DbContext — covered by DiscrepancyApiTests.cs (T080).
+/// DbContext — covered by DiscrepancyApiTests.cs.
 /// </summary>
 public sealed class DiscrepancyTests
 {

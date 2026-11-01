@@ -1,4 +1,4 @@
-# GitHub Actions setup: AWS (FR-064, T146)
+# GitHub Actions setup: AWS (FR-064)
 
 This page covers the one-time configuration behind the CI/CD pipeline of the **AWS** deployment
 (`deploy-aws.yml`, GitHub environment `aws-production`; each cloud has its own independent deploy

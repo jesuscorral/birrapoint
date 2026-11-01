@@ -8,7 +8,7 @@ import { goToLogin, submitKeycloakLogin } from './support/auth';
 // no manual reload/navigation. The scenario's second half — "sheets openable only in fixed
 // sequence, only after order fixed and state InEvaluation" — is evaluation-sheet territory (US7,
 // frontend/src/app/features/evaluation-sheet/), which doesn't exist on this branch yet. That part
-// is deferred to T061 (frontend/e2e/us7-offline.spec.ts) once the sheet lands, not silently
+// is deferred to the offline spec (frontend/e2e/us7-offline.spec.ts) once the sheet lands, not silently
 // dropped.
 
 const ORGANIZER_USERNAME = 'organizer';
@@ -179,7 +179,7 @@ async function pointerDrag(page: Page, source: Locator, target: Locator): Promis
 
 // GET /me/tables hides Draft competitions (FR-020) and POST .../order requires Active/InEvaluation,
 // so the organizer must advance the just-created competition out of Draft before the two judge
-// sessions below can reach the table's order view. T102 shipped the real advance-state control on
+// sessions below can reach the table's order view. The real advance-state control ships on
 // the organizer dashboard (FR-051) — this goes through it exactly as an organizer would: navigate
 // to the dashboard, click the row's "Activate" action, confirm the resulting alertdialog. Mirrors
 // us13-dashboard.spec.ts's own advanceCompetitionState helper; kept separate (rather than a shared
@@ -240,8 +240,7 @@ test.describe('US6 — blind table dynamics: shared fixed order', () => {
     // never able to complete login. us4-judges.spec.ts didn't catch this because it only asserts
     // the invitation email is delivered, it never logs the invited judge in. Reported upward
     // rather than patched here: it's Keycloak role-provisioning logic in an already-merged,
-    // different story's slice (T038-T044), not something this task's "small targeted fix in
-    // T053/T052 code" allowance covers.
+    // different story's slice, beyond a small targeted fix in this spec.
     const suffix = `${Date.now()}-${crypto.randomUUID()}`;
     judgeA = await createJudgeUser(`us6-judge-a-${suffix}@birrapoint.local`);
     judgeB = await createJudgeUser(`us6-judge-b-${suffix}@birrapoint.local`);
@@ -409,7 +408,7 @@ test.describe('US6 — blind table dynamics: shared fixed order', () => {
       ).trim();
 
       // Exercise the keyboard-accessible reorder mechanism only (FR-020) — drag-and-drop reorder
-      // mechanics are already covered in isolation by T053's Jest specs; this E2E's job is the
+      // mechanics are already covered in isolation by the Jest specs; this E2E's job is the
       // cross-session propagation, not re-proving the reorder gesture itself.
       await pageA.getByRole('button', { name: `Bajar ${firstBlindCodeBefore}` }).click();
       await expect(rowsA.nth(0).locator('.sample-blind-code')).toHaveText(secondBlindCodeBefore);

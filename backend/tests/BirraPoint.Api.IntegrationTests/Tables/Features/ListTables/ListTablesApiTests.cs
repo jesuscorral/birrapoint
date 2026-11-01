@@ -64,7 +64,7 @@ public sealed class ListTablesApiTests(ApiFactory factory) : TablesApiTestBase(f
         Assert.Contains(entryId, ExtractIds(table.GetProperty("samples"), "beerEntryId", "id"));
     }
 
-    // ---- GET /tables: stats.meanAbv (T122) -----------------------------------------------------
+    // ---- GET /tables: stats.meanAbv -----------------------------------------------------
 
     [Fact]
     public async Task GetReturnsTheEntrysActualAbvPercentOnEachSample()
@@ -112,7 +112,7 @@ public sealed class ListTablesApiTests(ApiFactory factory) : TablesApiTestBase(f
     [Fact]
     public async Task GetComputesMeanAbvFromRealAbvEvenWhenTheStylesBjcpRangeIsUndeclared()
     {
-        // Regression for the pre-T122 bug: MeanAbv used to average the BJCP style's declared
+        // Regression for the previous bug: MeanAbv used to average the BJCP style's declared
         // ABVLow/ABVHigh midpoint, so a style with no declared range (real BJCP catalog styles
         // like "27-Kellerbier" legitimately have none) was excluded from the average entirely —
         // a single-entry table on such a style produced a null MeanAbv even though the
@@ -142,7 +142,7 @@ public sealed class ListTablesApiTests(ApiFactory factory) : TablesApiTestBase(f
     {
         // rest-api.md now says explicitly that meanAbv is "null only when the table has zero
         // samples" — closing the coverage gap flagged in PR #31 review finding #8 (all three
-        // T122 tests above seed at least one entry).
+        // tests above seed at least one entry).
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer);
         var tableName = $"Table {Guid.NewGuid():N}";
@@ -161,7 +161,7 @@ public sealed class ListTablesApiTests(ApiFactory factory) : TablesApiTestBase(f
     [Fact]
     public async Task GetStillCountsASampleWhoseStyleCodeHasNoMatchingBjcpRowInStats()
     {
-        // Same "silently excluded" defect shape as the pre-T122 MeanAbv bug, spotted in PR #31
+        // Same "silently excluded" defect shape as the previous MeanAbv bug, spotted in PR #31
         // review finding #7: StyleCount/Styles used to be derived from the catalog-joined
         // `styles` rows rather than from `samples` (which already falls back to the entry's
         // raw StyleCode via `style?.Name ?? e.StyleCode`) — an entry whose StyleCode has no
@@ -213,7 +213,7 @@ public sealed class ListTablesApiTests(ApiFactory factory) : TablesApiTestBase(f
         return entry.Id;
     }
 
-    // ---- GET /tables: competition category + BJCP taxonomy category per sample (T124) ----------
+    // ---- GET /tables: competition category + BJCP taxonomy category per sample ----------
 
     [Fact]
     public async Task GetReturnsTheCompetitionCategoryAndBjcpCategoryOnEachSample()

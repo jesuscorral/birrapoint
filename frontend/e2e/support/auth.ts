@@ -5,7 +5,7 @@ import type { Page } from '@playwright/test';
 // `page.goto('/')` + `waitForURL(keycloak)` pair, so all of them hung on the welcome screen until
 // the test timed out. That flow lives here now.
 //
-// This predates T124/T125 — it came in with the FR-001 welcome redesign — but it blocks every
+// This is long-standing — it came in with the FR-001 welcome redesign — but it blocks every
 // spec, so nothing else in e2e/ can be verified without it.
 
 export const KEYCLOAK_ORIGIN = 'http://localhost:8081';

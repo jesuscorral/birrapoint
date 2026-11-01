@@ -15,7 +15,7 @@ namespace BirraPoint.Api.Features.Evaluations.Features.CloseTable;
 /// TableClosed payload in contracts/signalr-hub.md (`{ blindCode, mean }`).</summary>
 internal sealed record ConsolidatedScoreDto(string BlindCode, decimal Mean);
 
-/// <summary>POST /me/tables/{tableId}/close (contracts/rest-api.md §Judge workspace, T062-T063,
+/// <summary>POST /me/tables/{tableId}/close (contracts/rest-api.md §Judge workspace,
 /// FR-033/FR-042). Returns null when the caller is not an active member of this table — the
 /// endpoint maps that to a plain 404, same convention as SubmitEvaluationCommand/FixOrderCommand.</summary>
 internal sealed record CloseTableCommand(Guid TableId) : IRequest<CloseTableResult?>;

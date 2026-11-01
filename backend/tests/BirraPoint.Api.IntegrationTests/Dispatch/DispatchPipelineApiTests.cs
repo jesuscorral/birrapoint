@@ -12,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace BirraPoint.Api.IntegrationTests.Dispatch;
 
 /// <summary>
-/// T072-T076: HTTP-level contract tests for the results dispatch pipeline (contracts/rest-api.md
+/// HTTP-level contract tests for the results dispatch pipeline (contracts/rest-api.md
 /// §Results &amp; dispatch, FR-036/FR-040/FR-041) — this drives the real GeneratePdfs -> BundleZip ->
 /// SendResultEmail pipeline end-to-end through the live DispatchWorker hosted service (same
 /// approach as the Judges feature tests' async invitation checks), plus backfills HTTP-level coverage for the
@@ -23,7 +23,7 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
 {
     // Crash-resume (an orphaned Pending job with no wake-up signal) is only noticed on the next
     // configured safety-net poll sweep, so that test needs a longer allowance than every other poll here. Manual
-    // retry wakes the worker directly (T132) and uses the normal PollTimeout.
+    // retry wakes the worker directly and uses the normal PollTimeout.
     private static readonly TimeSpan SafetyNetPollTimeout = TimeSpan.FromSeconds(35);
 
     /// <summary>Seeds one table with a single judge, closes it (mirrors
@@ -146,7 +146,7 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
     }
 
     // ---- Regression: fan-out enqueues must be idempotent under DispatchWorker's at-least-once
-    // handler contract (senior-code-reviewer finding on PR #25) ------------------------------------
+    // handler contract ------------------------------------
 
     [Fact]
     public async Task ResettingACompletedBundleZipJobBackToPendingDoesNotDoubleEnqueueSendResultEmailJobs()

@@ -7,7 +7,7 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 namespace BirraPoint.Api.IntegrationTests.Monitoring.Features.GetEntryEvaluations;
 
 /// <summary>
-/// T069: HTTP-level contract tests for GET /competitions/{id}/entries/{entryId}/evaluations
+/// HTTP-level contract tests for GET /competitions/{id}/entries/{entryId}/evaluations
 /// (contracts/rest-api.md §Monitoring &amp; audit, FR-042) — organizer-only audit drill-down.
 /// </summary>
 public sealed class GetEntryEvaluationsApiTests(ApiFactory factory) : MonitoringApiTestBase(factory), IClassFixture<ApiFactory>

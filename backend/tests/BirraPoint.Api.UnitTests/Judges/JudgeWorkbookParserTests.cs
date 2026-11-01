@@ -5,7 +5,7 @@ using ClosedXML.Excel;
 namespace BirraPoint.Api.UnitTests.Judges;
 
 /// <summary>
-/// T110: pure parsing tests for <see cref="JudgeWorkbookParser"/> against
+/// Pure parsing tests for <see cref="JudgeWorkbookParser"/> against
 /// contracts/judge-import-file.md — the organizer's own club roster export: header matching,
 /// Valid/Invalid row outcomes (missing/malformed name or email), verbatim free-text fields
 /// (including the literal `&lt;br&gt;`-style text R-20 calls out), and duplicate-email-within-file

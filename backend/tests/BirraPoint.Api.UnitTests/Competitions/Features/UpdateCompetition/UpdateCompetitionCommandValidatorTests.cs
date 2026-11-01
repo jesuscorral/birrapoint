@@ -3,7 +3,7 @@ using BirraPoint.Api.Features.Competitions.Features.UpdateCompetition;
 
 namespace BirraPoint.Api.UnitTests.Competitions.Features.UpdateCompetition;
 
-/// <summary>T025: UpdateCompetitionCommandValidator — same field rules as create.</summary>
+/// <summary>UpdateCompetitionCommandValidator — same field rules as create.</summary>
 public sealed class UpdateCompetitionCommandValidatorTests
 {
     private static readonly DateOnly Today = new(2026, 1, 1);

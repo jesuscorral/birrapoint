@@ -96,7 +96,7 @@ describe('CompetitionWizardComponent', () => {
       createTable: jest.fn(),
       updateTable: jest.fn(),
     };
-    // Slice-B dependency of JudgeImportStepComponent's readOnly mode (T127/FR-061): it lists
+    // Slice-B dependency of JudgeImportStepComponent's readOnly mode (FR-061): it lists
     // already-registered judges instead of the upload flow, via JudgeManagementApiService.
     fakeJudgeManagementApi = { getJudges: jest.fn().mockReturnValue(of([])) };
     TestBed.configureTestingModule({
@@ -171,7 +171,7 @@ describe('CompetitionWizardComponent', () => {
     fixture.componentInstance['onBasicsSaved'](detail);
     fixture.detectChanges();
 
-    // T127 code review (m1): onBasicsSaved used to call replaceState itself for this exact
+    // OnBasicsSaved used to call replaceState itself for this exact
     // case, racing the ?step= effect below and briefly exposing a query-less URL. It must now
     // leave the address bar to that one effect, which sees id and step together in a single
     // flush and writes the final `?step=2` URL directly.
@@ -193,7 +193,7 @@ describe('CompetitionWizardComponent', () => {
     fixture.componentInstance['onBasicsSaved'](detailFixture({ name: 'Updated name' }));
     fixture.detectChanges();
 
-    // T127: the URL is still kept in sync with the current step (see the "?step=N" describe
+    // The URL is still kept in sync with the current step (see the "?step=N" describe
     // block below) — what this test pins is that onBasicsSaved itself never re-derives a URL
     // from the (already known) id the way it must for a brand-new competition above.
     expect(replaceStateSpy.mock.calls[0]?.[0]).toBe('/organizer/competitions/c1');
@@ -710,7 +710,7 @@ describe('CompetitionWizardComponent', () => {
       expect(fixture.nativeElement.querySelector('[role="alertdialog"]')).toBeFalsy();
     });
   });
-  // T125: "Volver al listado" was hoisted out of steps 1 and 3 into the wizard header, where it
+  // "Volver al listado" was hoisted out of steps 1 and 3 into the wizard header, where it
   // exists once for all six steps and reuses the shell's own FR-007 prompt. None of that had any
   // coverage — these pin the exit path and its interaction with the step-jump path.
   describe('header exit (FR-007)', () => {
@@ -833,10 +833,10 @@ describe('CompetitionWizardComponent', () => {
     });
   });
 
-  // T127/FR-061: the wizard opens in every competition state, all 6 steps reachable, and the
+  // FR-061: the wizard opens in every competition state, all 6 steps reachable, and the
   // current step is reflected in the URL as `?step=N` so a reload or a shared link lands back on
   // the same step.
-  describe('deep link via ?step= (T127/FR-061)', () => {
+  describe('deep link via ?step= (FR-061)', () => {
     it('starts on step 4 when the route has :id and ?step=4', () => {
       configure('c1', { step: '4' });
       fakeApi.getById.mockReturnValue(of(detailFixture()));
@@ -904,10 +904,10 @@ describe('CompetitionWizardComponent', () => {
     });
   });
 
-  // T127/FR-061 + clarification "Session 2026-09-19": the wizard is read-only once the
+  // FR-061 + clarification "Session 2026-09-19": the wizard is read-only once the
   // competition has moved past Active (InEvaluation/Finalized) — every step stays reachable for
   // review, but nothing can be modified.
-  describe('read-only mode (T127/FR-061)', () => {
+  describe('read-only mode (FR-061)', () => {
     it.each(['Draft', 'Active'] as const)(
       'is not read-only while the competition is %s',
       (state) => {

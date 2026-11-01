@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Dispatch.Features.DispatchScoreSheet;
 
 /// <summary>
-/// T074/FR-041: emails a participant every PDF scoresheet for their own entries. Unlike <see
+/// FR-041: emails a participant every PDF scoresheet for their own entries. Unlike <see
 /// cref="Judges.SendInvitationHandler"/>, there's no separate status entity to update on failure —
 /// this job's own <see cref="DispatchJob.Status"/>/Attempts/LastError (surfaced by GET /dispatch)
 /// IS the delivery-status record, so a failure simply rethrows for <see cref="DispatchWorker"/>'s

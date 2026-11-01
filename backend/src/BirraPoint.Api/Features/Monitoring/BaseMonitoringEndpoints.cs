@@ -3,8 +3,7 @@ using BirraPoint.Api.Features.Monitoring.Features.GetProgress;
 
 namespace BirraPoint.Api.Features.Monitoring;
 
-/// <summary>Maps GetProgress/GetEntryEvaluations (contracts/rest-api.md §Monitoring &amp; audit,
-/// T068-T069) — ORGANIZER-only.</summary>
+/// <summary>Maps GetProgress/GetEntryEvaluations (contracts/rest-api.md §Monitoring &amp; audit) — ORGANIZER-only.</summary>
 internal static class BaseMonitoringEndpoints
 {
     public static IEndpointRouteBuilder MapMonitoringEndpoints(this IEndpointRouteBuilder endpoints)

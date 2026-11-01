@@ -1,6 +1,6 @@
 import { Directive, HostListener, output } from '@angular/core';
 
-// T048B: CDK drag already lets a mousedown+move sequence become a drag before any native click
+// CDK drag already lets a mousedown+move sequence become a drag before any native click
 // fires, but relying on the browser's own click-suppression-after-drag is unreliable across
 // pointer/preview setups. This disambiguates independently of CDK: a pointerdown/pointerup pair
 // whose total movement stays within the threshold is a click; anything past it is left for CDK's

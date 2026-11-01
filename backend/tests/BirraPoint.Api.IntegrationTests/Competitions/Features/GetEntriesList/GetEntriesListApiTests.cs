@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace BirraPoint.Api.IntegrationTests.Competitions.Features.GetEntriesList;
 
 /// <summary>
-/// Contract tests for `GET /api/v1/competitions/{id}/entries` — feeds T048's "Unassigned" source
+/// Contract tests for `GET /api/v1/competitions/{id}/entries` — feeds the "Unassigned" source
 /// column (every entry not currently on a table). ORGANIZER-only; `tastingTableId`/
 /// `tastingTableName` are null until an entry is assigned to a table via CreateTable/UpdateTable.
 /// </summary>
@@ -194,7 +194,7 @@ public sealed class GetEntriesListApiTests(ApiFactory factory) : IClassFixture<A
         Assert.Equal(6.20m, entry.GetProperty("abvPercent").GetDecimal());
     }
 
-    // ---- GET /entries: competition category + BJCP taxonomy category (T124) --------------------
+    // ---- GET /entries: competition category + BJCP taxonomy category --------------------
 
     [Fact]
     public async Task GetReturnsTheOrganizerDefinedCompetitionCategoryAndTheBjcpCategory()

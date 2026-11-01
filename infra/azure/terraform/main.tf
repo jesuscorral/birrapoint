@@ -1,5 +1,5 @@
 locals {
-  # Every deployed resource is named birrapoint-<environment>-<resource acronym> (T142, ADR-0021);
+  # Every deployed resource is named birrapoint-<environment>-<resource acronym> (ADR-0021);
   # the environment is lower-cased because Container Apps names only allow lowercase.
   environment = lower(var.environment)
   name_prefix = "birrapoint-${local.environment}"
@@ -49,7 +49,7 @@ resource "azurerm_resource_group" "main" {
   tags     = var.tags
 }
 
-# Console logs and platform metrics of every Container App (FR-048; OpenTelemetry export is T098).
+# Console logs and platform metrics of every Container App (FR-048; OpenTelemetry export is configured separately).
 resource "azurerm_log_analytics_workspace" "main" {
   name                = local.names.log_analytics_workspace
   location            = azurerm_resource_group.main.location

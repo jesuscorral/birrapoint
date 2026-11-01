@@ -3,7 +3,7 @@ using BirraPoint.Api.Features.Competitions.Features.CreateCompetition;
 
 namespace BirraPoint.Api.UnitTests.Competitions.Features.CreateCompetition;
 
-/// <summary>T025: CreateCompetitionCommandValidator — required fields, endDate &gt;= startDate, registration window, entry limit &gt; 0.</summary>
+/// <summary>CreateCompetitionCommandValidator — required fields, endDate &gt;= startDate, registration window, entry limit &gt; 0.</summary>
 public sealed class CreateCompetitionCommandValidatorTests
 {
     private static readonly DateOnly Today = new(2026, 1, 1);

@@ -42,7 +42,7 @@ describe('DetailsStepComponent', () => {
     return fixture;
   }
 
-  // T125: the shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
+  // The shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
   // forward. Previously each step rendered its own two-slot bar and they had drifted apart.
   it('renders the shared bar: Atrás, its own centre action, and Siguiente', () => {
     const fixture = createComponent();

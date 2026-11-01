@@ -8,11 +8,11 @@ import { UNCATEGORIZED_COLOR } from './category-color';
 import { JudgeSeatComponent } from './judge-seat.component';
 import type { JudgeListItem } from './table-management-api.service';
 
-// T048's "Unassigned" source column — deliberately a plain list (no table/seat iconography), the
-// entry point for dragging a judge/beer onto a MesaCard, and (T048A) an equally valid place to
+// The "Unassigned" source column — deliberately a plain list (no table/seat iconography), the
+// entry point for dragging a judge/beer onto a MesaCard, and an equally valid place to
 // click-open a beer/judge detail.
 //
-// T124: this is now a fixed side panel rather than one more wrapping card in the board flow, and
+// This is now a fixed side panel rather than one more wrapping card in the board flow, and
 // its beers render in the `full` token variant — style, competition category and real ABV are what
 // the organizer picks the next beer to place by, and this is the only place with the width to show
 // them. It scrolls independently so the tables grid beside it stays put while dragging.
@@ -136,8 +136,8 @@ export const UNASSIGNED_BEERS_LIST_ID = 'beers-unassigned';
       overscroll-behavior: contain;
     }
 
-    /* T125: the pool is the full width of the board now, not a sidebar, so beers lay out as a
-       grid. T125b caps its height and scrolls it internally: the pool sits above the tables rail
+    /* The pool is the full width of the board now, not a sidebar, so beers lay out as a
+       grid. The pool's height is capped and scrolls it internally: the pool sits above the tables rail
        now, and an uncapped pool would push the rail off screen exactly when the organizer has the
        most beers left to place. */
     .unassigned-list--beers {
@@ -166,12 +166,12 @@ export class UnassignedColumnComponent {
   readonly judges = input.required<JudgeListItem[]>();
   readonly beers = input.required<EntryListItem[]>();
   // The unfiltered size of the pool, so the heading can distinguish "3 left to place" from
-  // "3 match the current filter" (T125's toolbar). Equal to beers().length when no filter is
+  // "3 match the current filter" (the toolbar). Equal to beers().length when no filter is
   // applied — the board always knows the total, so there is no "unknown" case to model.
   readonly beersTotal = input.required<number>();
   readonly connectedJudgeListIds = input.required<string[]>();
   readonly connectedBeerListIds = input.required<string[]>();
-  // T125c: computed once by the board over every entry in the competition (assigned or not), so a
+  // Computed once by the board over every entry in the competition (assigned or not), so a
   // category's color stays identical whether its beers are seated on a table or still in this pool.
   readonly categoryColorMap = input.required<ReadonlyMap<string, string>>();
   // FR-061 / Session 2026-09-19 clarification: read-only wizard/table-board — both drop lists and

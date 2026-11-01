@@ -42,7 +42,7 @@ describe('BeerTokenComponent', () => {
     expect(token.getAttribute('data-entry-id')).toBe('e1');
   });
 
-  // T124 — this is the whole point of the `full` variant: while assigning a beer to a table the
+  // This is the whole point of the `full` variant: while assigning a beer to a table the
   // organizer needs style, competition category and real ABV without opening the detail modal.
   it('renders style, competition category, BJCP category and ABV in the full variant', () => {
     const fixture = createComponent(beerFixture(), 'full');
@@ -78,7 +78,7 @@ describe('BeerTokenComponent', () => {
     expect(chips).toEqual(['Estilos clásicos', '6.8% ABV']);
   });
 
-  // T125c: the mini token is a compact seated pill — BJCP style code plus the bare graduation
+  // The mini token is a compact seated pill — BJCP style code plus the bare graduation
   // only; no icon, no style name, no chips. The full variant (asserted above/below) is untouched
   // by this compaction.
   it('renders the style code and bare graduation in the mini variant, with no icon, style name or chips', () => {

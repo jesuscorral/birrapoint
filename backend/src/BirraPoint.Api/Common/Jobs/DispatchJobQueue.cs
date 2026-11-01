@@ -5,7 +5,7 @@ using BirraPoint.Api.Domain;
 namespace BirraPoint.Api.Common.Jobs;
 
 /// <summary>
-/// Enqueues a <see cref="DispatchJob"/> (T016/R-06). Call after your own business-transaction
+/// Enqueues a <see cref="DispatchJob"/> (R-06). Call after your own business-transaction
 /// commit, same convention as <see cref="Realtime.IEventPublisher"/> — enqueuing is itself a
 /// side effect that must not survive a rolled-back transaction.
 /// </summary>

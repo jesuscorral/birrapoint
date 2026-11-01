@@ -3,8 +3,8 @@ import { createJudgeUser, deleteUser, ProvisionedJudge } from './support/keycloa
 import { KEYCLOAK_ORIGIN, goToLogin, submitKeycloakLogin } from './support/auth';
 
 // quickstart.md scenario 1 / spec.md US1 (FR-001–FR-003). Asserts the TARGET nested landing URLs
-// (/organizer/dashboard, /judge/tables) that T024 introduces — today's app only has flat
-// /organizer and /judge placeholder routes, so this spec is expected to fail until T024 lands.
+// (/organizer/dashboard, /judge/tables) that the auth redesign introduces — today's app only has flat
+// /organizer and /judge placeholder routes, so this spec is expected to fail until it lands.
 
 const ORGANIZER_USERNAME = 'organizer';
 const ORGANIZER_PASSWORD = 'organizer';
@@ -67,7 +67,7 @@ test.describe('US1 — secure access with role-based entry', () => {
   }) => {
     // Login originates from '/' so the OAuth redirect_uri Keycloak completes the flow against stays
     // '/', and the eventual landing on /judge/tables can only be produced by the app's own
-    // post-login role redirect (T024) — not by a URL we ourselves navigated to mid-flow.
+    // post-login role redirect — not by a URL we ourselves navigated to mid-flow.
     await goToLogin(page);
 
     await submitKeycloakLogin(page, judge.email, judge.tempPassword);

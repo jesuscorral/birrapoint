@@ -1,4 +1,4 @@
-# Plan/apply-level tests of the AWS deployment (T145, ADR-0023). Every provider is mocked, so no
+# Plan/apply-level tests of the AWS deployment (ADR-0023). Every provider is mocked, so no
 # credentials are needed and nothing is created:
 #   terraform -chdir=infra/aws/terraform init -backend=false && terraform -chdir=infra/aws/terraform test
 # Tests that read the task definitions (they embed the CloudFront domains) or compare one resource's attribute with another's id use `command = apply` (against the
@@ -646,7 +646,7 @@ run "neon_org_id_is_used_when_set" {
   }
 }
 
-# --- Tags: the teardown sweep finds a deployment's resources by tag (T146) -------------------------
+# --- Tags: the teardown sweep finds a deployment's resources by tag -------------------------
 
 run "provider_default_tags_include_the_lower_cased_environment" {
   command = plan
@@ -752,7 +752,7 @@ run "keycloak_housekeeping_interval_keeps_neon_asleep" {
   }
 }
 
-# --- API health (T098, FR-048) -------------------------------------------------------------------
+# --- API health (FR-048) -------------------------------------------------------------------
 # The API has no ALB target group and its image has no curl, so ECS has no probe for it: nothing may
 # probe /health (its Postgres check would keep Neon awake 24/7, ADR-0025). /alive is for manual use.
 

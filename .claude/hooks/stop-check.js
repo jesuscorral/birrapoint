@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Stop hook: quality gate. Blocks Claude from finishing while changed code doesn't build, lint or
 // type-check (backend: dotnet build; frontend: ESLint on changed files + tsc; infra: terraform fmt;
-// harness: guard.js tests).
+// harness: guard.js tests; code: no tasks.md ids like T125 in comments or test names).
 // Only checks stacks with uncommitted changes, and skips a check whose inputs already passed, so
 // docs-only or repeated turns cost nothing.
 const { execSync } = require('child_process');
@@ -45,6 +45,8 @@ process.stdin.on('end', () => {
 
   // terraform is optional on dev machines; skip its check instead of failing when it's missing.
   const hasTerraform = () => { try { sh('terraform version', root, 15000); return true; } catch { return false; } };
+  // The task-id guard is a bash script; skip it where bash isn't installed.
+  const hasBash = () => { try { sh('bash --version', root, 15000); return true; } catch { return false; } };
 
   const frontendSources =changed.filter(f => /^frontend\/src\/.*\.(ts|html)$/.test(f) && fs.existsSync(path.join(root, f)));
   const checks = [
@@ -76,6 +78,13 @@ process.stdin.on('end', () => {
       cmd: 'terraform fmt -check -recursive infra',
       cwd: root,
       label: 'terraform fmt -check FAILED (run terraform fmt -recursive infra)'
+    },
+    {
+      name: 'task-ids',
+      files: (src => (src.length && hasBash() ? src : []))(changed.filter(f => /^(backend|frontend|infra|\.github)\//.test(f) && fs.existsSync(path.join(root, f)))),
+      cmd: 'bash .github/scripts/check-no-task-ids.sh',
+      cwd: root,
+      label: 'Task ids (T###) in code - cite FR-/SC-/US/ADR or the reason instead'
     },
     {
       name: 'guard-tests',

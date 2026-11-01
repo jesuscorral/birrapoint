@@ -420,7 +420,7 @@ function fromDescriptorsPayload(payload: EvaluationDescriptors | undefined): Des
   };
 }
 
-// T059/US7: the offline-first blind evaluation sheet (FR-022/FR-023/FR-025/FR-026/FR-027,
+// US7: the offline-first blind evaluation sheet (FR-022/FR-023/FR-025/FR-026/FR-027,
 // SC-003). Judge-facing — only ever renders/handles blindCode + style (BR-01/FR-019); never an
 // entrant field. All persistence (drafts, outbox, replay) is delegated to SyncService — this
 // component never touches Dexie or the network directly.
@@ -1402,7 +1402,7 @@ export class EvaluationSheetComponent implements OnInit, OnDestroy {
     } catch (error) {
       this.submitting.set(false);
 
-      // T087/US12: submitting after this judge was removed mid-session hits the same
+      // US12: submitting after this judge was removed mid-session hits the same
       // JudgeTableAccess membership guard as every other judge-workspace endpoint, which 404s (no
       // dedicated urn) the instant RemovedAt is set server-side. Eject immediately rather than
       // just showing an inert error message and relying solely on the live JudgeRemoved hub event
@@ -1578,7 +1578,7 @@ export class EvaluationSheetComponent implements OnInit, OnDestroy {
     }
   }
 
-  // T087/US12 — same reasoning as judge-table-order.component.ts's handler: this DTO never carries
+  // US12 — same reasoning as judge-table-order.component.ts's handler: this DTO never carries
   // this session's own judgeId, so a JudgeRemoved event for this table can't be matched directly.
   // Re-verify membership instead; a 404 means it was this judge, anything else means it wasn't.
   private handleJudgeRemovedEvent(): void {

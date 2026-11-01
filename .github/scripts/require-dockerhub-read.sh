@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fails when the Docker Hub read-only pull credentials are missing, empty or blank (T131).
+# Fails when the Docker Hub read-only pull credentials are missing, empty or blank.
 # Terraform requires both values; failing early keeps the run from reaching the approval gate.
 #
 #   DOCKERHUB_USERNAME=... DOCKERHUB_READ_TOKEN=... require-dockerhub-read.sh

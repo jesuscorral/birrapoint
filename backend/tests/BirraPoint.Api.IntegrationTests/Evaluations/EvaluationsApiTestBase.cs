@@ -129,7 +129,7 @@ public abstract class EvaluationsApiTestBase(ApiFactory factory)
     }
 
     /// <summary>Directly assigns SequenceOrder (1..M, per <paramref name="orderedEntryIds"/>) and
-    /// sets OrderFixedByJudgeId/OrderFixedAt — mirrors what POST .../order (FixOrder, T050) would
+    /// sets OrderFixedByJudgeId/OrderFixedAt — mirrors what POST .../order (FixOrder) would
     /// do, without needing the extra HTTP round-trip for tests that only care about downstream
     /// evaluation preconditions.</summary>
     private protected async Task FixOrderDirectlyAsync(Guid tableId, Guid judgeId, List<Guid> orderedEntryIds)

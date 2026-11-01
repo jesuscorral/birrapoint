@@ -1,6 +1,6 @@
 namespace BirraPoint.Api.Domain;
 
-/// <summary>Bundled results ZIP for a competition (T074/FR-040), upserted by CompetitionId on regeneration.</summary>
+/// <summary>Bundled results ZIP for a competition (FR-040), upserted by CompetitionId on regeneration.</summary>
 internal class ResultsArchive : Entity
 {
     public Guid CompetitionId { get; set; }

@@ -13,7 +13,7 @@ namespace BirraPoint.Api.Features.Judges;
 internal sealed record SendInvitationPayload(Guid JudgeId);
 
 /// <summary>
-/// First real <see cref="IDispatchJobHandler"/> (T041). Tracks outcome on the <see
+/// First real <see cref="IDispatchJobHandler"/>. Tracks outcome on the <see
 /// cref="Invitation"/> row independently of <see cref="DispatchJob"/>'s own Attempts/LastError —
 /// on failure it rethrows so <see cref="DispatchWorker"/>'s existing retry/backoff
 /// (<see cref="DispatchRetryPolicy"/>) schedules the reattempt; this handler never retries on its own.

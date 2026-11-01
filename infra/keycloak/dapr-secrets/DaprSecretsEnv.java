@@ -12,7 +12,7 @@ import java.util.regex.Pattern;
 
 /**
  * Reads Keycloak's secrets from the Dapr secret store (Key Vault, via the Container App's
- * system-assigned managed identity; T142, ADR-0021) and prints them as shell `export` lines for
+ * system-assigned managed identity; ADR-0021) and prints them as shell `export` lines for
  * docker-entrypoint.sh to eval before starting Keycloak. Nothing else is printed to stdout;
  * progress goes to stderr and never includes a secret value.
  *

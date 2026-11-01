@@ -6,7 +6,7 @@ using ClosedXML.Excel;
 namespace BirraPoint.Api.UnitTests.Import.CommonComponents;
 
 /// <summary>
-/// T031: pure parsing tests for <see cref="WorkbookParser"/> against contracts/import-file.md —
+/// Pure parsing tests for <see cref="WorkbookParser"/> against contracts/import-file.md —
 /// the ACCE club's Spanish-header `.xlsx` format: header matching, row status assignment
 /// (Valid/StyleMismatch/CategoryMismatch/Invalid), typed date/number cell parsing, and style/
 /// category matching.

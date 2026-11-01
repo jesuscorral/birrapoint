@@ -38,7 +38,7 @@ function splitEmails(raw: string): string[] {
     .filter((email) => email.length > 0);
 }
 
-// T043: paste-list registration -> created/skipped report -> delivery status table, kept as one
+// Paste-list registration -> created/skipped report -> delivery status table, kept as one
 // signal-driven component (no stepper) since the registration form and the status list are both
 // always visible together, mirroring the entry-import feature's shape.
 @Component({

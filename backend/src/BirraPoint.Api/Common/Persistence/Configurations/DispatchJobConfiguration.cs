@@ -6,7 +6,7 @@ namespace BirraPoint.Api.Common.Persistence.Configurations;
 
 /// <summary>
 /// No optimistic-concurrency token: overlapping API revisions (ACA rollouts) are made safe by an
-/// atomic claim instead (T129) — DispatchWorker selects `FOR UPDATE SKIP LOCKED`, marks the job
+/// atomic claim instead — DispatchWorker selects `FOR UPDATE SKIP LOCKED`, marks the job
 /// Running with LeaseOwner/LeaseExpiresAt, and finishes it only `WHERE LeaseOwner = me`. Running
 /// jobs whose lease expired (crashed worker) are recovered through the normal retry path.
 /// </summary>

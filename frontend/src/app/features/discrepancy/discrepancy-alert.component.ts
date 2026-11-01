@@ -125,7 +125,7 @@ interface AdjustFormState {
   error: string | null;
 }
 
-// T082/US11: judge-facing discrepancy consensus screen (FR-031/FR-032). Only ever renders
+// US11: judge-facing discrepancy consensus screen (FR-031/FR-032). Only ever renders
 // blindCode + judgeDisplayName/total from DiscrepancyView — the BR-01/FR-019 anonymity boundary
 // — never an entrant field. The adjustment PUT assumes connectivity (see
 // DiscrepancyApiService's doc comment); it is not routed through the offline outbox.

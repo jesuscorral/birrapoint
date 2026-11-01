@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace BirraPoint.Api.Common.RateLimiting;
 
-/// <summary>Bound from <c>RateLimiting:NotifyJudges</c> (T147/FR-065).</summary>
+/// <summary>Bound from <c>RateLimiting:NotifyJudges</c> (FR-065).</summary>
 internal sealed class NotifyJudgesRateLimitOptions
 {
     public const string SectionName = "RateLimiting:NotifyJudges";

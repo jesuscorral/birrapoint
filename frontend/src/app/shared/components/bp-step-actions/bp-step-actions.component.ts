@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 
 import { BpButtonComponent } from '../bp-button/bp-button.component';
 
-// T125: the wizard's six steps each grew their own action bar, and they drifted — step 1 had a raw
+// The wizard's six steps each grew their own action bar, and they drifted — step 1 had a raw
 // <button> link where the others had a ghost bp-button, step 2's primary said "Guardar borrador"
 // where every other step said "Continuar", step 3 carried two different back affordances side by
 // side, and step 6 had no forward action at all. This is the single bar all of them now render.

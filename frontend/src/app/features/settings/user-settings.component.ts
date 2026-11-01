@@ -16,7 +16,7 @@ import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-sh
 // role order is arbitrary.
 const APP_REALM_ROLES = ['ORGANIZER', 'JUDGE'] as const;
 
-// T126: a settings page for the identity data the app actually has access to. Identity is
+// A settings page for the identity data the app actually has access to. Identity is
 // Keycloak-only (constitution Principle VII — no custom login/user-data backend), so every field
 // here comes straight from keycloak-js: loadUserProfile() for the profile attributes, and
 // tokenParsed.realm_access.roles for the realm role(s). There are no custom Keycloak user

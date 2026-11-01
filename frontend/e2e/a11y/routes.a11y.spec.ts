@@ -11,7 +11,7 @@ import {
   WIZARD_STEPS,
 } from '../support/organizer-wizard';
 
-// T089/SC-009: WCAG 2.1 AA sweep (Constitution Principle VIII) across every organizer and
+// SC-009: WCAG 2.1 AA sweep (Constitution Principle VIII) across every organizer and
 // judge-facing route in src/app/app.routes.ts. One continuous, realistic journey — reusing the
 // exact login/setup helpers other US* specs already use — rather than 12 independent tests each
 // re-paying full Keycloak+import+table setup, since axe-core's own check is cheap relative to

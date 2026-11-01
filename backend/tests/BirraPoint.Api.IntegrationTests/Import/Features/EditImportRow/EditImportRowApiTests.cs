@@ -6,7 +6,7 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 namespace BirraPoint.Api.IntegrationTests.Import.Features.EditImportRow;
 
 /// <summary>
-/// T032: HTTP-level contract tests for the full-row-edit PUT /competitions/{id}/imports/{importId}/rows/{rowNumber}.
+/// HTTP-level contract tests for the full-row-edit PUT /competitions/{id}/imports/{importId}/rows/{rowNumber}.
 /// </summary>
 public sealed class EditImportRowApiTests(ApiFactory factory) : ImportApiTestBase(factory), IClassFixture<ApiFactory>
 {

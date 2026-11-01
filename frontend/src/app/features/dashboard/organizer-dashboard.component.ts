@@ -34,15 +34,15 @@ const ADVANCE_LABEL: Record<CompetitionState, string | null> = {
   Finalized: null,
 };
 
-// T100/US13: post-login ORGANIZER landing — every competition the caller has created
+// US13: post-login ORGANIZER landing — every competition the caller has created
 // (contracts/rest-api.md GET /competitions), so they can resume or start work without knowing or
 // typing an internal address. Selecting a Draft *or* Active competition reopens the six-step setup
-// wizard (T127 — Active previously opened the standalone table board directly, which read as "the
+// wizard (Active previously opened the standalone table board directly, which read as "the
 // wizard lost its steps"; the wizard's step 6 embeds that same board); InEvaluation and Finalized
-// go to the live monitoring dashboard (T070/US9) — there's nothing left to set up once evaluation
+// go to the live monitoring dashboard (US9) — there's nothing left to set up once evaluation
 // has started.
 //
-// T102/FR-051: the advance-state action lives as a sibling of the navigation `<a>`, never nested
+// FR-051: the advance-state action lives as a sibling of the navigation `<a>`, never nested
 // inside it — a `<button>` inside an `<a>` is invalid HTML and an accessibility hazard (nested
 // interactive controls). The transition is irreversible and forward-only, so it goes through the
 // same explicit-confirm pattern as judge-table-order.component.ts's "Fix order": `alertdialog` +
@@ -384,7 +384,7 @@ export class OrganizerDashboardComponent {
     });
   }
 
-  // T127/FR-061: the wizard is now reachable in every competition state (all 6 steps always
+  // FR-061: the wizard is now reachable in every competition state (all 6 steps always
   // visible, read-only once evaluation starts), so Draft and Active both resolve to the wizard
   // route — Active jumps straight to step 6 (tables), its natural next step, via the query param
   // the wizard itself reads on deep link. InEvaluation/Finalized still go to the live monitor,

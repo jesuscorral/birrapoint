@@ -1,4 +1,4 @@
-# Deploy pipeline (FR-064c, T136, T143). Manually triggered, approval-gated: runs the full
+# Deploy pipeline (FR-064c). Manually triggered, approval-gated: runs the full
 # Terraform apply (infra/azure/terraform) for the azure-production environment with the released image
 # versions (<ns>/birrapoint-<component>-release:X.Y.Z, published by release.yml). Terraform owns
 # the running image, so a rollout is an apply with other versions; rollback = run it again with the
@@ -90,7 +90,7 @@ jobs:
           DOCKERHUB_READ_TOKEN: ${{ secrets.DOCKERHUB_READ_TOKEN }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_READ_TOKEN }}
         run: |
-          # Fail before the approval gate: Terraform requires both values (T131).
+          # Fail before the approval gate: Terraform requires both values.
           .github/scripts/require-dockerhub-read.sh
           # Same file, same image_namespace as the apply below (ADR-0022): no separate variable.
           varfile="infra/azure/terraform/environments/${BIRRAPOINT_ENVIRONMENT,,}.tfvars"

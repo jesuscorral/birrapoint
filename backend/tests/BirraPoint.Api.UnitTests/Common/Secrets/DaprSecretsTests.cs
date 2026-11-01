@@ -7,7 +7,7 @@ using Microsoft.Extensions.Configuration;
 namespace BirraPoint.Api.UnitTests.Common.Secrets;
 
 /// <summary>
-/// T142 (ADR-0021): in Azure the API reads its secrets from the Dapr secret store backed by Key
+/// ADR-0021: in Azure the API reads its secrets from the Dapr secret store backed by Key
 /// Vault instead of from environment settings. The pure decisions — whether the store is enabled,
 /// which secrets are requested and how their Key Vault names map onto configuration keys — are
 /// kept out of Program.cs so they're unit-testable without a Dapr sidecar.

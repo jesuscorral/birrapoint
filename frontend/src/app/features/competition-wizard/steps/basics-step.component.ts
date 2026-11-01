@@ -158,7 +158,7 @@ function toGenericApiError(error: unknown): ApiError {
         margin-inline: auto;
       }
 
-      /* T125: the wizard shell is full width now, so form steps keep their own readable measure
+      /* The wizard shell is full width now, so form steps keep their own readable measure
          here instead of relying on a narrow shell. The action bar stays outside this wrapper: it
          is the card's footer and spans the card's full width on every step. */
       .step-form {
@@ -285,7 +285,7 @@ export class BasicsStepComponent {
     });
   }
 
-  // T125: "Guardar borrador" now lives in the shared action bar's centre zone instead of inside a
+  // "Guardar borrador" now lives in the shared action bar's centre zone instead of inside a
   // leave-confirmation dialog — the organizer can save and step away at any point, and the wizard
   // header's own "Volver al listado" handles the unsaved-changes prompt.
   protected onSaveAndLeave(): void {

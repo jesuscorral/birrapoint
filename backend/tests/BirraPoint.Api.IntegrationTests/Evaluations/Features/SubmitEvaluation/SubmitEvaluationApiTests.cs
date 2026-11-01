@@ -14,7 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace BirraPoint.Api.IntegrationTests.Evaluations.Features.SubmitEvaluation;
 
 /// <summary>
-/// T056: HTTP-level contract tests for POST /me/tables/{tableId}/evaluations (contracts/rest-api.md
+/// HTTP-level contract tests for POST /me/tables/{tableId}/evaluations (contracts/rest-api.md
 /// §Judge workspace) — the full FR-022 precondition chain (state/order-fixed/table-closed/
 /// out-of-sequence → 409), FR-023/FR-025 boundary validation (→ 400), the FR-029/R-07 idempotent
 /// replay (→ 200 with the stored result), and the concurrency race the unique index backstops.
@@ -351,7 +351,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : EvaluationsAp
         // offline outbox's replay engine exists for: the original submission succeeded and
         // committed, but the client never saw the ack (dropped connection) and later replays it —
         // by which point the table has since closed. Must still be 200 with the stored result, not
-        // 409 table-closed (senior-code-reviewer finding on PR #22).
+        // 409 table-closed.
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var fixture = await SeedReadyTableAsync(organizer);
 

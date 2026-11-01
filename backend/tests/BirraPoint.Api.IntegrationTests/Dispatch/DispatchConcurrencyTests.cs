@@ -13,7 +13,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace BirraPoint.Api.IntegrationTests.Dispatch;
 
 /// <summary>
-/// T129 (PR #46 review M3): DispatchJob must be safe under overlapping API revisions. Several
+/// DispatchJob must be safe under overlapping API revisions. Several
 /// API hosts (each with its own DispatchWorker) share one Postgres; jobs are claimed atomically
 /// (FOR UPDATE SKIP LOCKED + lease) and only expired leases are resumed. The shared base
 /// ApiFactory host is never started here (its worker would run the real handlers): jobs are
@@ -242,7 +242,7 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
     [Fact]
     public async Task StartingWorkerLeavesFreshRunningJobWithNullLeaseAlone()
     {
-        // A pre-T129 revision marks jobs Running without a lease while its handler is mid-flight.
+        // A pre-lease revision marks jobs Running without a lease while its handler is mid-flight.
         var competitionId = await SeedCompetitionAsync();
         var running = await SeedJobAsync(competitionId, DispatchJobStatus.Running);
         await BackdateUpdatedAtAsync(running.Id, TimeSpan.Zero);

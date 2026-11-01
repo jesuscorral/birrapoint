@@ -14,7 +14,7 @@ using Testcontainers.PostgreSql;
 namespace BirraPoint.Api.IntegrationTests.TestHost;
 
 /// <summary>
-/// T018: hosts the real API in-process against a dedicated PostgreSQL Testcontainer (one per
+/// Hosts the real API in-process against a dedicated PostgreSQL Testcontainer (one per
 /// test class, mirrors Persistence/PostgresFixture — InitialCreate + BJCP seed applied once) and
 /// swaps JWT validation to trust <see cref="TestJwtIssuer"/> instead of a live Keycloak discovery
 /// round-trip.
@@ -65,7 +65,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:db"] = _container.GetConnectionString(),
-                // SendInvitationHandler (T041) requires this to build the invitation email body;
+                // SendInvitationHandler requires this to build the invitation email body;
                 // only real AppHost env injection sets it outside this test host.
                 ["Frontend:BaseUrl"] = "http://localhost:4200",
             });
@@ -81,7 +81,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 options.TokenValidationParameters = TestJwtIssuer.ValidationParameters;
             });
 
-            // Judge provisioning/invitation delivery (T039/T040/T041) has no real Keycloak Admin
+            // Judge provisioning/invitation delivery has no real Keycloak Admin
             // API or SMTP server in the test environment — swap in in-memory fakes. RemoveAll is
             // needed because IKeycloakAdminClient is registered via AddHttpClient<,> (a typed
             // client, not a plain AddScoped) in Program.cs.

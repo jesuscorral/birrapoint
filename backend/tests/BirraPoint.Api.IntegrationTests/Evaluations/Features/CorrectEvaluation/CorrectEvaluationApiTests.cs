@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace BirraPoint.Api.IntegrationTests.Evaluations.Features.CorrectEvaluation;
 
 /// <summary>
-/// T063: HTTP-level contract tests for PUT /competitions/{id}/evaluations/{evaluationId}
+/// HTTP-level contract tests for PUT /competitions/{id}/evaluations/{evaluationId}
 /// (contracts/rest-api.md §Monitoring &amp; audit, FR-035) — the organizer post-close correction
 /// (recomputed total/mean, audited, descriptors preserved, organizer-ownership-scoped 404s, same
 /// boundary validation as judge submission).

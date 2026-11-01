@@ -6,7 +6,7 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 namespace BirraPoint.Api.IntegrationTests.Import.Features.UploadImport;
 
 /// <summary>
-/// T032: HTTP-level contract tests for POST /competitions/{id}/imports (contracts/rest-api.md §Entry
+/// HTTP-level contract tests for POST /competitions/{id}/imports (contracts/rest-api.md §Entry
 /// Import, contracts/import-file.md) against the ACCE club's Spanish-header `.xlsx` format — auth and
 /// ownership, row-level parsing statuses, the file-level `400 invalid-import-file` rejections and the
 /// single-active-batch rule.

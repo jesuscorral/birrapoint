@@ -6,12 +6,12 @@ using BirraPoint.Api.Features.TastingOrder.CommonComponents;
 namespace BirraPoint.Api.UnitTests.TastingOrder.Features.FixOrder;
 
 /// <summary>
-/// T050: pure FixOrder rules (US6-4) — permutation validation and the one-shot/state-gating
+/// Pure FixOrder rules (US6-4) — permutation validation and the one-shot/state-gating
 /// checks the handler runs under the table's row lock. Exercises <see cref="TastingOrderRules"/>
 /// directly (same "pure rule class beside the DB-touching handler" pattern already used by
 /// Features/Tables/LiveEditRules) rather than the full MediatR handler, which
 /// needs a real transaction/row lock against Postgres (Testcontainers, integration-test
-/// territory per the constitution's ban on EF InMemory) — FixOrderApiTests.cs (T051) covers the
+/// territory per the constitution's ban on EF InMemory) — FixOrderApiTests.cs covers the
 /// end-to-end handler behavior, including the concurrent-fixer race.
 /// </summary>
 public sealed class FixOrderTests

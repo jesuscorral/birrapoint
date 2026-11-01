@@ -14,7 +14,7 @@ function errorMessage(error: ApiError): string {
   return error.detail ?? error.title;
 }
 
-// T060B/FR-049: collapsible, read-only BJCP 2021 guide-description panel inside the evaluation
+// FR-049: collapsible, read-only BJCP 2021 guide-description panel inside the evaluation
 // sheet. Public reference data, not competition- or entrant-specific — no BR-01/FR-019 anonymity
 // concern (unlike everything else on this screen, which must never render an entrant field).
 //

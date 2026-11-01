@@ -14,7 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace BirraPoint.Api.IntegrationTests.Judges;
 
 /// <summary>
-/// T111: HTTP-level contract tests for the Judge Roster Import slice (contracts/rest-api.md
+/// HTTP-level contract tests for the Judge Roster Import slice (contracts/rest-api.md
 /// §Judge Roster Import, contracts/judge-import-file.md) — upload → row results, the full-row-edit
 /// PUT, the exclude action, consolidation gating (409 unresolved-import-rows while any row is
 /// Invalid), successful consolidation creating/updating judges and enqueuing

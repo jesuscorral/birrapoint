@@ -5,7 +5,7 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 namespace BirraPoint.Api.IntegrationTests.TastingOrder.Features.GetMyTables;
 
 /// <summary>
-/// T051: HTTP-level contract tests for GET /me/tables (contracts/rest-api.md §Judge workspace) —
+/// HTTP-level contract tests for GET /me/tables (contracts/rest-api.md §Judge workspace) —
 /// active-membership scoping and Active+ competition visibility.
 /// </summary>
 public sealed class GetMyTablesApiTests(ApiFactory factory) : TastingOrderApiTestBase(factory), IClassFixture<ApiFactory>

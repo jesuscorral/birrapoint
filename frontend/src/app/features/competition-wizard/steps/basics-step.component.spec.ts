@@ -86,7 +86,7 @@ describe('BasicsStepComponent', () => {
     expect(button.disabled).toBe(false);
   });
 
-  // T125: the shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
+  // The shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
   // forward. Previously each step rendered its own two-slot bar and they had drifted apart.
   // Step 1 has no previous step, so the back zone is empty.
   it('renders the shared bar with "Guardar borrador" and "Siguiente" (step 1 has no previous step)', () => {
@@ -191,7 +191,7 @@ describe('BasicsStepComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Name is already in use');
   });
 
-  // T125: leaving the wizard moved to the shell's own header link, guarded by the wizard's
+  // Leaving the wizard moved to the shell's own header link, guarded by the wizard's
   // unsaved-changes dialog. What remains here is the action bar's "Guardar borrador", which now
   // saves directly instead of only existing inside a leave-confirmation dialog.
   it('saves as a draft and navigates to the organizer dashboard on "Guardar borrador"', () => {

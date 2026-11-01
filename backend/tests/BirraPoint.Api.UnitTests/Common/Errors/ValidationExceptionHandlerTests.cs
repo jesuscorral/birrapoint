@@ -32,7 +32,7 @@ public sealed class ValidationExceptionHandlerTests
         var errors = body.GetProperty("errors");
         // Keys are camelCase ("name", not "name") even though FluentValidation's PropertyName is
         // PascalCase — every other JSON body in this API is camelCase, and System.Text.Json's
-        // naming policy never touches Dictionary<string,T> keys on its own (T025-T030 review).
+        // naming policy never touches Dictionary<string,T> keys on its own.
         Assert.Equal(2, errors.GetProperty("name").GetArrayLength());
         Assert.Equal(1, errors.GetProperty("endDate").GetArrayLength());
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for .github/scripts/version.sh (T135). Run: bash .github/scripts/version.test.sh
+# Tests for .github/scripts/version.sh. Run: bash .github/scripts/version.test.sh
 set -uo pipefail
 
 script="$(dirname "${BASH_SOURCE[0]}")/version.sh"

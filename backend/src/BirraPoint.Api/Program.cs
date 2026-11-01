@@ -26,12 +26,12 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
-// Community license (T074) — required before the first document generation or QuestPDF throws.
+// Community license — required before the first document generation or QuestPDF throws.
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Secrets from Key Vault through the Dapr secret store when Dapr:SecretStore is set (Azure, T142/
+// Secrets from Key Vault through the Dapr secret store when Dapr:SecretStore is set (Azure,
 // ADR-0021); first, so every registration below already sees them. Locally: plain settings.
 builder.Configuration.AddDaprSecrets();
 
@@ -46,17 +46,17 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("db", tags: ["ready"]);
 
-// JWT bearer against Keycloak, deny-by-default fallback policy, ORGANIZER/JUDGE role policies (T011),
-// audience validation pinned to Keycloak:ApiAudience via the birrapoint-spa audience mapper (T017/ADR-0009).
+// JWT bearer against Keycloak, deny-by-default fallback policy, ORGANIZER/JUDGE role policies,
+// audience validation pinned to Keycloak:ApiAudience via the birrapoint-spa audience mapper (ADR-0009).
 builder.Services.AddKeycloakAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
 
-// Per-organizer throttle on POST .../judges/notify (T147/FR-065).
+// Per-organizer throttle on POST .../judges/notify (FR-065).
 builder.Services.ConfigureRateLimiting();
 
-// ProblemDetails + exception-handler chain for the 15 urn:birrapoint:* error types (T012).
+// ProblemDetails + exception-handler chain for the 15 urn:birrapoint:* error types.
 builder.Services.AddProblemDetailsErrorHandling();
 
-// OpenAPI document, served at /openapi/v1.json in Development (T017 — arrives with the first
+// OpenAPI document, served at /openapi/v1.json in Development (arrives with the first
 // business endpoint).
 builder.Services.AddOpenApi();
 
@@ -65,13 +65,13 @@ builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
-// MediatR + FluentValidation ValidationBehavior pipeline (T013).
+// MediatR + FluentValidation ValidationBehavior pipeline.
 builder.Services.AddMediatRWithValidation(typeof(Program).Assembly);
 
-// Immutable audit trail writer (T014).
+// Immutable audit trail writer.
 builder.Services.AddScoped<IAuditWriter, AuditWriter>();
 
-// CompetitionHub + emit-after-commit event dispatcher (T015). Enum payload fields (e.g.
+// CompetitionHub + emit-after-commit event dispatcher. Enum payload fields (e.g.
 // DispatchProgress's `status`) serialize as their name, not the default int, matching the
 // string-enum convention already used for the domain in the database (ADR-0004) and the wire
 // examples in contracts/rest-api.md.
@@ -79,7 +79,7 @@ builder.Services.AddSignalR()
     .AddJsonProtocol(options => options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddSingleton<IEventPublisher, EventPublisher>();
 
-// DispatchJob queue + hosted worker (T016/R-06): Channel<Guid> wakes the worker immediately on
+// DispatchJob queue + hosted worker (R-06): Channel<Guid> wakes the worker immediately on
 // enqueue; the worker's own periodic safety-net poll (Dispatch:SafetyNetPollInterval) covers any missed signal.
 builder.Services.AddSingleton(Channel.CreateUnbounded<Guid>());
 builder.Services.AddSingleton<IDispatchWakeUp, ChannelDispatchWakeUp>();
@@ -90,7 +90,7 @@ builder.Services.AddOptions<DispatchOptions>()
     .ValidateOnStart();
 builder.Services.AddHostedService<DispatchWorker>();
 
-// Judge provisioning (R-10/T040): Keycloak Admin REST API via a typed HttpClient (client-credentials
+// Judge provisioning (R-10): Keycloak Admin REST API via a typed HttpClient (client-credentials
 // grant against Keycloak:AdminClientId/AdminClientSecret).
 builder.Services.AddHttpClient<IKeycloakAdminClient, KeycloakAdminClient>();
 builder.Services.AddSingleton<IValidateOptions<KeycloakAdminOptions>, KeycloakAdminOptionsValidator>();
@@ -98,25 +98,25 @@ builder.Services.AddOptions<KeycloakAdminOptions>()
     .BindConfiguration(KeycloakAdminOptions.SectionName)
     .ValidateOnStart();
 
-// Invitation/result email delivery (R-10/T041): MailKit against Smtp:Host/Smtp:Port (Mailpit locally).
+// Invitation/result email delivery (R-10): MailKit against Smtp:Host/Smtp:Port (Mailpit locally).
 builder.Services.AddScoped<IEmailSender, MailKitEmailSender>();
 
-// First DispatchJobHandler (T041): SendInvitation, auto-discovered by DispatchWorker.
+// First DispatchJobHandler: SendInvitation, auto-discovered by DispatchWorker.
 builder.Services.AddScoped<IDispatchJobHandler, SendInvitationHandler>();
 
-// Judge account provisioning without email (T116/R-20/US14) — enqueued eagerly by both
+// Judge account provisioning without email (R-20/US14) — enqueued eagerly by both
 // RegisterJudges and ConsolidateJudgeImport; SendInvitation is enqueued only by the explicit
 // "Notify judges" action.
 builder.Services.AddScoped<IDispatchJobHandler, ProvisionJudgeAccountHandler>();
 
-// Results dispatch pipeline (T075/FR-036/FR-040/FR-041): GeneratePdfs -> BundleZip -> SendResultEmail,
+// Results dispatch pipeline (FR-036/FR-040/FR-041): GeneratePdfs -> BundleZip -> SendResultEmail,
 // each enqueuing the next on success, auto-discovered by DispatchWorker like SendInvitation above.
 builder.Services.AddScoped<IDispatchJobHandler, GeneratePdfsHandler>();
 builder.Services.AddScoped<IDispatchJobHandler, BundleZipHandler>();
 builder.Services.AddScoped<IDispatchJobHandler, SendResultEmailHandler>();
 
 // The Angular dev server runs on a different origin (:4200) than the API (:5121/:7075) — the
-// browser needs this to call REST/hub endpoints directly (T020). Development only; production
+// browser needs this to call REST/hub endpoints directly. Development only; production
 // topology (same-origin behind ACA ingress or otherwise) is a Phase 16 decision. No
 // AllowCredentials: auth is bearer-token (header or SignalR's ?access_token=), never cookies.
 if (builder.Environment.IsDevelopment())
@@ -137,7 +137,7 @@ builder.Services.AddHsts(options =>
 
 var app = builder.Build();
 
-// Production topology (T095-T097): the API runs behind an nginx reverse proxy inside the ACA
+// Production topology: the API runs behind an nginx reverse proxy inside the ACA
 // environment (internal-only ingress; TLS terminates at ACA ingress, nginx talks to the API over
 // plain HTTP forwarding X-Forwarded-For/Proto/Host). Runs first, before any other middleware that
 // reads Request.Scheme/Host. KnownNetworks/KnownProxies are cleared because ACA's internal network
@@ -169,13 +169,13 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Enforces the NotifyJudges rate limit (T147/FR-065); all other endpoints are unthrottled.
+// Enforces the NotifyJudges rate limit (FR-065); all other endpoints are unthrottled.
 app.UseRateLimiter();
 
 // /health and /alive endpoints (Development only by default).
 app.MapDefaultEndpoints();
 
-// OpenAPI document (T017), gated to Development like the health endpoints above, plus the
+// OpenAPI document, gated to Development like the health endpoints above, plus the
 // Swagger UI on top of it at /swagger (Swashbuckle UI middleware only — document generation
 // stays with the built-in Microsoft.AspNetCore.OpenApi). AllowAnonymous: the fallback policy
 // (AuthenticationExtensions.cs) requires an authenticated user on every mapped endpoint by
@@ -186,41 +186,41 @@ if (app.Environment.IsDevelopment())
     app.MapSwaggerUI("swagger", options => options.SwaggerEndpoint("/openapi/v1.json", "BirraPoint API v1")).AllowAnonymous();
 }
 
-// CompetitionHub: server → client notifications only (T015).
+// CompetitionHub: server → client notifications only.
 app.MapHub<CompetitionHub>("/hubs/competition");
 
-// First REST slice (T017): GET /api/v1/styles.
+// First REST slice: GET /api/v1/styles.
 app.MapCatalogEndpoints();
 
-// Competitions wizard/lifecycle (T027/T028).
+// Competitions wizard/lifecycle.
 app.MapCompetitionsEndpoints();
 
-// Entry import: upload, mapping/correction, consolidation (T031/T033-T035).
+// Entry import: upload, mapping/correction, consolidation.
 app.MapImportEndpoints();
 
-// Judge bulk registration, invitations, email correction (T042).
+// Judge bulk registration, invitations, email correction.
 app.MapJudgesEndpoints();
 
-// Judge roster import: upload, mapping/correction, consolidation (T115/US14).
+// Judge roster import: upload, mapping/correction, consolidation (US14).
 app.MapJudgeImportEndpoints();
 
-// Tasting tables: create/update with transactional COI validation + BOS flagging, list (T047).
+// Tasting tables: create/update with transactional COI validation + BOS flagging, list.
 app.MapTablesEndpoints();
 
-// Judge workspace: assigned tables, blind samples, fix tasting order (T050-T052).
+// Judge workspace: assigned tables, blind samples, fix tasting order.
 app.MapTastingOrderEndpoints();
 
-// Judge workspace: submit evaluations, idempotent replay (T055-T058).
+// Judge workspace: submit evaluations, idempotent replay.
 app.MapEvaluationsEndpoints();
 
-// Organizer dashboard: table progress snapshot, per-entry audit drill-down (T068-T069).
+// Organizer dashboard: table progress snapshot, per-entry audit drill-down.
 app.MapMonitoringEndpoints();
 
-// Results archive download, per-participant email status, manual retry (T072-T076).
+// Results archive download, per-participant email status, manual retry.
 app.MapDispatchEndpoints();
 
-// EF migrations apply on startup in Development (T009); outside Development, only when
-// Database:MigrateOnStartup=true (T095-T097 — Terraform sets this on the single long-running API
+// EF migrations apply on startup in Development; outside Development, only when
+// Database:MigrateOnStartup=true (Terraform sets this on the single long-running API
 // replica, so every start of that replica migrates over Neon before serving traffic). The BJCP
 // seed ships as part of the migrations, so this covers it too. Migrates over the non-pooled
 // ConnectionStrings:dbDirect when configured (Neon's pooled ConnectionStrings:db breaks EF's

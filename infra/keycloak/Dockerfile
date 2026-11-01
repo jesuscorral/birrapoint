@@ -7,7 +7,7 @@
 # at import time from container environment variables. Database, hostname and bootstrap admin
 # credentials are likewise runtime environment variables (KC_DB_URL, KC_HOSTNAME, ...). In Azure the
 # secret ones are read at start from the Dapr secret store (Key Vault) by docker-entrypoint.sh
-# (T142, ADR-0021); without DAPR_SECRET_STORE the image behaves exactly like stock Keycloak.
+# (ADR-0021); without DAPR_SECRET_STORE the image behaves exactly like stock Keycloak.
 
 ARG KEYCLOAK_VERSION=26.2
 
@@ -44,7 +44,7 @@ FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}
 # Repeated from the builder stage on purpose: Keycloak reads `cache` again at run time, and with the
 # default (`ispn`) the JDBC_PING cluster discovery starts despite the image having been built local.
 ENV KC_CACHE=local
-# Production has no admin console UI (T130): `admin` is the console UI, `admin-api` (the Admin REST API
+# Production has no admin console UI: `admin` is the console UI, `admin-api` (the Admin REST API
 # used by the API's judge provisioning) stays enabled. A build-time option, repeated here so the
 # optimized start sees the same value. Admin tasks go through kcadm.sh (deployment runbooks).
 ENV KC_FEATURES_DISABLED=admin

@@ -1,4 +1,4 @@
-# Keycloak production administration (T130)
+# Keycloak production administration
 
 Shared by the Azure and AWS deployments. The production image (`infra/keycloak/Dockerfile`) is
 hardened; this page lists what that means for operators.

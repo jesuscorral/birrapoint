@@ -42,7 +42,7 @@ async function getAdminToken(): Promise<string> {
   return body.access_token;
 }
 
-// Mirrors the shape T040's KeycloakAdminClient will use in-app: temporary password + required
+// Mirrors the shape the app's KeycloakAdminClient will use in-app: temporary password + required
 // action UPDATE_PASSWORD, so the forced-change flow this spec asserts is the real one (FR-003).
 export async function createJudgeUser(email: string): Promise<ProvisionedJudge> {
   const token = await getAdminToken();
@@ -56,7 +56,7 @@ export async function createJudgeUser(email: string): Promise<ProvisionedJudge> 
       username: email,
       email,
       // firstName/lastName avoid Keycloak's default User Profile config adding an unplanned
-      // VERIFY_PROFILE required action after UPDATE_PASSWORD — a real invited judge (T040) would
+      // VERIFY_PROFILE required action after UPDATE_PASSWORD — a real invited judge would
       // always have these, so this keeps the test flow representative rather than a workaround.
       firstName: 'Test',
       lastName: 'Judge',
@@ -113,7 +113,7 @@ export async function createJudgeUser(email: string): Promise<ProvisionedJudge> 
   return { id, email, tempPassword };
 }
 
-// Read-only regression helper for T127-ish work: confirms a judge provisioned through the real
+// Read-only regression helper: confirms a judge provisioned through the real
 // app code path (KeycloakAdminClient, via judge registration or roster import + "Notificar")
 // actually ended up with the JUDGE realm role assigned — the bug this branch fixes is that it
 // previously never did, so every invited judge got 403 on every judge endpoint forever. Looks the

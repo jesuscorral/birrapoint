@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.IntegrationTests.Auth;
 
 /// <summary>
-/// T021: diagnostic-only endpoints under <c>/__test/</c>, registered exclusively inside
+/// Diagnostic-only endpoints under <c>/__test/</c>, registered exclusively inside
 /// <see cref="AuthPolicyTests"/> via <c>ConfigureTestServices</c> — never shipped, never listed
 /// in contracts/rest-api.md. This branch has no real ORGANIZER-only + owner-scoped REST endpoint
 /// yet (that lives only in unmerged Phase 4 work), so these endpoints exercise the real

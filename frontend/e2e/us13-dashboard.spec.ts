@@ -16,7 +16,7 @@ import { goToLogin, submitKeycloakLogin } from './support/auth';
 // runs, and forcing that state would require deleting the shared account's competitions —
 // destructive to every other spec that depends on them. The empty-state branch (acceptance
 // scenario 4) is already covered by OrganizerDashboardComponent's own Jest spec
-// (frontend/src/app/features/dashboard/organizer-dashboard.component.spec.ts, T100:
+// (frontend/src/app/features/dashboard/organizer-dashboard.component.spec.ts:
 // "shows an empty state with a create action when the organizer has no competitions").
 
 const ORGANIZER_USERNAME = 'organizer';
@@ -49,13 +49,13 @@ function dashboardItem(page: Page, name: string): Locator {
 }
 
 // The advance-state button lives as a sibling of the navigation `<a>` inside the shared
-// `<li class="competition-list-row">` (T102, FR-051) — a row-scoped locator is what lets us find
+// `<li class="competition-list-row">` (FR-051) — a row-scoped locator is what lets us find
 // it without also matching another competition's identically-labelled action.
 function competitionRow(page: Page, name: string): Locator {
   return page.locator('li.competition-list-row').filter({ hasText: name });
 }
 
-// Drives the real advance-state UI (T102): click the row's action, confirm the resulting
+// Drives the real advance-state UI: click the row's action, confirm the resulting
 // `alertdialog`, and wait for it to close. Caller must already be on /organizer/dashboard. Works
 // for both the success path (list refetches, badge updates in place) and the two documented 409
 // paths (component closes the dialog and renders a `role="alert"` message either way) — assertions

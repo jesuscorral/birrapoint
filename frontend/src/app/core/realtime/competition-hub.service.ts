@@ -11,8 +11,8 @@ export type HubConnectionFactory = () => HubConnection;
 
 /**
  * Injectable seam so tests substitute a hand-rolled fake HubConnection instead of a mocking
- * library (same "real/fake collaborator over mock" convention as the backend's T011/T015 tests).
- * The default factory captures the live Keycloak instance (provided by keycloak-angular, T019)
+ * library (same "real/fake collaborator over mock" convention as the backend's tests).
+ * The default factory captures the live Keycloak instance (provided by keycloak-angular)
  * so the hub handshake authenticates via `?access_token=`, per contracts/signalr-hub.md.
  */
 export const COMPETITION_HUB_CONNECTION_FACTORY = new InjectionToken<HubConnectionFactory>(
@@ -29,7 +29,7 @@ export const COMPETITION_HUB_CONNECTION_FACTORY = new InjectionToken<HubConnecti
             // @microsoft/signalr defaults withCredentials to true, which requires the backend's
             // CORS policy to set AllowCredentials — it doesn't (auth here is bearer-token via
             // ?access_token=, never cookies), so the negotiate request and any long-polling/SSE
-            // fallback would fail the browser's CORS check without this (T020 review).
+            // fallback would fail the browser's CORS check without this.
             withCredentials: false,
           })
           .withAutomaticReconnect()
@@ -39,7 +39,7 @@ export const COMPETITION_HUB_CONNECTION_FACTORY = new InjectionToken<HubConnecti
 );
 
 /**
- * CompetitionHub client (T020): connection lifecycle + group membership tracking so a dropped
+ * CompetitionHub client: connection lifecycle + group membership tracking so a dropped
  * connection re-joins every group the caller had joined once `onreconnected` fires — "clients
  * re-join their groups on onreconnected" per contracts/signalr-hub.md. Re-fetching state after
  * reconnect (events are notifications, not the source of truth) is each feature's job, not this
@@ -65,7 +65,7 @@ export class CompetitionHubService {
     connection.onclose(() => {
       // Fires when withAutomaticReconnect() gives up (retries exhausted) or stop() was called —
       // either way the connection is dead. Clear it so a later start() rebuilds instead of
-      // silently no-op'ing forever (T020 review).
+      // silently no-op'ing forever.
       this.connection = null;
       this.state.set(HubConnectionState.Disconnected);
     });
@@ -126,7 +126,7 @@ export class CompetitionHubService {
   private async rejoinTrackedGroups(connection: HubConnection): Promise<void> {
     // allSettled, not all: one rejoin failing (e.g. a removed judge, lost ownership) must not
     // abort the rest, and this is a fire-and-forget call from onreconnected — an unhandled
-    // rejection here would otherwise escape it (T020 review).
+    // rejection here would otherwise escape it.
     await Promise.allSettled([
       ...[...this.joinedCompetitions].map((id) =>
         connection.invoke('JoinCompetitionAsOrganizer', id),

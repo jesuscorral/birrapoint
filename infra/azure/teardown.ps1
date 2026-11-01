@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     Removes ABSOLUTELY EVERYTHING of the BirraPoint cloud environment - Azure and Neon, data
-    included - so the next deploy starts from scratch (T143).
+    included - so the next deploy starts from scratch.
 
 .DESCRIPTION
     Always a full wipe, no data is kept:

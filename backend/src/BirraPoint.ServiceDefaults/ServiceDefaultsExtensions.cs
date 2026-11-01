@@ -104,7 +104,7 @@ public static class ServiceDefaultsExtensions
         ArgumentNullException.ThrowIfNull(app);
 
         // Mapped in ALL environments (FR-048). Anonymous: probes carry no bearer token and the
-        // deny-by-default fallback policy (T011) would block them. Security: the default plain-text
+        // deny-by-default fallback policy would block them. Security: the default plain-text
         // writer emits only the bare status ("Healthy"/"Degraded"/"Unhealthy"), never check names or
         // exception details. /health runs every check including the DB, so cloud liveness probes must
         // use /alive (Neon scale-to-zero would otherwise be kept awake, ADR-0025).

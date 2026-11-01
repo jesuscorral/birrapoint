@@ -9,7 +9,7 @@ export interface BeerDetailContent {
   id: string;
   blindCode: string;
   styleName: string;
-  // T124: the same two independent category axes the beer token shows — the organizer-defined
+  // The same two independent category axes the beer token shows — the organizer-defined
   // competition category (wizard step 3) and the BJCP taxonomy's own.
   competitionCategoryName: string | null;
   bjcpCategoryNumber: string | null;
@@ -35,7 +35,7 @@ export interface TableOption {
   name: string;
 }
 
-// T048A (click-to-detail) + the keyboard-accessible equivalent of T048B's drag-and-drop
+// Click-to-detail + the keyboard-accessible equivalent of the drag-and-drop
 // reassignment: the "Move to" control lets a keyboard-only user reassign a judge/beer to a
 // different table (or back to Unassigned) without ever touching the CDK drag gesture.
 @Component({

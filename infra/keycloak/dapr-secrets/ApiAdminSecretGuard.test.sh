@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests of the entrypoint fail-fast on a missing API_ADMIN_CLIENT_SECRET (T130). The real kc.sh is
+# Tests of the entrypoint fail-fast on a missing API_ADMIN_CLIENT_SECRET. The real kc.sh is
 # replaced by a stub (KC_BIN) that records it was reached.
 #   bash infra/keycloak/dapr-secrets/ApiAdminSecretGuard.test.sh
 set -euo pipefail

@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import { TableBoardComponent } from '../../table-management/table-board.component';
 import { BpStepActionsComponent } from '../../../shared/components/bp-step-actions/bp-step-actions.component';
 
-// T123: wizard step 6 ("Mesas") — a thin wrapper embedding the already-fully-built,
+// Wizard step 6 ("Mesas") — a thin wrapper embedding the already-fully-built,
 // route-agnostic TableBoardComponent, following the same input/output contract every other
 // wizard step uses. This is the last step, so its forward action reads "Finalizar" and leaves the
 // wizard rather than advancing. It emits rather than navigating: the shell owns the FR-007

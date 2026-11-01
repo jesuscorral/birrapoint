@@ -2,7 +2,7 @@ using Microsoft.Extensions.Options;
 
 namespace BirraPoint.Api.Common.Jobs;
 
-/// <summary>Bound from the <c>Dispatch</c> configuration section (T129, T132).</summary>
+/// <summary>Bound from the <c>Dispatch</c> configuration section.</summary>
 internal sealed class DispatchOptions
 {
     public const string SectionName = "Dispatch";
@@ -17,7 +17,7 @@ internal sealed class DispatchOptions
     public TimeSpan LeaseDuration { get; set; } = TimeSpan.FromMinutes(2);
 
     /// <summary>Interval of the worker's periodic sweep (pending claim + expired-lease recovery).
-    /// Every sweep runs queries, so a short interval keeps a scale-to-zero database (Neon, T132)
+    /// Every sweep runs queries, so a short interval keeps a scale-to-zero database (Neon)
     /// awake around the clock; production sets this to hours (<c>Dispatch__SafetyNetPollInterval</c>).
     /// Enqueues, manual retries and in-process backoff retries wake the worker directly, so this
     /// only bounds crash recovery and cross-replica pickup latency.</summary>

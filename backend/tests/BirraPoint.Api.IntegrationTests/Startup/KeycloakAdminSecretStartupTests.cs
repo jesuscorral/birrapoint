@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace BirraPoint.Api.IntegrationTests.Startup;
 
 /// <summary>
-/// T130: proves the KeycloakAdminOptions ValidateOnStart registration in Program.cs is wired — a
+/// Proves the KeycloakAdminOptions ValidateOnStart registration in Program.cs is wired — a
 /// Production host without a real Keycloak:AdminClientSecret must refuse to start, naming the key
 /// but never echoing the placeholder value. No database is needed: validation fails during host
 /// start, before any request or migration.

@@ -2,7 +2,7 @@ import path from 'node:path';
 import { test, expect, Page, Locator } from '@playwright/test';
 import { goToLogin, submitKeycloakLogin } from './support/auth';
 
-// quickstart.md scenario 5 / spec.md US5 (FR-016/FR-017/FR-018), extended per tasks.md T049:
+// quickstart.md scenario 5 / spec.md US5 (FR-016/FR-017/FR-018), extended with:
 // assigning a judge onto a table alongside a beer they own -> 409 conflict-of-interest, nothing
 // persisted; assigning a judge who owns a *different*, still-unassigned entry -> succeeds and
 // flags that entry Not Valid for BOS; click-to-detail (beer + judge, including on already-assigned

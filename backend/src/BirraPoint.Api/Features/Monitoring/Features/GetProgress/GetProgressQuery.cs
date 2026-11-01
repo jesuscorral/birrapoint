@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Features.Monitoring.Features.GetProgress;
 
-/// <summary>GET /competitions/{id}/progress (contracts/rest-api.md §Monitoring &amp; audit, T068):
+/// <summary>GET /competitions/{id}/progress (contracts/rest-api.md §Monitoring &amp; audit):
 /// initial dashboard state, deltas afterwards arrive via the EvaluationCompleted SignalR event.
 /// Returns null when not found or not owned by the caller — the endpoint maps that to a plain 404
 /// (same convention as ListEntriesQuery).</summary>
@@ -36,7 +36,7 @@ internal sealed class GetProgressQueryHandler(AppDbContext dbContext, ICurrentUs
         var tableIds = tables.Select(t => t.Id).ToList();
 
         // Three grouped queries (constant round trips regardless of table count) instead of a
-        // per-table loop (senior-code-reviewer finding on PR #24) — this feeds a live dashboard
+        // per-table loop — this feeds a live dashboard
         // organizers reload during an active event, so cost shouldn't grow linearly with table count.
         var judgeCounts = await dbContext.TableJudges
             .Where(tj => tableIds.Contains(tj.TastingTableId) && tj.RemovedAt == null)

@@ -1,8 +1,8 @@
-# Infrastructure checks (FR-064, T134, T143, T144): static validation of infra/ only - Terraform
+# Infrastructure checks (FR-064): static validation of infra/ only - Terraform
 # formatting, validation and the plan-level `terraform test` suite (mocked providers: no backend,
 # no credentials, no plan/apply against Azure or AWS), the Pester tests of the pure logic behind
 # infra/<cloud>/teardown.ps1 (infra/<cloud>/tests), and the tests of the Keycloak image's Dapr secret loader
-# (T142). Runs only when infra/ changes. It never deploys: infrastructure is applied by
+#. Runs only when infra/ changes. It never deploys: infrastructure is applied by
 # deploy-<cloud>.yml or locally with `terraform apply`.
 name: Infra
 
@@ -60,7 +60,7 @@ jobs:
       - run: terraform -chdir=infra/${{ matrix.cloud }}/terraform validate
       - run: terraform -chdir=infra/${{ matrix.cloud }}/terraform test
 
-  # The Keycloak image's Dapr secret loader (T142), entrypoint guard and production realm (T130):
+  # The Keycloak image's Dapr secret loader, entrypoint guard and production realm:
   # JDK 21 is preinstalled on the runner.
   keycloak-dapr-secrets:
     runs-on: ubuntu-latest
@@ -71,7 +71,7 @@ jobs:
           persist-credentials: false
       - run: PATH="$JAVA_HOME_21_X64/bin:$PATH" bash infra/keycloak/dapr-secrets/DaprSecretsEnv.test.sh
       - run: bash infra/keycloak/dapr-secrets/ApiAdminSecretGuard.test.sh
-      # Production realm hardening (T130); jq and python3 are preinstalled on the runner.
+      # Production realm hardening; jq and python3 are preinstalled on the runner.
       - run: bash infra/keycloak/RealmProd.test.sh
 
   pester:

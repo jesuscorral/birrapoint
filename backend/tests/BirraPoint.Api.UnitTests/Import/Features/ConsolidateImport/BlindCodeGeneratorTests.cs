@@ -3,7 +3,7 @@ using BirraPoint.Api.Features.Import.Features.ConsolidateImport;
 
 namespace BirraPoint.Api.UnitTests.Import.Features.ConsolidateImport;
 
-/// <summary>T031: blind-code generation is collision-safe within a competition-scoped batch.</summary>
+/// <summary>Blind-code generation is collision-safe within a competition-scoped batch.</summary>
 public sealed class BlindCodeGeneratorTests
 {
     [Fact]
