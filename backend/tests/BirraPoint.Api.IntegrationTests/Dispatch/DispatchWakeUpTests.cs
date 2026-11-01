@@ -10,6 +10,7 @@ using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Features.Dispatch;
+using BirraPoint.Api.Features.Dispatch.CommonComponents;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;

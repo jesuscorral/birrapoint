@@ -15,7 +15,11 @@ describe('TablesApiService', () => {
   const table: TableSummary = {
     id: 't1',
     name: 'Mesa 1',
-    judges: [{ id: 'j1', email: 'ada@example.com', displayName: 'Ada Lovelace' }],
+    judges: [
+      { id: 'j1', email: 'ada@example.com', displayName: 'Ada Lovelace' },
+      { id: 'j2', email: 'grace@example.com', displayName: 'Grace Hopper' },
+    ],
+    samples: [{ beerEntryId: 'e1' }, { beerEntryId: 'e2' }],
   };
 
   beforeEach(() => {
@@ -42,15 +46,20 @@ describe('TablesApiService', () => {
     expect(await result).toEqual([table]);
   });
 
-  it('removeJudge() deletes the judge from the table', async () => {
-    const result = firstValueFrom(service.removeJudge('c1', 't1', 'j1'));
+  it('removeJudge() PUTs the table without the judge (full replace)', async () => {
+    const result = firstValueFrom(service.removeJudge('c1', table, 'j1'));
 
     const req = httpMock.expectOne(
-      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/tables/t1/judges/j1`,
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/tables/t1`,
     );
-    expect(req.request.method).toBe('DELETE');
-    req.flush({ tableId: 't1', judgeId: 'j1' });
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({
+      name: 'Mesa 1',
+      judgeIds: ['j2'],
+      beerEntryIds: ['e1', 'e2'],
+    });
+    req.flush({ ...table, judges: [table.judges[1]], bosFlaggedEntryIds: [] });
 
-    expect(await result).toEqual({ tableId: 't1', judgeId: 'j1' });
+    expect((await result).judges.map((j) => j.id)).toEqual(['j2']);
   });
 });

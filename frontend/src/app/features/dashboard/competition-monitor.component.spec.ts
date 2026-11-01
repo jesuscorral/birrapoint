@@ -21,6 +21,7 @@ import type { TableSummary } from '../../core/api/tables-api.service';
 import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
 import type {
   EvaluationCompletedEvent,
+  JudgeRemovedEvent,
   TableClosedEvent,
   TableOrderFixedEvent,
 } from '../../core/realtime/competition-hub.events';
@@ -115,6 +116,7 @@ function tableSummaryFixture(overrides: Partial<TableSummary> = {}): TableSummar
     id: 't1',
     name: 'Mesa 1',
     judges: [{ id: 'j1', email: 'grace@example.com', displayName: 'Grace Hopper' }],
+    samples: [{ beerEntryId: 'e1' }, { beerEntryId: 'e2' }],
     ...overrides,
   };
 }
@@ -168,11 +170,13 @@ describe('CompetitionMonitorComponent', () => {
   let evaluationCompletedSubject: Subject<EvaluationCompletedEvent>;
   let tableClosedSubject: Subject<TableClosedEvent>;
   let tableOrderFixedSubject: Subject<TableOrderFixedEvent>;
+  let judgeRemovedSubject: Subject<JudgeRemovedEvent>;
 
   beforeEach(() => {
     evaluationCompletedSubject = new Subject<EvaluationCompletedEvent>();
     tableClosedSubject = new Subject<TableClosedEvent>();
     tableOrderFixedSubject = new Subject<TableOrderFixedEvent>();
+    judgeRemovedSubject = new Subject<JudgeRemovedEvent>();
 
     fakeCompetitionsApi = { getById: jest.fn().mockReturnValue(of(competitionFixture())) };
     fakeMonitoringApi = {
@@ -194,6 +198,9 @@ describe('CompetitionMonitorComponent', () => {
         }
         if (event === 'TableOrderFixed') {
           return tableOrderFixedSubject.asObservable();
+        }
+        if (event === 'JudgeRemoved') {
+          return judgeRemovedSubject.asObservable();
         }
         return evaluationCompletedSubject.asObservable();
       }),
@@ -506,7 +513,9 @@ describe('CompetitionMonitorComponent', () => {
     });
 
     it('removes a judge only after the confirm step, updating the list without a refetch', async () => {
-      fakeTablesApi.removeJudge.mockReturnValue(of({ tableId: 't1', judgeId: 'j1' }));
+      fakeTablesApi.removeJudge.mockReturnValue(
+        of({ ...tableSummaryFixture({ judges: [] }), bosFlaggedEntryIds: [] }),
+      );
       const fixture = createComponent();
       await flush();
       fixture.detectChanges();
@@ -527,7 +536,7 @@ describe('CompetitionMonitorComponent', () => {
       await flush();
       fixture.detectChanges();
 
-      expect(fakeTablesApi.removeJudge).toHaveBeenCalledWith('c1', 't1', 'j1');
+      expect(fakeTablesApi.removeJudge).toHaveBeenCalledWith('c1', tableSummaryFixture(), 'j1');
       expect(fixture.nativeElement.textContent).not.toContain('Grace Hopper');
       expect(fakeTablesApi.getTables).not.toHaveBeenCalled();
     });
@@ -579,6 +588,79 @@ describe('CompetitionMonitorComponent', () => {
 
       expect(fixture.nativeElement.textContent).toContain('Table or judge not found.');
       expect(fixture.nativeElement.textContent).toContain('Grace Hopper');
+    });
+
+    async function openConfirmAndSubmit(fixture: ReturnType<typeof createComponent>) {
+      (
+        fixture.nativeElement.querySelector(
+          '[data-judge-id="j1"] .remove-judge-action',
+        ) as HTMLButtonElement
+      ).click();
+      fixture.detectChanges();
+      buttonWithText(fixture.nativeElement, 'Confirm remove judge').click();
+      fixture.detectChanges();
+      await flush();
+      fixture.detectChanges();
+    }
+
+    it('replaces the table row with the authoritative PUT response body', async () => {
+      fakeTablesApi.removeJudge.mockReturnValue(
+        of(
+          tableSummaryFixture({
+            judges: [{ id: 'j9', email: 'x@example.com', displayName: 'Server Side Judge' }],
+          }),
+        ),
+      );
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      await openConfirmAndSubmit(fixture);
+
+      expect(fixture.nativeElement.textContent).toContain('Server Side Judge');
+      expect(fixture.nativeElement.textContent).not.toContain('Grace Hopper');
+    });
+
+    it('on 409 refetches the tables and asks the organizer to retry', async () => {
+      fakeTablesApi.removeJudge.mockReturnValue(
+        throwError(() => new ApiError({ status: 409, title: 'Conflict', urn: null })),
+      );
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+      fakeTablesApi.getTables.mockClear();
+      fakeTablesApi.getTables.mockReturnValue(
+        of([
+          tableSummaryFixture({
+            judges: [{ id: 'j2', email: 'ada@example.com', displayName: 'Fresh Judge' }],
+          }),
+        ]),
+      );
+
+      await openConfirmAndSubmit(fixture);
+
+      expect(fakeTablesApi.getTables).toHaveBeenCalledWith('c1');
+      const alert = fixture.nativeElement.querySelector('[role="alert"]') as Element;
+      expect(alert.textContent).toContain('This table changed in the meantime');
+      expect(fixture.nativeElement.textContent).toContain('Fresh Judge');
+      expect(fixture.nativeElement.textContent).not.toContain('Grace Hopper');
+    });
+
+    it('drops the judge from the table when a JudgeRemoved hub event arrives', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Grace Hopper');
+
+      judgeRemovedSubject.next({ tableId: 't1', judgeId: 'j1', judgeDisplayName: 'Grace Hopper' });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).not.toContain('Grace Hopper');
+
+      // Idempotent: a repeat (or an unknown table) is a no-op.
+      judgeRemovedSubject.next({ tableId: 't1', judgeId: 'j1' });
+      judgeRemovedSubject.next({ tableId: 'nope', judgeId: 'j1' });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).not.toContain('Grace Hopper');
     });
   });
 

@@ -44,6 +44,7 @@
       "Bash(terraform -chdir=infra/aws/terraform validate:*)",
       "Bash(terraform -chdir=infra/aws/terraform test:*)",
       "Bash(node .claude/hooks/guard.test.js)",
+      "Bash(node .claude/scripts/move-namespace.mjs:*)",
       "Bash(bash .github/scripts/version.test.sh)",
       "Bash(bash .github/scripts/wait-revisions.test.sh)",
       "Bash(bash .github/scripts/ecs-health.test.sh)",
@@ -51,6 +52,7 @@
       "Bash(bash infra/keycloak/dapr-secrets/DaprSecretsEnv.test.sh)",
       "Bash(bash infra/keycloak/dapr-secrets/ApiAdminSecretGuard.test.sh)",
       "Bash(bash infra/keycloak/RealmProd.test.sh)",
+
       "Bash(docker info:*)",
       "Bash(docker ps:*)",
       "Bash(docker build:*)",

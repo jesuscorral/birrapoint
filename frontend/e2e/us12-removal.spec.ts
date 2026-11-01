@@ -567,14 +567,15 @@ test.describe('US12 — live judge removal', () => {
       await expect(dashboardJudgeRow(page, mesa1Id, judgeAId)).toBeVisible();
 
       // --- The actual removal: a real UI action (Remove -> confirm) while judge A's session is
-      // still open mid-draft on sample 2. Captures two effects of that one action: the DELETE
-      // itself (200), and judge A's own live-JudgeRemoved-triggered re-check of table membership
+      // still open mid-draft on sample 2. Captures two effects of that one action: the removal
+      // PUT itself (200, ADR-0030), and judge A's own live-JudgeRemoved-triggered re-check of
+      // table membership
       // (GET .../samples -- 404, FR-039's "subsequent request 404s") ---
-      const [deleteResponse, samplesRecheckResponse] = await Promise.all([
+      const [removalResponse, samplesRecheckResponse] = await Promise.all([
         page.waitForResponse(
           (response) =>
-            response.request().method() === 'DELETE' &&
-            /\/api\/v1\/competitions\/.+\/tables\/.+\/judges\/.+$/.test(
+            response.request().method() === 'PUT' &&
+            new RegExp(`/api/v1/competitions/.+/tables/${mesa1Id}$`).test(
               new URL(response.url()).pathname,
             ),
         ),
@@ -588,7 +589,7 @@ test.describe('US12 — live judge removal', () => {
         ),
         removeJudgeViaDashboard(page, mesa1Id, judgeAId),
       ]);
-      expect(deleteResponse.status()).toBe(200);
+      expect(removalResponse.status()).toBe(200);
       expect(samplesRecheckResponse.status()).toBe(404);
 
       // --- Judge A's live session ejects within the realtime propagation budget: no manual
@@ -603,8 +604,8 @@ test.describe('US12 — live judge removal', () => {
       await expect(ejectionBanner).toContainText('You were removed from Mesa 1 by the organizer.');
 
       // --- Organizer's dashboard: judge A's row is gone, judge B's stays -- the removal only
-      // affected the targeted judge, and required no refetch to reflect (T087's optimistic
-      // client-side update on a successful DELETE) ---
+      // affected the targeted judge, and required no refetch to reflect (the dashboard
+      // applies the PUT response, ADR-0030) ---
       await expect(dashboardJudgeRow(page, mesa1Id, judgeAId)).toHaveCount(0);
       await expect(tableProgressRow(page, mesa1Id)).toContainText(judgeBDisplayName);
 

@@ -3,6 +3,7 @@ using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.Features.Judges.CommonComponents.Dtos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -88,7 +89,7 @@ internal sealed class ConsolidateJudgeImportCommandHandler(
             if (judgesByEmail.TryGetValue(email, out var judge))
             {
                 // Last-import-wins within this competition — same policy as beer-entry
-                // Participant matching (ConsolidateImport.cs). Duplicate emails within the same
+                // Participant matching (Features/Import/Features/ConsolidateImport/ConsolidateImportCommand.cs). Duplicate emails within the same
                 // file resolve to a single upsert (FR-058): the later row's values win since rows
                 // are processed in RowNumber order.
                 judge.DisplayName = row.Name!;
@@ -147,7 +148,7 @@ internal sealed class ConsolidateJudgeImportCommandHandler(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // Enqueued only after the SaveChangesAsync above commits (same convention as
-        // RegisterJudges.cs/IDispatchJobQueue elsewhere) — ProvisionJudgeAccount only, never
+        // RegisterJudgesCommand.cs/IDispatchJobQueue elsewhere) — ProvisionJudgeAccount only, never
         // SendInvitation (R-20/FR-057).
         foreach (var judge in judgesToProvision)
         {

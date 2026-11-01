@@ -19,7 +19,7 @@ internal sealed record ParsedJudgeImportRow(
 /// <summary>
 /// Implements contracts/judge-import-file.md: first worksheet only, row 1 is the header (case
 /// -insensitive/trimmed, order-independent), parsing stops at the first fully empty row. Unlike
-/// Features/Import/WorkbookParser, no cell resolves against any catalog — BJCP rank, BJCP ID, and
+/// Features/Import/CommonComponents/WorkbookParser, no cell resolves against any catalog — BJCP rank, BJCP ID, and
 /// preferred category are all stored verbatim as free text; only Name/Email presence and
 /// well-formedness determine Valid/Invalid (FR-056). File-level problems (not `.xlsx`, no
 /// worksheet, missing required columns, zero data rows) throw <see cref="DomainException"/> with

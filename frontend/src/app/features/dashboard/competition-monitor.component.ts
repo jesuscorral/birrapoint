@@ -28,6 +28,7 @@ import type { TableJudge, TableSummary } from '../../core/api/tables-api.service
 import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
 import type {
   EvaluationCompletedEvent,
+  JudgeRemovedEvent,
   TableClosedEvent,
   TableOrderFixedEvent,
 } from '../../core/realtime/competition-hub.events';
@@ -329,6 +330,7 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
   private evaluationCompletedSubscription: Subscription | null = null;
   private tableClosedSubscription: Subscription | null = null;
   private tableOrderFixedSubscription: Subscription | null = null;
+  private judgeRemovedSubscription: Subscription | null = null;
 
   protected readonly competition = signal<CompetitionDetail | null>(null);
   protected readonly tableRows = signal<TableProgressSummary[]>([]);
@@ -399,6 +401,7 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
     this.evaluationCompletedSubscription?.unsubscribe();
     this.tableClosedSubscription?.unsubscribe();
     this.tableOrderFixedSubscription?.unsubscribe();
+    this.judgeRemovedSubscription?.unsubscribe();
     void this.hub.leaveCompetition(this.competitionId).catch(() => {
       // Best-effort: leaving on navigation-away is a courtesy, not a functional requirement.
     });
@@ -450,7 +453,7 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
     this.confirmingRemoveJudge.set(null);
   }
 
-  // T087/US12: optimistic on success — the DELETE response is the source of truth for whether the
+  // T087/US12: optimistic on success — the PUT response is the source of truth for whether the
   // removal happened at all (a 404 rejects it below), so once it succeeds there's nothing left to
   // reconcile by re-fetching the whole table list just to drop one judge from one row.
   protected onConfirmRemoveJudge(): void {
@@ -458,24 +461,36 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
     if (!target || this.removingJudge()) {
       return;
     }
+    const table = this.tables().find((candidate) => candidate.id === target.tableId);
+    if (!table) {
+      this.confirmingRemoveJudge.set(null);
+      return;
+    }
     this.removingJudge.set(true);
     this.removeJudgeError.set(null);
 
-    this.tablesApi.removeJudge(this.competitionId, target.tableId, target.judgeId).subscribe({
-      next: () => {
+    this.tablesApi.removeJudge(this.competitionId, table, target.judgeId).subscribe({
+      next: (updated) => {
         this.removingJudge.set(false);
         this.confirmingRemoveJudge.set(null);
+        // The response is the authoritative TableSummary (ADR-0030) — replace, don't filter.
         this.tables.update((tables) =>
-          tables.map((table) =>
-            table.id === target.tableId
-              ? { ...table, judges: table.judges.filter((judge) => judge.id !== target.judgeId) }
-              : table,
-          ),
+          tables.map((row) => (row.id === updated.id ? updated : row)),
         );
       },
       error: (error: unknown) => {
         this.removingJudge.set(false);
         this.confirmingRemoveJudge.set(null);
+        if (error instanceof ApiError && error.status === 409) {
+          // Our cached table was stale (changed elsewhere): re-fetch so a retry sends fresh state.
+          this.removeJudgeError.set(
+            'This table changed in the meantime. The list was refreshed — please try again.',
+          );
+          this.tablesApi.getTables(this.competitionId).subscribe({
+            next: (tables) => this.tables.set(tables),
+          });
+          return;
+        }
         this.removeJudgeError.set(errorMessage(toGenericApiError(error)));
       },
     });
@@ -512,6 +527,9 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
       this.tableOrderFixedSubscription = this.hub
         .on('TableOrderFixed')
         .subscribe((event) => this.applyTableOrderFixed(event));
+      this.judgeRemovedSubscription = this.hub
+        .on('JudgeRemoved')
+        .subscribe((event) => this.applyJudgeRemoved(event));
     } catch {
       // Realtime is a best-effort notification channel (contracts/signalr-hub.md): the dashboard
       // stays fully functional over REST without it — an organizer just won't see live progress
@@ -528,6 +546,16 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
   private applyTableClosed(event: TableClosedEvent): void {
     this.tableRows.update((rows) =>
       rows.map((row) => (row.tableId === event.tableId ? { ...row, state: 'Closed' } : row)),
+    );
+  }
+
+  private applyJudgeRemoved(event: JudgeRemovedEvent): void {
+    this.tables.update((tables) =>
+      tables.map((table) =>
+        table.id === event.tableId
+          ? { ...table, judges: table.judges.filter((judge) => judge.id !== event.judgeId) }
+          : table,
+      ),
     );
   }
 

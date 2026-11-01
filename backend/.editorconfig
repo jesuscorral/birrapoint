@@ -53,6 +53,9 @@ dotnet_style_object_initializer = true:suggestion
 dotnet_style_collection_initializer = true:suggestion
 
 csharp_style_namespace_declarations = file_scoped:warning
+# Namespace must mirror the folder path (rooted at the project's default namespace). Moving a class
+# without updating its namespace then fails the build; fix with .claude/scripts/move-namespace.mjs.
+dotnet_diagnostic.IDE0130.severity = warning
 csharp_style_var_for_built_in_types = true:suggestion
 csharp_style_var_when_type_is_apparent = true:suggestion
 csharp_style_var_elsewhere = true:suggestion
