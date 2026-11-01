@@ -233,13 +233,12 @@ in Azure Container Apps or ECS Fargate).
 
 **User Story 14 file locations** (the diagram above predates the ACCE-import wizard fold, ADR-0011,
 and is stale on where entry-import UI actually lives — this note is authoritative for the new work,
-not the diagram): backend adds `Features/Judges/JudgeImport*.cs` (upload/get/edit-row/exclude/
-consolidate handlers) and `Features/Judges/ProvisionJudgeAccountHandler.cs`
-(`IDispatchJobHandler` for the new job type), both new files in the existing `Features/Judges/`
-slice — no new slice directory. Frontend adds
+not the diagram): backend adds the judge-import slices under `Features/Import/` (upload/get/edit-row/exclude/
+consolidate, ADR-0032) and `Features/Judges/ProvisionJudgeAccountHandler.cs`
+(`IDispatchJobHandler` for the new job type) — no new feature directory. Frontend adds
 `features/competition-wizard/steps/judge-import-step.component.ts` (wizard step 5, sibling to
-`steps/import-step.component.ts` which it structurally mirrors) and a `core/api/judge-import-
-api.service.ts` alongside the existing `import-api.service.ts`; the "Notify judges" action and the
+`steps/beer-import-step.component.ts` which it structurally mirrors) and a `core/api/judge-import-
+api.service.ts` alongside the existing `beer-import-api.service.ts`; the "Notify judges" action and the
 judges list (now showing the four new roster fields) land in `features/judge-management/` (already
 the planned home for judge delivery status per the diagram above) rather than in the wizard, since
 FR-059 is explicitly a post-wizard, anytime action.

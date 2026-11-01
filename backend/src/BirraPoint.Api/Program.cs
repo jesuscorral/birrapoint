@@ -195,14 +195,11 @@ app.MapCatalogEndpoints();
 // Competitions wizard/lifecycle.
 app.MapCompetitionsEndpoints();
 
-// Entry import: upload, mapping/correction, consolidation.
+// Beer-entry and judge-roster import: upload, mapping/correction, consolidation.
 app.MapImportEndpoints();
 
 // Judge bulk registration, invitations, email correction.
 app.MapJudgesEndpoints();
-
-// Judge roster import: upload, mapping/correction, consolidation (US14).
-app.MapJudgeImportEndpoints();
 
 // Tasting tables: create/update with transactional COI validation + BOS flagging, list.
 app.MapTablesEndpoints();

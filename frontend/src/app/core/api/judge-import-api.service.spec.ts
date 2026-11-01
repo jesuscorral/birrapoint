@@ -54,7 +54,7 @@ describe('JudgeImportApiService', () => {
     const result = firstValueFrom(service.upload('c1', file));
 
     const req = httpMock.expectOne(
-      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/judge-imports`,
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/imports/judges`,
     );
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toBeInstanceOf(FormData);
@@ -68,7 +68,7 @@ describe('JudgeImportApiService', () => {
     const result = firstValueFrom(service.getImport('c1', 'i1'));
 
     const req = httpMock.expectOne(
-      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/judge-imports/i1`,
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/imports/judges/i1`,
     );
     expect(req.request.method).toBe('GET');
     req.flush(batch);
@@ -89,7 +89,7 @@ describe('JudgeImportApiService', () => {
     const result = firstValueFrom(service.editRow('c1', 'i1', 1, body));
 
     const req = httpMock.expectOne(
-      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/judge-imports/i1/rows/1`,
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/imports/judges/i1/rows/1`,
     );
     expect(req.request.method).toBe('PUT');
     expect(req.request.body).toEqual(body);
@@ -103,7 +103,7 @@ describe('JudgeImportApiService', () => {
     const result = firstValueFrom(service.excludeRow('c1', 'i1', 1));
 
     const req = httpMock.expectOne(
-      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/judge-imports/i1/rows/1/exclude`,
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/imports/judges/i1/rows/1/exclude`,
     );
     expect(req.request.method).toBe('POST');
     req.flush(updatedRow);
@@ -121,7 +121,7 @@ describe('JudgeImportApiService', () => {
     const result = firstValueFrom(service.consolidate('c1', 'i1'));
 
     const req = httpMock.expectOne(
-      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/judge-imports/i1/consolidate`,
+      `${TEST_APP_CONFIG.apiBaseUrl}/api/v1/competitions/c1/imports/judges/i1/consolidate`,
     );
     expect(req.request.method).toBe('POST');
     req.flush(consolidateResult);

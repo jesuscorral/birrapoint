@@ -887,7 +887,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("TastingTables");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Import.ImportBatch", b =>
+            modelBuilder.Entity("BirraPoint.Api.Features.Import.BeerImportBatch", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -913,10 +913,10 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("\"Status\" = 'Pending'");
 
-                    b.ToTable("ImportBatches");
+                    b.ToTable("ImportBatches", (string)null);
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Import.ImportRow", b =>
+            modelBuilder.Entity("BirraPoint.Api.Features.Import.BeerImportRow", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -928,6 +928,10 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.Property<string>("AcceMemberNumberText")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("BeerImportBatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ImportBatchId");
 
                     b.Property<string>("BeerName")
                         .HasMaxLength(200)
@@ -960,9 +964,6 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.Property<string>("Hops")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
-
-                    b.Property<Guid>("ImportBatchId")
-                        .HasColumnType("uuid");
 
                     b.Property<string>("Malts")
                         .HasMaxLength(1000)
@@ -1015,13 +1016,13 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ImportBatchId", "RowNumber")
+                    b.HasIndex("BeerImportBatchId", "RowNumber")
                         .IsUnique();
 
-                    b.ToTable("ImportRows");
+                    b.ToTable("ImportRows", (string)null);
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Judges.JudgeImportBatch", b =>
+            modelBuilder.Entity("BirraPoint.Api.Features.Import.JudgeImportBatch", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1050,7 +1051,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("JudgeImportBatches");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Judges.JudgeImportRow", b =>
+            modelBuilder.Entity("BirraPoint.Api.Features.Import.JudgeImportRow", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1315,7 +1316,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                         .HasForeignKey("OrderFixedByJudgeId");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Import.ImportBatch", b =>
+            modelBuilder.Entity("BirraPoint.Api.Features.Import.BeerImportBatch", b =>
                 {
                     b.HasOne("BirraPoint.Api.Domain.Competition", null)
                         .WithMany()
@@ -1324,16 +1325,16 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Import.ImportRow", b =>
+            modelBuilder.Entity("BirraPoint.Api.Features.Import.BeerImportRow", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Features.Import.ImportBatch", null)
+                    b.HasOne("BirraPoint.Api.Features.Import.BeerImportBatch", null)
                         .WithMany("Rows")
-                        .HasForeignKey("ImportBatchId")
+                        .HasForeignKey("BeerImportBatchId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Judges.JudgeImportBatch", b =>
+            modelBuilder.Entity("BirraPoint.Api.Features.Import.JudgeImportBatch", b =>
                 {
                     b.HasOne("BirraPoint.Api.Domain.Competition", null)
                         .WithMany()
@@ -1342,9 +1343,9 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Judges.JudgeImportRow", b =>
+            modelBuilder.Entity("BirraPoint.Api.Features.Import.JudgeImportRow", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Features.Judges.JudgeImportBatch", null)
+                    b.HasOne("BirraPoint.Api.Features.Import.JudgeImportBatch", null)
                         .WithMany("Rows")
                         .HasForeignKey("JudgeImportBatchId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1368,12 +1369,12 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.Navigation("Samples");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Import.ImportBatch", b =>
+            modelBuilder.Entity("BirraPoint.Api.Features.Import.BeerImportBatch", b =>
                 {
                     b.Navigation("Rows");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Judges.JudgeImportBatch", b =>
+            modelBuilder.Entity("BirraPoint.Api.Features.Import.JudgeImportBatch", b =>
                 {
                     b.Navigation("Rows");
                 });

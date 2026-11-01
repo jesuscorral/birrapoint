@@ -124,9 +124,9 @@ require a cross-table subquery.
 Import validates the "Categoria" cell against `CompetitionCategory.Name` (import-file.md) and sets
 `BeerEntry.CompetitionCategoryId` at consolidation. It also cross-checks that the row's resolved
 style is one of that category's assigned styles via this join table (FR-053): a style that is
-BJCP-valid but not assigned to the resolved category yields `ImportRowStatus.CategoryStyleMismatch`
+BJCP-valid but not assigned to the resolved category yields `BeerImportRowStatus.CategoryStyleMismatch`
 instead of `Valid`. This check runs at initial parse, at the full-row edit, and at revalidation
-(see `ImportRow.Status` below).
+(see `BeerImportRow.Status` below).
 
 ### Participant *(brewer — never exposed to judges)*
 
@@ -172,15 +172,15 @@ instead of `Valid`. This check runs at initial parse, at the full-row edit, and 
 Not populated by the ACCE import format (no collaborators column) — used elsewhere when
 collaborators are assigned by some other means, out of Import's scope.
 
-### ImportBatch *(slice-owned staging area, Features/Import)*
+### BeerImportBatch *(slice-owned staging area, Features/Import; table `ImportBatches`/`ImportRows`, ADR-0032)*
 
 | Field | Type | Constraints |
 |-------|------|-------------|
 | Id | Guid | PK |
 | CompetitionId | Guid | FK → Competition |
-| Status | enum `ImportBatchStatus` | `Pending` \| `Consolidated`; **at most one `Pending` batch per competition** (partial unique index on `Status = 'Pending'`) — a new upload discards the prior unconsolidated batch (import-file.md §Semantics) |
+| Status | enum `BeerImportBatchStatus` | `Pending` \| `Consolidated`; **at most one `Pending` batch per competition** (partial unique index on `Status = 'Pending'`) — a new upload discards the prior unconsolidated batch (import-file.md §Semantics) |
 
-### ImportRow *(slice-owned staging area, Features/Import)*
+### BeerImportRow *(slice-owned staging area, Features/Import; table `ImportBatches`/`ImportRows`, ADR-0032)*
 
 Mirrors the ACCE `.xlsx` column set 1:1 (import-file.md) so the Mapping & Correction screen
 operates purely off staged data before consolidation.
@@ -188,9 +188,9 @@ operates purely off staged data before consolidation.
 | Field | Type | Constraints |
 |-------|------|-------------|
 | Id | Guid | PK |
-| ImportBatchId | Guid | FK → ImportBatch; **unique (ImportBatchId, RowNumber)** |
+| BeerImportBatchId | Guid | FK → BeerImportBatch (DB column `ImportBatchId`, unchanged); **unique (BeerImportBatchId, RowNumber)** |
 | RowNumber | int | 1-based position among the file's data rows (excludes the header row) |
-| Status | enum `ImportRowStatus` | `Valid` \| `StyleMismatch` \| `CategoryMismatch` \| `CategoryStyleMismatch` \| `Invalid` \| `Excluded` — the first five are parse-time outcomes (import-file.md; `CategoryStyleMismatch` per FR-053 — category and style each individually valid, but the style isn't assigned to that category); `Excluded` is a resolution outcome set only via `POST .../rows/{rowNumber}/exclude`. `Valid` and `Excluded` never block consolidation; the other four do (FR-011) |
+| Status | enum `BeerImportRowStatus` | `Valid` \| `StyleMismatch` \| `CategoryMismatch` \| `CategoryStyleMismatch` \| `Invalid` \| `Excluded` — the first five are parse-time outcomes (import-file.md; `CategoryStyleMismatch` per FR-053 — category and style each individually valid, but the style isn't assigned to that category); `Excluded` is a resolution outcome set only via `POST .../rows/{rowNumber}/exclude`. `Valid` and `Excluded` never block consolidation; the other four do (FR-011) |
 | ParticipantName | string(200)? | raw parsed cell, may be null/malformed when Status = `Invalid` |
 | ParticipantEmail | string(320)? | raw parsed cell |
 | AcceMemberNumberText | string(50)? | raw parsed cell, stored as plain digits when the source cell was numeric |
@@ -215,7 +215,7 @@ last-import-wins; otherwise a new row is created) + `BeerEntry` (with a generate
 `BlindCode` and `CompetitionCategoryId` set from `ResolvedCompetitionCategoryId`); `Excluded` rows
 are simply skipped.
 
-**Revalidation** (FR-054, `POST .../imports/{importId}/revalidate`) re-runs category/style/allow-
+**Revalidation** (FR-054, `POST .../imports/beers/{importId}/revalidate`) re-runs category/style/allow-
 list resolution for every row currently `Valid`/`StyleMismatch`/`CategoryMismatch`/
 `CategoryStyleMismatch` (a `CompetitionCategory` full-replace PUT — `SetCompetitionCategories.cs`
 — deletes and recreates rows, so a previously-resolved `CompetitionCategoryId` may now point at a
@@ -224,11 +224,11 @@ category id still exists it is kept, otherwise it is re-matched by the row's raw
 same for style by `ResolvedStyleCode`/`StyleText`; the two are then cross-checked against the
 current `CompetitionCategoryStyle` allow-list. `Invalid` and `Excluded` rows are skipped (their
 failure/exclusion is unrelated to category/style state). No-op (returns the batch unchanged) once
-`ImportBatch.Status` is `Consolidated`.
+`BeerImportBatch.Status` is `Consolidated`.
 
-### JudgeImportBatch *(slice-owned staging area, Features/Judges — added US14/FR-055)*
+### JudgeImportBatch *(slice-owned staging area, Features/Import — added US14/FR-055)*
 
-Mirrors `ImportBatch` exactly, same semantics (`contracts/judge-import-file.md` §Semantics): at
+Mirrors `BeerImportBatch` exactly, same semantics (`contracts/judge-import-file.md` §Semantics): at
 most one `Pending` batch per competition, a new upload discards the prior unconsolidated one.
 
 | Field | Type | Constraints |
@@ -237,10 +237,10 @@ most one `Pending` batch per competition, a new upload discards the prior uncons
 | CompetitionId | Guid | FK → Competition |
 | Status | enum `JudgeImportBatchStatus` | `Pending` \| `Consolidated`; **at most one `Pending` batch per competition** (partial unique index on `Status = 'Pending'`) |
 
-### JudgeImportRow *(slice-owned staging area, Features/Judges — added US14/FR-055)*
+### JudgeImportRow *(slice-owned staging area, Features/Import — added US14/FR-055)*
 
 Mirrors the judge-roster `.xlsx` column set 1:1 (`contracts/judge-import-file.md`). Simpler than
-`ImportRow`: no catalog resolution happens for any judge-roster field, so there is no
+`BeerImportRow`: no catalog resolution happens for any judge-roster field, so there is no
 mismatch/unresolved-reference status — only whether the two required fields are present.
 
 | Field | Type | Constraints |
@@ -262,7 +262,7 @@ competition — an existing row's `BjcpRank`/`BjcpId`/`PreferredCategory`/`Prefe
 from the row, last-import-wins, same policy as `Participant` in beer-entry consolidation) +
 `Invitation{Status=Pending}` if one doesn't already exist, and enqueues a `ProvisionJudgeAccount`
 job (R-20); `Excluded` rows are skipped. Duplicate emails within the same file resolve to a single
-upsert, reported the same way `ImportBatch` consolidation reports beer-entry duplicates (FR-058).
+upsert, reported the same way `BeerImportBatch` consolidation reports beer-entry duplicates (FR-058).
 
 ### Judge *(competition-scoped judge profile)*
 
@@ -486,7 +486,7 @@ the UI surfaces via the offline badge (FR-027).
 Organizer 1─* Competition (OrganizerId, additive alongside the existing CreatedByUserId claim check)
 Competition 1─* Participant 1─* BeerEntry *─1 BjcpStyle
 Competition 1─* CompetitionCategory 1─* CompetitionCategoryStyle *─1 BjcpStyle (style in ≤1 category per competition)
-Competition 1─* ImportBatch 1─* ImportRow (staging; consolidates into Participant/BeerEntry/EntryCollaborator)
+Competition 1─* BeerImportBatch 1─* BeerImportRow (staging; consolidates into Participant/BeerEntry/EntryCollaborator)
 Competition 1─* JudgeImportBatch 1─* JudgeImportRow (staging; consolidates into Judge — added US14/FR-055)
 Competition 1─* Judge 1─* Invitation
 Competition 1─* TastingTable 1─* TableJudge *─1 Judge

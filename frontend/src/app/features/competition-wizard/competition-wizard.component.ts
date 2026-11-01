@@ -18,7 +18,7 @@ import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-sh
 import { BasicsStepComponent } from './steps/basics-step.component';
 import { CategoriesStepComponent } from './steps/categories-step.component';
 import { DetailsStepComponent } from './steps/details-step.component';
-import { ImportStepComponent } from './steps/import-step.component';
+import { BeerImportStepComponent } from './steps/beer-import-step.component';
 import { JudgeImportStepComponent } from './steps/judge-import-step.component';
 import { TablesStepComponent } from './steps/tables-step.component';
 
@@ -32,7 +32,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
     BasicsStepComponent,
     DetailsStepComponent,
     CategoriesStepComponent,
-    ImportStepComponent,
+    BeerImportStepComponent,
     JudgeImportStepComponent,
     TablesStepComponent,
   ],
@@ -143,7 +143,7 @@ import { TablesStepComponent } from './steps/tables-step.component';
                 />
               }
               @case (4) {
-                <app-import-step
+                <app-beer-import-step
                   [competitionId]="competitionId()!"
                   [importId]="importId()"
                   [readOnly]="readOnly()"
@@ -507,7 +507,7 @@ export class CompetitionWizardComponent {
   protected readonly competition = signal<CompetitionDetail | null>(null);
   protected readonly loading = signal(false);
   protected readonly loadError = signal(false);
-  // Hoisted here (rather than left as ImportStepComponent local state) because @switch
+  // Hoisted here (rather than left as BeerImportStepComponent local state) because @switch
   // destroys/recreates the non-matching step child on every navigation — this signal is the only
   // thing that survives a step-4 -> step-3 -> step-4 round trip (e.g. to fix a category/style
   // assignment) so the import step can revalidate its pending batch instead of losing it.

@@ -18,11 +18,10 @@ Each feature folder follows one structure:
 - Tests mirror it: `<Feature>ApiTestBase` plus one `*ApiTests` class per slice under `IntegrationTests/<Feature>/Features/<Slice>/`.
 - Namespaces equal folders. IDE0130 is enforced; `.claude/scripts/move-namespace.mjs` syncs a move.
 - Cross-slice access stays via MediatR messages or `CommonComponents`.
-- Exceptions: EF entities `ImportBatch`/`ImportRow` stay at the `Import` root because migrations and the model snapshot carry CLR names. The Judges judge-import slice (`JudgeImportEndpoints`, `UploadJudgeImport`, `ConsolidateJudgeImport`, `EditJudgeImportRow`, ...) is not migrated yet.
+- Exceptions: EF staging entities stay at the `Import` root. The judge-import slice was left flat in `Features/Judges/` at first; ADR-0032 moved it to `Features/Import/`.
 
 ## Consequences
 - A use case is one folder; endpoint, handler and validator change together.
 - Shared code is explicit, so accidental cross-slice coupling shows in review.
 - More folders and files; moves need namespace syncs (scripted) and leave stale paths in completed `tasks.md` entries (see the note there).
-- The judge-import slice stays inconsistent until a follow-up migrates it.
 - Alternative rejected: flat per-feature files (previous layout), which did not scale and gave no test mirror.

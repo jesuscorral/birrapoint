@@ -1,6 +1,6 @@
 # Import File Contract: Judge Roster `.xlsx`
 
-**Consumed by**: `POST /api/v1/competitions/{id}/judge-imports` ([rest-api.md](./rest-api.md)) ·
+**Consumed by**: `POST /api/v1/competitions/{id}/imports/judges` ([rest-api.md](./rest-api.md)) ·
 **Parser**: first worksheet only; row 1 is the header; parsing stops at the first fully empty row.
 
 This is the organizer's own club roster export: Spanish headers, one row per judge. Unlike the
@@ -34,7 +34,7 @@ header columns, zero data rows.
 
 ## Full row edit
 
-`PUT /api/v1/competitions/{id}/judge-imports/{importId}/rows/{rowNumber}` is a full-replace edit of
+`PUT /api/v1/competitions/{id}/imports/judges/{importId}/rows/{rowNumber}` is a full-replace edit of
 every field (`name`, `email`, `bjcpRank`, `bjcpId`, `preferredCategory`, `preferences`). After
 saving, `status` recomputes to `Valid` once `name` and `email` are both present and well-formed,
 `Invalid` otherwise. Editing an `Excluded` row is rejected with `400 invalid-import-file`.

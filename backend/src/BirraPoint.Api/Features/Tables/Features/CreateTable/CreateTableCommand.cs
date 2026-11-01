@@ -42,7 +42,7 @@ internal sealed class CreateTableCommandHandler(AppDbContext dbContext, ICurrent
             .FirstOrDefaultAsync(c => c.Id == competitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
 
     /// <summary>Table setup is organizer work only while it can still affect judging (data-model.md
-    /// §Competition state gates — Draft/Active "setup still editable"), same gate UploadImport
+    /// §Competition state gates — Draft/Active "setup still editable"), same gate UploadBeerImport
     /// already applies to entry import.</summary>
     private static void EnsureTablesCanBeCreated(Competition competition)
     {

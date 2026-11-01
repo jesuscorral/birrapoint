@@ -9,12 +9,12 @@ import { CatalogApiService } from '../../core/api/catalog-api.service';
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
 import type { CompetitionDetail } from '../../core/api/competitions-api.service';
 import { EntriesApiService } from '../../core/api/entries-api.service';
-import { ImportApiService } from '../../core/api/import-api.service';
+import { BeerImportApiService } from '../../core/api/beer-import-api.service';
 import { JudgeImportApiService } from '../../core/api/judge-import-api.service';
 import { JudgeManagementApiService } from '../../core/api/judge-management-api.service';
 import { TableManagementApiService } from '../table-management/table-management-api.service';
 import { CompetitionWizardComponent } from './competition-wizard.component';
-import { ImportStepComponent } from './steps/import-step.component';
+import { BeerImportStepComponent } from './steps/beer-import-step.component';
 import { JudgeImportStepComponent } from './steps/judge-import-step.component';
 
 function detailFixture(overrides: Partial<CompetitionDetail> = {}): CompetitionDetail {
@@ -107,7 +107,7 @@ describe('CompetitionWizardComponent', () => {
         },
         { provide: CompetitionsApiService, useValue: fakeApi },
         { provide: CatalogApiService, useValue: fakeCatalogApi },
-        { provide: ImportApiService, useValue: fakeImportApi },
+        { provide: BeerImportApiService, useValue: fakeImportApi },
         { provide: EntriesApiService, useValue: fakeEntriesApi },
         { provide: JudgeImportApiService, useValue: fakeJudgeImportApi },
         { provide: TableManagementApiService, useValue: fakeTableManagementApi },
@@ -380,7 +380,7 @@ describe('CompetitionWizardComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.componentInstance['currentStep']()).toBe(4);
-    expect(fixture.nativeElement.querySelector('app-import-step')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('app-beer-import-step')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('app-categories-step')).toBeFalsy();
 
     const items = fixture.nativeElement.querySelectorAll('.stepper__item');
@@ -399,13 +399,13 @@ describe('CompetitionWizardComponent', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance['currentStep']()).toBe(4);
 
-    const importStepDebugEl = fixture.debugElement.query(By.directive(ImportStepComponent));
+    const importStepDebugEl = fixture.debugElement.query(By.directive(BeerImportStepComponent));
     importStepDebugEl.componentInstance.saved.emit();
     fixture.detectChanges();
 
     expect(fixture.componentInstance['currentStep']()).toBe(5);
     expect(fixture.nativeElement.querySelector('app-judge-import-step')).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('app-import-step')).toBeFalsy();
+    expect(fixture.nativeElement.querySelector('app-beer-import-step')).toBeFalsy();
   });
 
   it('renders the judge-import step when navigating to step 5 via the stepper, marking step 4 reached', () => {
@@ -427,7 +427,7 @@ describe('CompetitionWizardComponent', () => {
 
     expect(fixture.componentInstance['currentStep']()).toBe(5);
     expect(fixture.nativeElement.querySelector('app-judge-import-step')).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('app-import-step')).toBeFalsy();
+    expect(fixture.nativeElement.querySelector('app-beer-import-step')).toBeFalsy();
 
     const items = fixture.nativeElement.querySelectorAll('.stepper__item');
     expect(items[3].classList.contains('is-reached')).toBe(true);
@@ -559,7 +559,7 @@ describe('CompetitionWizardComponent', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance['currentStep']()).toBe(4);
 
-    let importStepDebugEl = fixture.debugElement.query(By.directive(ImportStepComponent));
+    let importStepDebugEl = fixture.debugElement.query(By.directive(BeerImportStepComponent));
     expect(importStepDebugEl.componentInstance.importId()).toBeNull();
 
     importStepDebugEl.componentInstance.importIdChange.emit('imp-1');
@@ -567,14 +567,14 @@ describe('CompetitionWizardComponent', () => {
 
     expect(fixture.componentInstance['importId']()).toBe('imp-1');
 
-    // Navigate back to step 3 (destroys the app-import-step instance) and forward again — the
+    // Navigate back to step 3 (destroys the app-beer-import-step instance) and forward again — the
     // wizard-held signal, not the child's local state, is what must survive this round trip.
     fixture.componentInstance['onBack']();
     fixture.detectChanges();
     fixture.componentInstance['onCategoriesSaved']();
     fixture.detectChanges();
 
-    importStepDebugEl = fixture.debugElement.query(By.directive(ImportStepComponent));
+    importStepDebugEl = fixture.debugElement.query(By.directive(BeerImportStepComponent));
     expect(importStepDebugEl.componentInstance.importId()).toBe('imp-1');
   });
 
@@ -844,7 +844,7 @@ describe('CompetitionWizardComponent', () => {
       fixture.detectChanges();
 
       expect(fixture.componentInstance['currentStep']()).toBe(4);
-      expect(fixture.nativeElement.querySelector('app-import-step')).toBeTruthy();
+      expect(fixture.nativeElement.querySelector('app-beer-import-step')).toBeTruthy();
     });
 
     it('falls back to step 1 when ?step is out of range', () => {

@@ -2,12 +2,17 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BirraPoint.Api.Common.Jobs;
+using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using ClosedXML.Excel;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BirraPoint.Api.IntegrationTests.Import;
 
-/// <summary>Shared clients, ACCE workbook builders and request helpers for the Entry Import slice contract tests (contracts/rest-api.md §Entry Import, contracts/import-file.md). Only helpers used by more than one test class live here; the rest stay private in their class.</summary>
+/// <summary>Shared clients, workbook builders and request helpers for the Import feature contract tests: beer-entry import (contracts/rest-api.md §Entry Import, contracts/import-file.md) and judge-roster import (§Judge Roster Import, contracts/judge-import-file.md). Only helpers used by more than one test class live here; the rest stay private in their class.</summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1515:Consider making public types internal",
     Justification = "Base class of public xUnit test classes; C# requires a base class to be at least as accessible as its derived classes.")]
 public abstract class ImportApiTestBase(ApiFactory factory)
@@ -143,7 +148,7 @@ public abstract class ImportApiTestBase(ApiFactory factory)
 
     /// <summary>Builds one ACCE row in standard column order, defaulting every field to a
     /// well-formed value so a test only needs to override what it cares about.</summary>
-    private protected static object?[] Row(
+    private protected static object?[] BeerRow(
         DateTime? submittedAt = null,
         string? email = "dezaprieto@gmail.com",
         double? acceMemberNumber = 1423.0,
@@ -183,7 +188,7 @@ public abstract class ImportApiTestBase(ApiFactory factory)
 
     private protected static byte[] BuildAcceWorkbook(params object?[][] rows) => BuildWorkbook(StandardHeaders, rows);
 
-    private protected static async Task<HttpResponseMessage> UploadAsync(
+    private protected static async Task<HttpResponseMessage> UploadBeerImportAsync(
         HttpClient client, Guid competitionId, byte[] xlsxBytes, string fileName = "entries.xlsx", string? contentType = null)
     {
         using var content = new MultipartFormDataContent();
@@ -191,13 +196,13 @@ public abstract class ImportApiTestBase(ApiFactory factory)
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(
             contentType ?? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         content.Add(fileContent, "file", fileName);
-        return await client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/imports"), content);
+        return await client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/imports/beers"), content);
     }
 
-    private protected static async Task<(Guid ImportId, List<JsonElement> Rows)> UploadAcceRowsAsync(
+    private protected static async Task<(Guid ImportId, List<JsonElement> Rows)> UploadBeerRowsAsync(
         HttpClient client, Guid competitionId, params object?[][] rows)
     {
-        var response = await UploadAsync(client, competitionId, BuildAcceWorkbook(rows));
+        var response = await UploadBeerImportAsync(client, competitionId, BuildAcceWorkbook(rows));
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -206,10 +211,130 @@ public abstract class ImportApiTestBase(ApiFactory factory)
         return (importId, parsedRows);
     }
 
-    private protected static Task<HttpResponseMessage> ExcludeRowAsync(
+    private protected static Task<HttpResponseMessage> ExcludeBeerRowAsync(
         HttpClient client, Guid competitionId, Guid importId, int rowNumber) =>
-        client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/imports/{importId}/rows/{rowNumber}/exclude"), null);
+        client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/imports/beers/{importId}/rows/{rowNumber}/exclude"), null);
 
-    private protected static Task<HttpResponseMessage> ConsolidateAsync(HttpClient client, Guid competitionId, Guid importId) =>
-        client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/imports/{importId}/consolidate"), null);
+    private protected static Task<HttpResponseMessage> ConsolidateBeerAsync(HttpClient client, Guid competitionId, Guid importId) =>
+        client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/imports/beers/{importId}/consolidate"), null);
+
+    // ---- Judge roster import ---------------------------------------------------------------
+
+    private protected static readonly TimeSpan PollTimeout = TimeSpan.FromSeconds(10);
+    private protected static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(200);
+
+    private protected static readonly string[] JudgeStandardHeaders =
+    [
+        "Nombre y apellidos",
+        "Correo electrónico",
+        "Rango BJCP",
+        "BJCP ID",
+        "Categoría preferida",
+        "Preferencias",
+    ];
+
+    /// <summary>Builds one judge-roster row in standard column order, defaulting every field to a
+    /// well-formed value so a test only needs to override what it cares about.
+    /// <paramref name="email"/> defaults to a fixed literal (not randomized) so passing
+    /// <c>email: null</c> genuinely leaves the cell blank instead of being masked by a `??`
+    /// fallback — tests that need distinct addresses across rows pass them explicitly.</summary>
+    private protected static object?[] JudgeRow(
+        string? name = "Ana García Ruiz",
+        string? email = "rebeca@brew.example",
+        string? bjcpRank = "Certificado",
+        string? bjcpId = "E4612",
+        string? preferredCategory = "Estilos Clásicos",
+        string? preferences = null) =>
+    [
+        name, email, bjcpRank, bjcpId, preferredCategory, preferences,
+    ];
+
+    private protected static byte[] BuildJudgeWorkbook(params object?[][] rows) => BuildWorkbook(JudgeStandardHeaders, rows);
+
+    private protected static async Task<HttpResponseMessage> UploadJudgeImportAsync(
+        HttpClient client, Guid competitionId, byte[] xlsxBytes, string fileName = "judges.xlsx", string? contentType = null)
+    {
+        using var content = new MultipartFormDataContent();
+        using var fileContent = new ByteArrayContent(xlsxBytes);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(
+            contentType ?? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        content.Add(fileContent, "file", fileName);
+        return await client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/imports/judges"), content);
+    }
+
+    private protected static async Task<(Guid ImportId, List<JsonElement> Rows)> UploadJudgeRowsAsync(
+        HttpClient client, Guid competitionId, params object?[][] rows)
+    {
+        var response = await UploadJudgeImportAsync(client, competitionId, BuildJudgeWorkbook(rows));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var importId = document.RootElement.GetProperty("importId").GetGuid();
+        var parsedRows = document.RootElement.GetProperty("rows").Clone().EnumerateArray().ToList();
+        return (importId, parsedRows);
+    }
+
+    private protected static Task<HttpResponseMessage> GetJudgeImportAsync(HttpClient client, Guid competitionId, Guid importId) =>
+        client.GetAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/imports/judges/{importId}"));
+
+    private protected static Task<HttpResponseMessage> EditJudgeRowAsync(
+        HttpClient client, Guid competitionId, Guid importId, int rowNumber, object body) =>
+        client.PutAsJsonAsync($"/api/v1/competitions/{competitionId}/imports/judges/{importId}/rows/{rowNumber}", body);
+
+    private protected static Task<HttpResponseMessage> ExcludeJudgeRowAsync(
+        HttpClient client, Guid competitionId, Guid importId, int rowNumber) =>
+        client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/imports/judges/{importId}/rows/{rowNumber}/exclude"), null);
+
+    private protected static Task<HttpResponseMessage> ConsolidateJudgeAsync(HttpClient client, Guid competitionId, Guid importId) =>
+        client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/imports/judges/{importId}/consolidate"), null);
+
+    /// <summary>Full editable-row body matching the judge-import row edit request's camelCase wire
+    /// shape. Like <see cref="JudgeRow"/>, <paramref name="email"/> defaults to a fixed literal so
+    /// passing <c>email: null</c> genuinely leaves it blank.</summary>
+    private protected static object FullJudgeEditBody(
+        string? name = "Ana García Ruiz",
+        string? email = "rebeca@brew.example",
+        string? bjcpRank = "Certificado",
+        string? bjcpId = "E4612",
+        string? preferredCategory = "Estilos Clásicos",
+        string? preferences = null) => new
+        {
+            name,
+            email,
+            bjcpRank,
+            bjcpId,
+            preferredCategory,
+            preferences,
+        };
+
+    private protected async Task<bool> HasDispatchJobAsync(Guid competitionId, DispatchJobType type)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.DispatchJobs.AnyAsync(j => j.CompetitionId == competitionId && j.Type == type);
+    }
+
+    private protected async Task WaitForDispatchJobCompletionAsync(Guid competitionId, DispatchJobType type, int expectedCount = 1)
+    {
+        var deadline = DateTime.UtcNow + PollTimeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var completedCount = await db.DispatchJobs.CountAsync(j =>
+                j.CompetitionId == competitionId && j.Type == type && j.Status == DispatchJobStatus.Completed);
+
+            if (completedCount >= expectedCount)
+            {
+                return;
+            }
+
+            await Task.Delay(PollInterval);
+        }
+
+        Assert.Fail($"Timed out waiting for {expectedCount} {type} DispatchJob(s) to complete for competition {competitionId}.");
+    }
+
+    private protected static Task<HttpResponseMessage> TransitionToActiveAsync(HttpClient client, Guid competitionId) =>
+        client.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/state", new { target = "Active" });
 }
