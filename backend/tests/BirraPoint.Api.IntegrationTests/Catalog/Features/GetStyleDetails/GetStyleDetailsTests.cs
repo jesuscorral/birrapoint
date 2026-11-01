@@ -6,13 +6,13 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 namespace BirraPoint.Api.IntegrationTests.Catalog.Features.GetStyleDetails;
 
 /// <summary>
-/// T057B: HTTP-level contract test for GET /api/v1/styles/{code} (contracts/rest-api.md §Catalog,
+/// HTTP-level contract test for GET /api/v1/styles/{code} (contracts/rest-api.md §Catalog,
 /// FR-049) — the full vital-statistics + guide-description shape for a real seeded BJCP 2021
 /// style, and the 404 for an unknown code.
 /// </summary>
 public sealed class GetStyleDetailsTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
-    private const string KnownStyleCode = "21A"; // American IPA (seeded, T010)
+    private const string KnownStyleCode = "21A"; // American IPA (seeded)
 
     private HttpClient AuthenticatedClient()
     {

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Release version helpers for release.yml (T135, FR-064). version.txt at the repository root holds
+# Release version helpers for release.yml (FR-064). version.txt at the repository root holds
 # the version the NEXT release will publish; the release pipeline reads it from main and, once
 # the release exists, advances it.
 #

@@ -7,7 +7,7 @@ import { UNCATEGORIZED_COLOR } from './category-color';
 import { JudgeSeatComponent } from './judge-seat.component';
 import type { TableSummary } from './table-management-api.service';
 
-// T124: the oval "physical table" board was replaced by a compact card. Seats arranged around an
+// The oval "physical table" board was replaced by a compact card. Seats arranged around an
 // ellipse cannot carry a judge's full name without colliding, and the ellipse's fixed 1.4:1 aspect
 // ratio forced every card tall enough that only two or three tables fitted on screen at once —
 // both directly against what this screen is for (see the board's grid in table-board.component).
@@ -218,7 +218,7 @@ import type { TableSummary } from './table-management-api.service';
       border-color: var(--color-bp-cobre-300);
     }
 
-    /* T125b: the rail sits below the pool now, so the cards have to earn their height. Smaller
+    /* The rail sits below the pool now, so the cards have to earn their height. Smaller
        type, tighter zones, and only the two numbers a table is balanced on keep any emphasis. */
     .mesa-card--compact {
       gap: var(--spacing-2);
@@ -280,12 +280,12 @@ import type { TableSummary } from './table-management-api.service';
 })
 export class MesaCardComponent {
   readonly table = input.required<TableSummary>();
-  // T125: the board's sticky rail keeps every table on screen at once, so the seated zones cap
+  // The board's sticky rail keeps every table on screen at once, so the seated zones cap
   // their height and scroll internally instead of growing the card until the rail no longer fits.
   readonly compact = input(false);
   readonly connectedJudgeListIds = input.required<string[]>();
   readonly connectedBeerListIds = input.required<string[]>();
-  // T125c: computed once by the board over every entry in the competition (assigned or not), so a
+  // Computed once by the board over every entry in the competition (assigned or not), so a
   // category's color stays identical whether its beers are seated here or still in the pool.
   readonly categoryColorMap = input.required<ReadonlyMap<string, string>>();
   // FR-061 / Session 2026-09-19 clarification: read-only wizard/table-board — both drop lists and

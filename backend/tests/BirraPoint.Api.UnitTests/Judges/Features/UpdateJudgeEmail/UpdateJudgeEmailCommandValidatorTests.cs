@@ -7,10 +7,10 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.UnitTests.Judges.Features.UpdateJudgeEmail;
 
 /// <summary>
-/// T038: email correction format validation (FR-015). The uniqueness re-check is a DependentRules
+/// Email correction format validation (FR-015). The uniqueness re-check is a DependentRules
 /// step that only runs once the format passes, so it is never reached here — no query executes
 /// against <see cref="AppDbContext"/>, meaning these malformed-input cases don't need a real
-/// database (the uniqueness-conflict path itself needs Postgres and is covered by T039's
+/// database (the uniqueness-conflict path itself needs Postgres and is covered by the
 /// Testcontainers-backed integration tests, per the constitution's ban on EF InMemory).
 /// </summary>
 public sealed class UpdateJudgeEmailCommandValidatorTests

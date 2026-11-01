@@ -20,7 +20,7 @@ internal sealed record NotifyJudgesCommand(Guid CompetitionId) : IRequest<Notify
 /// (RegisterJudges/FR-014, ConsolidateJudgeImport/FR-057) — enqueues SendInvitation for every
 /// judge in the competition whose invitation is still Pending. A judge already Sent/Failed is
 /// untouched (use the per-judge resend, ResendInvitationCommand.cs, for those). Judges that already have
-/// a Pending/Running SendInvitation job are skipped (T147), so repeated notifies never duplicate emails.
+/// a Pending/Running SendInvitation job are skipped, so repeated notifies never duplicate emails.
 /// </summary>
 internal sealed class NotifyJudgesCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, IDispatchWakeUp dispatchWakeUp)
@@ -38,7 +38,7 @@ internal sealed class NotifyJudgesCommandHandler(
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        // T147/M1: the invitation only flips to Sent when the worker delivers, so two back-to-back
+        // The invitation only flips to Sent when the worker delivers, so two back-to-back
         // notifies would otherwise both see Pending and enqueue duplicate jobs (second temp password
         // + duplicate email). Row lock on the competition serializes concurrent notifies so the
         // in-flight check below is race-free; the loser sees the winner's committed jobs.

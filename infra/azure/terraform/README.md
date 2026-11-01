@@ -232,7 +232,7 @@ the hourly poll up to about 16 CU-h, so roughly 20 CU-h of the 100 free. Without
 settings above (image defaults) compute never suspends: about 182 CU-h/month. Method: Keycloak 26.2
 on Postgres 16 in Docker, idle, `pg_stat_activity` sampled every 30 s plus `log_statement=all`;
 the Neon billing side (what counts as activity, per-wake cost) is not measured here - confirm in the
-console, Monitoring, CU-hours (T099/T137). A busy event week uses more.
+console, Monitoring, CU-hours. A busy event week uses more.
 
 **Recommendation.** Free plan works for low traffic and idle periods with the 1 h poll. A paid
 plan (Launch) is a **prerequisite for a live competition period** or any guaranteed availability:
@@ -261,17 +261,17 @@ dispatch wake-ups on a paid plan, then apply as usual.
   stopped mid-job, the new one recovers it once the lease (default 2 min) expires. Exception: the
   first deploy of the lease change itself, whose old revision claims without a lease — deploy it
   while no competition is being finalized.
-- **Keycloak hardening** (T130): brute-force detection, password policy, `verifyEmail` (needs a working
+- **Keycloak hardening**: brute-force detection, password policy, `verifyEmail` (needs a working
   SMTP relay) and no admin console are baked into the image; details and the bootstrap-admin
   replacement in [`../../keycloak/admin-runbook.md`](../../keycloak/admin-runbook.md). The realm is
   imported once, so an existing environment keeps its old realm settings.
 - **Docker Hub rate limits.** Anonymous pulls from ACA's shared outbound IPs can be throttled, so
   `dockerhub_username` + a read-only `dockerhub_token` are mandatory and always wired into the
-  Container Apps registry configuration, public repositories included (T131).
+  Container Apps registry configuration, public repositories included.
 - **Neon compute.** With the defaults compute wakes about 30 times a day (see "Neon compute
   budget"); a shorter `dispatch_poll_interval`, a second Keycloak replica or a changed Keycloak
-  image setting can keep it awake around the clock, above the free plan's monthly allowance (T132).
-- **API health probes (T098).** The API container has explicit startup, readiness and liveness HTTP
+  image setting can keep it awake around the clock, above the free plan's monthly allowance.
+- **API health probes.** The API container has explicit startup, readiness and liveness HTTP
   probes on `/alive` (port 8080), which has no dependencies. Never probe `/health`: it includes a
   Postgres check and would keep the Neon compute awake 24/7 (ADR-0025); use it only for manual
   diagnostics (`curl https://<internal fqdn>/health` from inside the environment; it wakes Neon and
@@ -285,6 +285,6 @@ dispatch wake-ups on a paid plan, then apply as usual.
 - **Telemetry today.** Console logs go to Log Analytics. The API exports OpenTelemetry (OTLP) only
   when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; none is configured in the cloud, and no paid telemetry
   resource (Application Insights, managed collectors) is created. Validating logs and the probes in
-  ACA belongs to T099.
+  ACA is still pending.
 - Keycloak's JDBC connection uses `sslmode=require` (encrypted, server certificate not
   verified); the API's Npgsql connections use `VerifyFull`.

@@ -66,7 +66,7 @@ describe('CategoriesStepComponent', () => {
     return match;
   }
 
-  // T125: the shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
+  // The shared three-zone bar (bp-step-actions) — Atrás | the step's own action |
   // forward. Previously each step rendered its own two-slot bar and they had drifted apart.
   it('renders the shared bar: Atrás, its own centre action, and Siguiente', () => {
     const fixture = createComponent();
@@ -502,7 +502,7 @@ describe('CategoriesStepComponent', () => {
     expect(navigateSpy).not.toHaveBeenCalled();
   });
 
-  // T125: the save-or-discard dialog moved to the wizard shell, which owns "Volver al listado"
+  // The save-or-discard dialog moved to the wizard shell, which owns "Volver al listado"
   // for all six steps. "Guardar borrador" is now a first-class action in the shared bar.
   it('saves and navigates to the organizer dashboard on "Guardar borrador"', () => {
     fakeCatalogApi.getStyles.mockReturnValue(of([styleFixture()]));

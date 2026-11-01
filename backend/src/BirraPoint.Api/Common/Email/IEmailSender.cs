@@ -10,5 +10,5 @@ internal interface IEmailSender
         IReadOnlyList<EmailAttachment> attachments, CancellationToken cancellationToken);
 }
 
-/// <summary>An attachment for <see cref="IEmailSender.SendWithAttachmentsAsync"/> (T075 — result PDFs).</summary>
+/// <summary>An attachment for <see cref="IEmailSender.SendWithAttachmentsAsync"/> (result PDFs).</summary>
 internal sealed record EmailAttachment(string FileName, byte[] Content, string ContentType);

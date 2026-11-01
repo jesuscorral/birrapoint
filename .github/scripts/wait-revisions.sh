@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Revision health gate of the deploy pipeline (T143).
+# Revision health gate of the deploy pipeline.
 # Usage: wait-revisions.sh <resource-group> <container-app>...
 # Polls every app until its latest revision is the latest READY revision and is healthy:
 #   - latestRevisionName == latestReadyRevisionName;

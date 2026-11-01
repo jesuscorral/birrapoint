@@ -33,7 +33,7 @@ public sealed class RetryDispatchApiTests(ApiFactory factory) : DispatchApiTestB
         // Reset itself is synchronous within the retry request — no polling needed for this part.
         // The job is no longer Failed and its error is cleared; the DispatchWorker (woken by the retry or the poll)
         // may already have picked it up, so Running (mid-handler) is as valid as Pending or
-        // Completed here (T138: asserting only Pending/Completed made this test flaky).
+        // Completed here (asserting only Pending/Completed made this test flaky).
         var statusResponse = await GetDispatchStatusAsync(organizer, competitionId);
         using var document = JsonDocument.Parse(await statusResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var row = document.RootElement.EnumerateArray().Single();
@@ -48,7 +48,7 @@ public sealed class RetryDispatchApiTests(ApiFactory factory) : DispatchApiTestB
     public async Task RetryDispatchLeavesCompletedAndRunningJobsUntouched()
     {
         // FR-041 retries failures only: resetting a Completed job would resend the email, and
-        // resetting a Running job (live lease, possibly another revision's worker, T129) would run
+        // resetting a Running job (live lease, possibly another revision's worker) would run
         // it twice.
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer, "RetryUntouched");

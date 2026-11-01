@@ -1,4 +1,4 @@
-# Pure helpers behind infra/azure/teardown.ps1 (T140, T143): the confirmation check, resource names,
+# Pure helpers behind infra/azure/teardown.ps1: the confirmation check, resource names,
 # which Neon project may be deleted, and the `terraform destroy` arguments. Kept free of
 # Azure/Neon calls so they are unit-testable (infra/azure/tests/Teardown.Tests.ps1). Windows PowerShell
 # 5.1 and PowerShell 7.

@@ -115,7 +115,7 @@ describe('JudgeTablesListComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Ha ocurrido un error inesperado.');
   });
 
-  describe('ejection banner (T087/US12)', () => {
+  describe('ejection banner (US12)', () => {
     afterEach(() => {
       history.replaceState(null, '');
     });

@@ -13,7 +13,8 @@ written by the owning agents.
 3. **Tollgate**: files to create/modify, approach, test strategy, which agent owns each part
    (backend-, frontend-, qa-, infra-engineer). **Stop** until the user replies "Approved, proceed".
 4. **Implement**: brief each agent with the task id, its files, the contract/quickstart refs and
-   "tests first, verified failing". Run independent agents in parallel; qa-engineer writes the
+   "tests first, verified failing". The task id goes in the branch, commits and PR only — tell
+   agents not to write it in code, comments or test names (cite FR-/US/ADR or the reason). Run independent agents in parallel; qa-engineer writes the
    contract/E2E tests the task assigns before feature code lands. Read each report; re-brief on
    gaps instead of patching their code yourself.
 5. **Gates**: run the gates of every stack touched (CLAUDE.md §Commands; infra gates in the

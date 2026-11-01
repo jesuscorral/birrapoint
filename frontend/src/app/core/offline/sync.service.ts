@@ -73,7 +73,7 @@ export class SyncService {
   private replaying = false;
 
   /**
-   * Outbox rows purged because the server no longer accepts them for this judge (T087: removed
+   * Outbox rows purged because the server no longer accepts them for this judge (removed
    * from the table) — appended by both `rejectOutboxForTable()` (the live-event path) and
    * `attemptOne()`'s 404 handling (the lazy-discovery path). A read-only log for callers that want
    * to report what was lost; this service never clears it itself.
@@ -146,7 +146,7 @@ export class SyncService {
   }
 
   /**
-   * Proactive purge (T087): called once a live `JudgeRemoved` event has been confirmed to mean
+   * Proactive purge: called once a live `JudgeRemoved` event has been confirmed to mean
    * "this judge" — drops every outbox row (and its matching draft) for `tastingTableId` immediately
    * rather than waiting for the next backoff-scheduled replay attempt (up to 60s away, too slow for
    * "revoked at once"). Also purges every *draft* for this table directly, including ones with no
@@ -272,7 +272,7 @@ export class SyncService {
   // Used by replayOutbox()'s background sweep, where a single row's failure must never interrupt
   // the loop over the rest of the outbox — errors are recorded (attempts/backoff), not rethrown.
   //
-  // A 404 here (T087) is the lazy-discovery path: this judge was removed from the table while
+  // A 404 here is the lazy-discovery path: this judge was removed from the table while
   // offline (or with the app closed) and only finds out now that connectivity/replay has resumed,
   // without ever having received the live JudgeRemoved hub event. That row can never succeed —
   // purge it (and its draft) instead of recording just another failed attempt and backing off.
@@ -338,7 +338,7 @@ export class SyncService {
 
   // A request the server actively refused because the payload/request is invalid for its current
   // state (validation, or a domain conflict like out-of-sequence/order-not-fixed), or because this
-  // judge no longer has access to the table at all (404 — T087, e.g. removed mid-evaluation) —
+  // judge no longer has access to the table at all (404, e.g. removed mid-evaluation) —
   // submit()'s foreground attempt surfaces this to the caller immediately rather than silently
   // reporting "enqueued", even though the row still stays queued for a later background retry
   // regardless (see submit()'s doc comment; attemptOne()'s background sweep is what actually purges

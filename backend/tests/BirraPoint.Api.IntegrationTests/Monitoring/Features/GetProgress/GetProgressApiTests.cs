@@ -5,7 +5,7 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 namespace BirraPoint.Api.IntegrationTests.Monitoring.Features.GetProgress;
 
 /// <summary>
-/// T068: HTTP-level contract tests for GET /competitions/{id}/progress (contracts/rest-api.md §Monitoring &amp;
+/// HTTP-level contract tests for GET /competitions/{id}/progress (contracts/rest-api.md §Monitoring &amp;
 /// audit, FR-038) — organizer-only dashboard init.
 /// </summary>
 public sealed class GetProgressApiTests(ApiFactory factory) : MonitoringApiTestBase(factory), IClassFixture<ApiFactory>

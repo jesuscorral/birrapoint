@@ -10,11 +10,11 @@ import { TableBoardComponent } from './table-board.component';
 // read-only once the competition has moved past Active.
 const READ_ONLY_STATES: ReadonlySet<CompetitionState> = new Set(['InEvaluation', 'Finalized']);
 
-// T123: thin route-bound wrapper — all table-assignment logic now lives in TableBoardComponent
+// Thin route-bound wrapper — all table-assignment logic now lives in TableBoardComponent
 // (route-agnostic, `input()`-driven) so it can be reused unchanged inside the competition wizard's
 // "Mesas" step. This component's only job is reading the :id route param and handing it off.
 //
-// T127: wrapped in the shared page shell (topbar + main landmark), and now also resolves the
+// Wrapped in the shared page shell (topbar + main landmark), and now also resolves the
 // competition's own state to decide whether the board should render read-only. The board renders
 // immediately rather than waiting on this fetch — it defaults editable until the state is known,
 // then flips to read-only if it turns out to be InEvaluation/Finalized, since blocking the whole

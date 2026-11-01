@@ -5,7 +5,7 @@ import Keycloak from 'keycloak-js';
 import { ActiveRoleService } from '../../auth/active-role.service';
 import { BpTopbarComponent } from '../../../shared/components/bp-topbar/bp-topbar.component';
 
-// T127/FR-061: shared page chrome (topbar + main landmark + gutter rules) extracted from the
+// FR-061: shared page chrome (topbar + main landmark + gutter rules) extracted from the
 // wizard shell so every organizer screen gets the same breathing room and a single `main` per
 // page, instead of each feature re-declaring its own copy of the gutter media queries.
 //

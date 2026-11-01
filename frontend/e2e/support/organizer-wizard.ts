@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 
-// T125/T125b: the organizer console's standalone `/organizer/competitions/:id/import` route was
+// The organizer console's standalone `/organizer/competitions/:id/import` route was
 // folded into the competition wizard as step 4, and the whole wizard was translated. Eleven specs
 // had their own copy of the old flow — `page.goto(.../import)` plus `Upload` / `Consolidate` — so
 // every one of them died on the redirect long before reaching what it actually tested. The flow
@@ -54,7 +54,7 @@ export async function createCompetition(page: Page, name: string): Promise<strin
 
   await page.getByRole('button', { name: 'Siguiente' }).click();
   // Step 1 replaces the URL with the persisted id rather than navigating (see onBasicsSaved).
-  // Query-agnostic: the wizard's own ?step= tracking (T127/FR-061) means the URL settles on
+  // Query-agnostic: the wizard's own ?step= tracking (FR-061) means the URL settles on
   // `.../{id}?step=2` right after creation, not a bare id — see the code review fix on
   // competition-wizard.component.ts's onBasicsSaved/step effect.
   await page.waitForURL(/\/organizer\/competitions\/[0-9a-fA-F-]{36}(\?step=\d)?$/);

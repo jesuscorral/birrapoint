@@ -4,7 +4,7 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 namespace BirraPoint.Api.IntegrationTests.Import.Features.GetImport;
 
 /// <summary>
-/// T032: HTTP-level contract tests for GET /competitions/{id}/imports/{importId} (current row states).
+/// HTTP-level contract tests for GET /competitions/{id}/imports/{importId} (current row states).
 /// </summary>
 public sealed class GetImportApiTests(ApiFactory factory) : ImportApiTestBase(factory), IClassFixture<ApiFactory>
 {

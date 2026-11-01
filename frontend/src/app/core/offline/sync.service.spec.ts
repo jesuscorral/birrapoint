@@ -267,7 +267,7 @@ describe('SyncService', () => {
 
     it('times out a hung request instead of waiting forever, treating it as transient (resolves "enqueued")', async () => {
       // HttpClient has no default timeout — a dead socket while navigator.onLine is (stale-)true
-      // would otherwise hang submit() indefinitely (senior-code-reviewer finding on PR #22).
+      // would otherwise hang submit() indefinitely.
       // Real timers up through createService()/the initial "app start" replay settling (same as
       // every other test here), then fake timers just for this test so a 15s wait resolves
       // instantly instead of actually elapsing in the test run.
@@ -449,7 +449,7 @@ describe('SyncService', () => {
       expect(await db.outbox.get('table-1:entry-1')).toBeUndefined();
     });
 
-    it('purges the outbox row (and its draft) on a 404, instead of recording a failed attempt (T087 lazy-discovery)', async () => {
+    it('purges the outbox row (and its draft) on a 404, instead of recording a failed attempt (lazy discovery)', async () => {
       const service = await createService();
       await seedOutboxRow();
       await db.drafts.put({
@@ -475,7 +475,7 @@ describe('SyncService', () => {
     });
   });
 
-  describe('submit() 404 handling (T087)', () => {
+  describe('submit() 404 handling', () => {
     it('propagates a definitive 404 from an immediate online attempt (e.g. this judge was just removed), same as 400/409', async () => {
       const service = await createService();
 
@@ -499,7 +499,7 @@ describe('SyncService', () => {
     });
   });
 
-  describe('rejectOutboxForTable() (T087)', () => {
+  describe('rejectOutboxForTable()', () => {
     it('purges every outbox row (and its matching draft) for the given table, leaving other tables untouched', async () => {
       const service = await createService();
       await db.outbox.bulkPut([

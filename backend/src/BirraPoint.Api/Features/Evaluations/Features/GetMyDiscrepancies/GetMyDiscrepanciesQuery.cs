@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Features.Evaluations.Features.GetMyDiscrepancies;
 
-/// <summary>GET /me/tables/{tableId}/discrepancies (contracts/rest-api.md §Judge workspace, T081).
+/// <summary>GET /me/tables/{tableId}/discrepancies (contracts/rest-api.md §Judge workspace).
 /// Returns null when the caller is not an active member of this table.</summary>
 internal sealed record GetMyDiscrepanciesQuery(Guid TableId) : IRequest<IReadOnlyList<DiscrepancyView>?>;
 

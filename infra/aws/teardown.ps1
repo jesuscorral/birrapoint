@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     Removes ABSOLUTELY EVERYTHING of the BirraPoint AWS environment - AWS and Neon, data included -
-    so the next deploy starts from scratch (T146). Independent from infra/azure/teardown.ps1.
+    so the next deploy starts from scratch. Independent from infra/azure/teardown.ps1.
 
 .DESCRIPTION
     Always a full wipe, no data is kept:

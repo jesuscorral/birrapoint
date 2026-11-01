@@ -1,4 +1,4 @@
-// RFC 7807 shape the backend's ProblemDetails middleware writes (Common/Errors/, T012). `type` is
+// RFC 7807 shape the backend's ProblemDetails middleware writes (Common/Errors/). `type` is
 // one of the 14 closed-catalog urn:birrapoint:* values below when raised by a DomainException or
 // FluentValidation, or an ASP.NET Core default (non-birrapoint) `type` for framework-generated
 // errors (auth challenge/forbid, unmapped 404s) — `services.AddProblemDetails()` formats those

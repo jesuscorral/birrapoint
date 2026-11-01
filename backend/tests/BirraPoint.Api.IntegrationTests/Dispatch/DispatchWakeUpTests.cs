@@ -22,7 +22,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace BirraPoint.Api.IntegrationTests.Dispatch;
 
 /// <summary>
-/// T132 (PR #67 review M1/M3): with the periodic safety-net poll set to 1 h it can no longer mask
+/// With the periodic safety-net poll set to 1 h it can no longer mask
 /// a missing wake-up, so the worker must wake itself for (a) a foreign lease that expires after
 /// the startup sweep and (b) a Pending job whose NextAttemptAt is in the future when the process
 /// starts (its in-process retry signal died with the previous process), and (c) RetryDispatch

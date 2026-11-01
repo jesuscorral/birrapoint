@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace BirraPoint.Api.IntegrationTests.Evaluations.Features.AdjustEvaluation;
 
 /// <summary>
-/// T080: HTTP-level contract tests for PUT /me/tables/{tableId}/evaluations/{evaluationId}
+/// HTTP-level contract tests for PUT /me/tables/{tableId}/evaluations/{evaluationId}
 /// (FR-031) — gated to involved judges only while the discrepancy alert is open (Clarification Q2,
 /// `409 evaluation-locked` otherwise, `404` for someone else's evaluation).
 /// </summary>

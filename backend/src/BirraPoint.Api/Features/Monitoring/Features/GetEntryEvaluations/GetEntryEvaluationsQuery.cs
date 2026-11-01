@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Monitoring.Features.GetEntryEvaluations;
 
 /// <summary>GET /competitions/{id}/entries/{entryId}/evaluations (contracts/rest-api.md §Monitoring
-/// &amp; audit, T069, FR-038/FR-042): read-only audit drill-down. Returns null when the competition
+/// &amp; audit, FR-038/FR-042): read-only audit drill-down. Returns null when the competition
 /// doesn't exist/isn't owned by the caller, the entry doesn't belong to the competition, or the
 /// entry isn't yet assigned to a table (nothing to audit) — the endpoint maps all three to a plain
 /// 404, never leaking existence.</summary>
@@ -56,7 +56,7 @@ internal sealed class GetEntryEvaluationsQueryHandler(AppDbContext dbContext, IC
         }
 
         // AsNoTracking: read-only audit view, no reason to track the joined Evaluation entities
-        // (senior-code-reviewer finding on PR #24 — matches GetCompetition's read-model convention).
+        // (matches GetCompetition's read-model convention).
         var evaluations = await dbContext.Evaluations
             .AsNoTracking()
             .Where(ev => ev.BeerEntryId == request.EntryId)

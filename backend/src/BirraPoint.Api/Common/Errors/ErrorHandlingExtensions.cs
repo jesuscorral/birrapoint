@@ -3,7 +3,7 @@ namespace BirraPoint.Api.Common.Errors;
 internal static class ErrorHandlingExtensions
 {
     /// <summary>
-    /// Registers ProblemDetails + the exception handler chain (T012). Handlers run in
+    /// Registers ProblemDetails + the exception handler chain. Handlers run in
     /// registration order until one returns true; <see cref="FallbackExceptionHandler"/> must
     /// stay last so it only catches what the more specific handlers didn't.
     /// </summary>

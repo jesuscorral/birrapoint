@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace BirraPoint.Api.IntegrationTests.Auth;
 
 /// <summary>
-/// T021: proves the deny-by-default fallback policy (401), the ORGANIZER role policy (403), and
+/// Proves the deny-by-default fallback policy (401), the ORGANIZER role policy (403), and
 /// the owner-scoped 404 convention (no cross-owner existence leak, rest-api.md §Error catalog)
 /// over real HTTP. No real ORGANIZER + owner-scoped REST endpoint exists on this branch yet, so
 /// <see cref="TestOnlyAuthorizationEndpointsStartupFilter"/> supplies a diagnostic-only stand-in

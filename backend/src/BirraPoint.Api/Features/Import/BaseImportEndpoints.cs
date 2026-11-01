@@ -7,7 +7,7 @@ using BirraPoint.Api.Features.Import.Features.UploadImport;
 
 namespace BirraPoint.Api.Features.Import;
 
-/// <summary>Maps every Entry Import endpoint (contracts/rest-api.md §Entry Import, T035) — ORGANIZER-only.</summary>
+/// <summary>Maps every Entry Import endpoint (contracts/rest-api.md §Entry Import) — ORGANIZER-only.</summary>
 internal static class BaseImportEndpoints
 {
     public static IEndpointRouteBuilder MapImportEndpoints(this IEndpointRouteBuilder endpoints)

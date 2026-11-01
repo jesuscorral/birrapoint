@@ -476,7 +476,7 @@ describe('CompetitionMonitorComponent', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Ada Lovelace');
   });
 
-  describe('judge removal (T087/US12)', () => {
+  describe('judge removal (US12)', () => {
     it('shows the judges assigned to each table', async () => {
       const fixture = createComponent();
       await flush();

@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace BirraPoint.Api.Features.Judges.Features.NotifyJudges;
 
-/// <summary>Pure rules for NotifyJudges (FR-059/T147), unit-testable without Postgres.</summary>
+/// <summary>Pure rules for NotifyJudges (FR-059), unit-testable without Postgres.</summary>
 internal static class NotifyJudgesRules
 {
     /// <summary>

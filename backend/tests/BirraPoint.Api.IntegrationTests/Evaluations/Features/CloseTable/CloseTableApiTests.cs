@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace BirraPoint.Api.IntegrationTests.Evaluations.Features.CloseTable;
 
 /// <summary>
-/// T063: HTTP-level contract tests for POST /me/tables/{tableId}/close (contracts/rest-api.md
+/// HTTP-level contract tests for POST /me/tables/{tableId}/close (contracts/rest-api.md
 /// §Judge workspace, FR-033/FR-042) — the completeness precondition (→ 409 evaluations-incomplete),
 /// the double-close guard (→ 409 table-closed), that closing actually flips TastingTable.State so the
 /// *existing* SubmitEvaluation table-closed gate engages (FR-034), and the correctly-averaged
@@ -189,7 +189,7 @@ public sealed class CloseTableApiTests(ApiFactory factory) : EvaluationsApiTestB
         Assert.Equal(HttpStatusCode.OK, (await CloseAsync(judgeClient, fixture.TableId)).StatusCode);
 
         // A second judge, seeded (and assigned to the table) only after close — proves the
-        // *existing* SubmitEvaluation table-state gate (T058) is what engages once CloseTable
+        // *existing* SubmitEvaluation table-state gate is what engages once CloseTable
         // flips TastingTable.State, not merely that direct test seeding of a closed table works.
         var latecomerSub = $"judge-{Guid.NewGuid():N}";
         var latecomerId = await SeedJudgeAsync(fixture.CompetitionId, $"{latecomerSub}@brew.example", latecomerSub);

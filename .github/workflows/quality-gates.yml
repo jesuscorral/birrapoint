@@ -1,4 +1,4 @@
-# Reusable quality gates (FR-064, T135): backend build/format/unit/integration tests and frontend
+# Reusable quality gates (FR-064): backend build/format/unit/integration tests and frontend
 # lint/format/Jest/bundle budget for one commit. Called by ci.yml (every PR and main) and by
 # release.yml (the exact commit being released — a hotfix branch included), so nothing reaches a
 # published image without passing them.
@@ -47,6 +47,17 @@ jobs:
           name: backend-test-results
           path: ${{ runner.temp }}/test-results
           if-no-files-found: ignore
+
+  # Tasks.md ids belong in branches, commits and PRs, never in code or test names.
+  hygiene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - run: bash .github/scripts/check-no-task-ids.sh
 
   # Jest and the bundle-budget script print their full diagnostics to the job log, so there is no
   # separate artifact (a JUnit reporter would be a new dependency, Principle V).

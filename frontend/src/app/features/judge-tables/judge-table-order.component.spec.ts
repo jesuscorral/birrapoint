@@ -619,7 +619,7 @@ describe('JudgeTableOrderComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Not found.');
   });
 
-  describe('closing the table (T066)', () => {
+  describe('closing the table', () => {
     it('shows a Close table button once the order is fixed and every sample is done', async () => {
       fakeApi.getMyTables.mockReturnValue(
         of([tableFixture({ orderFixed: true, orderFixedBy: 'Ada Lovelace' })]),
@@ -853,7 +853,7 @@ describe('JudgeTableOrderComponent', () => {
     });
   });
 
-  describe('discrepancy alerts (T082)', () => {
+  describe('discrepancy alerts', () => {
     it('shows no banner when there are no open discrepancies', async () => {
       const fixture = createComponent();
       await flush();
@@ -969,7 +969,7 @@ describe('JudgeTableOrderComponent', () => {
     });
   });
 
-  describe('live judge removal (T087/US12)', () => {
+  describe('live judge removal (US12)', () => {
     it('joins the table SignalR group on init and leaves it on destroy', async () => {
       const fixture = createComponent();
       await flush();

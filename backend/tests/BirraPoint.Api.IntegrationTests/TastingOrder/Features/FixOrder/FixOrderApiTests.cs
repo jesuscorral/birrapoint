@@ -6,7 +6,7 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 namespace BirraPoint.Api.IntegrationTests.TastingOrder.Features.FixOrder;
 
 /// <summary>
-/// T051: HTTP-level contract tests for the one-shot POST /me/tables/{tableId}/order, incl. the race
+/// HTTP-level contract tests for the one-shot POST /me/tables/{tableId}/order, incl. the race
 /// (US6-4 / Clarification Q1).
 /// </summary>
 public sealed class FixOrderApiTests(ApiFactory factory) : TastingOrderApiTestBase(factory), IClassFixture<ApiFactory>

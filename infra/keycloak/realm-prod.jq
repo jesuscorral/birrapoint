@@ -1,4 +1,4 @@
-# Production realm derivation (T130), applied to birrapoint-realm.json by the Dockerfile `realm`
+# Production realm derivation, applied to birrapoint-realm.json by the Dockerfile `realm`
 # stage and by RealmProd.test.sh. The local-dev realm (Aspire/E2E) is left untouched.
 #  - strip the seeded `organizer`/`organizer` account (E2E-only); the service-account user stays;
 #  - drop the local-dev fallback of the API admin client secret (API_ADMIN_CLIENT_SECRET or nothing);

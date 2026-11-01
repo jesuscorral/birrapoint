@@ -52,7 +52,7 @@ is in [`infra/aws/github-actions-setup.md`](../github-actions-setup.md); what is
   `<ns>/birrapoint-<c>:latest`, `X.Y.Z` → `<ns>/birrapoint-<c>-release:X.Y.Z`. Terraform owns the
   running image: changing the version and applying registers a new task definition and ECS rolls
   the service. `dockerhub_username` + `dockerhub_token` (read-only token) are mandatory, even for
-  public repositories (anonymous pulls from ECS shared IPs hit Docker Hub rate limits, T131); they
+  public repositories (anonymous pulls from ECS shared IPs hit Docker Hub rate limits); they
   go to a Secrets Manager secret read only by the task execution role (`repositoryCredentials`).
 - **Network**: dedicated VPC `10.40.0.0/16`, 2 public subnets in 2 AZs, internet gateway, **no NAT**
   (about 32 USD/month saved per gateway). Tasks run with `assign_public_ip` only for egress
@@ -217,7 +217,7 @@ the hourly poll up to about 16 CU-h, so roughly 20 CU-h of the 100 free. Without
 settings above (image defaults) compute never suspends: about 182 CU-h/month. Method: Keycloak 26.2
 on Postgres 16 in Docker, idle, `pg_stat_activity` sampled every 30 s plus `log_statement=all`;
 the Neon billing side (what counts as activity, per-wake cost) is not measured here - confirm in the
-console, Monitoring, CU-hours (T099/T137). A busy event week uses more.
+console, Monitoring, CU-hours. A busy event week uses more.
 
 **Recommendation.** Free plan works for low traffic and idle periods with the 1 h poll. A paid
 plan (Launch) is a **prerequisite for a live competition period** or any guaranteed availability:
@@ -258,7 +258,7 @@ dispatch wake-ups on a paid plan, then apply as usual.
   option, so the application secrets are not environment-qualified.
 - **API deployments stop the old task first** (SignalR has no backplane): expect a brief API outage on
   each rollout. `deployment_circuit_breaker` rolls back a task that fails to start.
-- **No container health checks, no API probe (T098)**: the Keycloak and API images have no curl,
+- **No container health checks, no API probe**: the Keycloak and API images have no curl,
   so an ECS `healthCheck` command could not run, and the API has no ALB target group (it is reached
   through Cloud Map), so nothing probes it. The ALB checks web (`/`) and Keycloak (`/health/live`
   on port 9000; `/health/ready` validates DB connections and would keep Neon awake). A crashing API
@@ -269,7 +269,7 @@ dispatch wake-ups on a paid plan, then apply as usual.
   (ADR-0025).
 - **Telemetry today**: console logs go to CloudWatch (`/birrapoint/<env>/<component>`, 30 days).
   The API exports OpenTelemetry (OTLP) only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; none is
-  configured and no paid telemetry resource is created. Validating this on ECS belongs to T099.
+  configured and no paid telemetry resource is created. Validating this on ECS is still pending.
 - Public task IPs without NAT trade network isolation for cost; the security groups are the only
   inbound control. Container Insights is off to save cost.
 - **Cost** (ADR-0023): about 85-100 USD/month: ALB ~18, Fargate incl. two `daprd` sidecars ~55,

@@ -1,4 +1,4 @@
-# Checks of the CI/CD definitions themselves (FR-064, T135): actionlint (with shellcheck, which
+# Checks of the CI/CD definitions themselves (FR-064): actionlint (with shellcheck, which
 # ships on the runner) over every workflow, and the tests of the release scripts. Runs only when
 # .github/ changes.
 name: Workflows
@@ -47,3 +47,4 @@ jobs:
       - run: bash .github/scripts/wait-revisions.test.sh
       - run: bash .github/scripts/ecs-health.test.sh
       - run: bash .github/scripts/require-dockerhub-read.test.sh
+      - run: bash .github/scripts/check-no-task-ids.test.sh

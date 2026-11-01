@@ -22,7 +22,7 @@ internal sealed record ScoreSheetJudgeEntry(
     string? Feedback);
 
 /// <summary>
-/// T074/FR-040: one-page-per-entry QuestPDF scoresheet — competition name, blind code, style,
+/// FR-040: one-page-per-entry QuestPDF scoresheet — competition name, blind code, style,
 /// every judge's scores/comments/total, and the consolidated mean. Deliberately omits participant
 /// and beer name anywhere in the content (R-14/BR-01) — those only appear in the ZIP folder path
 /// built by <see cref="DispatchPaths"/>, never inside the PDF itself.
@@ -68,8 +68,8 @@ internal sealed class ScoreSheetDocument(
                 }
 
                 // Null (not 0) when nobody has evaluated this entry yet — 0 would read as a real
-                // score of zero rather than "not evaluated" (senior-code-reviewer finding on PR
-                // #25; matches GetEntryEvaluationsQueryHandler's null-until-closed convention).
+                // score of zero rather than "not evaluated" (matches
+                // GetEntryEvaluationsQueryHandler's null-until-closed convention).
                 column.Item().PaddingTop(20)
                     .Text($"Consolidated mean: {(consolidatedMean.HasValue ? consolidatedMean.Value.ToString(CultureInfo.InvariantCulture) : "not evaluated")}")
                     .FontSize(14).Bold();

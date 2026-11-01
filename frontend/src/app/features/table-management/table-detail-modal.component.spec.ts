@@ -45,7 +45,7 @@ describe('TableDetailModalComponent', () => {
     expect(text).toContain('Munich Helles');
     expect(text).toContain('5.5% (style range 4.5–7.5%)');
     expect(text).toContain('Mesa 1');
-    // T124: both category axes, the organizer-defined one and the BJCP taxonomy's own.
+    // Both category axes, the organizer-defined one and the BJCP taxonomy's own.
     expect(text).toContain('Estilos clásicos');
     expect(text).toContain('4 · Pale Malty European Lager');
   });

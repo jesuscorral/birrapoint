@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Evaluations.Features.AdjustEvaluation;
 
 /// <summary>PUT /me/tables/{tableId}/evaluations/{evaluationId} (contracts/rest-api.md §Judge
-/// workspace, T081, Clarification Q2). Returns null when the caller is not an active member of
+/// workspace, Clarification Q2). Returns null when the caller is not an active member of
 /// this table, or when the evaluationId doesn't belong to one of the caller's own submissions at
 /// this table — the endpoint maps that to a plain 404, never leaking whether it belongs to someone
 /// else (same convention as SubmitEvaluationCommand/CloseTableCommand).</summary>

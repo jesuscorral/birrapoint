@@ -3,7 +3,7 @@ using BirraPoint.Api.Common.Keycloak;
 
 namespace BirraPoint.Api.IntegrationTests.TestHost;
 
-/// <summary>T039 test double — returns a canned temporary password instantly instead of calling a real Keycloak Admin REST API.</summary>
+/// <summary>Test double — returns a canned temporary password instantly instead of calling a real Keycloak Admin REST API.</summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
     Justification = "Instantiated by the DI container / host, not by direct construction.")]
 internal sealed class FakeKeycloakAdminClient : IKeycloakAdminClient

@@ -1,6 +1,6 @@
 namespace BirraPoint.Api.Features.Import.CommonComponents;
 
-/// <summary>One parsed data row, before any staging entity exists (T031/T034).</summary>
+/// <summary>One parsed data row, before any staging entity exists.</summary>
 internal sealed record ParsedImportRow(
     int RowNumber,
     string? ParticipantName,

@@ -17,7 +17,7 @@ using Testcontainers.PostgreSql;
 namespace BirraPoint.Api.IntegrationTests.Persistence;
 
 /// <summary>
-/// T095-T097: hosts the API against a deliberately *unmigrated* PostgreSQL container, in a
+/// Hosts the API against a deliberately *unmigrated* PostgreSQL container, in a
 /// non-Development environment with Database:MigrateOnStartup=true — unlike <see cref="ApiFactory"/>,
 /// which pre-migrates its container itself in InitializeAsync and would mask a regression in
 /// Program.cs's own startup-migration path. This factory proves that path runs for real in the
@@ -53,14 +53,14 @@ public sealed class MigrateOnStartupApiFactory : WebApplicationFactory<Program>,
                 ["ConnectionStrings:db"] = _container.GetConnectionString(),
                 ["Database:MigrateOnStartup"] = "true",
                 ["Frontend:BaseUrl"] = "http://localhost:4200",
-                // Production env enforces a non-placeholder admin secret at startup (T130).
+                // Production env enforces a non-placeholder admin secret at startup.
                 ["Keycloak:AdminClientSecret"] = "integration-test-secret",
             });
         });
 
         builder.ConfigureServices(services =>
         {
-            // Same test doubles as ApiFactory (T018/T039/T040/T041) — no real Keycloak/SMTP in
+            // Same test doubles as ApiFactory — no real Keycloak/SMTP in
             // this environment either; only the startup-migration and forwarded-headers behavior
             // under test differs from ApiFactory.
             services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
@@ -92,7 +92,7 @@ public sealed class StartupMigrationApiTests(MigrateOnStartupApiFactory factory)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        // BJCP 2021: categories 1-34 + Appendix B (T010) — a non-empty, fully-seeded catalog is
+        // BJCP 2021: categories 1-34 + Appendix B — a non-empty, fully-seeded catalog is
         // only possible if Program.cs's own migration path (not this factory) created the schema.
         Assert.Equal(125, document.RootElement.GetArrayLength());
     }
@@ -183,7 +183,7 @@ public sealed class MigrateOnStartupViaDbDirectApiFactory : WebApplicationFactor
                 ["ConnectionStrings:dbDirect"] = _container.GetConnectionString(),
                 ["Database:MigrateOnStartup"] = "true",
                 ["Frontend:BaseUrl"] = "http://localhost:4200",
-                // Production env enforces a non-placeholder admin secret at startup (T130).
+                // Production env enforces a non-placeholder admin secret at startup.
                 ["Keycloak:AdminClientSecret"] = "integration-test-secret",
             });
         });

@@ -14,11 +14,11 @@ function initialsOf(displayName: string): string {
     .join('');
 }
 
-// T048A/T048B/T048C: a judge draggable used both seated on a MesaCard and in the "Unassigned"
+// A judge draggable used both seated on a MesaCard and in the "Unassigned"
 // column — one shared implementation so the click-vs-drag disambiguation and ~38px target sizing
 // live in exactly one place.
 //
-// T124: initials alone were not enough to tell two judges apart while assigning them to tables, so
+// Initials alone were not enough to tell two judges apart while assigning them to tables, so
 // the avatar now carries the full display name underneath it. The initials stay as the visual
 // anchor (and as the fallback when `showName` is off).
 @Component({
@@ -136,10 +136,10 @@ function initialsOf(displayName: string): string {
 })
 export class JudgeSeatComponent {
   readonly judge = input.required<TableJudge>();
-  // Defaults to the named form — every current call site wants it (T124). Kept as an input rather
+  // Defaults to the named form — every current call site wants it. Kept as an input rather
   // than hardcoded so a future dense view can fall back to the bare avatar without a fork.
   readonly showName = input(true);
-  // T125b: seated inside a rail card the avatar-over-name stack is what made those cards tall, so
+  // Seated inside a rail card the avatar-over-name stack is what made those cards tall, so
   // the dense form lays the two out in a row with a one-line name. The name stays visible — losing
   // it was the whole complaint that put it there.
   readonly dense = input(false);

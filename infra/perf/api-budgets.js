@@ -1,7 +1,7 @@
 import http from 'k6/http';
 import { check } from 'k6';
 
-// infra/perf/api-budgets.js — Constitution Principle IX API performance budgets (tasks.md T090):
+// infra/perf/api-budgets.js — Constitution Principle IX API performance budgets:
 // reads p95 < 200ms, writes p95 < 500ms, exercised against representative endpoints from
 // specs/001-birrapoint-mvp/contracts/rest-api.md.
 //

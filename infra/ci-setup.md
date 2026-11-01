@@ -67,7 +67,7 @@ A **tag ruleset** protecting `v*` tags would block the bot's tag push in the sam
 GitHub App bypass applies.
 
 If CI later becomes a required check, remember that docs-only PRs never produce it, because of
-the path filters (T137). The reusable gates report as `gates / backend` and `gates / frontend`.
+the path filters. The reusable gates report as `gates / backend` and `gates / frontend`.
 
 `release.yml`, `deploy-azure.yml` and `deploy-aws.yml` refuse to run unless dispatched from `main` ("Use workflow from:
 main" in the Actions tab, the default).

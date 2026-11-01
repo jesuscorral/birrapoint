@@ -7,7 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 namespace BirraPoint.Api.IntegrationTests.TestHost;
 
 /// <summary>
-/// T018: mints JWTs shaped like Keycloak's without a real IdP round-trip. Signs with a fixed
+/// Mints JWTs shaped like Keycloak's without a real IdP round-trip. Signs with a fixed
 /// test-only key so <see cref="ApiFactory"/> can validate tokens statically (no metadata fetch);
 /// the `realm_access` claim matches the shape <c>KeycloakRolesClaimsTransformation</c> parses.
 /// </summary>
@@ -17,7 +17,7 @@ internal static class TestJwtIssuer
     private const string Issuer = "https://test-issuer.birrapoint.local/realms/birrapoint";
 
     private static readonly SymmetricSecurityKey SigningKey =
-        new(Encoding.UTF8.GetBytes("T018-integration-test-only-signing-key-not-for-any-real-use!!"));
+        new(Encoding.UTF8.GetBytes("integration-test-only-signing-key-not-for-any-real-use!!"));
 
     public static TokenValidationParameters ValidationParameters { get; } = new()
     {

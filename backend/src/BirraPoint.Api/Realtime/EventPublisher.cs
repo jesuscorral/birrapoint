@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.SignalR;
 namespace BirraPoint.Api.Realtime;
 
 /// <summary>
-/// Emit-after-commit dispatcher (T015). Generic on purpose: it knows how to reach the two fixed
+/// Emit-after-commit dispatcher. Generic on purpose: it knows how to reach the two fixed
 /// audiences, not the payload shape of any specific event — each story's handler builds its own
 /// payload record and calls this after its own <c>SaveChangesAsync</c> succeeds, never before
 /// (contracts/signalr-hub.md §Delivery semantics — no phantom updates from rolled-back transactions).

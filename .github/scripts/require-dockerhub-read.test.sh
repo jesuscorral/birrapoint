@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for .github/scripts/require-dockerhub-read.sh (T131). Run: bash .github/scripts/require-dockerhub-read.test.sh
+# Tests for .github/scripts/require-dockerhub-read.sh. Run: bash .github/scripts/require-dockerhub-read.test.sh
 set -u
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 script="$here/require-dockerhub-read.sh"

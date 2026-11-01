@@ -47,7 +47,7 @@ variable "dapr_secret_store_name" {
 
 # --- Images (Docker Hub, constitution v1.3.1) ---------------------------------------------------
 
-# Terraform owns the running image (T143, ADR-0022): changing a version here and applying rolls the
+# Terraform owns the running image (ADR-0022): changing a version here and applying rolls the
 # Container App to a new revision. "latest" is the CI image docker.io/<ns>/birrapoint-<c>:latest;
 # X.Y.Z is the release image docker.io/<ns>/birrapoint-<c>-release:X.Y.Z (release.yml, ADR-0019).
 

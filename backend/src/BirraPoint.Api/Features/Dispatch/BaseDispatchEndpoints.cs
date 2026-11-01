@@ -4,8 +4,7 @@ using BirraPoint.Api.Features.Dispatch.Features.RetryDispatch;
 
 namespace BirraPoint.Api.Features.Dispatch;
 
-/// <summary>Maps the Results &amp; dispatch endpoints (contracts/rest-api.md §Results &amp; dispatch,
-/// T072-T076) — ORGANIZER-only.</summary>
+/// <summary>Maps the Results &amp; dispatch endpoints (contracts/rest-api.md §Results &amp; dispatch) — ORGANIZER-only.</summary>
 internal static class BaseDispatchEndpoints
 {
     public static IEndpointRouteBuilder MapDispatchEndpoints(this IEndpointRouteBuilder endpoints)

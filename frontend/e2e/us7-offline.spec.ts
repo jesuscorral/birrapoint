@@ -153,7 +153,7 @@ async function pointerDrag(page: Page, source: Locator, target: Locator): Promis
 }
 
 // Mirrors us13-dashboard.spec.ts's advanceCompetitionState: drives the real dashboard
-// advance-state control (T102/FR-051) rather than a token-capture workaround.
+// advance-state control (FR-051) rather than a token-capture workaround.
 function competitionRow(page: Page, name: string): Locator {
   return page.locator('li.competition-list-row').filter({ hasText: name });
 }

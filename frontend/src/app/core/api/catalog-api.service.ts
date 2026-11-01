@@ -63,7 +63,7 @@ export class CatalogApiService {
 
   // In-memory only, for the lifetime of this (root-provided, session-long) service instance — not
   // a persistent Dexie-backed cache. The BJCP catalog is static reference data, not
-  // competition-specific state, so this is enough to satisfy "cached for offline use" (T060B):
+  // competition-specific state, so this is enough to satisfy "cached for offline use":
   // re-toggling the reference panel doesn't refetch, and a mid-session connectivity drop doesn't
   // blank an already-loaded panel. A page reload still requires connectivity for the first fetch
   // of any given style — a bigger, Dexie-backed cache was judged out of scope for this task.

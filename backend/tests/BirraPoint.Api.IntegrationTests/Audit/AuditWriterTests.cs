@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.IntegrationTests.Audit;
 
 /// <summary>
-/// T014: AuditWriter stages an AuditLog row via the DbContext's change tracker without calling
+/// AuditWriter stages an AuditLog row via the DbContext's change tracker without calling
 /// SaveChanges itself, so it commits atomically with whatever business change the caller persists.
 /// </summary>
 public sealed class AuditWriterTests(PostgresFixture fixture) : IClassFixture<PostgresFixture>

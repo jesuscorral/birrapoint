@@ -38,7 +38,7 @@ function swap<T>(items: T[], a: number, b: number): T[] {
   return next;
 }
 
-// T053/US6: blind per-table sample/tasting-order view. Only ever renders blindCode/styleCode/
+// US6: blind per-table sample/tasting-order view. Only ever renders blindCode/styleCode/
 // styleName/abvPercent from JudgeSample — the BR-01/FR-019 anonymity boundary — never any entrant
 // field. Session 2026-09-20: added abvPercent per sample, and a read-only "other judges at this
 // table" section (GET /me/tables/{tableId}/judges) — purely informational, no editing capability
@@ -47,7 +47,7 @@ function swap<T>(items: T[], a: number, b: number): T[] {
 // Reordering: while the order isn't fixed, samples can be reordered via CDK drag-and-drop
 // (`cdkDragHandle`-restricted, not the whole row) or the Move up/down buttons — FR-020's
 // keyboard-accessible equivalent, built alongside the drag gesture rather than after it.
-// Unlike T048B's judge/beer tokens (where the whole draggable element IS the only interactive
+// Unlike the judge/beer tokens on the table board (where the whole draggable element IS the only interactive
 // target, so a pointer-movement threshold cleanly disambiguates a click-to-open from a
 // drag-start), each row here already has two independent interactive buttons nested inside it —
 // `cdkDragHandle` restricts the drag surface to a dedicated handle so button clicks are never in
@@ -754,7 +754,7 @@ export class JudgeTableOrderComponent implements OnInit, OnDestroy {
     this.closeError.set(errorMessage(apiError));
   }
 
-  // T087/US12: a JudgeRemoved event for this table doesn't say whether it was *this* judge — the
+  // US12: a JudgeRemoved event for this table doesn't say whether it was *this* judge — the
   // anonymity-driven judge-facing DTOs never carry this session's own judgeId (BR-01/FR-019
   // adjacent), so there's nothing to compare the event's judgeId against. Instead, re-verify this
   // session's own membership: once RemovedAt is set server-side, every judge-workspace endpoint for

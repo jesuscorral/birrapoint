@@ -4,12 +4,12 @@ using BirraPoint.Api.Features.Evaluations.CommonComponents;
 namespace BirraPoint.Api.UnitTests.Evaluations.CommonComponents;
 
 /// <summary>
-/// T062: pure CloseTable rules (FR-033/FR-042) — the completeness precondition (every active
+/// Pure CloseTable rules (FR-033/FR-042) — the completeness precondition (every active
 /// judge must have evaluated every sample) and the consolidated-mean averaging math. Exercises
 /// <see cref="CloseTableRules"/> directly (same "pure rule class beside the DB-touching handler"
 /// pattern already used by SubmitEvaluationRules/TastingOrderRules) rather than the full MediatR
 /// handler, which needs a real transaction against Postgres (Testcontainers) — CloseTableApiTests
-/// (T063) covers the end-to-end precondition chain, the discrepancy-open gate (inherently a plain
+/// covers the end-to-end precondition chain, the discrepancy-open gate (inherently a plain
 /// EF filter with no meaningful pure core), and the double-close/post-close-sync scenarios.
 /// </summary>
 public sealed class CloseTableTests

@@ -29,7 +29,7 @@ export interface AdjustEvaluationResult {
   discrepancy: DiscrepancyView | null;
 }
 
-// US11/T082: judge-facing discrepancy consensus API. Deliberately NOT routed through
+// US11: judge-facing discrepancy consensus API. Deliberately NOT routed through
 // SyncService/Dexie outbox — this repair flow assumes connectivity (the spec frames it as "shown
 // to each involved judge as soon as they are next online"), so a failed PUT here surfaces an
 // error to retry rather than enqueueing offline.

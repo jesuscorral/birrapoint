@@ -1,4 +1,4 @@
-# Pester 5+ tests for infra/azure/Teardown.psm1 - the pure decisions behind infra/azure/teardown.ps1 (T140, T143).
+# Pester 5+ tests for infra/azure/Teardown.psm1 - the pure decisions behind infra/azure/teardown.ps1.
 # Run: Invoke-Pester infra/azure/tests
 # (Windows PowerShell 5.1 ships Pester 3.4: Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser)
 

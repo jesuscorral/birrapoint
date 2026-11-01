@@ -14,9 +14,9 @@ internal sealed record RetryDispatchCommand(Guid CompetitionId, IReadOnlyList<Gu
 
 /// <summary>Re-queues failed result emails (FR-041) by resetting the SendResultEmail job back to a
 /// fresh attempt. Only Failed jobs: a Completed one would resend the email, a Running one may still
-/// be executing under another worker's lease (T129). After the commit the worker is woken
+/// be executing under another worker's lease. After the commit the worker is woken
 /// through IDispatchWakeUp (same as DispatchJobQueue), because the production safety-net poll
-/// (Dispatch:SafetyNetPollInterval) can be hours long (T132).</summary>
+/// (Dispatch:SafetyNetPollInterval) can be hours long.</summary>
 internal sealed class RetryDispatchCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, IDispatchWakeUp wakeUp)
     : IRequestHandler<RetryDispatchCommand, bool>

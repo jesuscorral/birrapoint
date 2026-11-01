@@ -1,4 +1,4 @@
-# Pure helpers behind infra/aws/teardown.ps1 (T146): the confirmation check, resource names, which
+# Pure helpers behind infra/aws/teardown.ps1: the confirmation check, resource names, which
 # AWS resources and Neon project the teardown may delete, and the `terraform destroy` arguments.
 # Kept free of AWS/Neon calls so they are unit-testable (infra/aws/tests/Teardown.Tests.ps1).
 # Windows PowerShell 5.1 and PowerShell 7.

@@ -63,7 +63,7 @@ interface RawConflict {
   beerEntryIds: string[];
 }
 
-// Pool ordering (T125b). 'style' groups like styles together, which is how a balanced table gets
+// Pool ordering. 'style' groups like styles together, which is how a balanced table gets
 // built; 'category' does the same for the organizer's own step-3 grouping; 'abv' surfaces the
 // strongest beers first when balancing mean alcohol; 'code' is the API's own order.
 type BeerSort = 'style' | 'category' | 'abv' | 'code';
@@ -83,13 +83,13 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
   return containerId.startsWith(prefix) ? containerId.slice(prefix.length) : null;
 }
 
-// T048/T048A/T048B/T048C: the organizer table-management board — "Unassigned" source column plus
+// The organizer table-management board — "Unassigned" source column plus
 // one MesaCard per tasting table, click-to-detail with a keyboard-accessible reassignment
 // fallback, and CDK drag-and-drop between the unassigned column and any table (or between two
 // tables). Every mutation goes through the same PUT /tables/{id} full-desired-state contract as
 // entry-import/judge-management's mutation calls (contracts/rest-api.md §Tables).
 //
-// T123: extracted out of table-management.component.ts (now a thin route-bound wrapper around
+// Extracted out of table-management.component.ts (now a thin route-bound wrapper around
 // this component) into a route-agnostic, `input()`-driven component so wizard step 6 ("Mesas")
 // can embed the exact same board instead of re-implementing table assignment.
 @Component({
@@ -133,7 +133,7 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
       <bp-alert type="error" title="No hemos podido mover el elemento">{{ message }}</bp-alert>
     }
 
-    <!-- T125b: pending work on top, tables underneath. The organizer reads "what is left to
+    <!-- Pending work on top, tables underneath. The organizer reads "what is left to
          place" first and drops downward into the rail, which stays in view because the pool above
          it is height-capped and scrolls inside itself rather than pushing the rail off screen. -->
     <div class="board-toolbar">
@@ -238,7 +238,7 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
           }
         </ul>
 
-        <!-- T125b: "Add table" is a tile alongside the rail rather than a header row of its own,
+        <!-- "Add table" is a tile alongside the rail rather than a header row of its own,
              so it costs no vertical space. It sits OUTSIDE the <ul> deliberately: as the last <li>
              it both made a form the Nth item of a list of tables for assistive tech, and scrolled
              off the right edge (taking keyboard focus with it) once the rail overflowed. Both
@@ -361,7 +361,7 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
       outline-offset: 1px;
     }
 
-    /* --- Tables rail, below the pool (T125b) ------------------------------------------------ */
+    /* --- Tables rail, below the pool ------------------------------------------------ */
     .board-rail {
       margin-top: var(--spacing-5);
       padding: var(--spacing-3) var(--spacing-4) var(--spacing-4);
@@ -391,7 +391,7 @@ function parseTableId(containerId: string, prefix: string, unassignedId: string)
       overscroll-behavior-x: contain;
     }
 
-    /* T125b: narrower cards than the first pass — at 13rem roughly six tables fit across a
+    /* Narrower cards than the first pass — at 13rem roughly six tables fit across a
        desktop board before the rail needs scrolling at all. */
     .board-rail__list > li {
       flex: 0 0 13rem;
@@ -522,7 +522,7 @@ export class TableBoardComponent implements OnInit {
     this.entries().filter((entry) => entry.tastingTableId === null),
   );
 
-  // T125: with a real competition's worth of entries the pool is the thing you scroll, so it gets
+  // With a real competition's worth of entries the pool is the thing you scroll, so it gets
   // a toolbar. Filtering is presentational only — it narrows what the pool renders and never
   // touches what is assigned, so a filtered-out beer stays exactly where it was.
   protected readonly beerQuery = signal('');
@@ -548,7 +548,7 @@ export class TableBoardComponent implements OnInit {
     ].sort((a, b) => a.localeCompare(b)),
   );
 
-  // T125c: over ALL entries (not just unassignedBeers) — a category's color must stay identical
+  // Over ALL entries (not just unassignedBeers) — a category's color must stay identical
   // whether its beers are seated on a table or still in the pool, so a beer that gets dragged onto
   // a table cannot silently change color underneath the organizer.
   protected readonly categoryColorMap = computed(() =>
@@ -751,7 +751,7 @@ export class TableBoardComponent implements OnInit {
     return entry?.tastingTableId ? [entry.tastingTableId] : [];
   }
 
-  // Keyboard-accessible equivalent of T048B's drag-and-drop reassignment (invoked from the detail
+  // Keyboard-accessible equivalent of the drag-and-drop reassignment (invoked from the detail
   // modal's "Move to" control).
   protected onModalMove(targetTableId: string | null): void {
     const detail = this.selectedDetail();
@@ -914,7 +914,7 @@ export class TableBoardComponent implements OnInit {
   // own membership (an entry at a different table, or still unassigned), and the mutation
   // response only reports newly-*flagged* ids, never newly-*unflagged* ones — so a full refetch
   // is the only way to stay correct in both directions rather than silently going stale until the
-  // next page load (found by T049's E2E: the BOS banner announced correctly but the flagged
+  // next page load (found by the E2E: the BOS banner announced correctly but the flagged
   // token's visual state didn't update without a reload).
   private applyMutationResult(result: TableMutationResult): void {
     const summary = toSummary(result);

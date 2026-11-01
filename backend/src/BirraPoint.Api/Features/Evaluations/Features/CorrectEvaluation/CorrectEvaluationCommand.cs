@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Features.Evaluations.Features.CorrectEvaluation;
 
 /// <summary>PUT /competitions/{id}/evaluations/{evaluationId} (contracts/rest-api.md §Monitoring &amp;
-/// audit, T064-T065, FR-035). Returns null when the evaluation doesn't exist or belongs to a
+/// audit, FR-035). Returns null when the evaluation doesn't exist or belongs to a
 /// competition not owned by the caller — the endpoint maps that to a plain 404, never leaking
 /// existence. Allowed regardless of table state (the whole point is correcting a closed table's
 /// evaluation) — organizer-only, no table-state gate here.</summary>

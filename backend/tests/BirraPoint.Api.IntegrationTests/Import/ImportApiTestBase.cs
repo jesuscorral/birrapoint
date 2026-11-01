@@ -14,7 +14,7 @@ public abstract class ImportApiTestBase(ApiFactory factory)
 {
     private protected ApiFactory Factory => factory;
 
-    // BJCP 2021 seed data (T010): real catalog entries used throughout.
+    // BJCP 2021 seed data: real catalog entries used throughout.
     private protected const string StyleCodeHazyIpa = "21C";
     private protected const string StyleCodeStout = "20C";
     private protected const string UnknownStyleCode = "99Z";

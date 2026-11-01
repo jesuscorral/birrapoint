@@ -9,7 +9,7 @@ using QuestPDF.Fluent;
 namespace BirraPoint.Api.Features.Dispatch.Features.DispatchScoreSheet;
 
 /// <summary>
-/// T074/FR-036/FR-040: renders one <see cref="GeneratedScoreSheet"/> per <see cref="BeerEntry"/> in
+/// FR-036/FR-040: renders one <see cref="GeneratedScoreSheet"/> per <see cref="BeerEntry"/> in
 /// the competition (upsert by BeerEntryId so a retry never duplicates rows), then enqueues
 /// <see cref="DispatchJobType.BundleZip"/> for the same competition. Payload is empty — the job's
 /// own <see cref="DispatchJob.CompetitionId"/> is all that's needed.
@@ -51,7 +51,7 @@ internal sealed class GeneratePdfsHandler(AppDbContext dbContext, IDispatchJobQu
                 .ToList();
 
             // Null (not 0) when nobody has evaluated this entry — 0 would read as a real score of
-            // zero rather than "not evaluated" (senior-code-reviewer finding on PR #25). Mirrors
+            // zero rather than "not evaluated". Mirrors
             // CloseTableRules.ComputeMean's rounding convention without importing across feature
             // folders (same deliberate duplication already used by GetEntryEvaluationsQueryHandler).
             decimal? consolidatedMean = evaluations.Count == 0
@@ -83,8 +83,8 @@ internal sealed class GeneratePdfsHandler(AppDbContext dbContext, IDispatchJobQu
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        // Same at-least-once guard as BundleZipHandler's fan-out (senior-code-reviewer finding on
-        // PR #25): DispatchWorker may re-run this handler after a crash even though a prior
+        // Same at-least-once guard as BundleZipHandler's fan-out:
+        // DispatchWorker may re-run this handler after a crash even though a prior
         // attempt's BundleZip enqueue already committed durably — without this check, a re-run
         // would enqueue a second BundleZip job (and, transitively, a second round of emails).
         var bundleZipAlreadyQueued = await dbContext.DispatchJobs

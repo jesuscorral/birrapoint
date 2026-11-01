@@ -38,7 +38,7 @@ internal sealed record StyleDetailDto(
     StyleVitalStatisticsDto VitalStatistics,
     StyleDescriptionDto Description);
 
-/// <summary>GET /styles/{code} (contracts/rest-api.md §Catalog, T059B, FR-049). Returns null when
+/// <summary>GET /styles/{code} (contracts/rest-api.md §Catalog, FR-049). Returns null when
 /// no BjcpStyle matches — the endpoint maps that to a plain 404.</summary>
 internal sealed record GetStyleDetailQuery(string Code) : IRequest<StyleDetailDto?>;
 

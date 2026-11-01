@@ -690,7 +690,7 @@ export class ImportStepComponent implements OnInit {
   // every row mutation are hidden, and "Siguiente" advances without persisting (see onNext()).
   readonly readOnly = input(false);
   // Emitted by "Siguiente" once there's nothing left to do at this step — advances the wizard
-  // shell to step 5 (see onNext() below). T125: step 4 previously dead-ended at "Ir al panel de
+  // shell to step 5 (see onNext() below). Step 4 previously dead-ended at "Ir al panel de
   // organizador"; it now advances like every other step, whether or not a batch was consolidated
   // on this visit.
   readonly saved = output<void>();

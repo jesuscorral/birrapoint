@@ -1,4 +1,4 @@
-# Plan-level tests of the deployment (T143): image references, resource names and the absence of
+# Plan-level tests of the deployment: image references, resource names and the absence of
 # the removed birrapoint-deploy secret. Every provider is mocked, so no credentials are needed:
 #   terraform -chdir=infra/azure/terraform init -backend=false && terraform -chdir=infra/azure/terraform test
 
@@ -305,7 +305,7 @@ run "keycloak_housekeeping_interval_keeps_neon_asleep" {
   }
 }
 
-# --- API health probes (T098, FR-048) ------------------------------------------------------------
+# --- API health probes (FR-048) ------------------------------------------------------------
 
 run "api_probes_use_alive_never_health" {
   command = plan

@@ -52,7 +52,7 @@ var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26
 var keycloakHttp = keycloak.GetEndpoint("http");
 
 // Mailpit SMTP sink (invitations/results land here locally; UI/REST API on the http endpoint,
-// pinned to :8025 like Keycloak's :8081 above — quickstart.md documents it and T044's E2E needs
+// pinned to :8025 like Keycloak's :8081 above — quickstart.md documents it and the E2E needs
 // a deterministic address to reach Mailpit's REST API).
 var mailpit = builder.AddMailPit("mailpit", httpPort: 8025);
 var smtp = mailpit.GetEndpoint("smtp");
@@ -65,7 +65,7 @@ keycloak
     .WithEnvironment("SMTP_PORT", ReferenceExpression.Create($"{smtp.Property(EndpointProperty.Port)}"))
     .WaitFor(mailpit);
 
-// Backend API: EF migrations + BJCP seed run on startup in Development (T009/T010).
+// Backend API: EF migrations + BJCP seed run on startup in Development.
 var api = builder.AddProject<Projects.BirraPoint_Api>("api")
     .WithReference(db)
     .WaitFor(db)
@@ -77,9 +77,9 @@ var api = builder.AddProject<Projects.BirraPoint_Api>("api")
     .WithEnvironment("Smtp__Host", ReferenceExpression.Create($"{smtp.Property(EndpointProperty.Host)}"))
     .WithEnvironment("Smtp__Port", ReferenceExpression.Create($"{smtp.Property(EndpointProperty.Port)}"))
     // Fixed dev port (matches the SPA's :4200 below and its Keycloak redirect URIs) — used to
-    // build the login link in invitation/result emails (T041).
+    // build the login link in invitation/result emails.
     .WithEnvironment("Frontend__BaseUrl", "http://localhost:4200")
-    // Relaxed notify-judges limit for local/E2E (T147/FR-065): the Playwright suite logs in as one
+    // Relaxed notify-judges limit for local/E2E (FR-065): the Playwright suite logs in as one
     // shared `organizer` with fullyParallel and hits notify from several specs, so the cloud
     // default (2 per 30 s) would flake. Cloud deployments keep the default.
     .WithEnvironment("RateLimiting__NotifyJudges__PermitLimit", "1000")

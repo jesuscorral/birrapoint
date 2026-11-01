@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ECS health gate of the AWS deploy pipeline (T146).
+# ECS health gate of the AWS deploy pipeline.
 # Usage: ecs-health.sh <region> <cluster> <service>=<applied-task-definition-arn>...
 # 1. waits (aws ecs wait services-stable, retried ATTEMPTS times: the waiter gives up after 10
 #    minutes) until the services are stable;

@@ -1,4 +1,4 @@
-# Secrets (T142, ADR-0021): every application secret lives in Key Vault. The Container Apps read it
+# Secrets (ADR-0021): every application secret lives in Key Vault. The Container Apps read it
 # at runtime through the Dapr secret store component below, authenticated with their own
 # system-assigned managed identity, which can read only the secrets that app uses (read-only
 # "Key Vault Secrets User" per secret); none of them receives a secret as a setting any more. Only the Docker Hub pull token stays a Container Apps registry

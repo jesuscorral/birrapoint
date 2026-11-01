@@ -52,7 +52,7 @@
 :root {
   --radius-full: 9999px;
 
-  /* T124: the compact end of the scale — seated beer tokens and judge chips on the tables board
+  /* The compact end of the scale — seated beer tokens and judge chips on the tables board
      need a step below --spacing-2 to stay legible at MesaCard density. */
   --spacing-1: 0.25rem;
   --spacing-2: 0.5rem;
@@ -63,7 +63,7 @@
   --spacing-8: 2rem;
   --spacing-10: 2.5rem;
   --spacing-12: 3rem;
-  /* T125b: --spacing-16 was already referenced by the wizard shell's padding but never defined,
+  /* --spacing-16 was already referenced by the wizard shell's padding but never defined,
      which made the whole `padding` shorthand invalid at computed-value time — the wizard rendered
      with no padding at all, which is why its content sat flush against the viewport edges. */
   --spacing-16: 4rem;

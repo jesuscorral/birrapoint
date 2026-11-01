@@ -1,6 +1,6 @@
 # The three Container Apps (FR-046). The images carry no configuration or secrets (FR-043):
 # configuration arrives as environment variables, secrets are read from Key Vault through the Dapr
-# secret store with each app's system-assigned managed identity (secrets.tf; T142, ADR-0021).
+# secret store with each app's system-assigned managed identity (secrets.tf, ADR-0021).
 
 locals {
   # Dapr app ids; the secret store component is scoped to these.

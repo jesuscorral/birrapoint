@@ -8,13 +8,12 @@ namespace BirraPoint.Api.Realtime;
 /// <summary>
 /// Server → client only (contracts/signalr-hub.md) — clients invoke only the group-join methods
 /// below; every mutation still goes through the REST API (Principle VI). `[Authorize]` rejects
-/// unauthenticated connections via the T011 deny-by-default fallback policy.
+/// unauthenticated connections via the deny-by-default fallback policy.
 ///
-/// Tracked gap (T015 plan, confirmed with the user before implementation): the DB-backed checks
-/// below (competition ownership, table membership) have no integration/contract test yet — T018
-/// (the shared WebApplicationFactory + Testcontainers harness) lands after this task, and the
-/// constitution bans EF Core's InMemory provider as a substitute. Add that coverage once T018's
-/// harness exists; `contract-guardian` can verify this gap is closed.
+/// Tracked gap: the DB-backed checks below (competition ownership, table membership) have no
+/// integration/contract test yet. They need the shared WebApplicationFactory + Testcontainers
+/// harness, since the constitution bans EF Core's InMemory provider as a substitute; add that
+/// coverage there. `contract-guardian` can verify this gap is closed.
 /// </summary>
 [Authorize]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE1006:Naming Styles",
@@ -52,7 +51,7 @@ internal sealed class CompetitionHub(AppDbContext db) : Hub
             ?? throw new HubException(NotAuthorizedToJoinTable);
         var email = user.FindFirst("email")?.Value;
 
-        // KeycloakUserId is only backfilled once JudgeResolver (T023, US1) runs on a REST call; a
+        // KeycloakUserId is only backfilled once JudgeResolver (US1) runs on a REST call; a
         // judge whose first authenticated action is opening this socket falls back to email
         // match. sub is required non-null above so `KeycloakUserId == sub` can never degrade to
         // an `IS NULL` check that would match any not-yet-backfilled judge on the table; email is

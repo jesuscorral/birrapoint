@@ -539,7 +539,7 @@ describe('EvaluationSheetComponent', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Offline mode');
   });
 
-  describe('live judge removal (T087/US12)', () => {
+  describe('live judge removal (US12)', () => {
     it('joins the table SignalR group on init and leaves it on destroy', async () => {
       const fixture = createComponent();
       await flush();

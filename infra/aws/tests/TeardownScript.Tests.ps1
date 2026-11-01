@@ -1,4 +1,4 @@
-# Pester 5+ orchestration tests for infra/aws/teardown.ps1 (T146): the script runs end to end
+# Pester 5+ orchestration tests for infra/aws/teardown.ps1: the script runs end to end
 # against stub `aws`, `terraform` and Invoke-RestMethod, so what it calls (and does not call) is
 # asserted without credentials. The stubs are global functions (they override the executables and
 # the cmdlet for the script run), which works on Windows PowerShell 5.1 and PowerShell 7.

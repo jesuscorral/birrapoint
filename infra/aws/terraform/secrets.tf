@@ -79,7 +79,7 @@ resource "aws_secretsmanager_secret" "dockerhub" {
   recovery_window_in_days = 0
 }
 
-# Deployments created before T131 with credentials had these under count index 0; keep them in
+# Deployments created with credentials before this resource lost its count had these under count index 0; keep them in
 # place instead of destroying and recreating the secret.
 moved {
   from = aws_secretsmanager_secret.dockerhub[0]

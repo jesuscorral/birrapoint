@@ -14,7 +14,7 @@ using Testcontainers.PostgreSql;
 namespace BirraPoint.Api.IntegrationTests.Operations;
 
 /// <summary>
-/// T098 (FR-048): Production host against a reachable Postgres Testcontainer (no migration needed:
+/// FR-048: Production host against a reachable Postgres Testcontainer (no migration needed:
 /// the "db" readiness check only opens a connection).
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1515:Consider making public types internal",
@@ -177,7 +177,7 @@ public sealed class HealthEndpointsTestingEnvTests(ApiFactory factory) : IClassF
 }
 
 /// <summary>
-/// T098 telemetry wiring, asserted from DI (no exporter / no new packages). Not covered, by design:
+/// Telemetry wiring, asserted from DI (no exporter / no new packages). Not covered, by design:
 /// an HTTP request producing an ASP.NET Core Activity captured by the TracerProvider — without an
 /// in-memory exporter package, a test ActivityListener would itself force the framework to create
 /// the Activity, so the assertion would pass even with instrumentation missing (never red).

@@ -6,7 +6,7 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 namespace BirraPoint.Api.IntegrationTests.Catalog.Features.GetStyles;
 
 /// <summary>
-/// T018: first HTTP-level contract test for the pipeline (GET /api/v1/styles, T017) — proves the
+/// First HTTP-level contract test for the pipeline (GET /api/v1/styles) — proves the
 /// harness enforces auth end to end and that the wire shape matches contracts/rest-api.md §Catalog.
 /// </summary>
 public sealed class GetStylesTests(ApiFactory factory) : IClassFixture<ApiFactory>
@@ -41,7 +41,7 @@ public sealed class GetStylesTests(ApiFactory factory) : IClassFixture<ApiFactor
             style.EnumerateObject().Select(property => property.Name).ToHashSet()));
 
         // Distinct categories, in wire order, must be numerically ascending (Appendix B's
-        // non-numeric "X" category last) — the T017 review fix over a plain lexicographic
+        // non-numeric "X" category last) — not a plain lexicographic
         // OrderBy, which would place "10" before "2".
         var categoriesInOrder = styles
             .Select(style => style.GetProperty("categoryNumber").GetString()!)
@@ -56,5 +56,5 @@ public sealed class GetStylesTests(ApiFactory factory) : IClassFixture<ApiFactor
         Assert.Equal("1", categoriesInOrder[0]);
     }
 
-    private const int FullCatalogSize = 125; // BJCP 2021: categories 1-34 + Appendix B (T010)
+    private const int FullCatalogSize = 125; // BJCP 2021: categories 1-34 + Appendix B
 }

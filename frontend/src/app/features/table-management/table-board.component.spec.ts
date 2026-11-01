@@ -221,7 +221,7 @@ describe('TableBoardComponent', () => {
     // Regression: bosFlaggedEntryIds only reports newly-flagged ids (never unflagged ones), and
     // FR-018 can touch entries far outside the mutated table's own membership — patching `entries`
     // incrementally from the mutation response alone can't stay correct in both directions. Found
-    // by T049's E2E: the BOS banner announced correctly but a flagged token's visual state stayed
+    // by the E2E: the BOS banner announced correctly but a flagged token's visual state stayed
     // stale until a full reload.
     const fixture = createComponent();
     fakeEntriesApi.getEntries.mockClear();
@@ -467,7 +467,7 @@ describe('TableBoardComponent', () => {
     expect(withTable.nativeElement.querySelector('.add-table__hint')).toBeNull();
   });
 
-  // T125b: pending work reads first, tables underneath — the organizer scans what is left to
+  // Pending work reads first, tables underneath — the organizer scans what is left to
   // place and drops downward into the rail.
   it('renders the unassigned pool above the tables rail', () => {
     const fixture = createComponent();
@@ -493,7 +493,7 @@ describe('TableBoardComponent', () => {
     );
   });
 
-  describe('pool filters (T125)', () => {
+  describe('pool filters', () => {
     function poolTokens(fixture: ReturnType<typeof createComponent>): string[] {
       return [...fixture.nativeElement.querySelectorAll('#beers-unassigned [data-entry-id]')].map(
         (token) => (token as HTMLElement).getAttribute('data-entry-id') ?? '',
@@ -577,7 +577,7 @@ describe('TableBoardComponent', () => {
       expect(poolTokens(fixture)).toEqual(['e2', 'e3']);
     });
 
-    // T125b: "Limpiar filtros" clears the filters and deliberately leaves the sort alone —
+    // "Limpiar filtros" clears the filters and deliberately leaves the sort alone —
     // silently reshuffling a pool someone is working through is worse than a stale sort.
     it('leaves the sort untouched when the filters are cleared', () => {
       fakeEntriesApi.getEntries.mockReturnValue(of(multiEntryFixture()));

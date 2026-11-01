@@ -161,7 +161,7 @@ function toGenericApiError(error: unknown): ApiError {
         margin-inline: auto;
       }
 
-      /* T125: the wizard shell is full width now, so form steps keep their own readable measure
+      /* The wizard shell is full width now, so form steps keep their own readable measure
          here instead of relying on a narrow shell. The action bar stays outside this wrapper: it
          is the card's footer and spans the card's full width on every step. */
       .step-form {
@@ -282,7 +282,7 @@ export class DetailsStepComponent {
     this.save((detail) => this.saved.emit(detail));
   }
 
-  // T125: the centre "Guardar borrador" — same PUT, but the organizer leaves the wizard instead of
+  // The centre "Guardar borrador" — same PUT, but the organizer leaves the wizard instead of
   // advancing. Mirrors basics-step/categories-step so the button means one thing in every step.
   protected onSaveAndLeave(): void {
     this.save(() => this.router.navigateByUrl('/organizer/dashboard'));

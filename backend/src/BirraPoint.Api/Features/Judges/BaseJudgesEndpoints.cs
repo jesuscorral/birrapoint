@@ -6,7 +6,7 @@ using BirraPoint.Api.Features.Judges.Features.UpdateJudgeEmail;
 
 namespace BirraPoint.Api.Features.Judges;
 
-/// <summary>Maps the Judges endpoints (contracts/rest-api.md §Judges, T042) — ORGANIZER-only. The
+/// <summary>Maps the Judges endpoints (contracts/rest-api.md §Judges) — ORGANIZER-only. The
 /// judge import flow is mapped separately by JudgeImportEndpoints.</summary>
 internal static class BaseJudgesEndpoints
 {

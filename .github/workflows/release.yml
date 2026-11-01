@@ -1,4 +1,4 @@
-# Release pipeline (FR-064b, T135). Manually triggered, and only from main (the pipeline that
+# Release pipeline (FR-064b). Manually triggered, and only from main (the pipeline that
 # publishes releases and pushes to main is always main's own definition). Builds `main`, a
 # `hotfix/*` branch (which must not carry unreleased main changes) or an existing `v*` tag and
 # publishes immutable images <ns>/birrapoint-<component>-release:X.Y.Z. The version comes from

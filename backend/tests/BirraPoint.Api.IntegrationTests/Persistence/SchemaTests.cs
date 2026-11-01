@@ -33,7 +33,7 @@ public sealed class PostgresFixture : IAsyncLifetime
 }
 
 /// <summary>
-/// Schema-level invariants of T009: the InitialCreate migration applies cleanly and the
+/// Schema-level invariants of the initial schema: the InitialCreate migration applies cleanly and the
 /// database enforces the constraints named in data-model.md (computed Total, idempotency
 /// unique index, date check constraint, partial unique index for open discrepancy alerts).
 /// </summary>

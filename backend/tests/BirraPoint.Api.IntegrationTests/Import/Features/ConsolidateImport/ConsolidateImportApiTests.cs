@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace BirraPoint.Api.IntegrationTests.Import.Features.ConsolidateImport;
 
 /// <summary>
-/// T032: HTTP-level contract tests for POST /competitions/{id}/imports/{importId}/consolidate — gating on
+/// HTTP-level contract tests for POST /competitions/{id}/imports/{importId}/consolidate — gating on
 /// unresolved rows, BeerEntry/Participant population and re-import semantics.
 /// </summary>
 public sealed class ConsolidateImportApiTests(ApiFactory factory) : ImportApiTestBase(factory), IClassFixture<ApiFactory>

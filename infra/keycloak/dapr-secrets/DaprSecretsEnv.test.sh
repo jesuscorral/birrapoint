@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests of the Keycloak Dapr secret loader (T142): compiles DaprSecretsEnv.java and runs it against
+# Tests of the Keycloak Dapr secret loader: compiles DaprSecretsEnv.java and runs it against
 # a stub of the Dapr sidecar's secrets API. Needs a JDK (21+) and python3.
 #   bash infra/keycloak/dapr-secrets/DaprSecretsEnv.test.sh
 set -euo pipefail

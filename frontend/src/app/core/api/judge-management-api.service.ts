@@ -27,7 +27,7 @@ export interface JudgeProfile {
   id: string;
   email: string;
   displayName: string;
-  // Populated from a judge-roster import row (T118/US14); null for judges created via the plain
+  // Populated from a judge-roster import row (US14); null for judges created via the plain
   // email-list registration flow above.
   bjcpRank: string | null;
   bjcpId: string | null;

@@ -749,7 +749,7 @@ export class CategoriesStepComponent implements OnInit {
     });
   }
 
-  // T125: "Guardar borrador" moved from a leave-confirmation dialog into the shared action bar's
+  // "Guardar borrador" moved from a leave-confirmation dialog into the shared action bar's
   // centre zone; leaving the wizard is now the header's "Volver al listado".
   protected onSaveAndLeave(): void {
     if (!this.canFinish() || this.submitting()) {

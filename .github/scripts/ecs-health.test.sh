@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for .github/scripts/ecs-health.sh (T146). Run: bash .github/scripts/ecs-health.test.sh
+# Tests for .github/scripts/ecs-health.sh. Run: bash .github/scripts/ecs-health.test.sh
 # `aws` is a stub on PATH serving canned answers from $STUB_DIR; the waiter is stubbed too.
 #   ecs wait ...               -> exit code from $STUB_DIR/wait.exit (default 0), logged in wait.count
 #   ecs describe-services ...  -> $STUB_DIR/status.tsv (rows: service<TAB>taskDefinition<TAB>rolloutState<TAB>failedCount)

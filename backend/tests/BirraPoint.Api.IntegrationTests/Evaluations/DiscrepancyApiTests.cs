@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace BirraPoint.Api.IntegrationTests.Evaluations;
 
 /// <summary>
-/// T080: HTTP-level contract tests for FR-031's discrepancy consensus alert — divergent submission
+/// HTTP-level contract tests for FR-031's discrepancy consensus alert — divergent submission
 /// → `PendingConsensus` + `DiscrepancyAlert`, the ≥3-judge "only the outliers are involved" edge
 /// case, that a table can't close while a discrepancy is open (FR-032, `409 discrepancy-open` — the
 /// gate already lives in Features/Evaluations/Features/CloseTable/CloseTableCommand.cs; this proves the

@@ -7,7 +7,7 @@ namespace BirraPoint.Api.Common.Auth;
 internal static class AuthenticationExtensions
 {
     /// <summary>
-    /// JWT bearer auth against Keycloak (T011): deny-by-default fallback policy (Principle VII —
+    /// JWT bearer auth against Keycloak: deny-by-default fallback policy (Principle VII —
     /// every endpoint requires authentication unless explicitly marked AllowAnonymous), plus
     /// ORGANIZER/JUDGE role policies backed by <see cref="KeycloakRolesClaimsTransformation"/>.
     /// </summary>

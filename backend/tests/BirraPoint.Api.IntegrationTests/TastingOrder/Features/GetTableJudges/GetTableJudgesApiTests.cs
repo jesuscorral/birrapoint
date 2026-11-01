@@ -5,7 +5,7 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 namespace BirraPoint.Api.IntegrationTests.TastingOrder.Features.GetTableJudges;
 
 /// <summary>
-/// T051: HTTP-level contract tests for GET /me/tables/{tableId}/judges.
+/// HTTP-level contract tests for GET /me/tables/{tableId}/judges.
 /// </summary>
 public sealed class GetTableJudgesApiTests(ApiFactory factory) : TastingOrderApiTestBase(factory), IClassFixture<ApiFactory>
 {

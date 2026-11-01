@@ -4,10 +4,10 @@ using MailKit.Security;
 namespace BirraPoint.Api.Common.Email;
 
 /// <summary>
-/// T095-T097: pure resolution of SMTP connection settings from configuration — socket security,
+/// Pure resolution of SMTP connection settings from configuration — socket security,
 /// sender address, and whether to authenticate — kept separate from <see cref="MailKitEmailSender"/>'s
 /// I/O so these decisions are unit-testable without a real SMTP server. Local Mailpit only ever
-/// supplies Smtp:Host/Smtp:Port, which must keep resolving to no TLS / no auth (pre-T095 behavior);
+/// supplies Smtp:Host/Smtp:Port, which must keep resolving to no TLS / no auth (previous behavior);
 /// a production relay additionally supplies Smtp:UseStartTls/Smtp:Username/Smtp:Password.
 /// </summary>
 internal sealed record SmtpSettings(

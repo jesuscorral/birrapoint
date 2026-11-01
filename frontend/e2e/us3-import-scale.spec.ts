@@ -2,7 +2,7 @@ import { test, expect, Page } from '@playwright/test';
 import AdmZip from 'adm-zip';
 import { goToLogin, submitKeycloakLogin } from './support/auth';
 
-// SC-006 scale check (tasks.md T090): a 500-row import with ~20% (100) BJCP-style-catalog errors
+// SC-006 scale check: a 500-row import with ~20% (100) BJCP-style-catalog errors
 // must all be resolvable and the whole batch consolidated within one continuous session — no
 // multi-step/multi-visit friction — not just the small 3-4 row fixture us3-import.spec.ts exercises
 // for the correction *mechanics* themselves (assign-style vs. exclude). This spec reuses "exclude"

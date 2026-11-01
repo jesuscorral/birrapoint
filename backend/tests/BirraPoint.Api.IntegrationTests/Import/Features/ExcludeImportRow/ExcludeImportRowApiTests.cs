@@ -5,7 +5,7 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 namespace BirraPoint.Api.IntegrationTests.Import.Features.ExcludeImportRow;
 
 /// <summary>
-/// T032: HTTP-level contract tests for POST /competitions/{id}/imports/{importId}/rows/{rowNumber}/exclude.
+/// HTTP-level contract tests for POST /competitions/{id}/imports/{importId}/rows/{rowNumber}/exclude.
 /// </summary>
 public sealed class ExcludeImportRowApiTests(ApiFactory factory) : ImportApiTestBase(factory), IClassFixture<ApiFactory>
 {

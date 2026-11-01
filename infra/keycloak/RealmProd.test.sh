@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests of the production realm derivation (T130): applies realm-prod.jq (the filter the Dockerfile
+# Tests of the production realm derivation: applies realm-prod.jq (the filter the Dockerfile
 # `realm` stage uses) to the local-dev realm and asserts the hardening. Needs jq (or Docker, which
 # runs jq from an alpine image) and python3.
 #   bash infra/keycloak/RealmProd.test.sh

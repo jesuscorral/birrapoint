@@ -3,7 +3,7 @@ using BirraPoint.Api.Features.Competitions.Features.ChangeCompetitionState;
 
 namespace BirraPoint.Api.UnitTests.Competitions.Features.ChangeCompetitionState;
 
-/// <summary>T025: CompetitionStateMachine gates per FR-006 — forward-only, skip-free, reverse/same-state rejected.</summary>
+/// <summary>CompetitionStateMachine gates per FR-006 — forward-only, skip-free, reverse/same-state rejected.</summary>
 public sealed class CompetitionStateMachineTests
 {
     [Theory]

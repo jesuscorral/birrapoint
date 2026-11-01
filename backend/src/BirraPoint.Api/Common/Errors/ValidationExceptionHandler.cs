@@ -20,8 +20,8 @@ internal sealed class ValidationExceptionHandler(IProblemDetailsService problemD
         // body in this API is camelCase (System.Text.Json's Web defaults), but that naming policy
         // only applies to object properties, never to Dictionary<string,T> keys — so without this
         // conversion, `errors` keys would be the one PascalCase corner of an otherwise all-camelCase
-        // API, silently breaking any client-side `errors[fieldName]` lookup (senior-code-reviewer,
-        // T025-T030 review: caught because this handler had no real consumer before Competitions).
+        // API, silently breaking any client-side `errors[fieldName]` lookup (caught in review:
+        // this handler had no real consumer before Competitions).
         var errors = validationException.Errors
             .GroupBy(failure => ToCamelCase(failure.PropertyName), StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Select(failure => failure.ErrorMessage).ToArray(), StringComparer.Ordinal);

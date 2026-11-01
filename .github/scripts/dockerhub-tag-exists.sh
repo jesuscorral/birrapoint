@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Does <namespace>/<repository>:<tag> exist on Docker Hub? (T135 — release immutability checks)
+# Does <namespace>/<repository>:<tag> exist on Docker Hub? (release immutability checks)
 #
 #   dockerhub-tag-exists.sh <namespace> <repository> <tag>
 #   exit 0 = exists, 1 = does not exist, 2 = lookup failed (never treated as "missing")

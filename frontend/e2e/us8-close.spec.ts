@@ -161,7 +161,7 @@ async function pointerDrag(page: Page, source: Locator, target: Locator): Promis
 }
 
 // Mirrors us7-offline.spec.ts's advanceCompetitionState: drives the real dashboard advance-state
-// control (T102/FR-051) rather than a token-capture workaround.
+// control (FR-051) rather than a token-capture workaround.
 function competitionRow(page: Page, name: string): Locator {
   return page.locator('li.competition-list-row').filter({ hasText: name });
 }
@@ -282,7 +282,7 @@ async function fillEvaluationForm(page: Page): Promise<void> {
 // Captures the Authorization header of the next request `page` makes to the backend API,
 // triggered by `triggerRequest` — the "capture the caller's own bearer token from an authenticated
 // request" technique this suite uses for backend calls that have no organizer-facing UI yet
-// (T065's PUT /competitions/{id}/evaluations/{evaluationId} correction, and this test's own
+// (the PUT /competitions/{id}/evaluations/{evaluationId} correction, and this test's own
 // FR-034 late-sync check). Captured fresh at the point of use (rather than passively accumulated
 // over the whole test) so there's no risk of relying on a token that's gone stale by the time it's
 // needed.
@@ -482,7 +482,7 @@ test.describe('US8 — table closing and score immutability', () => {
 
       // --- Acceptance Scenario 3 / FR-035 / FR-042: organizer correction is allowed regardless of
       // table state, re-validates the same caps/comment-length rules, and recomputes the total +
-      // consolidated mean. No organizer UI exists for this in this phase's scope (T065 is
+      // consolidated mean. No organizer UI exists for this in this phase's scope (it is
       // backend-only) — driven directly via the same "capture this session's own bearer token"
       // technique other specs in this suite use for backend calls with no UI yet. ---
       const organizerToken = await captureBearerToken(page, () =>

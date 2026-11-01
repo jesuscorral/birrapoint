@@ -7,18 +7,18 @@ import { ClickVsDragDirective } from './click-vs-drag.directive';
 export interface BeerTokenData {
   id: string;
   blindCode: string;
-  // T125c: BJCP style code (e.g. "21A") — the mini variant's visible label, since the pool
+  // BJCP style code (e.g. "21A") — the mini variant's visible label, since the pool
   // (where blindCode is how the organizer searches/picks) already shows blindCode.
   styleCode: string;
   notValidForBos: boolean;
   styleName: string;
   abvPercent: number;
-  // T124: organizer-defined competition category (wizard step 3); null outside the import flow.
+  // Organizer-defined competition category (wizard step 3); null outside the import flow.
   competitionCategoryName: string | null;
-  // T124: BJCP taxonomy category — an independent axis from competitionCategoryName.
+  // BJCP taxonomy category — an independent axis from competitionCategoryName.
   bjcpCategoryNumber: string | null;
   bjcpCategoryName: string | null;
-  // T125c: resolved from category-color.ts's buildCategoryColorMap by the caller — always a
+  // Resolved from category-color.ts's buildCategoryColorMap by the caller — always a
   // concrete CSS color, never null (UNCATEGORIZED_COLOR is the caller's own fallback).
   categoryColor: string;
 }
@@ -26,10 +26,10 @@ export interface BeerTokenData {
 // `full` is the "Unassigned" column's card: a beer-glass icon plus everything the organizer needs
 // to decide which table a sample belongs on (style, competition category, real ABV). `mini` is the
 // seated form inside a MesaCard, where the table's own aggregate stats already carry the balance
-// picture and each token only has to stay identifiable and draggable (T124).
+// picture and each token only has to stay identifiable and draggable.
 export type BeerTokenVariant = 'full' | 'mini';
 
-// T048A/T048B/T048C: a beer draggable used both seated on a MesaCard and in the "Unassigned"
+// A beer draggable used both seated on a MesaCard and in the "Unassigned"
 // column — one shared implementation so the click-vs-drag disambiguation and target sizing live in
 // exactly one place.
 @Component({

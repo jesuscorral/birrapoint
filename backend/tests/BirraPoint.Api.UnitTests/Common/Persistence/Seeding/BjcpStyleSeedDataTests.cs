@@ -3,7 +3,7 @@ using BirraPoint.Api.Common.Persistence.Seeding;
 namespace BirraPoint.Api.UnitTests.Common.Persistence.Seeding;
 
 /// <summary>
-/// DB-free guard on the embedded BJCP 2021 catalog resource itself (T010): catches
+/// DB-free guard on the embedded BJCP 2021 catalog resource itself: catches
 /// transcription/shape problems before they ever reach the seed migration.
 /// </summary>
 public sealed class BjcpStyleSeedDataTests

@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.IntegrationTests.Persistence;
 
 /// <summary>
-/// T010: the full BJCP 2021 catalog (125 entries, categories 1–34 + Appendix B) must be
+/// The full BJCP 2021 catalog (125 entries, categories 1–34 + Appendix B) must be
 /// present after the seed migration runs, with valid jsonb descriptions.
 /// </summary>
 public sealed class BjcpStyleSeedTests(PostgresFixture fixture) : IClassFixture<PostgresFixture>

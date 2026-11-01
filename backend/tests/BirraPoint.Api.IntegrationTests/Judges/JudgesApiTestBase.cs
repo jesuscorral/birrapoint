@@ -71,7 +71,7 @@ public abstract class JudgesApiTestBase(ApiFactory factory)
     /// <summary>Seeds a Judge row (plus its required Invitation row — RegisterJudges always
     /// creates one alongside the Judge, and handlers assume it exists) directly via AppDbContext.
     /// This is the only way to exercise the judge-already-active gate in a test, since
-    /// KeycloakUserId is set exclusively by a real Keycloak login through JudgeResolver (T023)
+    /// KeycloakUserId is set exclusively by a real Keycloak login through JudgeResolver
     /// and there is no way to make a fake JWT "log in" as a pre-existing judge (its sub can't be
     /// derived ahead of time).</summary>
     private protected async Task<Guid> SeedJudgeAsync(Guid competitionId, string email, string? keycloakUserId = null)
@@ -93,7 +93,7 @@ public abstract class JudgesApiTestBase(ApiFactory factory)
 
     /// <summary>Polls GET /judges until the named judge's invitationStatus leaves "Pending" —
     /// the invitation is dispatched asynchronously via a DispatchJob picked up by the live
-    /// DispatchWorker background service (T016), so it must not be asserted on synchronously
+    /// DispatchWorker background service, so it must not be asserted on synchronously
     /// right after POST /judges.</summary>
     private protected static async Task<JsonElement> PollForInvitationStatusAsync(
         HttpClient client, Guid competitionId, string email, string expectedStatus = "Sent")

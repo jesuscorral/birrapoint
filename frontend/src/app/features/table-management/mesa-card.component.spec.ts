@@ -123,7 +123,7 @@ describe('MesaCardComponent', () => {
     expect(activated).toHaveBeenCalledWith('e1');
   });
 
-  // T124: the two numbers the organizer balances a table on get visual primacy over the
+  // The two numbers the organizer balances a table on get visual primacy over the
   // supporting counts, and the style names get their own line instead of being crammed into the
   // "Estilos" value as "1 (Munich Helles)".
   it('gives beer count and mean ABV primary emphasis and lists style names separately', () => {
@@ -246,10 +246,10 @@ describe('MesaCardComponent', () => {
     });
   });
 
-  // T125c: the seated (mini) token's background is resolved from the board-supplied
+  // The seated (mini) token's background is resolved from the board-supplied
   // categoryColorMap, falling back to UNCATEGORIZED_COLOR for a category not in the map or a
   // null competitionCategoryName (entries created outside the import flow).
-  describe('category color (T125c)', () => {
+  describe('category color', () => {
     it("resolves a seated beer's token background from a known category in the map", () => {
       const fixture = createComponent(tableFixture(), new Map([['Estilos clásicos', '#d7e6f4']]));
 
