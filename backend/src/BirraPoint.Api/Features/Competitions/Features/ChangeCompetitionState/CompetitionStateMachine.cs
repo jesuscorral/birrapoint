@@ -1,6 +1,6 @@
 using BirraPoint.Api.Domain;
 
-namespace BirraPoint.Api.Features.Competitions;
+namespace BirraPoint.Api.Features.Competitions.Features.ChangeCompetitionState;
 
 /// <summary>Pure FR-006 gate: forward-only, skip-free, no reverse/same-state transitions.</summary>
 internal static class CompetitionStateMachine

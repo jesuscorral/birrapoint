@@ -4,43 +4,14 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using BirraPoint.Api.IntegrationTests.TestHost;
 
-namespace BirraPoint.Api.IntegrationTests.Competitions;
+namespace BirraPoint.Api.IntegrationTests.Competitions.Features.SetCompetitionCategories;
 
-/// <summary>
-/// HTTP-level contract tests for the Competitions/{id}/categories slice (contracts/rest-api.md
-/// §Competitions) — organizer-defined groupings of allowed BJCP styles (wizard step 3):
-/// owner-scoped PUT/GET roundtrip, full-replace semantics, and validation/state gating. The
-/// style-existence and happy-path checks that need real BjcpStyle catalog rows live here rather
-/// than in the validator's unit tests (SetCompetitionCategoriesCommandValidatorTests covers only
-/// the sync rules) — same split already used for CreateTableCommandValidator/
-/// ResolveRowCommandValidator's own DB-backed rules in this codebase.
-/// </summary>
-public sealed class CompetitionCategoriesApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
+/// <summary>PUT/GET /competitions/{id}/categories (contracts/rest-api.md §Competitions): organizer-defined groupings of allowed BJCP styles (wizard step 3) — owner-scoped PUT/GET roundtrip, full-replace semantics, validation and state gating. Needs real BjcpStyle rows, so the DB-backed rules live here; SetCompetitionCategoriesCommandValidatorTests covers only the sync rules.</summary>
+public sealed class SetCompetitionCategoriesApiTests(ApiFactory factory) : CompetitionsApiTestBase(factory), IClassFixture<ApiFactory>
 {
     private const string StyleCodeApa = "21A";
     private static readonly string[] UnknownStyleCodes = ["99Z"];
     private const string StyleCodeBlonde = "1A";
-
-    private HttpClient OrganizerClient(string sub)
-    {
-        var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", TestJwtIssuer.IssueToken(sub, null, "ORGANIZER"));
-        return client;
-    }
-
-    private static async Task<Guid> CreateCompetitionAsync(HttpClient client, string namePrefix = "Copa")
-    {
-        var response = await client.PostAsJsonAsync("/api/v1/competitions", new
-        {
-            name = $"{namePrefix} {Guid.NewGuid():N}",
-            venue = "Centro de Convenciones",
-            startDate = "2026-08-01",
-            endDate = "2026-08-03",
-        });
-        var created = await response.Content.ReadFromJsonAsync<JsonElement>();
-        return created.GetProperty("id").GetGuid();
-    }
 
     [Fact]
     public async Task PutThenGetRoundtripReturnsTheSameCategoriesAndStyles()

@@ -4,7 +4,7 @@ using BirraPoint.Api.Domain;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Features.Competitions;
+namespace BirraPoint.Api.Features.Competitions.Features.ListCompetitions;
 
 /// <summary>Summary wire shape for the organizer's own competitions list (contracts/rest-api.md §Competitions).</summary>
 internal sealed record CompetitionSummaryDto(

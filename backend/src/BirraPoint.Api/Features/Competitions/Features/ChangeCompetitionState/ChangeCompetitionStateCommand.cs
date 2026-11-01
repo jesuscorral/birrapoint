@@ -8,7 +8,7 @@ using BirraPoint.Api.Realtime;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Features.Competitions;
+namespace BirraPoint.Api.Features.Competitions.Features.ChangeCompetitionState;
 
 internal sealed record ChangeCompetitionStateResult(CompetitionState State);
 
@@ -73,8 +73,6 @@ internal sealed class ChangeCompetitionStateCommandHandler(
         // aborted request would otherwise leave a Finalized competition with no dispatch job.
         if (request.Target == CompetitionState.Finalized)
         {
-            // FR-036's actual trigger: background PDF/ZIP/email dispatch starts once the
-            // competition is Finalized. Enqueued before the emit so a failed send cannot skip it.
             await dispatchJobQueue.EnqueueAsync(
                 competition.Id, DispatchJobType.GeneratePdfs, new { }, CancellationToken.None);
         }

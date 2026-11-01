@@ -1,38 +1,10 @@
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Domain;
+using BirraPoint.Api.Features.Competitions.CommonComponents.Dtos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Features.Competitions;
-
-/// <summary>Full competition detail wire shape (contracts/rest-api.md §Competitions).</summary>
-internal sealed record CompetitionDetailDto(
-    Guid Id,
-    string Name,
-    string Venue,
-    DateOnly StartDate,
-    DateOnly EndDate,
-    string? Description,
-    string? LogoUrl,
-    int? EntryLimit,
-    DateOnly? RegistrationStart,
-    DateOnly? RegistrationEnd,
-    CompetitionState State)
-{
-    public static CompetitionDetailDto FromEntity(Competition competition) => new(
-        competition.Id,
-        competition.Name,
-        competition.Venue,
-        competition.StartDate,
-        competition.EndDate,
-        competition.Description,
-        competition.LogoUrl,
-        competition.EntryLimit,
-        competition.StartRegistration,
-        competition.EndRegistration,
-        competition.State);
-}
+namespace BirraPoint.Api.Features.Competitions.Features.GetCompetition;
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
 internal sealed record GetCompetitionQuery(Guid Id) : IRequest<CompetitionDetailDto?>;

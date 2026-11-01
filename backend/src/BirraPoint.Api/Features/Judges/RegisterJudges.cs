@@ -60,7 +60,7 @@ internal sealed class RegisterJudgesCommandHandler(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // Enqueued only after the SaveChangesAsync above commits (same convention as every other
-        // IDispatchJobQueue/IEventPublisher call — see ChangeState.cs). ProvisionJudgeAccount only
+        // IDispatchJobQueue/IEventPublisher call — see ChangeCompetitionStateCommand.cs). ProvisionJudgeAccount only
         // (Keycloak account creation, no email) — SendInvitation is now enqueued exclusively by
         // the explicit "Notify judges" action (R-20/Session 2026-08-02, FR-059).
         foreach (var judge in createdJudges)

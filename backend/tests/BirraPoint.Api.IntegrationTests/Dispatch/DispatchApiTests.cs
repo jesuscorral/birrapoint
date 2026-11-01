@@ -19,7 +19,7 @@ namespace BirraPoint.Api.IntegrationTests.Dispatch;
 /// §Results &amp; dispatch, FR-036/FR-040/FR-041) — this drives the real GeneratePdfs -> BundleZip ->
 /// SendResultEmail pipeline end-to-end through the live DispatchWorker hosted service (same
 /// approach as JudgesApiTests' async invitation tests), plus backfills HTTP-level coverage for the
-/// pre-existing Finalize "tables-still-open" gate (Features/Competitions/ChangeState.cs), which
+/// pre-existing Finalize "tables-still-open" gate (Features/Competitions/Features/ChangeCompetitionState/ChangeCompetitionStateCommand.cs), which
 /// previously had zero unit/integration coverage.
 /// </summary>
 public sealed class DispatchApiTests(ApiFactory factory) : IClassFixture<ApiFactory>

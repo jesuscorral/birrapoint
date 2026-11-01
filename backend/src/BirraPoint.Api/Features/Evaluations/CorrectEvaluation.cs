@@ -140,7 +140,7 @@ internal sealed class CorrectEvaluationCommandHandler(AppDbContext dbContext, IC
         };
 
         // Audit stages via the change tracker (does not call SaveChanges) — must run before our own
-        // SaveChangesAsync so both commit in the same transaction (mirrors ChangeState.cs/FR-035).
+        // SaveChangesAsync so both commit in the same transaction (mirrors ChangeCompetitionStateCommand.cs/FR-035).
         auditWriter.Record("EvaluationCorrected", nameof(Evaluation), evaluation.Id.ToString(), before, after);
 
         await dbContext.SaveChangesAsync(cancellationToken);

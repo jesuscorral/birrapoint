@@ -1,8 +1,8 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Features.Competitions;
+using BirraPoint.Api.Features.Competitions.Features.SetCompetitionCategories;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.UnitTests.Competitions;
+namespace BirraPoint.Api.UnitTests.Competitions.Features.SetCompetitionCategories;
 
 /// <summary>
 /// SetCompetitionCategoriesCommandValidator's sync rules (empty categories, zero total styles,
@@ -11,7 +11,7 @@ namespace BirraPoint.Api.UnitTests.Competitions;
 /// once one of these sync checks has already failed — same "never queried" shape as
 /// UpdateJudgeEmailCommandValidatorTests, so no real database is needed here. The happy-path
 /// (existing style codes) and unknown-style-code cases require real BjcpStyle rows and are
-/// covered by CompetitionCategoriesApiTests (Testcontainers) instead, mirroring how
+/// covered by SetCompetitionCategoriesApiTests (Testcontainers) instead, mirroring how
 /// CreateTableCommandValidator/ResolveRowCommandValidator's own DB-backed rules have no unit test
 /// coverage in this codebase — only their HTTP-level integration tests.
 /// </summary>
