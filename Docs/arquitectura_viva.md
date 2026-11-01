@@ -183,7 +183,7 @@ Code lives in `backend/src/BirraPoint.Api/Modules/<Module>/` (`Domain/`, `Persis
 | **Publication** | Dispatch | `GeneratedScoreSheet`, `ResultsArchive` |
 
 Status: phase 1 (pure move) done. Modules still access each other's entities directly (for example
-`CoiDetector`, TastingOrder and Dispatch). Phase 2 (contracts) and phase 3 (events, Judging-local copies) are open.
+`CoiDetector`, TastingOrder and Dispatch). The shared kernel also references Organization (`Common/Auth` identity resolvers use `Organizer`/`Judge`; `DispatchJob` has a `Competition` FK); T152 decides between a documented exception and an Organization contract. Phase 2 (contracts) and phase 3 (events, Judging-local copies) are open.
 
 ### Domain
 

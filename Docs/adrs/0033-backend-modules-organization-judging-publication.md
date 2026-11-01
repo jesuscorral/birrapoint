@@ -4,7 +4,7 @@
 **Date:** 2026-11-01
 
 ## Context
-Constitution Principle II mandates a modular monolith, but the backend is one flat set of nine feature folders (ADR-0031) over a shared `Api/Domain/` holding every entity. Any slice can read any entity, so nothing prevents coupling between preparation (competitions, catalog, imports, judges), tasting (tables, order, evaluations) and publication (PDFs, ZIP, emails). The blind-tasting boundary also has no structural home: Judging must not see entrant data, while Results may, because it runs after tasting ends.
+Constitution Principle II mandates a modular monolith, but the backend is one flat set of nine feature folders (ADR-0031) over a shared `Api/Domain/` holding every entity. Any slice can read any entity, so nothing prevents coupling between preparation (competitions, catalog, imports, judges), tasting (tables, order, evaluations) and publication (PDFs, ZIP, emails). The blind-tasting boundary also has no structural home: Judging must not see entrant data, while Publication may, because it runs after tasting ends.
 
 ## Decision
 Group the features into three modules under `backend/src/BirraPoint.Api/Modules/<Module>/`, each with `Domain/`, `Persistence/` (EF configurations), `Features/<Feature>/` (ADR-0031 layout unchanged) and `<Module>ModuleEndpoints.cs` (`Map<Module>Module`). Namespaces equal folders.
@@ -34,5 +34,6 @@ Publication may read Judging evaluations and Organization participant data becau
 - Rejected: doing all three phases at once. A pure move is reviewable and low risk; contracts and eventual consistency (backfill migration) deserve separate review.
 - Old migration `*.Designer.cs` files keep the old CLR names. This is harmless because only the latest snapshot is used.
 - Frontend is unchanged (already FSD). Builds on ADR-0031 and ADR-0032; no constitution amendment.
+- Kernel → Organization references are allowed for now: auth identity resolution (`Common/Auth/{ICurrentUser,CurrentUser,JudgeResolver,OrganizerResolver}.cs` use `Organizer`/`Judge`) and the `DispatchJob` → `Competition` FK (`Common/Persistence/Configurations/DispatchJobConfiguration.cs`). This is a T152 item: either accept it as a documented exception in the architecture rule or move it behind an Organization contract.
 - Naming: the third module is `Publication`, not `Results`, because the namespace `BirraPoint.Api.Modules.Results` shadowed `Microsoft.AspNetCore.Http.Results` in every module endpoint file. Its extension method is `MapPublicationModule`.
 - `<Module>ModuleEndpoints.cs` files are `internal`. The architecture test allows `Entity`, `ITimestamped`, `AuditLog` and `DispatchJob` (+ status/type) in the shared kernel `Api/Domain/`.
