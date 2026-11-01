@@ -6,7 +6,7 @@ using BirraPoint.Api.Domain;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Features.Judges;
+namespace BirraPoint.Api.Features.Judges.Features.NotifyJudges;
 
 internal sealed record NotifiedJudgeDto(Guid Id, string Email);
 
@@ -19,7 +19,7 @@ internal sealed record NotifyJudgesCommand(Guid CompetitionId) : IRequest<Notify
 /// FR-059/R-20: the explicit "Notify judges" action, decoupled from both provisioning paths
 /// (RegisterJudges/FR-014, ConsolidateJudgeImport/FR-057) — enqueues SendInvitation for every
 /// judge in the competition whose invitation is still Pending. A judge already Sent/Failed is
-/// untouched (use the per-judge resend, ResendInvitation.cs, for those). Judges that already have
+/// untouched (use the per-judge resend, ResendInvitationCommand.cs, for those). Judges that already have
 /// a Pending/Running SendInvitation job are skipped (T147), so repeated notifies never duplicate emails.
 /// </summary>
 internal sealed class NotifyJudgesCommandHandler(

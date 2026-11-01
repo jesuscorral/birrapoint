@@ -1,6 +1,6 @@
-using BirraPoint.Api.Features.Judges;
+using BirraPoint.Api.Features.Judges.Features.RegisterJudges;
 
-namespace BirraPoint.Api.UnitTests.Judges;
+namespace BirraPoint.Api.UnitTests.Judges.Features.RegisterJudges;
 
 /// <summary>T038: bulk registration email format validation (FR-014).</summary>
 public sealed class RegisterJudgesCommandValidatorTests

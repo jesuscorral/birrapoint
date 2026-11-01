@@ -18,7 +18,7 @@ namespace BirraPoint.Api.IntegrationTests.Dispatch;
 /// T072-T076: HTTP-level contract tests for the results dispatch pipeline (contracts/rest-api.md
 /// §Results &amp; dispatch, FR-036/FR-040/FR-041) — this drives the real GeneratePdfs -> BundleZip ->
 /// SendResultEmail pipeline end-to-end through the live DispatchWorker hosted service (same
-/// approach as JudgesApiTests' async invitation tests), plus backfills HTTP-level coverage for the
+/// approach as the Judges feature tests' async invitation checks), plus backfills HTTP-level coverage for the
 /// pre-existing Finalize "tables-still-open" gate (Features/Competitions/Features/ChangeCompetitionState/ChangeCompetitionStateCommand.cs), which
 /// previously had zero unit/integration coverage.
 /// </summary>

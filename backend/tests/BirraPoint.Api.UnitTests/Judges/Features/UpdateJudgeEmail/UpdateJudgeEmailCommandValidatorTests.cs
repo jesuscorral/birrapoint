@@ -1,10 +1,10 @@
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
-using BirraPoint.Api.Features.Judges;
+using BirraPoint.Api.Features.Judges.Features.UpdateJudgeEmail;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.UnitTests.Judges;
+namespace BirraPoint.Api.UnitTests.Judges.Features.UpdateJudgeEmail;
 
 /// <summary>
 /// T038: email correction format validation (FR-015). The uniqueness re-check is a DependentRules

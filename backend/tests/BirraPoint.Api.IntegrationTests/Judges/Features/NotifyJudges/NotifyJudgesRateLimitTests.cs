@@ -8,7 +8,7 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace BirraPoint.Api.IntegrationTests.Judges;
+namespace BirraPoint.Api.IntegrationTests.Judges.Features.NotifyJudges;
 
 /// <summary>
 /// HTTP-level tests for the NotifyJudges rate limit (fixed window, partitioned per organizer `sub`).

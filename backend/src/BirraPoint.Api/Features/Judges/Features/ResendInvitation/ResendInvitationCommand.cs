@@ -5,7 +5,9 @@ using BirraPoint.Api.Domain;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Features.Judges;
+namespace BirraPoint.Api.Features.Judges.Features.ResendInvitation;
+
+internal sealed record ResendInvitationResult(InvitationStatus Status);
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
 internal sealed record ResendInvitationCommand(Guid CompetitionId, Guid JudgeId) : IRequest<ResendInvitationResult?>;

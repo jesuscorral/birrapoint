@@ -1,6 +1,6 @@
-using BirraPoint.Api.Features.Judges;
+using BirraPoint.Api.Features.Judges.Features.RegisterJudges;
 
-namespace BirraPoint.Api.UnitTests.Judges;
+namespace BirraPoint.Api.UnitTests.Judges.Features.RegisterJudges;
 
 /// <summary>
 /// T038: bulk registration dedup — in-list duplicates (case-insensitive, first occurrence wins)

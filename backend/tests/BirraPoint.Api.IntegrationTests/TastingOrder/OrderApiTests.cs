@@ -96,7 +96,7 @@ public sealed class OrderApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     /// <summary>Seeds a Judge with a pre-set KeycloakUserId so a test JWT minted with the same
     /// `sub` authenticates as this judge without a real Keycloak login round-trip — KeycloakUserId
     /// is otherwise only backfilled by a real login through JudgeResolver (same constraint
-    /// documented by JudgesApiTests.SeedJudgeAsync).</summary>
+    /// documented by JudgesApiTestBase.SeedJudgeAsync).</summary>
     private async Task<Guid> SeedJudgeAsync(Guid competitionId, string email, string keycloakUserId)
     {
         await using var scope = factory.Services.CreateAsyncScope();

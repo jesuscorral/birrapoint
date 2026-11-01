@@ -1,7 +1,8 @@
 using System.Text.Json;
 using BirraPoint.Api.Features.Judges;
+using BirraPoint.Api.Features.Judges.Features.NotifyJudges;
 
-namespace BirraPoint.Api.UnitTests.Judges;
+namespace BirraPoint.Api.UnitTests.Judges.Features.NotifyJudges;
 
 public sealed class NotifyJudgesRulesTests
 {

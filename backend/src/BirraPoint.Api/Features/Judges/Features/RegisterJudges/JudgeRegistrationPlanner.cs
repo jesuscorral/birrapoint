@@ -1,4 +1,6 @@
-namespace BirraPoint.Api.Features.Judges;
+using BirraPoint.Api.Features.Judges.CommonComponents.Dtos;
+
+namespace BirraPoint.Api.Features.Judges.Features.RegisterJudges;
 
 internal sealed record JudgeRegistrationPlan(IReadOnlyList<string> ToCreate, IReadOnlyList<JudgeSkipDto> Skipped);
 

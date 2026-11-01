@@ -2,23 +2,18 @@ using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
-using FluentValidation;
+using BirraPoint.Api.Features.Judges.CommonComponents.Dtos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Features.Judges;
+namespace BirraPoint.Api.Features.Judges.Features.RegisterJudges;
+
+internal sealed record CreatedJudgeDto(Guid Id, string Email);
+
+internal sealed record RegisterJudgesResult(IReadOnlyList<CreatedJudgeDto> Created, IReadOnlyList<JudgeSkipDto> Skipped);
 
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
 internal sealed record RegisterJudgesCommand(Guid CompetitionId, IReadOnlyList<string> Emails) : IRequest<RegisterJudgesResult?>;
-
-internal sealed class RegisterJudgesCommandValidator : AbstractValidator<RegisterJudgesCommand>
-{
-    public RegisterJudgesCommandValidator()
-    {
-        RuleFor(c => c.Emails).NotEmpty();
-        RuleForEach(c => c.Emails).NotEmpty().EmailAddress();
-    }
-}
 
 internal sealed class RegisterJudgesCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, IDispatchJobQueue dispatchJobQueue)
