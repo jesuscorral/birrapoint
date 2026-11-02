@@ -10,6 +10,8 @@ internal sealed class CreateTableCommandValidator : AbstractValidator<CreateTabl
 {
     public CreateTableCommandValidator(AppDbContext dbContext, ICompetitionAccess competitionAccess, ICurrentUser currentUser)
     {
+        var owned = new OwnedCompetitionLookup(competitionAccess, currentUser);
+
         RuleFor(c => c.Name).NotEmpty().MaximumLength(100);
 
         RuleFor(c => c.JudgeIds)
@@ -22,20 +24,20 @@ internal sealed class CreateTableCommandValidator : AbstractValidator<CreateTabl
 
         RuleFor(c => c)
             .MustAsync((command, cancellationToken) =>
-                CommonTableValidationRules.IsNameUniqueAsync(dbContext, competitionAccess, currentUser, command.CompetitionId, excludeTableId: null, command.Name, cancellationToken))
+                CommonTableValidationRules.IsNameUniqueAsync(dbContext, owned, command.CompetitionId, excludeTableId: null, command.Name, cancellationToken))
             .WithName(nameof(CreateTableCommand.Name))
             .WithMessage("A table with this name already exists in this competition.")
             .When(c => !string.IsNullOrWhiteSpace(c.Name));
 
         RuleFor(c => c)
             .MustAsync((command, cancellationToken) =>
-                CommonTableValidationRules.AllJudgesBelongToCompetitionAsync(dbContext, competitionAccess, currentUser, command.CompetitionId, command.JudgeIds, cancellationToken))
+                CommonTableValidationRules.AllJudgesBelongToCompetitionAsync(dbContext, owned, command.CompetitionId, command.JudgeIds, cancellationToken))
             .WithName(nameof(CreateTableCommand.JudgeIds))
             .WithMessage("One or more judges do not belong to this competition.");
 
         RuleFor(c => c)
             .MustAsync((command, cancellationToken) =>
-                CommonTableValidationRules.AllEntriesAreAssignableAsync(dbContext, competitionAccess, currentUser, command.CompetitionId, excludeTableId: null, command.BeerEntryIds, cancellationToken))
+                CommonTableValidationRules.AllEntriesAreAssignableAsync(dbContext, owned, command.CompetitionId, excludeTableId: null, command.BeerEntryIds, cancellationToken))
             .WithName(nameof(CreateTableCommand.BeerEntryIds))
             .WithMessage("One or more beer entries do not belong to this competition or are already assigned to another table.");
     }

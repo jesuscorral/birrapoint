@@ -1,6 +1,4 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Modules.Organization.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
@@ -10,19 +8,18 @@ internal static class CommonTableValidationRules
     public static bool HaveNoDuplicates(IReadOnlyList<Guid> ids) => ids.Distinct().Count() == ids.Count;
 
     private static async Task<bool> IsOwnedCompetitionAsync(
-        ICompetitionAccess competitionAccess, ICurrentUser currentUser, Guid competitionId, CancellationToken cancellationToken) =>
-        await competitionAccess.GetOwnedAsync(competitionId, currentUser.Sub, cancellationToken) is not null;
+        OwnedCompetitionLookup owned, Guid competitionId, CancellationToken cancellationToken) =>
+        await owned.GetOwnedAsync(competitionId, cancellationToken) is not null;
 
     public static async Task<bool> IsNameUniqueAsync(
          AppDbContext dbContext,
-         ICompetitionAccess competitionAccess,
-         ICurrentUser currentUser,
+         OwnedCompetitionLookup owned,
          Guid competitionId,
          Guid? excludeTableId,
          string name,
          CancellationToken cancellationToken)
     {
-        if (!await IsOwnedCompetitionAsync(competitionAccess, currentUser, competitionId, cancellationToken))
+        if (!await IsOwnedCompetitionAsync(owned, competitionId, cancellationToken))
         {
             return true;
         }
@@ -38,13 +35,12 @@ internal static class CommonTableValidationRules
 
     public static async Task<bool> AllJudgesBelongToCompetitionAsync(
         AppDbContext dbContext,
-        ICompetitionAccess competitionAccess,
-        ICurrentUser currentUser,
+         OwnedCompetitionLookup owned,
         Guid competitionId,
         IReadOnlyList<Guid> judgeIds,
         CancellationToken cancellationToken)
     {
-        if (judgeIds.Count == 0 || !await IsOwnedCompetitionAsync(competitionAccess, currentUser, competitionId, cancellationToken))
+        if (judgeIds.Count == 0 || !await IsOwnedCompetitionAsync(owned, competitionId, cancellationToken))
         {
             return true;
         }
@@ -60,14 +56,13 @@ internal static class CommonTableValidationRules
     /// already assigned to <paramref name="excludeTableId"/> (the table being edited, if any).</summary>
     public static async Task<bool> AllEntriesAreAssignableAsync(
         AppDbContext dbContext,
-        ICompetitionAccess competitionAccess,
-        ICurrentUser currentUser,
+         OwnedCompetitionLookup owned,
         Guid competitionId,
         Guid? excludeTableId,
         IReadOnlyList<Guid> beerEntryIds,
         CancellationToken cancellationToken)
     {
-        if (beerEntryIds.Count == 0 || !await IsOwnedCompetitionAsync(competitionAccess, currentUser, competitionId, cancellationToken))
+        if (beerEntryIds.Count == 0 || !await IsOwnedCompetitionAsync(owned, competitionId, cancellationToken))
         {
             return true;
         }
