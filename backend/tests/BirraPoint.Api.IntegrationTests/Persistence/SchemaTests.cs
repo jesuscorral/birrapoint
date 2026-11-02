@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Domain;
+using BirraPoint.Api.Modules.Judging.Domain;
+using BirraPoint.Api.Modules.Organization.Domain;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Testcontainers.PostgreSql;

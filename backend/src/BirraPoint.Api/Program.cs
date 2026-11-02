@@ -10,16 +10,11 @@ using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Common.RateLimiting;
 using BirraPoint.Api.Common.Secrets;
-using BirraPoint.Api.Features.Catalog;
-using BirraPoint.Api.Features.Competitions;
-using BirraPoint.Api.Features.Dispatch;
-using BirraPoint.Api.Features.Dispatch.Features.DispatchScoreSheet;
-using BirraPoint.Api.Features.Evaluations;
-using BirraPoint.Api.Features.Import;
-using BirraPoint.Api.Features.Judges;
-using BirraPoint.Api.Features.Monitoring;
-using BirraPoint.Api.Features.Tables;
-using BirraPoint.Api.Features.TastingOrder;
+using BirraPoint.Api.Modules.Judging;
+using BirraPoint.Api.Modules.Organization;
+using BirraPoint.Api.Modules.Organization.Features.Judges;
+using BirraPoint.Api.Modules.Publication;
+using BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.DispatchScoreSheet;
 using BirraPoint.Api.Realtime;
 using BirraPoint.ServiceDefaults;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -189,32 +184,16 @@ if (app.Environment.IsDevelopment())
 // CompetitionHub: server → client notifications only.
 app.MapHub<CompetitionHub>("/hubs/competition");
 
-// First REST slice: GET /api/v1/styles.
-app.MapCatalogEndpoints();
+// Organization module: styles catalog, competitions wizard/lifecycle, beer-entry and judge-roster
+// import, judge registration/invitations.
+app.MapOrganizationModule();
 
-// Competitions wizard/lifecycle.
-app.MapCompetitionsEndpoints();
+// Judging module: tasting tables (COI validation, BOS flagging), judge workspace (blind samples,
+// fixed order), evaluations, organizer monitoring dashboard.
+app.MapJudgingModule();
 
-// Beer-entry and judge-roster import: upload, mapping/correction, consolidation.
-app.MapImportEndpoints();
-
-// Judge bulk registration, invitations, email correction.
-app.MapJudgesEndpoints();
-
-// Tasting tables: create/update with transactional COI validation + BOS flagging, list.
-app.MapTablesEndpoints();
-
-// Judge workspace: assigned tables, blind samples, fix tasting order.
-app.MapTastingOrderEndpoints();
-
-// Judge workspace: submit evaluations, idempotent replay.
-app.MapEvaluationsEndpoints();
-
-// Organizer dashboard: table progress snapshot, per-entry audit drill-down.
-app.MapMonitoringEndpoints();
-
-// Results archive download, per-participant email status, manual retry.
-app.MapDispatchEndpoints();
+// Publication module: archive download, per-participant email status, manual retry.
+app.MapPublicationModule();
 
 // EF migrations apply on startup in Development; outside Development, only when
 // Database:MigrateOnStartup=true (Terraform sets this on the single long-running API

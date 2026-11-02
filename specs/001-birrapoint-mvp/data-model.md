@@ -89,7 +89,7 @@ is null for styles without an "Instrucciones para la inscripción" section):
 ```
 
 Sourced from the official BJCP 2021 Style Guidelines (Spanish translation); seeded from
-`Features/Catalog/Data/bjcp-2021.json` (T010). Covers categories 1–34 plus the BJCP Appendix B
+`Modules/Organization/Features/Catalog/Data/bjcp-2021.json` (T010). Covers categories 1–34 plus the BJCP Appendix B
 local styles (X1–X5, e.g. `Italian Grape Ale`, `Catharina Sour`, `New Zealand Pilsner`).
 
 ### CompetitionCategory *(organizer-defined, FR-052, wizard step 3)*
@@ -172,7 +172,7 @@ instead of `Valid`. This check runs at initial parse, at the full-row edit, and 
 Not populated by the ACCE import format (no collaborators column) — used elsewhere when
 collaborators are assigned by some other means, out of Import's scope.
 
-### BeerImportBatch *(slice-owned staging area, Features/Import; table `ImportBatches`/`ImportRows`, ADR-0032)*
+### BeerImportBatch *(slice-owned staging area, Modules/Organization/Features/Import; table `ImportBatches`/`ImportRows`, ADR-0032)*
 
 | Field | Type | Constraints |
 |-------|------|-------------|
@@ -180,7 +180,7 @@ collaborators are assigned by some other means, out of Import's scope.
 | CompetitionId | Guid | FK → Competition |
 | Status | enum `BeerImportBatchStatus` | `Pending` \| `Consolidated`; **at most one `Pending` batch per competition** (partial unique index on `Status = 'Pending'`) — a new upload discards the prior unconsolidated batch (import-file.md §Semantics) |
 
-### BeerImportRow *(slice-owned staging area, Features/Import; table `ImportBatches`/`ImportRows`, ADR-0032)*
+### BeerImportRow *(slice-owned staging area, Modules/Organization/Features/Import; table `ImportBatches`/`ImportRows`, ADR-0032)*
 
 Mirrors the ACCE `.xlsx` column set 1:1 (import-file.md) so the Mapping & Correction screen
 operates purely off staged data before consolidation.
@@ -226,7 +226,7 @@ current `CompetitionCategoryStyle` allow-list. `Invalid` and `Excluded` rows are
 failure/exclusion is unrelated to category/style state). No-op (returns the batch unchanged) once
 `BeerImportBatch.Status` is `Consolidated`.
 
-### JudgeImportBatch *(slice-owned staging area, Features/Import — added US14/FR-055)*
+### JudgeImportBatch *(slice-owned staging area, Modules/Organization/Features/Import — added US14/FR-055)*
 
 Mirrors `BeerImportBatch` exactly, same semantics (`contracts/judge-import-file.md` §Semantics): at
 most one `Pending` batch per competition, a new upload discards the prior unconsolidated one.
@@ -237,7 +237,7 @@ most one `Pending` batch per competition, a new upload discards the prior uncons
 | CompetitionId | Guid | FK → Competition |
 | Status | enum `JudgeImportBatchStatus` | `Pending` \| `Consolidated`; **at most one `Pending` batch per competition** (partial unique index on `Status = 'Pending'`) |
 
-### JudgeImportRow *(slice-owned staging area, Features/Import — added US14/FR-055)*
+### JudgeImportRow *(slice-owned staging area, Modules/Organization/Features/Import — added US14/FR-055)*
 
 Mirrors the judge-roster `.xlsx` column set 1:1 (`contracts/judge-import-file.md`). Simpler than
 `BeerImportRow`: no catalog resolution happens for any judge-roster field, so there is no
@@ -358,7 +358,7 @@ collaborator of any `TableSample` entry at this table — checked transactionall
 | SubmittedAt | DateTimeOffset | required |
 
 **DescriptorsJson shape (FR-063, ADR-0015)** — `EvaluationDescriptorsDto`
-(`backend/src/BirraPoint.Api/Features/Evaluations/CommonComponents/Dtos/EvaluationDescriptorsDto.cs`), camelCase on the
+(`backend/src/BirraPoint.Api/Modules/Judging/Features/Evaluations/CommonComponents/Dtos/EvaluationDescriptorsDto.cs`), camelCase on the
 wire and in storage (`JsonSerializerDefaults.Web`). Every field below is independently optional;
 none of it feeds `Total` or the FR-023 caps.
 
@@ -459,7 +459,7 @@ medium this stack has, consistent with Postgres being the server of record.
 ## Anonymity boundary (BR-01 / FR-019 — structural enforcement)
 
 Judge-facing read models are built exclusively from this projection and MUST live in a dedicated
-DTO namespace (`Features/*/JudgeDtos`) that has no properties for entrant data:
+set of DTOs that have no properties for entrant data. They live under `Modules/Judging/Features/TastingOrder/`: `JudgeSampleDto` in `CommonComponents/Dtos/`, `JudgeTableSummaryDto` next to the `GetMyTables` slice and `JudgeTableMemberDto` next to the `GetTableJudges` slice (`Features/<Slice>/`):
 
 ```text
 JudgeSampleDto { BeerEntryId, BlindCode, StyleCode, StyleName, SequenceOrder?, EvaluationStatus, EntryInstructions? }

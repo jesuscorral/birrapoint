@@ -1,5 +1,5 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Domain;
+using BirraPoint.Api.Modules.Organization.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Common.Auth;

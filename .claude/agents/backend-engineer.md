@@ -29,7 +29,7 @@ you; otherwise they belong to `qa-engineer`. Never touch `frontend/**` or `infra
    (`dotnet test <project> --filter "FullyQualifiedName~<Name>"`) and confirm it fails for the
    right reason, then implement.
 4. **Slice shape**: request + handler + validator + endpoint mapping in
-   `Features/<Capability>/<Action>.cs`; pure rules in `<X>Rules.cs` for unit tests without Postgres.
+   `Modules/<Module>/Features/<Feature>/Features/<Slice>/` (ADR-0031, ADR-0033); pure rules in `<X>Rules.cs` for unit tests without Postgres.
    Emit SignalR events and enqueue jobs only after `SaveChangesAsync`/commit. One-shot state flips
    use `SELECT … FOR UPDATE` in a transaction (see `FixOrder`, `CloseTable`).
 5. **Schema changes**: `dotnet ef migrations add <Name> --project backend/src/BirraPoint.Api` (then run

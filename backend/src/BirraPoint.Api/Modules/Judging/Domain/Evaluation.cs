@@ -1,0 +1,63 @@
+using BirraPoint.Api.Domain;
+
+namespace BirraPoint.Api.Modules.Judging.Domain;
+
+/// <summary>
+/// Immutable once submitted except via an open DiscrepancyAlert involving this judge
+/// (FR-030/FR-031/FR-034). Score caps and comment lengths are enforced at the API boundary;
+/// the (JudgeId, BeerEntryId) unique index is the idempotency backstop (FR-029, R-07).
+/// </summary>
+internal class Evaluation : Entity
+{
+    public Guid TastingTableId { get; set; }
+
+    public Guid JudgeId { get; set; }
+
+    public Guid BeerEntryId { get; set; }
+
+    /// <summary>0–12 (FR-024).</summary>
+    public int AromaScore { get; set; }
+
+    /// <summary>0–3 (FR-024).</summary>
+    public int AppearanceScore { get; set; }
+
+    /// <summary>0–20 (FR-024).</summary>
+    public int FlavorScore { get; set; }
+
+    /// <summary>0–5 (FR-024).</summary>
+    public int MouthfeelScore { get; set; }
+
+    /// <summary>0–10 (FR-024).</summary>
+    public int OverallScore { get; set; }
+
+    public required string AromaComment { get; set; }
+
+    public required string AppearanceComment { get; set; }
+
+    public required string FlavorComment { get; set; }
+
+    public required string MouthfeelComment { get; set; }
+
+    public required string OverallComment { get; set; }
+
+    /// <summary>Session 2026-09-21: structured tasting-sheet descriptors (jsonb, camelCase
+    /// System.Text.Json-serialized EvaluationDescriptorsDto) — additive support data alongside the
+    /// five scores/comments above, never fed into <see cref="Total"/>. Null means none were filled;
+    /// every field within the serialized shape is itself optional too (see EvaluationDescriptorsDto's
+    /// own doc comment).</summary>
+    public string? DescriptorsJson { get; set; }
+
+    /// <summary>Session 2026-09-21: holistic free-text feedback (the paper sheet's bottom "Feedback"
+    /// box) — distinct from the five per-section comments above, and unlike them, optional with no
+    /// minimum length.</summary>
+    public string? FeedbackComment { get; set; }
+
+    /// <summary>DB-computed (stored generated column) = sum of the five scores; never client-supplied (FR-024).</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S1144:Unused private types or members should be removed",
+        Justification = "EF Core materializes the generated column through this setter.")]
+    public int Total { get; private set; }
+
+    public EvaluationStatus Status { get; set; } = EvaluationStatus.Confirmed;
+
+    public DateTimeOffset SubmittedAt { get; set; }
+}

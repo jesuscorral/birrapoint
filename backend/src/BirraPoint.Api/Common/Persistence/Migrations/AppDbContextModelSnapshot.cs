@@ -66,7 +66,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("AuditLogs");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.BeerEntry", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -150,7 +150,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("BeerEntries");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.BjcpStyle", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.BjcpStyle", b =>
                 {
                     b.Property<string>("Code")
                         .HasMaxLength(20)
@@ -216,7 +216,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("BjcpStyles");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.Competition", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.Competition", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -288,7 +288,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.CompetitionCategory", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.CompetitionCategory", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -319,7 +319,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("CompetitionCategories");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.CompetitionCategoryStyle", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.CompetitionCategoryStyle", b =>
                 {
                     b.Property<Guid>("CompetitionCategoryId")
                         .HasColumnType("uuid");
@@ -347,7 +347,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("CompetitionCategoryStyles");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.DiscrepancyAlert", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.DiscrepancyAlert", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -441,7 +441,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("DispatchJobs");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.EntryCollaborator", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.EntryCollaborator", b =>
                 {
                     b.Property<Guid>("BeerEntryId")
                         .HasColumnType("uuid");
@@ -461,7 +461,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("EntryCollaborators");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.Evaluation", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.Evaluation", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -554,7 +554,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("Evaluations");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.GeneratedScoreSheet", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Publication.Domain.GeneratedScoreSheet", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -584,7 +584,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("GeneratedScoreSheets");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.Invitation", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.Invitation", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -621,7 +621,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("Invitations");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.Judge", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.Judge", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -674,7 +674,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("Judges");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.Organizer", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.Organizer", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -717,7 +717,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("Organizers");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.Participant", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.Participant", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -761,7 +761,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("Participants");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.ResultsArchive", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Publication.Domain.ResultsArchive", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -791,7 +791,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("ResultsArchives");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.TableJudge", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TableJudge", b =>
                 {
                     b.Property<Guid>("TastingTableId")
                         .HasColumnType("uuid");
@@ -815,7 +815,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("TableJudges");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.TableSample", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TableSample", b =>
                 {
                     b.Property<Guid>("TastingTableId")
                         .HasColumnType("uuid");
@@ -843,7 +843,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("TableSamples");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.TastingTable", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TastingTable", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -887,7 +887,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("TastingTables");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Import.BeerImportBatch", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.BeerImportBatch", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -916,7 +916,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("ImportBatches", (string)null);
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Import.BeerImportRow", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.BeerImportRow", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1022,7 +1022,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("ImportRows", (string)null);
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Import.JudgeImportBatch", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.JudgeImportBatch", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1051,7 +1051,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("JudgeImportBatches");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Import.JudgeImportRow", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.JudgeImportRow", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1110,79 +1110,79 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("JudgeImportRows");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.BeerEntry", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.CompetitionCategory", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.CompetitionCategory", null)
                         .WithMany()
                         .HasForeignKey("CompetitionCategoryId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("BirraPoint.Api.Domain.Competition", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
                         .WithMany()
                         .HasForeignKey("CompetitionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("BirraPoint.Api.Domain.Participant", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Participant", null)
                         .WithMany()
                         .HasForeignKey("ParticipantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("BirraPoint.Api.Domain.BjcpStyle", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BjcpStyle", null)
                         .WithMany()
                         .HasForeignKey("StyleCode")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.Competition", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.Competition", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.Organizer", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Organizer", null)
                         .WithMany()
                         .HasForeignKey("OrganizerId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.CompetitionCategory", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.CompetitionCategory", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.Competition", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
                         .WithMany()
                         .HasForeignKey("CompetitionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.CompetitionCategoryStyle", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.CompetitionCategoryStyle", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.CompetitionCategory", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.CompetitionCategory", null)
                         .WithMany("Styles")
                         .HasForeignKey("CompetitionCategoryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("BirraPoint.Api.Domain.Competition", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
                         .WithMany()
                         .HasForeignKey("CompetitionId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
-                    b.HasOne("BirraPoint.Api.Domain.BjcpStyle", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BjcpStyle", null)
                         .WithMany()
                         .HasForeignKey("StyleCode")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.DiscrepancyAlert", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.DiscrepancyAlert", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.BeerEntry", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", null)
                         .WithMany()
                         .HasForeignKey("BeerEntryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("BirraPoint.Api.Domain.TastingTable", null)
+                    b.HasOne("BirraPoint.Api.Modules.Judging.Domain.TastingTable", null)
                         .WithMany()
                         .HasForeignKey("TastingTableId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1191,190 +1191,190 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
 
             modelBuilder.Entity("BirraPoint.Api.Domain.DispatchJob", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.Competition", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
                         .WithMany()
                         .HasForeignKey("CompetitionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.EntryCollaborator", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.EntryCollaborator", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.BeerEntry", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", null)
                         .WithMany("Collaborators")
                         .HasForeignKey("BeerEntryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.Evaluation", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.Evaluation", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.BeerEntry", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", null)
                         .WithMany()
                         .HasForeignKey("BeerEntryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("BirraPoint.Api.Domain.Judge", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Judge", null)
                         .WithMany()
                         .HasForeignKey("JudgeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("BirraPoint.Api.Domain.TastingTable", null)
+                    b.HasOne("BirraPoint.Api.Modules.Judging.Domain.TastingTable", null)
                         .WithMany()
                         .HasForeignKey("TastingTableId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.GeneratedScoreSheet", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Publication.Domain.GeneratedScoreSheet", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.BeerEntry", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", null)
                         .WithMany()
                         .HasForeignKey("BeerEntryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.Invitation", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.Invitation", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.Judge", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Judge", null)
                         .WithMany()
                         .HasForeignKey("JudgeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.Judge", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.Judge", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.Competition", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
                         .WithMany()
                         .HasForeignKey("CompetitionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.Participant", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.Participant", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.Competition", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
                         .WithMany()
                         .HasForeignKey("CompetitionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.ResultsArchive", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Publication.Domain.ResultsArchive", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.Competition", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
                         .WithMany()
                         .HasForeignKey("CompetitionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.TableJudge", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TableJudge", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.Judge", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Judge", null)
                         .WithMany()
                         .HasForeignKey("JudgeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("BirraPoint.Api.Domain.TastingTable", null)
+                    b.HasOne("BirraPoint.Api.Modules.Judging.Domain.TastingTable", null)
                         .WithMany("Judges")
                         .HasForeignKey("TastingTableId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.TableSample", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TableSample", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.BeerEntry", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", null)
                         .WithMany()
                         .HasForeignKey("BeerEntryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("BirraPoint.Api.Domain.TastingTable", null)
+                    b.HasOne("BirraPoint.Api.Modules.Judging.Domain.TastingTable", null)
                         .WithMany("Samples")
                         .HasForeignKey("TastingTableId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.TastingTable", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TastingTable", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.Competition", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
                         .WithMany()
                         .HasForeignKey("CompetitionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("BirraPoint.Api.Domain.Judge", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Judge", null)
                         .WithMany()
                         .HasForeignKey("OrderFixedByJudgeId");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Import.BeerImportBatch", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.BeerImportBatch", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.Competition", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
                         .WithMany()
                         .HasForeignKey("CompetitionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Import.BeerImportRow", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.BeerImportRow", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Features.Import.BeerImportBatch", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Features.Import.BeerImportBatch", null)
                         .WithMany("Rows")
                         .HasForeignKey("BeerImportBatchId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Import.JudgeImportBatch", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.JudgeImportBatch", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Domain.Competition", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
                         .WithMany()
                         .HasForeignKey("CompetitionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Import.JudgeImportRow", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.JudgeImportRow", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Features.Import.JudgeImportBatch", null)
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Features.Import.JudgeImportBatch", null)
                         .WithMany("Rows")
                         .HasForeignKey("JudgeImportBatchId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.BeerEntry", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", b =>
                 {
                     b.Navigation("Collaborators");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.CompetitionCategory", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.CompetitionCategory", b =>
                 {
                     b.Navigation("Styles");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.TastingTable", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TastingTable", b =>
                 {
                     b.Navigation("Judges");
 
                     b.Navigation("Samples");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Import.BeerImportBatch", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.BeerImportBatch", b =>
                 {
                     b.Navigation("Rows");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Features.Import.JudgeImportBatch", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.JudgeImportBatch", b =>
                 {
                     b.Navigation("Rows");
                 });

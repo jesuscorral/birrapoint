@@ -80,10 +80,11 @@ gh workflow run deploy-azure.yml -f version=X.Y.Z       # or deploy-aws.yml
 
 ```text
 backend/src/BirraPoint.AppHost | ServiceDefaults | Api/
-  Api/Domain/    shared kernel (keep small)     Api/Common/   auth, persistence, errors, behaviors, audit, job queue
-  Api/Features/  one folder per capability: Competitions, Catalog, Import, Judges, Tables,
-                 TastingOrder, Evaluations, Monitoring, Dispatch; each = Base<X>Endpoints.cs +
-                 Features/<Slice>/ (handler, validator, endpoint, DTOs) + CommonComponents/ (ADR-0031)
+  Api/Domain/    shared kernel: Entity(+ITimestamped), AuditLog, DispatchJob     Api/Common/   AppDbContext, auth, persistence, errors, behaviors, audit, job queue
+  Api/Modules/   ADR-0033: Organization (Catalog, Competitions, Import, Judges), Judging (Tables,
+                 TastingOrder, Evaluations, Monitoring), Publication (Dispatch); each module = Domain/ +
+                 Persistence/ + <Module>ModuleEndpoints.cs + Features/<Feature>/ (Base<X>Endpoints.cs +
+                 Features/<Slice>/ + CommonComponents/, ADR-0031)
   Api/Realtime/  CompetitionHub + emit-after-commit publisher
 backend/tests/   UnitTests + IntegrationTests
 frontend/src/app/  FSD: core/ (auth, api, realtime, offline, layout), features/, shared/
@@ -96,7 +97,7 @@ infra/           azure/ and aws/, each: terraform/ (azure: ACA, Key Vault, Dapr,
 
 ## Backend conventions
 
-- Slice = request + handler + FluentValidation validator + endpoint under `Features/<X>/Features/<Slice>/`
+- Slice = request + handler + FluentValidation validator + endpoint under `Modules/<M>/Features/<X>/Features/<Slice>/`
   (shared types in `CommonComponents/`; namespaces = folders, ADR-0031).
   Cross-slice only via MediatR messages or shared contracts. **MediatR pinned 12.x** (licensing).
 - Errors: RFC 7807 with `urn:birrapoint:*` types from `rest-api.md` error catalog (closed list).

@@ -1,6 +1,8 @@
 using BirraPoint.Api.Domain;
-using BirraPoint.Api.Features.Import;
-using BirraPoint.Api.Features.Judges;
+using BirraPoint.Api.Modules.Judging.Domain;
+using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Features.Import;
+using BirraPoint.Api.Modules.Publication.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Common.Persistence;

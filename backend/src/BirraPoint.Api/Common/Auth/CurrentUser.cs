@@ -1,5 +1,5 @@
 using System.Security.Claims;
-using BirraPoint.Api.Domain;
+using BirraPoint.Api.Modules.Organization.Domain;
 
 namespace BirraPoint.Api.Common.Auth;
 
