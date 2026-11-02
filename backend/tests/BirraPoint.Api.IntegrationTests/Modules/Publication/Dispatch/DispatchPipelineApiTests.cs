@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
@@ -96,6 +97,80 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
         var hasGeneratePdfsJob = await db.DispatchJobs
             .AnyAsync(j => j.CompetitionId == competitionId && j.Type == DispatchJobType.GeneratePdfs, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(hasGeneratePdfsJob);
+    }
+
+    // ---- Concurrency: the state change must be serialized, not just sequentially rejected --------
+
+    private const int ConcurrentStateRequests = 20;
+
+    private static async Task<HttpResponseMessage[]> PostStateConcurrentlyAsync(HttpClient organizer, Guid competitionId, string target)
+    {
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tasks = Enumerable.Range(0, ConcurrentStateRequests).Select(async _ =>
+        {
+            await start.Task;
+            return await organizer.PostAsJsonAsync($"/api/v1/competitions/{competitionId}/state", new { target });
+        }).ToList();
+        start.SetResult();
+        return await Task.WhenAll(tasks);
+    }
+
+    private async Task<int> CountStateChangeAuditRowsAsync(Guid competitionId)
+    {
+        await using var scope = Factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.AuditLogs.AsNoTracking().CountAsync(
+            a => a.Action == "CompetitionStateChanged" && a.EntityId == competitionId.ToString(),
+            TestContext.Current.CancellationToken);
+    }
+
+    private static async Task AssertExactlyOneWinnerAsync(HttpResponseMessage[] responses)
+    {
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.OK);
+        var losers = responses.Where(r => r.StatusCode != HttpStatusCode.OK).ToList();
+        Assert.Equal(ConcurrentStateRequests - 1, losers.Count);
+        foreach (var loser in losers)
+        {
+            Assert.Equal(HttpStatusCode.Conflict, loser.StatusCode);
+            using var document = JsonDocument.Parse(await loser.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Equal("urn:birrapoint:invalid-state-transition", document.RootElement.GetProperty("type").GetString());
+        }
+    }
+
+    [Fact]
+    public async Task ConcurrentFinalizeRequestsYieldOneWinnerOneGeneratePdfsJobAndOneAuditRow()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var (competitionId, _, _) = await SeedClosedTableCompetitionAsync(organizer, "FinalizeRace", entryCount: 1);
+
+        var responses = await PostStateConcurrentlyAsync(organizer, competitionId, "Finalized");
+
+        await AssertExactlyOneWinnerAsync(responses);
+
+        await using var scope = Factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var jobCount = await db.DispatchJobs.AsNoTracking().CountAsync(
+            j => j.CompetitionId == competitionId && j.Type == DispatchJobType.GeneratePdfs, TestContext.Current.CancellationToken);
+        Assert.Equal(1, jobCount);
+
+        // Active + InEvaluation (setup) + exactly one Finalized.
+        Assert.Equal(3, await CountStateChangeAuditRowsAsync(competitionId));
+    }
+
+    [Fact]
+    public async Task ConcurrentActiveToInEvaluationRequestsYieldOneWinnerAndOneAuditRow()
+    {
+        using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
+        var competitionId = await CreateCompetitionAsync(organizer, "InEvaluationRace");
+        var toActive = await organizer.PostAsJsonAsync(
+            $"/api/v1/competitions/{competitionId}/state", new { target = "Active" }, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, toActive.StatusCode);
+
+        var responses = await PostStateConcurrentlyAsync(organizer, competitionId, "InEvaluation");
+
+        await AssertExactlyOneWinnerAsync(responses);
+        // Active (setup) + exactly one InEvaluation.
+        Assert.Equal(2, await CountStateChangeAuditRowsAsync(competitionId));
     }
 
     // ---- Full pipeline: GeneratePdfs -> BundleZip -> SendResultEmail ----------------------------

@@ -13,10 +13,10 @@ ADR-0033 phase 1 moved the features into modules but left direct entity access a
 
 | Contract | Owner (defines) | Implemented by | Used by |
 |---|---|---|---|
-| `IStyleCatalog` | Catalog | Catalog | Organization |
-| `IConflictOfInterestChecker` | Organization | Organization | Judging |
-| `IJudgeDirectory` | Organization | Organization | Judging |
-| `IFinalizedEvaluations` | Judging | Judging | Publication |
+| `IStyleCatalog` | Catalog | Catalog | Organization (Import, categories, entries list), Judging (table and judge sample projections), Publication (score-sheet PDFs) |
+| `IConflictOfInterestChecker` | Organization | Organization | Judging (table assignment) |
+| `IJudgeDirectory` | Organization | Organization | Judging (`IStoredEvaluations` judge names) |
+| `IStoredEvaluations` | Judging | Judging | Publication (score-sheet PDFs), Judging Monitoring (entry evaluations) |
 | `ICompetitionFinalizationGuard` | Organization | Judging | Organization |
 | `IEntryTableAssignments` | Organization | Judging | Organization |
 | `CompetitionFinalized` (notification) | Organization | published by Organization | Publication |
@@ -25,7 +25,7 @@ Provider-owned contracts cover downstream-needs-upstream data. When an upstream 
 
 **Queries are synchronous in-process interfaces.** Rejected: MediatR requests across modules (hidden coupling, no typed surface), read-only cross-module `DbSet` access (keeps the shared-schema coupling), UI composition (breaks existing API shapes), outbox/async events (eventual consistency; deferred to phase 3).
 
-**Finalization is atomic.** `ChangeCompetitionStateCommand` publishes the in-process MediatR notification `CompetitionFinalized` before `SaveChanges`. Publication's handler stages `GeneratePdfs` with `IDispatchJobQueue.Stage` in the same transaction; the worker wake-up signal is sent after commit. This closes the enqueue-after-commit gap.
+**Finalization is atomic.** `ChangeCompetitionStateCommand` publishes the in-process MediatR notification `CompetitionFinalized` before `SaveChanges`. Publication's handler stages `GeneratePdfs` with `IDispatchJobQueue.Stage` in the same transaction; the worker wake-up signal is sent after commit. This closes the enqueue-after-commit gap. Every state transition runs in a transaction that loads the competition with `SELECT … FOR UPDATE`, so concurrent requests serialize: one wins, the rest get `409 invalid-state-transition`, and at most one `GeneratePdfs` job is staged.
 
 **Enforcement.** `UnitTests/Architecture/ModuleBoundaryTests.cs` scans sources: a module may use another module only through its `Contracts` namespace and may not touch its `DbSet`s. An exact, shrink-only allow-list holds 29 Judging/Publication -> Organization entries (phase-3 debt); a stale entry fails the build. Allowed without listing: `Modules/<M>/Persistence/` FK configurations (shared `AppDbContext`). Permanent kernel exceptions: `Common/Auth` resolvers (Keycloak subject -> organizer/judge), `Realtime/` hub authorization, `Common/Persistence/` (model composition, including the `DispatchJob` -> `Competition` FK).
 

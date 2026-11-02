@@ -4,16 +4,16 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace BirraPoint.Api.IntegrationTests.Modules.Judging.Integration;
 
-/// <summary>IFinalizedEvaluations: evaluations per entry for score sheets and the audit drill-down.</summary>
-public sealed class FinalizedEvaluationsTests(ApiFactory factory) : IClassFixture<ApiFactory>
+/// <summary>IStoredEvaluations: evaluations per entry for score sheets and the audit drill-down.</summary>
+public sealed class StoredEvaluationsTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private const string DescriptorsJson =
         "{\"aroma\":{\"malt\":2,\"maltInappropriate\":false,\"hops\":1,\"hopsInappropriate\":true,\"fermentation\":null,\"fermentationInappropriate\":false},\"offFlavors\":[\"diacetyl\"]}";
 
     private readonly ContractSeeder _seed = new(factory.Services);
 
-    private static IFinalizedEvaluations Evaluations(IServiceScope scope) =>
-        scope.ServiceProvider.GetRequiredService<IFinalizedEvaluations>();
+    private static IStoredEvaluations Evaluations(IServiceScope scope) =>
+        scope.ServiceProvider.GetRequiredService<IStoredEvaluations>();
 
     [Fact]
     public async Task GetByEntriesReturnsEvaluationsWithJudgeNameScoresAndStatus()

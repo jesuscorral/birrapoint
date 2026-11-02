@@ -17,7 +17,7 @@ namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.Dispatch
 /// own <see cref="DispatchJob.CompetitionId"/> is all that's needed.
 /// </summary>
 internal sealed class GeneratePdfsHandler(
-    AppDbContext dbContext, IDispatchJobQueue dispatchJobQueue, IStyleCatalog styleCatalog, IFinalizedEvaluations finalizedEvaluations) : IDispatchJobHandler
+    AppDbContext dbContext, IDispatchJobQueue dispatchJobQueue, IStyleCatalog styleCatalog, IStoredEvaluations storedEvaluations) : IDispatchJobHandler
 {
     public DispatchJobType Type => DispatchJobType.GeneratePdfs;
 
@@ -31,7 +31,7 @@ internal sealed class GeneratePdfsHandler(
 
         var styleByCode = await styleCatalog.GetByCodesAsync(
             entries.Select(e => e.StyleCode).Distinct(StringComparer.Ordinal).ToList(), cancellationToken);
-        var evaluationsByEntry = await finalizedEvaluations.GetByEntriesAsync(
+        var evaluationsByEntry = await storedEvaluations.GetByEntriesAsync(
             entries.Select(e => e.Id).ToList(), cancellationToken);
 
         foreach (var entry in entries)

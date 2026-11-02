@@ -26,7 +26,7 @@ internal sealed record EvaluationAuditItemDto(
 internal sealed record EntryEvaluationsResult(string BlindCode, IReadOnlyList<EvaluationAuditItemDto> Evaluations, decimal? ConsolidatedMean);
 
 internal sealed class GetEntryEvaluationsQueryHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IFinalizedEvaluations finalizedEvaluations)
+    AppDbContext dbContext, ICurrentUser currentUser, IStoredEvaluations storedEvaluations)
     : IRequestHandler<GetEntryEvaluationsQuery, EntryEvaluationsResult?>
 {
     public async Task<EntryEvaluationsResult?> Handle(GetEntryEvaluationsQuery request, CancellationToken cancellationToken)
@@ -56,7 +56,7 @@ internal sealed class GetEntryEvaluationsQueryHandler(
             return null;
         }
 
-        var evaluations = (await finalizedEvaluations.GetByEntriesAsync([request.EntryId], cancellationToken))[request.EntryId];
+        var evaluations = (await storedEvaluations.GetByEntriesAsync([request.EntryId], cancellationToken))[request.EntryId];
 
         var items = evaluations
             .Select(ev => new EvaluationAuditItemDto(

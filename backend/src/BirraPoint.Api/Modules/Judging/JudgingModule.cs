@@ -11,7 +11,7 @@ internal static class JudgingModule
     {
         services.AddScoped<ICompetitionFinalizationGuard, CompetitionFinalizationGuard>();
         services.AddScoped<IEntryTableAssignments, EntryTableAssignments>();
-        services.AddScoped<IFinalizedEvaluations, FinalizedEvaluations>();
+        services.AddScoped<IStoredEvaluations, StoredEvaluations>();
         return services;
     }
 }

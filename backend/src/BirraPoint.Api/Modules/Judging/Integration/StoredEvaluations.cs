@@ -7,14 +7,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Judging.Integration;
 
-internal sealed class FinalizedEvaluations(AppDbContext dbContext, IJudgeDirectory judgeDirectory) : IFinalizedEvaluations
+internal sealed class StoredEvaluations(AppDbContext dbContext, IJudgeDirectory judgeDirectory) : IStoredEvaluations
 {
-    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<FinalizedEvaluationDto>>> GetByEntriesAsync(
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<StoredEvaluationDto>>> GetByEntriesAsync(
         IReadOnlyCollection<Guid> beerEntryIds, CancellationToken cancellationToken = default)
     {
         if (beerEntryIds.Count == 0)
         {
-            return new Dictionary<Guid, IReadOnlyList<FinalizedEvaluationDto>>();
+            return new Dictionary<Guid, IReadOnlyList<StoredEvaluationDto>>();
         }
 
         var ids = beerEntryIds.Distinct().ToList();
@@ -32,8 +32,8 @@ internal sealed class FinalizedEvaluations(AppDbContext dbContext, IJudgeDirecto
 
         return ids.ToDictionary(
             id => id,
-            id => (IReadOnlyList<FinalizedEvaluationDto>)byEntry[id]
-                .Select(ev => new FinalizedEvaluationDto(
+            id => (IReadOnlyList<StoredEvaluationDto>)byEntry[id]
+                .Select(ev => new StoredEvaluationDto(
                     ev.BeerEntryId,
                     judgeNames[ev.JudgeId],
                     ev.AromaScore, ev.AromaComment,

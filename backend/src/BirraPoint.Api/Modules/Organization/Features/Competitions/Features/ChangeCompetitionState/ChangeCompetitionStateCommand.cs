@@ -26,8 +26,17 @@ internal sealed class ChangeCompetitionStateCommandHandler(
     public async Task<ChangeCompetitionStateResult?> Handle(
         ChangeCompetitionStateCommand request, CancellationToken cancellationToken)
     {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        // Row lock serializes concurrent transitions: racing requests must not all pass CanTransition on
+        // the same stale state and each stage an audit row (or a GeneratePdfs job). Losers re-read the
+        // committed state after the winner releases the lock and get a 409. The ownership filter stays in
+        // the locked query so an unowned competition is still a plain 404.
+        var sub = currentUser.Sub;
         var competition = await dbContext.Competitions
-            .FirstOrDefaultAsync(c => c.Id == request.Id && c.CreatedByUserId == currentUser.Sub, cancellationToken);
+            .FromSqlInterpolated(
+                $"SELECT * FROM \"Competitions\" WHERE \"Id\" = {request.Id} AND \"CreatedByUserId\" = {sub} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken);
 
         if (competition is null)
         {
@@ -75,6 +84,7 @@ internal sealed class ChangeCompetitionStateCommandHandler(
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         // Everything below runs after the commit, so it must not observe the request token: an
         // aborted request would otherwise leave a Finalized competition with no worker wake-up.

@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Text.RegularExpressions;
 using BirraPoint.Api.Domain;
 
 namespace BirraPoint.Api.UnitTests.Architecture;
@@ -11,11 +10,13 @@ namespace BirraPoint.Api.UnitTests.Architecture;
 ///
 /// Heuristics, deliberately simple:
 /// <list type="bullet">
-/// <item>Using directives: <c>using [static] BirraPoint.Api.Modules.&lt;Y&gt;[.Contracts…];</c> is allowed,
-/// any other namespace of module Y is a violation from module X ≠ Y.</item>
+/// <item>Using directives (plain, <c>global</c>, <c>static</c> and alias): <c>using BirraPoint.Api.Modules.&lt;Y&gt;.Contracts…;</c>
+/// is allowed, any other namespace of module Y is a violation from module X ≠ Y. Fully qualified
+/// <c>BirraPoint.Api.Modules.&lt;Y&gt;.…</c> names in code follow the same rule.</item>
 /// <item>DbSet access: the DbSet-name → owning-module map is built by reflection over
 /// <c>AppDbContext</c> (module = the module segment of the entity's namespace). Only member access on a
-/// DbContext-looking receiver (<c>dbContext</c>, <c>db</c>, <c>context</c>) is matched, so same-named
+/// DbContext-looking receiver (identifier ending in <c>dbContext</c>, <c>db</c>, <c>context</c> or <c>ctx</c>, e.g.
+/// <c>_db</c>, <c>appDbContext</c>) is matched, so same-named
 /// navigations such as <c>table.Judges</c> are not false positives. <c>Set&lt;T&gt;()</c> and
 /// <c>Include</c> navigations are intentionally out of scope.</item>
 /// <item>Comments are stripped before matching.</item>
@@ -29,17 +30,7 @@ public class ModuleBoundaryTests
 {
     private const string ModulesNamespace = "BirraPoint.Api.Modules";
 
-    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(5);
-
     private static readonly string[] KernelFolders = ["Common", "Domain", "Realtime"];
-
-    private static readonly Regex UsingRegex = new(
-        @"^\s*(?:global\s+)?using\s+(?:static\s+)?BirraPoint\.Api\.Modules\.(?<module>\w+)(?<rest>(?:\.\w+)*)\s*;",
-        RegexOptions.Multiline | RegexOptions.Compiled, RegexTimeout);
-
-    private static readonly Regex BlockComment = new(@"/\*.*?\*/", RegexOptions.Singleline | RegexOptions.Compiled, RegexTimeout);
-
-    private static readonly Regex LineComment = new(@"//.*$", RegexOptions.Multiline | RegexOptions.Compiled, RegexTimeout);
 
     private const string JudgingReadsOrganization =
         "Judging reads Organization competition/entry/judge data directly until phase 3 (local copies).";
@@ -137,9 +128,6 @@ public class ModuleBoundaryTests
         Assert.True(offenders.Count == 0, "Kernel references modules outside the documented exceptions:\n" + string.Join('\n', offenders));
     }
 
-    /// <summary>Members: <c>using:&lt;namespace below the module&gt;</c> or the DbSet name.</summary>
-    private sealed record Violation(string File, string Module, IReadOnlySet<string> Members);
-
     private static string Describe(Violation v) => $"{v.File} -> {v.Module}: {string.Join("; ", v.Members.Order(StringComparer.Ordinal))}";
 
     private static bool IsTolerated(Violation v)
@@ -147,7 +135,7 @@ public class ModuleBoundaryTests
         var debt = ModuleAllowList.SingleOrDefault(a => a.File == v.File && a.Module == v.Module);
         return debt is not null
             && (debt.DbSets is null
-                || v.Members.Where(m => !m.StartsWith("using:", StringComparison.Ordinal)).All(debt.DbSets.Contains));
+                || v.Members.Where(m => !ModuleBoundaryScanner.IsReferenceMember(m)).All(debt.DbSets.Contains));
     }
 
     private static string ApiRoot { get; } = FindApiRoot();
@@ -190,36 +178,11 @@ public class ModuleBoundaryTests
         return map;
     }
 
-    private static string StripComments(string source) =>
-        LineComment.Replace(BlockComment.Replace(source, string.Empty), string.Empty);
-
     private static IEnumerable<(string Relative, string Source)> SourceFiles(string folder) =>
         Directory.EnumerateFiles(Path.Combine(ApiRoot, folder), "*.cs", SearchOption.AllDirectories)
             .Select(path => (Relative: Path.GetRelativePath(ApiRoot, path).Replace('\\', '/'), path))
             .Where(f => !f.Relative.Contains("/obj/", StringComparison.Ordinal) && !f.Relative.Contains("/bin/", StringComparison.Ordinal))
-            .Select(f => (f.Relative, StripComments(File.ReadAllText(f.path))));
-
-    private static IEnumerable<Violation> Scan(string relative, string source, string? ownModule, Dictionary<string, string> dbSets)
-    {
-        foreach (Match match in UsingRegex.Matches(source))
-        {
-            var module = match.Groups["module"].Value;
-            var rest = match.Groups["rest"].Value;
-            var isContracts = rest == ".Contracts" || rest.StartsWith(".Contracts.", StringComparison.Ordinal);
-            if (module != ownModule && !isContracts)
-            {
-                yield return new Violation(relative, module, new HashSet<string> { $"using:{rest.TrimStart('.')}" });
-            }
-        }
-
-        foreach (var (name, module) in dbSets)
-        {
-            if (module != ownModule && Regex.IsMatch(source, $@"\b(?:dbContext|db|context)\s*\.\s*{name}\b", RegexOptions.None, RegexTimeout))
-            {
-                yield return new Violation(relative, module, new HashSet<string> { name });
-            }
-        }
-    }
+            .Select(f => (f.Relative, File.ReadAllText(f.path)));
 
     private static List<Violation> ScanModules()
     {
@@ -236,7 +199,7 @@ public class ModuleBoundaryTests
                     continue;
                 }
 
-                violations.AddRange(Scan(relative, source, module, dbSets));
+                violations.AddRange(ModuleBoundaryScanner.Scan(relative, source, module, dbSets));
             }
         }
 
@@ -249,7 +212,7 @@ public class ModuleBoundaryTests
         var violations = KernelFolders
             .Where(folder => Directory.Exists(Path.Combine(ApiRoot, folder)))
             .SelectMany(SourceFiles)
-            .SelectMany(f => Scan(f.Relative, f.Source, ownModule: null, dbSets))
+            .SelectMany(f => ModuleBoundaryScanner.Scan(f.Relative, f.Source, ownModule: null, dbSets))
             .ToList();
 
         return Distinct(violations);
