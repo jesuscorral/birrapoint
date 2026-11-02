@@ -80,7 +80,6 @@ public class ModuleLayoutTests
     [InlineData("ResultsArchive", "Publication")]
     public void EntityLivesInItsModuleDomainNamespace(string typeName, string module)
     {
-        // Phase 3 (ADR-0033, Judging local copies of Organization types) will need an explicit allow-list here.
         var expected = $"BirraPoint.Api.Modules.{module}.Domain";
         var matches = ApiTypes()
             .Where(t => t.Name == typeName && IsDomainNamespace(t.Namespace!))
