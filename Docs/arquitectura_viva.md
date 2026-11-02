@@ -4,7 +4,7 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-11-01 (backend modules, ADR-0033)
+**Last updated:** 2026-11-02 (backend modules, ADR-0033/ADR-0034)
 
 ## Status
 
@@ -144,7 +144,7 @@ Projects: `BirraPoint.Api` (modular monolith), `BirraPoint.AppHost`, `BirraPoint
   `BeerEntryId` on `TableSample`; unique `(TastingTableId, SequenceOrder)`; partial unique index on
   open `DiscrepancyAlert`s; date-window check constraints on `Competition`. The BJCP 2021 catalog
   (125 styles, full guide text) is seeded by migration from the embedded
-  `Modules/Organization/Features/Catalog/Data/bjcp-2021.json`, with its SHA-256 pinned by a unit test (ADR-0005).
+  `Modules/Catalog/Features/Catalog/Data/bjcp-2021.json`, with its SHA-256 pinned by a unit test (ADR-0005).
 - **Background jobs** (`Common/Jobs/`, R-06): `DispatchJobQueue` inserts a `Pending` row and wakes
   `DispatchWorker` through a channel (plus a safety-net poll, `Dispatch:SafetyNetPollInterval`, default 30 s, floor 1 s; cloud deployments set 1 h, ADR-0025). The worker claims one eligible
   `Pending` job per transaction (`FOR UPDATE SKIP LOCKED`), marks it `Running` with
@@ -173,17 +173,39 @@ Projects: `BirraPoint.Api` (modular monolith), `BirraPoint.AppHost`, `BirraPoint
 ### Modules (ADR-0033)
 
 Code lives in `backend/src/BirraPoint.Api/Modules/<Module>/` (`Domain/`, `Persistence/` EF configurations,
-`Features/<Feature>/`, `<Module>ModuleEndpoints.cs`). One `AppDbContext` and one schema; no per-module DB.
+`Contracts/`, `Integration/`, `Features/<Feature>/`, `<Module>Module.cs`, `<Module>ModuleEndpoints.cs`). One `AppDbContext` and one schema; no per-module DB.
 `Api/Domain/` is the shared kernel (`Entity` + `ITimestamped`, `AuditLog`, `DispatchJob`). `UnitTests/Architecture/ModuleLayoutTests.cs` checks the layout.
 
 | Module | Features | Entities |
 |---|---|---|
-| **Organization** | Catalog, Competitions, Import, Judges | `Organizer`, `Competition`, `CompetitionCategory`, `CompetitionCategoryStyle`, `BjcpStyle`, `Participant`, `BeerEntry`, `EntryCollaborator`, `Judge`, `Invitation`, import staging |
+| **Catalog** | Catalog | `BjcpStyle` (global read-only reference data, no dependencies) |
+| **Organization** | Competitions, Import, Judges | `Organizer`, `Competition`, `CompetitionCategory`, `CompetitionCategoryStyle`, `Participant`, `BeerEntry`, `EntryCollaborator`, `Judge`, `Invitation`, import staging |
 | **Judging** | Tables, TastingOrder, Evaluations, Monitoring | `TastingTable`, `TableJudge`, `TableSample`, `Evaluation`, `DiscrepancyAlert` |
 | **Publication** | Dispatch | `GeneratedScoreSheet`, `ResultsArchive` |
 
-Status: phase 1 (pure move) done. Modules still access each other's entities directly (for example
-`CoiDetector`, TastingOrder and Dispatch). The shared kernel also references Organization (`Common/Auth` identity resolvers use `Organizer`/`Judge`; `DispatchJob` has a `Competition` FK); T152 decides between a documented exception and an Organization contract. Phase 2 (contracts) and phase 3 (events, Judging-local copies) are open.
+Dependency direction: Catalog <- Organization <- Judging <- Publication (+ Publication -> Organization).
+`Modules/<M>/Contracts/` is the only surface another module may reference (interfaces, DTO records,
+notifications; never EF entities). Implementations are `internal sealed` in `Modules/<M>/Integration/`,
+registered by `Add<M>Module` (ADR-0034).
+
+| Contract | Defined in | Implemented by |
+|---|---|---|
+| `IStyleCatalog` | Catalog | Catalog |
+| `IConflictOfInterestChecker`, `IJudgeDirectory` | Organization | Organization |
+| `IFinalizedEvaluations` | Judging | Judging |
+| `ICompetitionFinalizationGuard`, `IEntryTableAssignments` (consumer-owned ports, avoid a cycle) | Organization | Judging |
+| `CompetitionFinalized` (MediatR notification) | Organization | handled by Publication |
+
+Finalize flow: `ChangeCompetitionStateCommand` checks `ICompetitionFinalizationGuard`, publishes
+`CompetitionFinalized` before `SaveChanges`; Publication stages `GeneratePdfs` via `IDispatchJobQueue.Stage`
+in the same transaction and the worker is woken after commit.
+
+Boundary rule: `UnitTests/Architecture/ModuleBoundaryTests.cs` forbids using another module outside its
+`Contracts` namespace or touching its `DbSet`s. `Persistence/` FK configurations are exempt. Permanent kernel
+exceptions: `Common/Auth` resolvers, `Realtime/` hub, `Common/Persistence/` (incl. the `DispatchJob` -> `Competition` FK).
+
+Known gap: 29 Judging/Publication -> Organization reads remain in the exact, shrink-only allow-list. Phase 3
+(events, Judging-local copies of samples and judges) removes them.
 
 ### Domain
 
@@ -204,7 +226,7 @@ Namespaces equal folders (IDE0130). Integration tests mirror it.
 | Slice | Endpoints (role) | Notes |
 |---|---|---|
 | **Catalog** | `GET /styles`, `GET /styles/{code}` (any authenticated) | list sorted by numeric category; detail = vital stats + guide text (FR-049) |
-| **Competitions** | `GET/POST /competitions`, `GET/PUT /competitions/{id}`, `POST /competitions/{id}/state`, `GET/PUT /competitions/{id}/categories`, `GET /competitions/{id}/entries` (`Features/GetEntriesList`, feeds the table wizard) (ORGANIZER) | new competitions are `Draft`; edits only in `Draft`/`Active`; `CompetitionStateMachine` enforces FR-006; `Finalized` requires every table `Closed` (`409 tables-still-open`) and enqueues `GeneratePdfs`; emits `CompetitionStateChanged`. Categories (FR-052) are organizer-defined groups of BJCP styles, full-replace `PUT`, a style in at most one category |
+| **Competitions** | `GET/POST /competitions`, `GET/PUT /competitions/{id}`, `POST /competitions/{id}/state`, `GET/PUT /competitions/{id}/categories`, `GET /competitions/{id}/entries` (`Features/GetEntriesList`, feeds the table wizard) (ORGANIZER) | new competitions are `Draft`; edits only in `Draft`/`Active`; `CompetitionStateMachine` enforces FR-006; `Finalized` requires every table `Closed` (`409 tables-still-open`) and stages `GeneratePdfs` in the same transaction (`CompetitionFinalized`); emits `CompetitionStateChanged`. Categories (FR-052) are organizer-defined groups of BJCP styles, full-replace `PUT`, a style in at most one category |
 | **Import** | `/competitions/{id}/imports/beers` and `/imports/judges` (ADR-0032): upload, get, `PUT rows/{n}`, `POST rows/{n}/exclude`, `consolidate`; `revalidate` beers only (ORGANIZER) | Beers: ACCE spreadsheet format (ADR-0011, `contracts/import-file.md`). Row statuses `Valid`, `StyleMismatch`, `CategoryMismatch`, `CategoryStyleMismatch`, `Invalid`, `Excluded`. Judges: roster format (`contracts/judge-import-file.md`), rows `Valid`/`Invalid`/`Excluded`; consolidate upserts `Judge` + `Invitation(Pending)` and enqueues `ProvisionJudgeAccount`. One active batch per competition and kind. Full-row edit; `revalidate` re-checks against current categories. Consolidate blocks on unresolved rows, is one-shot, dedupes participants by email (last import wins) and generates unique blind codes |
 | **Judges** | `/competitions/{id}/judges`: list, register (paste list), `PUT {judgeId}` (email), `POST {judgeId}/invitation` (resend), `POST notify` (ORGANIZER) | registration and roster import (US14, `Features/Import`) create `Judge` + `Invitation(Pending)` and enqueue `ProvisionJudgeAccount` (account created, no email, R-20). Emails go out only on explicit **Notify** (all `Pending`, FR-059) or per-judge resend (`SendInvitation`). Notify locks the competition row (`FOR UPDATE`) and skips judges with a `Pending`/`Running` `SendInvitation` job, so overlapping calls never double-send. `UpdateJudgeEmail` is rejected once the judge has logged in (`409 judge-already-active`) |
 | **Tables** | `/competitions/{id}/tables`: list, create, `PUT {tableId}` (full desired state; also the only live judge-removal surface, ADR-0030)  (ORGANIZER) | `TableAssignmentApplier` validates conflict of interest over the whole submitted set before any write (`409 conflict-of-interest`, FR-017) and flags/unflags `NotValidForBos` competition-wide (FR-018: unflag only when every owner/collaborator judge is clear and none has evaluated). Stats per table: mean real ABV, style count/list. Folders per use case: `CreateTable/`, `ListTables/`, `UpdateTable/` (command + validator + endpoint); shared `TableAssignmentApplier`, `LiveEditRules`, `LiveJudgeRemoval`. In `InEvaluation`, `UpdateTable` accepts only a pure judge removal (`LiveEditRules`: name and samples unchanged, judges a subset of active ones; anything else `409 invalid-state-transition`); `LiveJudgeRemoval` soft-removes under a table row lock, keeps submitted evaluations, re-reconciles open discrepancies, audits `JudgeRemoved`, emits `JudgeRemoved` + `DiscrepancyResolved` after commit |
