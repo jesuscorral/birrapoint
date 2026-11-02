@@ -1,4 +1,5 @@
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.Modules.Organization.Contracts;
 
 namespace BirraPoint.Api.Modules.Organization.Domain;
 

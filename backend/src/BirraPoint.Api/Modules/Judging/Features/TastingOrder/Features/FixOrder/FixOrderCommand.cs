@@ -4,6 +4,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Realtime;
 using FluentValidation;
 using MediatR;
@@ -20,7 +21,7 @@ internal sealed record FixOrderCommand(Guid TableId, IReadOnlyList<Guid> Ordered
     : IRequest<IReadOnlyList<JudgeSampleDto>?>;
 
 internal sealed class FixOrderCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher, IStyleCatalog styleCatalog)
+    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IEventPublisher eventPublisher, IStyleCatalog styleCatalog)
     : IRequestHandler<FixOrderCommand, IReadOnlyList<JudgeSampleDto>?>
 {
     public async Task<IReadOnlyList<JudgeSampleDto>?> Handle(FixOrderCommand request, CancellationToken cancellationToken)
@@ -40,10 +41,8 @@ internal sealed class FixOrderCommandHandler(
             .FromSqlInterpolated($"SELECT * FROM \"TastingTables\" WHERE \"Id\" = {request.TableId} FOR UPDATE")
             .SingleAsync(cancellationToken);
 
-        var competitionState = await dbContext.Competitions
-            .Where(c => c.Id == table.CompetitionId)
-            .Select(c => c.State)
-            .SingleAsync(cancellationToken);
+        var competitionState = (await competitionAccess.GetAsync(table.CompetitionId, cancellationToken)
+            ?? throw new InvalidOperationException("Competition of an existing table not found.")).State;
 
         var isAlreadyFixed = table.OrderFixedByJudgeId is not null;
         var fixerName = isAlreadyFixed

@@ -1,7 +1,7 @@
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Domain;
-using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,7 +11,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder.Features.GetMyTab
 /// actively assigned to, across every competition that has left Draft (FR-020/US6).</summary>
 internal sealed record GetMyTablesQuery : IRequest<IReadOnlyList<JudgeTableSummaryDto>>;
 
-internal sealed class GetMyTablesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class GetMyTablesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess)
     : IRequestHandler<GetMyTablesQuery, IReadOnlyList<JudgeTableSummaryDto>>
 {
     public async Task<IReadOnlyList<JudgeTableSummaryDto>> Handle(GetMyTablesQuery request, CancellationToken cancellationToken)
@@ -24,13 +24,19 @@ internal sealed class GetMyTablesQueryHandler(AppDbContext dbContext, ICurrentUs
 
         var judgeIds = judges.Select(j => j.Id).ToList();
 
-        var rows = await dbContext.TableJudges
+        var tables = await dbContext.TableJudges
             .Where(tj => tj.RemovedAt == null && judgeIds.Contains(tj.JudgeId))
             .Join(dbContext.TastingTables, tj => tj.TastingTableId, t => t.Id, (_, t) => t)
-            .Join(dbContext.Competitions, t => t.CompetitionId, c => c.Id, (t, c) => new { Table = t, c.State })
-            .Where(x => x.State != CompetitionState.Draft)
-            .OrderBy(x => x.Table.Name)
+            .OrderBy(t => t.Name)
             .ToListAsync(cancellationToken);
+
+        var states = await competitionAccess.GetStatesAsync(
+            tables.Select(t => t.CompetitionId).Distinct().ToList(), cancellationToken);
+
+        var rows = tables
+            .Where(t => states.TryGetValue(t.CompetitionId, out var state) && state != CompetitionState.Draft)
+            .Select(t => new { Table = t, State = states[t.CompetitionId] })
+            .ToList();
 
         var fixerIds = rows
             .Where(r => r.Table.OrderFixedByJudgeId != null)

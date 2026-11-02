@@ -3,7 +3,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Contracts;
-using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Domain;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
@@ -17,13 +17,14 @@ namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.Dispatch
 /// own <see cref="DispatchJob.CompetitionId"/> is all that's needed.
 /// </summary>
 internal sealed class GeneratePdfsHandler(
-    AppDbContext dbContext, IDispatchJobQueue dispatchJobQueue, IStyleCatalog styleCatalog, IStoredEvaluations storedEvaluations) : IDispatchJobHandler
+    AppDbContext dbContext, ICompetitionAccess competitionAccess, IDispatchJobQueue dispatchJobQueue, IStyleCatalog styleCatalog, IStoredEvaluations storedEvaluations) : IDispatchJobHandler
 {
     public DispatchJobType Type => DispatchJobType.GeneratePdfs;
 
     public async Task HandleAsync(DispatchJob job, CancellationToken cancellationToken)
     {
-        var competition = await dbContext.Competitions.FirstAsync(c => c.Id == job.CompetitionId, cancellationToken);
+        var competition = await competitionAccess.GetAsync(job.CompetitionId, cancellationToken)
+            ?? throw new InvalidOperationException($"Competition {job.CompetitionId} not found.");
 
         var entries = await dbContext.BeerEntries
             .Where(e => e.CompetitionId == job.CompetitionId)

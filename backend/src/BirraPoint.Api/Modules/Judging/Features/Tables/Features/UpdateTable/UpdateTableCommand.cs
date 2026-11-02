@@ -7,7 +7,6 @@ using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Organization.Contracts;
-using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Realtime;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -21,14 +20,13 @@ internal sealed record UpdateTableCommand(
 
 
 internal sealed class UpdateTableCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter, IEventPublisher eventPublisher,
+    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IAuditWriter auditWriter, IEventPublisher eventPublisher,
     IConflictOfInterestChecker conflictChecker, IStyleCatalog styleCatalog)
     : IRequestHandler<UpdateTableCommand, TableMutationResult?>
 {
     public async Task<TableMutationResult?> Handle(UpdateTableCommand request, CancellationToken cancellationToken)
     {
-        var competition = await dbContext.Competitions
-            .FirstOrDefaultAsync(c => c.Id == request.CompetitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
+        var competition = await competitionAccess.GetOwnedAsync(request.CompetitionId, currentUser.Sub, cancellationToken);
 
         if (competition is null)
         {

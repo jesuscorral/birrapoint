@@ -4,7 +4,7 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-11-02 (backend modules, ADR-0033/ADR-0034)
+**Last updated:** 2026-11-02 (backend modules, ADR-0033/ADR-0034, `ICompetitionAccess`)
 
 ## Status
 
@@ -192,6 +192,7 @@ registered by `Add<M>Module` (ADR-0034).
 |---|---|---|
 | `IStyleCatalog` | Catalog | Catalog |
 | `IConflictOfInterestChecker`, `IJudgeDirectory` | Organization | Organization |
+| `ICompetitionAccess` (`GetOwnedAsync` ownership check, `GetAsync` snapshot, `GetStatesAsync` batch) + `CompetitionSnapshot(Id, Name, State)`, `CompetitionState` | Organization | Organization |
 | `IStoredEvaluations` | Judging | Judging |
 | `ICompetitionFinalizationGuard`, `IEntryTableAssignments` (consumer-owned ports, avoid a cycle) | Organization | Judging |
 | `CompetitionFinalized` (MediatR notification) | Organization | handled by Publication |
@@ -204,8 +205,9 @@ Boundary rule: `UnitTests/Architecture/ModuleBoundaryTests.cs` forbids using ano
 `Contracts` namespace or touching its `DbSet`s. `Persistence/` FK configurations are exempt. Permanent kernel
 exceptions: `Common/Auth` resolvers, `Realtime/` hub, `Common/Persistence/` (incl. the `DispatchJob` -> `Competition` FK).
 
-Known gap: 29 Judging/Publication -> Organization reads remain in the exact, shrink-only allow-list. Phase 3
-(ADR-0033: synchronous contracts `ICompetitionAccess`, `IJudgeDirectory`, `IEntryDirectory`, `IResultRecipients`, plus the
+Known gap: 18 Judging/Publication -> Organization reads remain in the exact, shrink-only allow-list (no
+`Competitions` read is left). Phase 3 remainder
+(ADR-0033: synchronous contracts `IJudgeDirectory` (extended), `IEntryDirectory`, `IResultRecipients`, plus the
 `EntryJudgeAssignmentsChanged` event for the BOS flag) removes them; no local copies.
 
 ### Domain

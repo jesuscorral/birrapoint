@@ -4,6 +4,7 @@ using BirraPoint.Api.Modules.Judging.Contracts;
 using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,14 +27,12 @@ internal sealed record EvaluationAuditItemDto(
 internal sealed record EntryEvaluationsResult(string BlindCode, IReadOnlyList<EvaluationAuditItemDto> Evaluations, decimal? ConsolidatedMean);
 
 internal sealed class GetEntryEvaluationsQueryHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IStoredEvaluations storedEvaluations)
+    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IStoredEvaluations storedEvaluations)
     : IRequestHandler<GetEntryEvaluationsQuery, EntryEvaluationsResult?>
 {
     public async Task<EntryEvaluationsResult?> Handle(GetEntryEvaluationsQuery request, CancellationToken cancellationToken)
     {
-        var competitionExists = await dbContext.Competitions
-            .AnyAsync(c => c.Id == request.CompetitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
-        if (!competitionExists)
+        if (await competitionAccess.GetOwnedAsync(request.CompetitionId, currentUser.Sub, cancellationToken) is null)
         {
             return null;
         }

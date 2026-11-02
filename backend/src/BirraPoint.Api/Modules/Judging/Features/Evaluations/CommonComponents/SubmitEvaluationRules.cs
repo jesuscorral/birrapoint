@@ -1,4 +1,4 @@
-using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Contracts;
 
 namespace BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 

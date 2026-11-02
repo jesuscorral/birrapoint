@@ -6,7 +6,6 @@ using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Organization.Contracts;
-using BirraPoint.Api.Modules.Organization.Domain;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +15,7 @@ internal sealed record CreateTableCommand(Guid CompetitionId, string Name, IRead
     : IRequest<TableMutationResult?>;
 
 internal sealed class CreateTableCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IConflictOfInterestChecker conflictChecker, IStyleCatalog styleCatalog)
+    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IConflictOfInterestChecker conflictChecker, IStyleCatalog styleCatalog)
     : IRequestHandler<CreateTableCommand, TableMutationResult?>
 {
     /// <summary>Returns null when the competition is not found or not owned by the caller — the
@@ -41,14 +40,13 @@ internal sealed class CreateTableCommandHandler(
         return await BuildResultAsync(table.Id, bosFlaggedEntryIds, cancellationToken);
     }
 
-    private Task<Competition?> FindOwnedCompetitionAsync(Guid competitionId, CancellationToken cancellationToken) =>
-        dbContext.Competitions
-            .FirstOrDefaultAsync(c => c.Id == competitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
+    private Task<CompetitionSnapshot?> FindOwnedCompetitionAsync(Guid competitionId, CancellationToken cancellationToken) =>
+        competitionAccess.GetOwnedAsync(competitionId, currentUser.Sub, cancellationToken);
 
     /// <summary>Table setup is organizer work only while it can still affect judging (data-model.md
     /// §Competition state gates — Draft/Active "setup still editable"), same gate UploadBeerImport
     /// already applies to entry import.</summary>
-    private static void EnsureTablesCanBeCreated(Competition competition)
+    private static void EnsureTablesCanBeCreated(CompetitionSnapshot competition)
     {
         if (competition.State is not (CompetitionState.Draft or CompetitionState.Active))
         {
@@ -58,7 +56,7 @@ internal sealed class CreateTableCommandHandler(
         }
     }
 
-    private TastingTable AddTable(Competition competition, string name)
+    private TastingTable AddTable(CompetitionSnapshot competition, string name)
     {
         var table = new TastingTable { CompetitionId = competition.Id, Name = name };
         dbContext.TastingTables.Add(table);

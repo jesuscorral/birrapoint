@@ -1,4 +1,4 @@
-using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Features.Competitions.Features.ChangeCompetitionState;
 
 namespace BirraPoint.Api.UnitTests.Modules.Organization.Competitions.Features.ChangeCompetitionState;

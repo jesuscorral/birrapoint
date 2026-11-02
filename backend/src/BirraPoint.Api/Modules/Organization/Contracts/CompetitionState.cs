@@ -1,4 +1,4 @@
-namespace BirraPoint.Api.Modules.Organization.Domain;
+namespace BirraPoint.Api.Modules.Organization.Contracts;
 
 /// <summary>FR-006: forward-only, skip-free, organizer-only transitions.</summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1515:Consider making public types internal",
