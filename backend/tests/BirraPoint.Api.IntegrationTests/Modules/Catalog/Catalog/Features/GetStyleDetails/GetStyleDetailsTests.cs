@@ -3,7 +3,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using BirraPoint.Api.IntegrationTests.TestHost;
 
-namespace BirraPoint.Api.IntegrationTests.Modules.Organization.Catalog.Features.GetStyleDetails;
+namespace BirraPoint.Api.IntegrationTests.Modules.Catalog.Catalog.Features.GetStyleDetails;
 
 /// <summary>
 /// HTTP-level contract test for GET /api/v1/styles/{code} (contracts/rest-api.md §Catalog,

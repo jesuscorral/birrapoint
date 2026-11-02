@@ -1,7 +1,6 @@
-using BirraPoint.Api.Modules.Organization.Features.Catalog.Features.GetStyleDetails;
-using BirraPoint.Api.Modules.Organization.Features.Catalog.Features.GetStyles;
-
-namespace BirraPoint.Api.Modules.Organization.Features.Catalog;
+using BirraPoint.Api.Modules.Catalog.Features.Catalog.Features.GetStyleDetails;
+using BirraPoint.Api.Modules.Catalog.Features.Catalog.Features.GetStyles;
+namespace BirraPoint.Api.Modules.Catalog.Features.Catalog;
 
 internal sealed record StyleSummaryDto(string Code, string Name, string CategoryNumber, string CategoryName);
 

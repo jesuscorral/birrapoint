@@ -1,4 +1,4 @@
-namespace BirraPoint.Api.Common.Persistence.Seeding;
+namespace BirraPoint.Api.Modules.Catalog.Persistence.Seeding;
 
 /// <summary>Shape of one entry in the embedded bjcp-2021.json seed resource (R-12).</summary>
 internal sealed class BjcpStyleSeedRecord

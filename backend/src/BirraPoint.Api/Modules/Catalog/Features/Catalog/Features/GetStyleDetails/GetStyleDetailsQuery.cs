@@ -3,7 +3,7 @@ using BirraPoint.Api.Common.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Modules.Organization.Features.Catalog.Features.GetStyleDetails;
+namespace BirraPoint.Api.Modules.Catalog.Features.Catalog.Features.GetStyleDetails;
 
 /// <summary>Nested `vitalStatistics` shape (contracts/rest-api.md §Catalog, FR-049).</summary>
 internal sealed record StyleVitalStatisticsDto(

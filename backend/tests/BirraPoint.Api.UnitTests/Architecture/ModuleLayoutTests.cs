@@ -8,7 +8,7 @@ public class ModuleLayoutTests
 {
     private static readonly Assembly Api = typeof(Entity).Assembly;
 
-    private static readonly string[] Modules = ["Organization", "Judging", "Publication"];
+    private static readonly string[] Modules = ["Organization", "Catalog", "Judging", "Publication"];
 
     private static bool IsCompilerGenerated(Type t) =>
         t.Name.StartsWith('<') || t.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), false);
@@ -61,7 +61,7 @@ public class ModuleLayoutTests
     [InlineData("CompetitionState", "Organization")]
     [InlineData("CompetitionCategory", "Organization")]
     [InlineData("CompetitionCategoryStyle", "Organization")]
-    [InlineData("BjcpStyle", "Organization")]
+    [InlineData("BjcpStyle", "Catalog")]
     [InlineData("Participant", "Organization")]
     [InlineData("BeerEntry", "Organization")]
     [InlineData("EntryCollaborator", "Organization")]

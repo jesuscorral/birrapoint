@@ -1,8 +1,8 @@
-using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Catalog.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace BirraPoint.Api.Modules.Organization.Persistence;
+namespace BirraPoint.Api.Modules.Catalog.Persistence;
 
 internal sealed class BjcpStyleConfiguration : IEntityTypeConfiguration<BjcpStyle>
 {

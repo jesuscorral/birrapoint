@@ -1,12 +1,11 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 
-namespace BirraPoint.Api.Common.Persistence.Seeding;
+namespace BirraPoint.Api.Modules.Catalog.Persistence.Seeding;
 
 /// <summary>
-/// Reads the embedded bjcp-2021.json seed resource (R-12). Lives in the shared persistence
-/// kernel — not under Modules/Organization/Features/Catalog/ — because the AddBjcpStyleCatalogDetails migration
-/// depends on it, and Common/Persistence/ must never depend on a feature slice.
+/// Reads the embedded bjcp-2021.json seed resource (R-12). Lives in the Catalog module's persistence
+/// layer, outside the Features/ slices, because the AddBjcpStyleCatalogDetails migration depends on it.
 /// </summary>
 internal static class BjcpStyleCatalogLoader
 {

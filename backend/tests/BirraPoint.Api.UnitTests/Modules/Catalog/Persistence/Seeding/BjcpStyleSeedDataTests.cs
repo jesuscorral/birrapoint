@@ -1,6 +1,6 @@
-using BirraPoint.Api.Common.Persistence.Seeding;
+using BirraPoint.Api.Modules.Catalog.Persistence.Seeding;
 
-namespace BirraPoint.Api.UnitTests.Common.Persistence.Seeding;
+namespace BirraPoint.Api.UnitTests.Modules.Catalog.Persistence.Seeding;
 
 /// <summary>
 /// DB-free guard on the embedded BJCP 2021 catalog resource itself: catches

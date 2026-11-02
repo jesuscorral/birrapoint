@@ -3,7 +3,7 @@ using BirraPoint.Api.Common.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Modules.Organization.Features.Catalog.Features.GetStyles;
+namespace BirraPoint.Api.Modules.Catalog.Features.Catalog.Features.GetStyles;
 
 
 internal sealed record GetStylesQuery : IRequest<IReadOnlyList<StyleSummaryDto>>;

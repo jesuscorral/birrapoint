@@ -1,6 +1,6 @@
 using BirraPoint.Api.Domain;
 
-namespace BirraPoint.Api.Modules.Organization.Domain;
+namespace BirraPoint.Api.Modules.Catalog.Domain;
 
 /// <summary>Read-only BJCP 2021 catalog row, seeded via EF migration (FR-012, FR-049, R-12).</summary>
 internal class BjcpStyle : ITimestamped

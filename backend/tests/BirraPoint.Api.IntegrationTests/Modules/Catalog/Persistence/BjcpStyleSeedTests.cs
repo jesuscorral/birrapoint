@@ -1,8 +1,9 @@
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.IntegrationTests.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.IntegrationTests.Persistence;
+namespace BirraPoint.Api.IntegrationTests.Modules.Catalog.Persistence;
 
 /// <summary>
 /// The full BJCP 2021 catalog (125 entries, categories 1–34 + Appendix B) must be

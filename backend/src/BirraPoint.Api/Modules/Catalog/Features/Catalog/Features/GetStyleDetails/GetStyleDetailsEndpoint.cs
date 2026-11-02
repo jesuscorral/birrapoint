@@ -1,6 +1,6 @@
 using MediatR;
 
-namespace BirraPoint.Api.Modules.Organization.Features.Catalog.Features.GetStyleDetails;
+namespace BirraPoint.Api.Modules.Catalog.Features.Catalog.Features.GetStyleDetails;
 
 internal static class GetStyleDetailsEndpoint
 {

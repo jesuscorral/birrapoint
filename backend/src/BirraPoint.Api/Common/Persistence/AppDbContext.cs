@@ -1,4 +1,5 @@
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.Modules.Catalog.Domain;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Features.Import;

@@ -10,6 +10,7 @@ using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Common.RateLimiting;
 using BirraPoint.Api.Common.Secrets;
+using BirraPoint.Api.Modules.Catalog;
 using BirraPoint.Api.Modules.Judging;
 using BirraPoint.Api.Modules.Organization;
 using BirraPoint.Api.Modules.Organization.Features.Judges;
@@ -184,7 +185,10 @@ if (app.Environment.IsDevelopment())
 // CompetitionHub: server → client notifications only.
 app.MapHub<CompetitionHub>("/hubs/competition");
 
-// Organization module: styles catalog, competitions wizard/lifecycle, beer-entry and judge-roster
+// Catalog module: read-only BJCP 2021 styles catalog.
+app.MapCatalogModule();
+
+// Organization module: competitions wizard/lifecycle, beer-entry and judge-roster
 // import, judge registration/invitations.
 app.MapOrganizationModule();
 
