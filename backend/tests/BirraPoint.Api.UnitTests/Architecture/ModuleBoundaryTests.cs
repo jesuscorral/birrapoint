@@ -23,7 +23,7 @@ namespace BirraPoint.Api.UnitTests.Architecture;
 /// <item><c>Modules/&lt;X&gt;/Persistence/</c> is exempt: FK configurations are allowed with the shared DbContext.</item>
 /// </list>
 ///
-/// Module allow-list = temporary debt (shrinks, phase 3: Judging local copies of Organization types).
+/// Module allow-list = temporary debt (shrinks; ADR-0033 phase 3 replaces each group with an Organization contract).
 /// Kernel exceptions = permanent (ADR-0034).
 /// </summary>
 public class ModuleBoundaryTests
@@ -33,10 +33,10 @@ public class ModuleBoundaryTests
     private static readonly string[] KernelFolders = ["Common", "Domain", "Realtime"];
 
     private const string JudgingReadsOrganization =
-        "Judging reads Organization competition/entry/judge data directly until phase 3 (local copies).";
+        "Judging reads Organization competition/entry/judge data directly until its ADR-0033 phase 3 contract exists.";
 
     private const string PublicationReadsOrganization =
-        "Publication reads Organization competition/entry/participant data for results delivery until phase 3.";
+        "Publication reads Organization competition/entry/participant data for results delivery until its ADR-0033 phase 3 contract exists.";
 
     /// <summary>A tolerated violation. <paramref name="DbSets"/> (optional) narrows it to exactly those DbSet
     /// members, so a file that must lose some of its reads cannot hide behind a broader entry; using directives

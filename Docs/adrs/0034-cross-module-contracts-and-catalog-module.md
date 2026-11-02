@@ -23,7 +23,7 @@ ADR-0033 phase 1 moved the features into modules but left direct entity access a
 
 Provider-owned contracts cover downstream-needs-upstream data. When an upstream module needs downstream data (open tables on finalize, entry-to-table assignments), Organization defines the port and Judging implements it. This avoids a cycle.
 
-**Queries are synchronous in-process interfaces.** Rejected: MediatR requests across modules (hidden coupling, no typed surface), read-only cross-module `DbSet` access (keeps the shared-schema coupling), UI composition (breaks existing API shapes), outbox/async events (eventual consistency; deferred to phase 3).
+**Queries are synchronous in-process interfaces.** Rejected: MediatR requests across modules (hidden coupling, no typed surface), read-only cross-module `DbSet` access (keeps the shared-schema coupling), UI composition (breaks existing API shapes), outbox/async events (eventual consistency; not needed in one process).
 
 **Finalization is atomic.** `ChangeCompetitionStateCommand` publishes the in-process MediatR notification `CompetitionFinalized` before `SaveChanges`. Publication's handler stages `GeneratePdfs` with `IDispatchJobQueue.Stage` in the same transaction; the worker wake-up signal is sent after commit. This closes the enqueue-after-commit gap. Every state transition runs in a transaction that loads the competition with `SELECT … FOR UPDATE`, so concurrent requests serialize: one wins, the rest get `409 invalid-state-transition`, and at most one `GeneratePdfs` job is staged.
 
@@ -32,7 +32,7 @@ Provider-owned contracts cover downstream-needs-upstream data. When an upstream 
 ## Consequences
 - Cross-module data needs go through a typed, reviewable surface; the blind-anonymity boundary stays in Judging.
 - Same-transaction semantics are kept (one process, one `AppDbContext`); no migration or API change.
-- Data from two modules is combined in memory. The catalog is about 120 rows, so this is cheap; larger sets need a join-capable contract or phase-3 local copies.
+- Data from two modules is combined in memory. The catalog is about 120 rows, so this is cheap; larger sets need a join-capable contract.
 - COI co-owner lookup is now case-insensitive.
-- 29 allow-list entries remain; ADR-0033 phase 3 removes them with events and Judging-local copies.
+- 29 allow-list entries remain; ADR-0033 phase 3 removes them with synchronous contracts (one Organization table per step) and one in-process event for the BOS flag.
 - Builds on ADR-0033 and ADR-0031; no constitution amendment.

@@ -205,7 +205,8 @@ Boundary rule: `UnitTests/Architecture/ModuleBoundaryTests.cs` forbids using ano
 exceptions: `Common/Auth` resolvers, `Realtime/` hub, `Common/Persistence/` (incl. the `DispatchJob` -> `Competition` FK).
 
 Known gap: 29 Judging/Publication -> Organization reads remain in the exact, shrink-only allow-list. Phase 3
-(events, Judging-local copies of samples and judges) removes them.
+(ADR-0033: synchronous contracts `ICompetitionAccess`, `IJudgeDirectory`, `IEntryDirectory`, `IResultRecipients`, plus the
+`EntryJudgeAssignmentsChanged` event for the BOS flag) removes them; no local copies.
 
 ### Domain
 
