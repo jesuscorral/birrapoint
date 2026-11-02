@@ -165,8 +165,9 @@ backend/
 │       ├── Common/                     # Cross-cutting: MediatR behaviors (validation),
 │       │                               #   ProblemDetails mapping, auth policies,
 │       │                               #   persistence (DbContext), audit, job queue
-│       ├── Modules/                    # ADR-0033; each: Domain/, Persistence/, Features/
-│       │   ├── Organization/           # Catalog, Competitions, Import, Judges
+│       ├── Modules/                    # ADR-0033/0034; each: Domain/, Persistence/, Contracts/, Integration/, Features/
+│       │   ├── Catalog/                # BJCP reference data (GetStyles, GetStyleDetails)
+│       │   ├── Organization/           # Competitions, Import, Judges
 │       │   ├── Judging/                # Tables, TastingOrder, Evaluations, Monitoring
 │       │   └── Publication/            # Dispatch (PDF/ZIP jobs, result emails)
 │       └── Realtime/                   # CompetitionHub + group management
@@ -218,7 +219,7 @@ infra/
 
 **Structure Decision**: Web application layout (backend + frontend at repo root, matching the
 constitution's modular-monolith + FSD mandate). Backend slices live under
-`backend/src/BirraPoint.Api/Modules/<Organization|Judging|Publication>/Features/` (ADR-0033), one
+`backend/src/BirraPoint.Api/Modules/<Catalog|Organization|Judging|Publication>/Features/` (ADR-0033, ADR-0034; cross-module access only via `Contracts/`), one
 directory per business capability, with `Domain/` and `Common/` as the deliberately small shared kernel. Frontend mirrors the same capabilities under
 `frontend/src/app/features/` with shared infrastructure in `core/`. Local orchestration lives in
 the Aspire `BirraPoint.AppHost` project; the cloud topology in `infra/azure/terraform/` or

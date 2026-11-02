@@ -1,9 +1,11 @@
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Domain;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +15,8 @@ namespace BirraPoint.Api.Modules.Judging.Features.Tables.Features.CreateTable;
 internal sealed record CreateTableCommand(Guid CompetitionId, string Name, IReadOnlyList<Guid> JudgeIds, IReadOnlyList<Guid> BeerEntryIds)
     : IRequest<TableMutationResult?>;
 
-internal sealed class CreateTableCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class CreateTableCommandHandler(
+    AppDbContext dbContext, ICurrentUser currentUser, IConflictOfInterestChecker conflictChecker, IStyleCatalog styleCatalog)
     : IRequestHandler<CreateTableCommand, TableMutationResult?>
 {
     /// <summary>Returns null when the competition is not found or not owned by the caller — the
@@ -31,7 +34,7 @@ internal sealed class CreateTableCommandHandler(AppDbContext dbContext, ICurrent
         var table = AddTable(competition, request.Name);
 
         var bosFlaggedEntryIds = await TableAssignmentApplier.ApplyAsync(
-            dbContext, table, request.JudgeIds, request.BeerEntryIds, cancellationToken);
+            dbContext, conflictChecker, table, request.JudgeIds, request.BeerEntryIds, cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -65,7 +68,7 @@ internal sealed class CreateTableCommandHandler(AppDbContext dbContext, ICurrent
     private async Task<TableMutationResult> BuildResultAsync(
         Guid tableId, IReadOnlyList<Guid> bosFlaggedEntryIds, CancellationToken cancellationToken)
     {
-        var table = await TableProjector.ProjectAsync(dbContext, tableId, cancellationToken);
+        var table = await TableProjector.ProjectAsync(dbContext, styleCatalog, tableId, cancellationToken);
         return TableMutationResult.From(table, bosFlaggedEntryIds);
     }
 }

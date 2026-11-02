@@ -1,3 +1,4 @@
+using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;

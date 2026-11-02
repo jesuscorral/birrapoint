@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Catalog.Contracts;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,7 +16,7 @@ namespace BirraPoint.Api.Modules.Organization.Features.Import.Features.EditBeerI
 /// </summary>
 internal sealed class EditBeerImportRowCommandValidator : AbstractValidator<EditBeerImportRowCommand>
 {
-    public EditBeerImportRowCommandValidator(AppDbContext dbContext)
+    public EditBeerImportRowCommandValidator(AppDbContext dbContext, IStyleCatalog styleCatalog)
     {
         RuleFor(c => c.Row).NotNull();
 
@@ -46,7 +47,7 @@ internal sealed class EditBeerImportRowCommandValidator : AbstractValidator<Edit
             RuleFor(c => c)
                 .MustAsync(async (command, cancellationToken) =>
                     string.IsNullOrEmpty(command.Row.StyleCode)
-                    || await dbContext.BjcpStyles.AnyAsync(style => style.Code == command.Row.StyleCode, cancellationToken))
+                    || (await styleCatalog.GetByCodesAsync([command.Row.StyleCode], cancellationToken)).ContainsKey(command.Row.StyleCode))
                 .WithName(nameof(EditBeerImportRowRequest.StyleCode))
                 .WithMessage(c => $"Style code '{c.Row.StyleCode}' does not exist in the BJCP 2021 catalog.");
         });

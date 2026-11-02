@@ -150,7 +150,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("BeerEntries");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.BjcpStyle", b =>
+            modelBuilder.Entity("BirraPoint.Api.Modules.Catalog.Domain.BjcpStyle", b =>
                 {
                     b.Property<string>("Code")
                         .HasMaxLength(20)
@@ -1129,7 +1129,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BjcpStyle", null)
+                    b.HasOne("BirraPoint.Api.Modules.Catalog.Domain.BjcpStyle", null)
                         .WithMany()
                         .HasForeignKey("StyleCode")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -1167,7 +1167,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
-                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BjcpStyle", null)
+                    b.HasOne("BirraPoint.Api.Modules.Catalog.Domain.BjcpStyle", null)
                         .WithMany()
                         .HasForeignKey("StyleCode")
                         .OnDelete(DeleteBehavior.Restrict)

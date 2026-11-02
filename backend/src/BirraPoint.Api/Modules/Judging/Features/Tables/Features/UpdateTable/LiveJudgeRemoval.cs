@@ -1,6 +1,7 @@
 using BirraPoint.Api.Common.Audit;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
@@ -14,6 +15,7 @@ internal static class LiveJudgeRemoval
 {
     public static async Task<TableMutationResult> ApplyAsync(
         AppDbContext dbContext,
+        IStyleCatalog styleCatalog,
         IAuditWriter auditWriter,
         IEventPublisher eventPublisher,
         Guid competitionId,
@@ -140,7 +142,7 @@ internal static class LiveJudgeRemoval
         // filtered Include (RemovedAt == null) would otherwise be merged with them by EF fixup.
         dbContext.ChangeTracker.Clear();
 
-        var dto = await TableProjector.ProjectAsync(dbContext, tableId, cancellationToken);
+        var dto = await TableProjector.ProjectAsync(dbContext, styleCatalog, tableId, cancellationToken);
         return TableMutationResult.From(dto, []);
     }
 

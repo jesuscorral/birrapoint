@@ -2,9 +2,11 @@ using BirraPoint.Api.Common.Audit;
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Realtime;
 using MediatR;
@@ -19,7 +21,8 @@ internal sealed record UpdateTableCommand(
 
 
 internal sealed class UpdateTableCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter, IEventPublisher eventPublisher)
+    AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter, IEventPublisher eventPublisher,
+    IConflictOfInterestChecker conflictChecker, IStyleCatalog styleCatalog)
     : IRequestHandler<UpdateTableCommand, TableMutationResult?>
 {
     public async Task<TableMutationResult?> Handle(UpdateTableCommand request, CancellationToken cancellationToken)
@@ -57,7 +60,7 @@ internal sealed class UpdateTableCommandHandler(
         if (isInEvaluationState)
         {
             return await LiveJudgeRemoval.ApplyAsync(
-                dbContext, auditWriter, eventPublisher, competition.Id, table.Id,
+                dbContext, styleCatalog, auditWriter, eventPublisher, competition.Id, table.Id,
                 request.Name, request.JudgeIds, request.BeerEntryIds, cancellationToken);
         }
 
@@ -72,11 +75,11 @@ internal sealed class UpdateTableCommandHandler(
         table.Name = request.Name;
 
         var bosFlaggedEntryIds = await TableAssignmentApplier.ApplyAsync(
-            dbContext, table, request.JudgeIds, request.BeerEntryIds, cancellationToken);
+            dbContext, conflictChecker, table, request.JudgeIds, request.BeerEntryIds, cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var dto = await TableProjector.ProjectAsync(dbContext, table.Id, cancellationToken);
+        var dto = await TableProjector.ProjectAsync(dbContext, styleCatalog, table.Id, cancellationToken);
 
         return TableMutationResult.From(dto, bosFlaggedEntryIds);
     }

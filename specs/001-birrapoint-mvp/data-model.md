@@ -53,7 +53,7 @@ Draft ──► Active ──► InEvaluation ──► Finalized
 | InEvaluation | Sheets unlock (subject to fixed order); imports & wizard edits rejected (409) |
 | Finalized | Everything read-only; dispatch pipeline runs. Requires all tables `Closed` |
 
-### BjcpStyle *(read-only seed, FR-012/FR-049)*
+### BjcpStyle *(read-only seed, FR-012/FR-049; owned by the Catalog module, ADR-0034)*
 
 | Field | Type | Constraints |
 |-------|------|-------------|
@@ -89,7 +89,7 @@ is null for styles without an "Instrucciones para la inscripción" section):
 ```
 
 Sourced from the official BJCP 2021 Style Guidelines (Spanish translation); seeded from
-`Modules/Organization/Features/Catalog/Data/bjcp-2021.json` (T010). Covers categories 1–34 plus the BJCP Appendix B
+`Modules/Catalog/Features/Catalog/Data/bjcp-2021.json` (T010). Covers categories 1–34 plus the BJCP Appendix B
 local styles (X1–X5, e.g. `Italian Grape Ale`, `Catharina Sour`, `New Zealand Pilsner`).
 
 ### CompetitionCategory *(organizer-defined, FR-052, wizard step 3)*
@@ -481,6 +481,8 @@ Client stores are caches, never sources of truth; a device wipe loses only unsyn
 the UI surfaces via the offline badge (FR-027).
 
 ## Relationship overview
+
+Module ownership (ADR-0033/0034): Catalog = `BjcpStyle`; Organization = organizers, competitions, categories, participants, entries, judges, invitations, import staging; Judging = tables, table judges, samples, evaluations, discrepancy alerts; Publication = generated score sheets, results archive; shared kernel = `AuditLog`, `DispatchJob`.
 
 ```text
 Organizer 1─* Competition (OrganizerId, additive alongside the existing CreatedByUserId claim check)

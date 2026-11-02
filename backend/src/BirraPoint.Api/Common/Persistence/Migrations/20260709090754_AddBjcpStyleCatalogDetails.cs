@@ -1,5 +1,5 @@
 using System.Text.Json;
-using BirraPoint.Api.Common.Persistence.Seeding;
+using BirraPoint.Api.Modules.Catalog.Persistence.Seeding;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable

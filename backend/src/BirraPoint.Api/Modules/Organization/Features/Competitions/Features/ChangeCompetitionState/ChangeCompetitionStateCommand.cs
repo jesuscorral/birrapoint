@@ -3,8 +3,8 @@ using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Domain;
-using BirraPoint.Api.Modules.Judging.Domain;
+using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Api.Modules.Organization.Contracts.Events;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Realtime;
 using MediatR;
@@ -20,14 +20,23 @@ internal sealed record ChangeCompetitionStateCommand(Guid Id, CompetitionState T
 
 internal sealed class ChangeCompetitionStateCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter, IEventPublisher eventPublisher,
-    IDispatchJobQueue dispatchJobQueue)
+    ICompetitionFinalizationGuard finalizationGuard, IPublisher publisher, IDispatchWakeUp dispatchWakeUp)
     : IRequestHandler<ChangeCompetitionStateCommand, ChangeCompetitionStateResult?>
 {
     public async Task<ChangeCompetitionStateResult?> Handle(
         ChangeCompetitionStateCommand request, CancellationToken cancellationToken)
     {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        // Row lock serializes concurrent transitions: racing requests must not all pass CanTransition on
+        // the same stale state and each stage an audit row (or a GeneratePdfs job). Losers re-read the
+        // committed state after the winner releases the lock and get a 409. The ownership filter stays in
+        // the locked query so an unowned competition is still a plain 404.
+        var sub = currentUser.Sub;
         var competition = await dbContext.Competitions
-            .FirstOrDefaultAsync(c => c.Id == request.Id && c.CreatedByUserId == currentUser.Sub, cancellationToken);
+            .FromSqlInterpolated(
+                $"SELECT * FROM \"Competitions\" WHERE \"Id\" = {request.Id} AND \"CreatedByUserId\" = {sub} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken);
 
         if (competition is null)
         {
@@ -43,10 +52,7 @@ internal sealed class ChangeCompetitionStateCommandHandler(
 
         if (request.Target == CompetitionState.Finalized)
         {
-            var openTableIds = await dbContext.TastingTables
-                .Where(t => t.CompetitionId == competition.Id && t.State != TableState.Closed)
-                .Select(t => t.Id)
-                .ToListAsync(cancellationToken);
+            var openTableIds = await finalizationGuard.GetOpenTableIdsAsync(competition.Id, cancellationToken);
 
             if (openTableIds.Count > 0)
             {
@@ -69,14 +75,22 @@ internal sealed class ChangeCompetitionStateCommandHandler(
             before: new { State = previousState },
             after: new { State = competition.State });
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        // Everything below runs after the commit, so it must not observe the request token: an
-        // aborted request would otherwise leave a Finalized competition with no dispatch job.
+        // Subscribers (Publication stages the GeneratePdfs job) add their work to the same change
+        // tracker, so state change, audit and job commit in one SaveChanges; a throwing subscriber
+        // aborts before anything is saved.
         if (request.Target == CompetitionState.Finalized)
         {
-            await dispatchJobQueue.EnqueueAsync(
-                competition.Id, DispatchJobType.GeneratePdfs, new { }, CancellationToken.None);
+            await publisher.Publish(new CompetitionFinalized(competition.Id), cancellationToken);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        // Everything below runs after the commit, so it must not observe the request token: an
+        // aborted request would otherwise leave a Finalized competition with no worker wake-up.
+        if (request.Target == CompetitionState.Finalized)
+        {
+            dispatchWakeUp.Signal();
         }
 
         // Emitted only after the transaction above commits (contracts/signalr-hub.md §Delivery

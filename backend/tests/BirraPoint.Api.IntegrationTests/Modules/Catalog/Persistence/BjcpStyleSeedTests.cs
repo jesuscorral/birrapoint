@@ -1,0 +1,75 @@
+using System.Text.Json;
+using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.IntegrationTests.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace BirraPoint.Api.IntegrationTests.Modules.Catalog.Persistence;
+
+/// <summary>
+/// The full BJCP 2021 catalog (125 entries, categories 1–34 + Appendix B) must be
+/// present after the seed migration runs, with valid jsonb descriptions.
+/// </summary>
+public sealed class BjcpStyleSeedTests(PostgresFixture fixture) : IClassFixture<PostgresFixture>
+{
+    private AppDbContext NewContext() => new(fixture.Options);
+
+    [Fact]
+    public async Task MigrationSeedsTheFullCatalog()
+    {
+        await using var db = NewContext();
+
+        Assert.Equal(125, await db.BjcpStyles.CountAsync(cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task AmericanIpaRowCarriesVitalStatisticsAndDescription()
+    {
+        await using var db = NewContext();
+
+        var style = await db.BjcpStyles.AsNoTracking().SingleAsync(s => s.Code == "21A", cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal("American IPA", style.Name);
+        Assert.Equal("21", style.CategoryNumber);
+        Assert.NotNull(style.OGLow);
+        Assert.NotNull(style.ABVHigh);
+
+        using var description = JsonDocument.Parse(style.DescriptionJson);
+        Assert.True(description.RootElement.TryGetProperty("overallImpression", out _));
+        Assert.True(description.RootElement.TryGetProperty("commercialExamples", out _));
+    }
+
+    [Fact]
+    public async Task HistoricalStyleWithASyntheticSlugCodeIsSeeded()
+    {
+        await using var db = NewContext();
+
+        var style = await db.BjcpStyles.AsNoTracking().SingleAsync(s => s.Code == "27-Sahti", cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal("27", style.CategoryNumber);
+        Assert.NotNull(style.OGLow); // Sahti carries real vital statistics
+        using var description = JsonDocument.Parse(style.DescriptionJson);
+        Assert.True(description.RootElement.TryGetProperty("aroma", out _));
+    }
+
+    [Fact]
+    public async Task SpecialtyStyleWithNoFixedVitalStatisticsIsSeededWithNullRanges()
+    {
+        await using var db = NewContext();
+
+        var style = await db.BjcpStyles.AsNoTracking().SingleAsync(s => s.Code == "28A", cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal("American Wild Ale", style.CategoryName);
+        Assert.Null(style.OGLow);
+        Assert.Null(style.ABVHigh);
+    }
+
+    [Fact]
+    public async Task EverySeededRowHasValidJsonDescription()
+    {
+        await using var db = NewContext();
+
+        var descriptions = await db.BjcpStyles.AsNoTracking().Select(s => s.DescriptionJson).ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.All(descriptions, json => JsonDocument.Parse(json).Dispose());
+    }
+}

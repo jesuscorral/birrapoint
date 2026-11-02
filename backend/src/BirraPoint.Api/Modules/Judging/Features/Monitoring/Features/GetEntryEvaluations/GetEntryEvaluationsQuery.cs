@@ -1,7 +1,8 @@
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Judging.Contracts;
+using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 using BirraPoint.Api.Modules.Judging.Domain;
-using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -24,7 +25,8 @@ internal sealed record EvaluationAuditItemDto(
 
 internal sealed record EntryEvaluationsResult(string BlindCode, IReadOnlyList<EvaluationAuditItemDto> Evaluations, decimal? ConsolidatedMean);
 
-internal sealed class GetEntryEvaluationsQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class GetEntryEvaluationsQueryHandler(
+    AppDbContext dbContext, ICurrentUser currentUser, IStoredEvaluations storedEvaluations)
     : IRequestHandler<GetEntryEvaluationsQuery, EntryEvaluationsResult?>
 {
     public async Task<EntryEvaluationsResult?> Handle(GetEntryEvaluationsQuery request, CancellationToken cancellationToken)
@@ -54,27 +56,18 @@ internal sealed class GetEntryEvaluationsQueryHandler(AppDbContext dbContext, IC
             return null;
         }
 
-        // AsNoTracking: read-only audit view, no reason to track the joined Evaluation entities
-        // (matches GetCompetition's read-model convention).
-        var evaluations = await dbContext.Evaluations
-            .AsNoTracking()
-            .Where(ev => ev.BeerEntryId == request.EntryId)
-            .Join(dbContext.Judges, ev => ev.JudgeId, j => j.Id, (ev, j) => new { Evaluation = ev, j.DisplayName })
-            .ToListAsync(cancellationToken);
+        var evaluations = (await storedEvaluations.GetByEntriesAsync([request.EntryId], cancellationToken))[request.EntryId];
 
         var items = evaluations
-            .Select(x => new EvaluationAuditItemDto(
-                x.DisplayName,
-                new EvaluationScoresDto(
-                    x.Evaluation.AromaScore, x.Evaluation.AppearanceScore, x.Evaluation.FlavorScore,
-                    x.Evaluation.MouthfeelScore, x.Evaluation.OverallScore),
+            .Select(ev => new EvaluationAuditItemDto(
+                ev.JudgeDisplayName,
+                new EvaluationScoresDto(ev.AromaScore, ev.AppearanceScore, ev.FlavorScore, ev.MouthfeelScore, ev.OverallScore),
                 new EvaluationCommentsDto(
-                    x.Evaluation.AromaComment, x.Evaluation.AppearanceComment, x.Evaluation.FlavorComment,
-                    x.Evaluation.MouthfeelComment, x.Evaluation.OverallComment),
-                x.Evaluation.Total,
-                x.Evaluation.Status.ToString(),
-                EvaluationDescriptorsSerializer.Deserialize(x.Evaluation.DescriptorsJson),
-                x.Evaluation.FeedbackComment))
+                    ev.AromaComment, ev.AppearanceComment, ev.FlavorComment, ev.MouthfeelComment, ev.OverallComment),
+                ev.Total,
+                ev.Status,
+                ev.Descriptors,
+                ev.Feedback))
             .ToList();
 
         // Mirrors CloseTableRules.ComputeMean's rounding convention without importing across feature
@@ -84,7 +77,7 @@ internal sealed class GetEntryEvaluationsQueryHandler(AppDbContext dbContext, IC
         {
             consolidatedMean = evaluations.Count == 0
                 ? 0m
-                : Math.Round(evaluations.Average(x => (decimal)x.Evaluation.Total), 2, MidpointRounding.AwayFromZero);
+                : Math.Round(evaluations.Average(x => (decimal)x.Total), 2, MidpointRounding.AwayFromZero);
         }
 
         return new EntryEvaluationsResult(entry.BlindCode, items, consolidatedMean);

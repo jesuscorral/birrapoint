@@ -81,10 +81,11 @@ gh workflow run deploy-azure.yml -f version=X.Y.Z       # or deploy-aws.yml
 ```text
 backend/src/BirraPoint.AppHost | ServiceDefaults | Api/
   Api/Domain/    shared kernel: Entity(+ITimestamped), AuditLog, DispatchJob     Api/Common/   AppDbContext, auth, persistence, errors, behaviors, audit, job queue
-  Api/Modules/   ADR-0033: Organization (Catalog, Competitions, Import, Judges), Judging (Tables,
-                 TastingOrder, Evaluations, Monitoring), Publication (Dispatch); each module = Domain/ +
-                 Persistence/ + <Module>ModuleEndpoints.cs + Features/<Feature>/ (Base<X>Endpoints.cs +
-                 Features/<Slice>/ + CommonComponents/, ADR-0031)
+  Api/Modules/   ADR-0033/0034: Catalog (Catalog), Organization (Competitions, Import, Judges), Judging
+                 (Tables, TastingOrder, Evaluations, Monitoring), Publication (Dispatch); each module =
+                 Domain/ + Persistence/ + Contracts/ + Integration/ + <M>Module.cs + <M>ModuleEndpoints.cs +
+                 Features/<Feature>/ (Base<X>Endpoints.cs + Features/<Slice>/ + CommonComponents/, ADR-0031).
+                 Other modules only via Contracts/ (ModuleBoundaryTests)
   Api/Realtime/  CompetitionHub + emit-after-commit publisher
 backend/tests/   UnitTests + IntegrationTests
 frontend/src/app/  FSD: core/ (auth, api, realtime, offline, layout), features/, shared/

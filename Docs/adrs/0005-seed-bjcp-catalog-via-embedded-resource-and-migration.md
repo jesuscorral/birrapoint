@@ -3,6 +3,8 @@
 **Status:** Accepted
 **Date:** 2026-07-09
 
+> Update 2026-11-02 (ADR-0034): the catalog now belongs to the Catalog module. The resource is `Modules/Catalog/Features/Catalog/Data/bjcp-2021.json` and the loader is `Modules/Catalog/Persistence/Seeding/BjcpStyleCatalogLoader`. The paths below are the original ones.
+
 ## Context
 
 The full BJCP 2021 catalog (125 styles, vital statistics and guide text, FR-049) must exist in
