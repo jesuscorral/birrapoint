@@ -1,4 +1,4 @@
-namespace BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
+namespace BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 
 /// <summary>Sabor. Malt/Hops/Bitterness/Fermentation are the same 0–3 discrete sliders as Aroma;
 /// Balance and Finish are continuous 0–100 bipolar sliders (Lupulado↔Maltoso, Seco↔Dulce). Every

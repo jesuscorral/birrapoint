@@ -1,8 +1,8 @@
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
-using BirraPoint.Api.Modules.Judging.Domain;
-using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
+using BirraPoint.Api.Modules.Catalog.Contracts;
+using BirraPoint.Api.Modules.Judging.Contracts;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Publication.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -16,7 +16,8 @@ namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.Dispatch
 /// <see cref="DispatchJobType.BundleZip"/> for the same competition. Payload is empty — the job's
 /// own <see cref="DispatchJob.CompetitionId"/> is all that's needed.
 /// </summary>
-internal sealed class GeneratePdfsHandler(AppDbContext dbContext, IDispatchJobQueue dispatchJobQueue) : IDispatchJobHandler
+internal sealed class GeneratePdfsHandler(
+    AppDbContext dbContext, IDispatchJobQueue dispatchJobQueue, IStyleCatalog styleCatalog, IFinalizedEvaluations finalizedEvaluations) : IDispatchJobHandler
 {
     public DispatchJobType Type => DispatchJobType.GeneratePdfs;
 
@@ -28,28 +29,27 @@ internal sealed class GeneratePdfsHandler(AppDbContext dbContext, IDispatchJobQu
             .Where(e => e.CompetitionId == job.CompetitionId)
             .ToListAsync(cancellationToken);
 
+        var styleByCode = await styleCatalog.GetByCodesAsync(
+            entries.Select(e => e.StyleCode).Distinct(StringComparer.Ordinal).ToList(), cancellationToken);
+        var evaluationsByEntry = await finalizedEvaluations.GetByEntriesAsync(
+            entries.Select(e => e.Id).ToList(), cancellationToken);
+
         foreach (var entry in entries)
         {
-            var style = await dbContext.BjcpStyles.FirstAsync(s => s.Code == entry.StyleCode, cancellationToken);
-
-            // Same join shape as GetEntryEvaluationsQueryHandler (Modules/Judging/Features/Monitoring).
-            var evaluations = await dbContext.Evaluations
-                .AsNoTracking()
-                .Where(ev => ev.BeerEntryId == entry.Id)
-                .Join(dbContext.Judges, ev => ev.JudgeId, j => j.Id, (ev, j) => new { Evaluation = ev, j.DisplayName })
-                .ToListAsync(cancellationToken);
+            var style = styleByCode[entry.StyleCode];
+            var evaluations = evaluationsByEntry[entry.Id];
 
             var judgeEntries = evaluations
                 .Select(x => new ScoreSheetJudgeEntry(
-                    x.DisplayName,
-                    x.Evaluation.AromaScore, x.Evaluation.AromaComment,
-                    x.Evaluation.AppearanceScore, x.Evaluation.AppearanceComment,
-                    x.Evaluation.FlavorScore, x.Evaluation.FlavorComment,
-                    x.Evaluation.MouthfeelScore, x.Evaluation.MouthfeelComment,
-                    x.Evaluation.OverallScore, x.Evaluation.OverallComment,
-                    x.Evaluation.Total,
-                    EvaluationDescriptorsSerializer.Deserialize(x.Evaluation.DescriptorsJson),
-                    x.Evaluation.FeedbackComment))
+                    x.JudgeDisplayName,
+                    x.AromaScore, x.AromaComment,
+                    x.AppearanceScore, x.AppearanceComment,
+                    x.FlavorScore, x.FlavorComment,
+                    x.MouthfeelScore, x.MouthfeelComment,
+                    x.OverallScore, x.OverallComment,
+                    x.Total,
+                    x.Descriptors,
+                    x.Feedback))
                 .ToList();
 
             // Null (not 0) when nobody has evaluated this entry — 0 would read as a real score of
@@ -58,7 +58,7 @@ internal sealed class GeneratePdfsHandler(AppDbContext dbContext, IDispatchJobQu
             // folders (same deliberate duplication already used by GetEntryEvaluationsQueryHandler).
             decimal? consolidatedMean = evaluations.Count == 0
                 ? null
-                : Math.Round(evaluations.Average(x => (decimal)x.Evaluation.Total), 2, MidpointRounding.AwayFromZero);
+                : Math.Round(evaluations.Average(x => (decimal)x.Total), 2, MidpointRounding.AwayFromZero);
 
             var document = new ScoreSheetDocument(
                 competition.Name, entry.BlindCode, entry.StyleCode, style.Name, judgeEntries, consolidatedMean);

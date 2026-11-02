@@ -1,5 +1,5 @@
+using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
-using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
 
 namespace BirraPoint.Api.UnitTests.Modules.Judging.Evaluations.CommonComponents;
 

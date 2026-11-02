@@ -1,5 +1,7 @@
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Catalog.Contracts;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,7 +26,8 @@ internal sealed record EntryDto(
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
 internal sealed record ListEntriesQuery(Guid CompetitionId) : IRequest<IReadOnlyList<EntryDto>?>;
 
-internal sealed class ListEntriesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class ListEntriesQueryHandler(
+    AppDbContext dbContext, ICurrentUser currentUser, IStyleCatalog styleCatalog, IEntryTableAssignments entryTableAssignments)
     : IRequestHandler<ListEntriesQuery, IReadOnlyList<EntryDto>?>
 {
     public async Task<IReadOnlyList<EntryDto>?> Handle(ListEntriesQuery request, CancellationToken cancellationToken)
@@ -52,10 +55,7 @@ internal sealed class ListEntriesQueryHandler(AppDbContext dbContext, ICurrentUs
             .ToListAsync(cancellationToken);
 
         var styleCodes = entries.Select(e => e.StyleCode).Distinct(StringComparer.Ordinal).ToList();
-        var styleByCode = await dbContext.BjcpStyles
-            .Where(s => styleCodes.Contains(s.Code))
-            .Select(s => new { s.Code, s.Name, s.ABVLow, s.ABVHigh, s.CategoryNumber, s.CategoryName })
-            .ToDictionaryAsync(s => s.Code, StringComparer.Ordinal, cancellationToken);
+        var styleByCode = await styleCatalog.GetByCodesAsync(styleCodes, cancellationToken);
 
         var categoryIds = entries.Where(e => e.CompetitionCategoryId.HasValue)
             .Select(e => e.CompetitionCategoryId!.Value).Distinct().ToList();
@@ -68,10 +68,7 @@ internal sealed class ListEntriesQueryHandler(AppDbContext dbContext, ICurrentUs
                 .ToDictionary(c => c.Id, c => c.Name);
 
         var entryIds = entries.Select(e => e.Id).ToList();
-        var tableByEntryId = await dbContext.TableSamples
-            .Where(ts => entryIds.Contains(ts.BeerEntryId))
-            .Join(dbContext.TastingTables, ts => ts.TastingTableId, t => t.Id, (ts, t) => new { ts.BeerEntryId, TableId = t.Id, TableName = t.Name })
-            .ToDictionaryAsync(x => x.BeerEntryId, cancellationToken);
+        var tableByEntryId = await entryTableAssignments.GetByEntryAsync(request.CompetitionId, entryIds, cancellationToken);
 
         return entries
             .Select(e =>
@@ -87,8 +84,8 @@ internal sealed class ListEntriesQueryHandler(AppDbContext dbContext, ICurrentUs
                     e.BlindCode,
                     e.StyleCode,
                     style?.Name ?? e.StyleCode,
-                    style?.ABVLow,
-                    style?.ABVHigh,
+                    style?.AbvLow,
+                    style?.AbvHigh,
                     e.AbvPercent,
                     e.BeerName,
                     e.NotValidForBos,

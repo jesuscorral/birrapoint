@@ -1,4 +1,6 @@
-namespace BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
+
+namespace BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 
 /// <summary>Apariencia. Color/Clarity/Foam are closed-list single choices (EvaluationDescriptorCatalog)
 /// plus a free-text "Other" companion, matching the paper sheet's "Otros ____" line next to each.

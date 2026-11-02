@@ -1,4 +1,5 @@
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Organization.Domain;
@@ -15,7 +16,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 internal static class JudgeSampleProjector
 {
     public static async Task<IReadOnlyList<JudgeSampleDto>> ProjectAsync(
-        AppDbContext dbContext, Guid tableId, Guid judgeId, CancellationToken cancellationToken)
+        AppDbContext dbContext, IStyleCatalog styleCatalog, Guid tableId, Guid judgeId, CancellationToken cancellationToken)
     {
         var evaluationStatusByEntryId = await dbContext.Evaluations
             .Where(e => e.TastingTableId == tableId && e.JudgeId == judgeId)
@@ -32,9 +33,7 @@ internal static class JudgeSampleProjector
             .ToListAsync(cancellationToken);
 
         var styleCodes = entries.Select(e => e.StyleCode).Distinct(StringComparer.Ordinal).ToList();
-        var styleNameByCode = await dbContext.BjcpStyles
-            .Where(s => styleCodes.Contains(s.Code))
-            .ToDictionaryAsync(s => s.Code, s => s.Name, StringComparer.Ordinal, cancellationToken);
+        var styleByCode = await styleCatalog.GetByCodesAsync(styleCodes, cancellationToken);
 
         var sequenceByEntryId = samples.ToDictionary(s => s.BeerEntryId, s => s.SequenceOrder);
 
@@ -43,7 +42,7 @@ internal static class JudgeSampleProjector
                 e.Id,
                 e.BlindCode,
                 e.StyleCode,
-                styleNameByCode.GetValueOrDefault(e.StyleCode, e.StyleCode),
+                styleByCode.TryGetValue(e.StyleCode, out var style) ? style.Name : e.StyleCode,
                 e.AbvPercent,
                 sequenceByEntryId[e.Id],
                 MapEvaluationStatus(evaluationStatusByEntryId, e.Id),

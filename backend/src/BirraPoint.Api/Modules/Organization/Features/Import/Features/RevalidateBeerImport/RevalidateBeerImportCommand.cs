@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents.Dtos;
 using MediatR;
@@ -22,7 +23,7 @@ internal sealed record RevalidateBeerImportCommand(Guid CompetitionId, Guid Impo
 /// Consolidated (nothing left to fix). Invalid/Excluded rows are skipped — their status is
 /// unrelated to category/style state.
 /// </summary>
-internal sealed class RevalidateBeerImportCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class RevalidateBeerImportCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IStyleCatalog styleCatalog)
     : IRequestHandler<RevalidateBeerImportCommand, BeerImportBatchDto?>
 {
     public async Task<BeerImportBatchDto?> Handle(RevalidateBeerImportCommand request, CancellationToken cancellationToken)
@@ -54,9 +55,9 @@ internal sealed class RevalidateBeerImportCommandHandler(AppDbContext dbContext,
             .Select(category => new CategoryCatalogEntry(category.Id, category.Name))
             .ToListAsync(cancellationToken);
 
-        var styles = await dbContext.BjcpStyles
+        var styles = (await styleCatalog.ListAsync(cancellationToken))
             .Select(style => new StyleCatalogEntry(style.Code, style.Name))
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         var allowedPairs = await dbContext.CompetitionCategoryStyles
             .Where(pair => pair.CompetitionId == batch.CompetitionId)

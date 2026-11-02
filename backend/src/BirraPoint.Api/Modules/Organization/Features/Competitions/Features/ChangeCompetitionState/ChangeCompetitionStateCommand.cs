@@ -3,8 +3,8 @@ using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Domain;
-using BirraPoint.Api.Modules.Judging.Domain;
+using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Api.Modules.Organization.Contracts.Events;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Realtime;
 using MediatR;
@@ -20,7 +20,7 @@ internal sealed record ChangeCompetitionStateCommand(Guid Id, CompetitionState T
 
 internal sealed class ChangeCompetitionStateCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter, IEventPublisher eventPublisher,
-    IDispatchJobQueue dispatchJobQueue)
+    ICompetitionFinalizationGuard finalizationGuard, IPublisher publisher, IDispatchWakeUp dispatchWakeUp)
     : IRequestHandler<ChangeCompetitionStateCommand, ChangeCompetitionStateResult?>
 {
     public async Task<ChangeCompetitionStateResult?> Handle(
@@ -43,10 +43,7 @@ internal sealed class ChangeCompetitionStateCommandHandler(
 
         if (request.Target == CompetitionState.Finalized)
         {
-            var openTableIds = await dbContext.TastingTables
-                .Where(t => t.CompetitionId == competition.Id && t.State != TableState.Closed)
-                .Select(t => t.Id)
-                .ToListAsync(cancellationToken);
+            var openTableIds = await finalizationGuard.GetOpenTableIdsAsync(competition.Id, cancellationToken);
 
             if (openTableIds.Count > 0)
             {
@@ -69,14 +66,21 @@ internal sealed class ChangeCompetitionStateCommandHandler(
             before: new { State = previousState },
             after: new { State = competition.State });
 
+        // Subscribers (Publication stages the GeneratePdfs job) add their work to the same change
+        // tracker, so state change, audit and job commit in one SaveChanges; a throwing subscriber
+        // aborts before anything is saved.
+        if (request.Target == CompetitionState.Finalized)
+        {
+            await publisher.Publish(new CompetitionFinalized(competition.Id), cancellationToken);
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // Everything below runs after the commit, so it must not observe the request token: an
-        // aborted request would otherwise leave a Finalized competition with no dispatch job.
+        // aborted request would otherwise leave a Finalized competition with no worker wake-up.
         if (request.Target == CompetitionState.Finalized)
         {
-            await dispatchJobQueue.EnqueueAsync(
-                competition.Id, DispatchJobType.GeneratePdfs, new { }, CancellationToken.None);
+            dispatchWakeUp.Signal();
         }
 
         // Emitted only after the transaction above commits (contracts/signalr-hub.md §Delivery

@@ -1,6 +1,7 @@
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents.Dtos;
 using BirraPoint.Api.Realtime;
@@ -18,7 +19,8 @@ internal sealed record FixOrderRequest(IReadOnlyList<Guid> OrderedBeerEntryIds);
 internal sealed record FixOrderCommand(Guid TableId, IReadOnlyList<Guid> OrderedBeerEntryIds)
     : IRequest<IReadOnlyList<JudgeSampleDto>?>;
 
-internal sealed class FixOrderCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher)
+internal sealed class FixOrderCommandHandler(
+    AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher, IStyleCatalog styleCatalog)
     : IRequestHandler<FixOrderCommand, IReadOnlyList<JudgeSampleDto>?>
 {
     public async Task<IReadOnlyList<JudgeSampleDto>?> Handle(FixOrderCommand request, CancellationToken cancellationToken)
@@ -85,7 +87,7 @@ internal sealed class FixOrderCommandHandler(AppDbContext dbContext, ICurrentUse
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        var result = await JudgeSampleProjector.ProjectAsync(dbContext, request.TableId, judgeId.Value, cancellationToken);
+        var result = await JudgeSampleProjector.ProjectAsync(dbContext, styleCatalog, request.TableId, judgeId.Value, cancellationToken);
         var fixedByDisplayName = judges.First(j => j.Id == judgeId).DisplayName;
 
         // Emitted only after the transaction above commits (contracts/signalr-hub.md §Delivery

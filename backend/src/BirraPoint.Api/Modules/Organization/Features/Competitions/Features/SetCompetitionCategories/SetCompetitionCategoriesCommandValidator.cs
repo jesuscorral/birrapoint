@@ -1,12 +1,11 @@
-using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Catalog.Contracts;
 using FluentValidation;
-using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Competitions.Features.SetCompetitionCategories;
 
 internal sealed class SetCompetitionCategoriesCommandValidator : AbstractValidator<SetCompetitionCategoriesCommand>
 {
-    public SetCompetitionCategoriesCommandValidator(AppDbContext dbContext)
+    public SetCompetitionCategoriesCommandValidator(IStyleCatalog styleCatalog)
     {
         // Cascade(Stop): the DB-backed existence check in DependentRules must never run once a
         // cheaper sync check has already failed (mirrors ResolveRowCommandValidator/
@@ -24,7 +23,7 @@ internal sealed class SetCompetitionCategoriesCommandValidator : AbstractValidat
             .DependentRules(() =>
             {
                 RuleFor(c => c.Categories)
-                    .MustAsync((categories, cancellationToken) => AllStyleCodesExistAsync(dbContext, categories, cancellationToken))
+                    .MustAsync((categories, cancellationToken) => AllStyleCodesExistAsync(styleCatalog, categories, cancellationToken))
                     .WithMessage("One or more style codes do not exist in the BJCP 2021 catalog.");
             });
 
@@ -44,7 +43,7 @@ internal sealed class SetCompetitionCategoriesCommandValidator : AbstractValidat
     }
 
     private static async Task<bool> AllStyleCodesExistAsync(
-        AppDbContext dbContext, IReadOnlyList<SetCategoryItem> categories, CancellationToken cancellationToken)
+        IStyleCatalog styleCatalog, IReadOnlyList<SetCategoryItem> categories, CancellationToken cancellationToken)
     {
         var codes = categories.SelectMany(category => category.StyleCodes).Distinct(StringComparer.Ordinal).ToList();
         if (codes.Count == 0)
@@ -52,7 +51,7 @@ internal sealed class SetCompetitionCategoriesCommandValidator : AbstractValidat
             return true;
         }
 
-        var existingCount = await dbContext.BjcpStyles.CountAsync(style => codes.Contains(style.Code), cancellationToken);
-        return existingCount == codes.Count;
+        var existing = await styleCatalog.GetByCodesAsync(codes, cancellationToken);
+        return existing.Count == codes.Count;
     }
 }

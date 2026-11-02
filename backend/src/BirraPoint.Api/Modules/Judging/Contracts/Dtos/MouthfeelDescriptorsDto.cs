@@ -1,4 +1,4 @@
-namespace BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
+namespace BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 
 /// <summary>Sensación en boca. All five attributes are 0–3 discrete sliders, each with its own
 /// Inappropriate flag.</summary>

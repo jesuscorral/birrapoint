@@ -1,4 +1,5 @@
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents.Dtos;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,14 +9,14 @@ namespace BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 internal static class TableProjector
 {
     /// <summary>Single-table projection, for the CreateTable/UpdateTable responses.</summary>
-    public static async Task<TableDto> ProjectAsync(AppDbContext dbContext, Guid tableId, CancellationToken cancellationToken)
+    public static async Task<TableDto> ProjectAsync(AppDbContext dbContext, IStyleCatalog styleCatalog, Guid tableId, CancellationToken cancellationToken)
     {
-        var projected = await ProjectManyAsync(dbContext, [tableId], cancellationToken);
+        var projected = await ProjectManyAsync(dbContext, styleCatalog, [tableId], cancellationToken);
         return projected.Single();
     }
 
     public static async Task<IReadOnlyList<TableDto>> ProjectManyAsync(
-        AppDbContext dbContext, IReadOnlyList<Guid> tableIds, CancellationToken cancellationToken)
+        AppDbContext dbContext, IStyleCatalog styleCatalog, IReadOnlyList<Guid> tableIds, CancellationToken cancellationToken)
     {
         if (tableIds.Count == 0)
         {
@@ -53,11 +54,7 @@ internal static class TableProjector
         var entryById = entries.ToDictionary(e => e.Id);
 
         var styleCodes = entries.Select(e => e.StyleCode).Distinct(StringComparer.Ordinal).ToList();
-        var styles = await dbContext.BjcpStyles
-            .Where(s => styleCodes.Contains(s.Code))
-            .Select(s => new { s.Code, s.Name, s.ABVLow, s.ABVHigh, s.CategoryNumber, s.CategoryName })
-            .ToListAsync(cancellationToken);
-        var styleByCode = styles.ToDictionary(s => s.Code, StringComparer.Ordinal);
+        var styleByCode = await styleCatalog.GetByCodesAsync(styleCodes, cancellationToken);
 
         var categoryIds = entries.Where(e => e.CompetitionCategoryId.HasValue)
             .Select(e => e.CompetitionCategoryId!.Value).Distinct().ToList();
@@ -101,7 +98,7 @@ internal static class TableProjector
                                 ? name
                                 : null;
                         return new TableSampleDto(
-                            e.Id, e.BlindCode, e.StyleCode, style?.Name ?? e.StyleCode, style?.ABVLow, style?.ABVHigh,
+                            e.Id, e.BlindCode, e.StyleCode, style?.Name ?? e.StyleCode, style?.AbvLow, style?.AbvHigh,
                             e.AbvPercent, e.NotValidForBos, e.EntryInstructions,
                             competitionCategoryName, style?.CategoryNumber, style?.CategoryName);
                     })

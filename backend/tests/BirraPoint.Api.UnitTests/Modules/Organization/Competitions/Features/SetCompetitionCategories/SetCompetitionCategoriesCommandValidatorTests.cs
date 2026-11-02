@@ -1,6 +1,5 @@
-using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Organization.Features.Competitions.Features.SetCompetitionCategories;
-using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.UnitTests.Modules.Organization.Competitions.Features.SetCompetitionCategories;
 
@@ -17,12 +16,18 @@ namespace BirraPoint.Api.UnitTests.Modules.Organization.Competitions.Features.Se
 /// </summary>
 public sealed class SetCompetitionCategoriesCommandValidatorTests
 {
-    // Never queried — configured with the project's real Npgsql provider so no new test-only
-    // dependency (e.g. EF InMemory) is introduced, and no connection is ever opened.
-    private static readonly AppDbContext UnusedDbContext = new(
-        new DbContextOptionsBuilder<AppDbContext>().UseNpgsql("Host=unused;Database=unused").Options);
+    private static SetCompetitionCategoriesCommandValidator CreateValidator() => new(new UnusedStyleCatalog());
 
-    private static SetCompetitionCategoriesCommandValidator CreateValidator() => new(UnusedDbContext);
+    /// <summary>Never queried: the sync rules fail first. Any call is a test failure.</summary>
+    private sealed class UnusedStyleCatalog : IStyleCatalog
+    {
+        public Task<IReadOnlyList<StyleSummaryDto>> ListAsync(CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Style catalog must not be queried.");
+
+        public Task<IReadOnlyDictionary<string, StyleSummaryDto>> GetByCodesAsync(
+            IReadOnlyCollection<string> codes, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Style catalog must not be queried.");
+    }
 
     [Fact]
     public void CommandWithNoCategoriesIsInvalid()

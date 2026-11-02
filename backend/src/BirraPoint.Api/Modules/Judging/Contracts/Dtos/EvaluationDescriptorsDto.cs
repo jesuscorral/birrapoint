@@ -1,4 +1,7 @@
-namespace BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
+using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
+
+namespace BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 
 /// <summary>
 /// Session 2026-09-21: structured tasting-sheet descriptors, additive alongside the five

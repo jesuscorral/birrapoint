@@ -4,6 +4,7 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Integration;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.IntegrationTests.Modules.Judging.Tables.CommonComponents;
@@ -135,7 +136,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
             .Include(t => t.Judges)
             .Include(t => t.Samples)
             .SingleAsync(t => t.Id == tableId);
-        var flaggedEntryIds = await TableAssignmentApplier.ApplyAsync(db, table, judgeIds, beerEntryIds, CancellationToken.None);
+        var flaggedEntryIds = await TableAssignmentApplier.ApplyAsync(db, new ConflictOfInterestChecker(db), table, judgeIds, beerEntryIds, CancellationToken.None);
         await db.SaveChangesAsync();
         return flaggedEntryIds;
     }
@@ -181,7 +182,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
                 .SingleAsync(t => t.Id == tableId, TestContext.Current.CancellationToken);
 
             // Judge owns ownedEntryId (unassigned), so adding them would flag it for BOS.
-            await TableAssignmentApplier.ApplyAsync(db, table, [judgeId], [], TestContext.Current.CancellationToken);
+            await TableAssignmentApplier.ApplyAsync(db, new ConflictOfInterestChecker(db), table, [judgeId], [], TestContext.Current.CancellationToken);
 
             Assert.True(db.ChangeTracker.HasChanges());
         }

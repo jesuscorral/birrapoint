@@ -13,9 +13,7 @@ using BirraPoint.Api.Common.Secrets;
 using BirraPoint.Api.Modules.Catalog;
 using BirraPoint.Api.Modules.Judging;
 using BirraPoint.Api.Modules.Organization;
-using BirraPoint.Api.Modules.Organization.Features.Judges;
 using BirraPoint.Api.Modules.Publication;
-using BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.DispatchScoreSheet;
 using BirraPoint.Api.Realtime;
 using BirraPoint.ServiceDefaults;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -97,19 +95,15 @@ builder.Services.AddOptions<KeycloakAdminOptions>()
 // Invitation/result email delivery (R-10): MailKit against Smtp:Host/Smtp:Port (Mailpit locally).
 builder.Services.AddScoped<IEmailSender, MailKitEmailSender>();
 
-// First DispatchJobHandler: SendInvitation, auto-discovered by DispatchWorker.
-builder.Services.AddScoped<IDispatchJobHandler, SendInvitationHandler>();
-
-// Judge account provisioning without email (R-20/US14) — enqueued eagerly by both
-// RegisterJudges and ConsolidateJudgeImport; SendInvitation is enqueued only by the explicit
-// "Notify judges" action.
-builder.Services.AddScoped<IDispatchJobHandler, ProvisionJudgeAccountHandler>();
-
-// Results dispatch pipeline (FR-036/FR-040/FR-041): GeneratePdfs -> BundleZip -> SendResultEmail,
-// each enqueuing the next on success, auto-discovered by DispatchWorker like SendInvitation above.
-builder.Services.AddScoped<IDispatchJobHandler, GeneratePdfsHandler>();
-builder.Services.AddScoped<IDispatchJobHandler, BundleZipHandler>();
-builder.Services.AddScoped<IDispatchJobHandler, SendResultEmailHandler>();
+// Module registrations: contract implementations plus the module's DispatchJob handlers
+// (auto-discovered by DispatchWorker): Organization (SendInvitation, judge account provisioning,
+// R-20/US14) and Publication (results pipeline GeneratePdfs -> BundleZip -> SendResultEmail,
+// FR-036/FR-040/FR-041).
+builder.Services
+    .AddCatalogModule()
+    .AddOrganizationModule()
+    .AddJudgingModule()
+    .AddPublicationModule();
 
 // The Angular dev server runs on a different origin (:4200) than the API (:5121/:7075) — the
 // browser needs this to call REST/hub endpoints directly. Development only; production

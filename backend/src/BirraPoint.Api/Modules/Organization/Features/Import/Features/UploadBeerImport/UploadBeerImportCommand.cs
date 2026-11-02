@@ -1,6 +1,7 @@
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents.Dtos;
@@ -12,7 +13,7 @@ namespace BirraPoint.Api.Modules.Organization.Features.Import.Features.UploadBee
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
 internal sealed record UploadBeerImportCommand(Guid CompetitionId, IFormFile File) : IRequest<BeerImportBatchDto?>;
 
-internal sealed class UploadBeerImportCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class UploadBeerImportCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IStyleCatalog styleCatalog)
     : IRequestHandler<UploadBeerImportCommand, BeerImportBatchDto?>
 {
     public async Task<BeerImportBatchDto?> Handle(UploadBeerImportCommand request, CancellationToken cancellationToken)
@@ -40,9 +41,9 @@ internal sealed class UploadBeerImportCommandHandler(AppDbContext dbContext, ICu
             throw new DomainException(DomainErrorType.InvalidImportFile, "The uploaded file must be a .xlsx spreadsheet.");
         }
 
-        var styles = await dbContext.BjcpStyles
+        var styles = (await styleCatalog.ListAsync(cancellationToken))
             .Select(style => new StyleCatalogEntry(style.Code, style.Name))
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         var categories = await dbContext.CompetitionCategories
             .Where(category => category.CompetitionId == competition.Id)
