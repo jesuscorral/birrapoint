@@ -25,9 +25,6 @@ internal static class ModuleBoundaryScanner
     private static readonly Regex NamespaceDeclaration = new(
         @"^[ \t]*namespace[ \t]+[\w.]+", RegexOptions.Multiline | RegexOptions.Compiled, RegexTimeout);
 
-    public static bool IsReferenceMember(string member) =>
-        member.StartsWith("using:", StringComparison.Ordinal) || member.StartsWith("fqn:", StringComparison.Ordinal);
-
     public static string StripComments(string source) =>
         LineComment.Replace(BlockComment.Replace(source, string.Empty), string.Empty);
 
