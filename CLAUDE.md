@@ -54,7 +54,7 @@ first, never silently into code.
 Prereqs: Docker Desktop, .NET 10 SDK, Node 24+.
 
 ```bash
-dotnet run --project backend/src/BirraPoint.AppHost   # full local stack: Postgres 16, Keycloak 26,
+dotnet run --project backend/src/Aspire/BirraPoint.AppHost   # full local stack: Postgres 16, Keycloak 26,
   # Mailpit, API, PWA. Aspire https://localhost:17202 · API :5121/:7075 · PWA :4200 ·
   # Keycloak :8081 (realm birrapoint) · Mailpit port via Aspire dashboard
 dotnet build backend/BirraPoint.sln
@@ -79,7 +79,7 @@ gh workflow run deploy-azure.yml -f version=X.Y.Z       # or deploy-aws.yml
 ## Layout (binding — by business capability, never `controllers/`/`services/`/`repositories/`)
 
 ```text
-backend/src/BirraPoint.AppHost | ServiceDefaults | Api/
+backend/src/Aspire/{BirraPoint.AppHost, BirraPoint.ServiceDefaults} | backend/src/BirraPoint.Api/
   Api/Domain/    shared kernel: Entity(+ITimestamped), AuditLog, DispatchJob     Api/Common/   AppDbContext, auth, persistence, errors, behaviors, audit, job queue
   Api/Modules/   ADR-0033/0034: Catalog (Catalog), Organization (Competitions, Import, Judges), Judging
                  (Tables, TastingOrder, Evaluations, Monitoring), Publication (Dispatch); each module =

@@ -13,6 +13,6 @@ Report the local stack status without starting or stopping anything:
    `https://localhost:17202`.
 
 Reply with one line per service (up / down + code). If something is down, suggest the fix:
-`dotnet run --project backend/src/BirraPoint.AppHost` for the stack; Keycloak missing while
+`dotnet run --project backend/src/Aspire/BirraPoint.AppHost` for the stack; Keycloak missing while
 Postgres runs usually means Docker Desktop's C: sharing broke (restart Docker Desktop — ask the
 user first). Never drop databases or volumes.

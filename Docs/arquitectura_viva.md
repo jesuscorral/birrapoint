@@ -20,7 +20,7 @@
 
 ## Topology
 
-### Local (.NET Aspire — `dotnet run --project backend/src/BirraPoint.AppHost`)
+### Local (.NET Aspire — `dotnet run --project backend/src/Aspire/BirraPoint.AppHost`)
 
 | Resource | Implementation | Endpoint | Notes |
 |---|---|---|---|
