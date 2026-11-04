@@ -3,6 +3,7 @@ using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -18,14 +19,12 @@ internal sealed record RetryDispatchCommand(Guid CompetitionId, IReadOnlyList<Gu
 /// through IDispatchWakeUp (same as DispatchJobQueue), because the production safety-net poll
 /// (Dispatch:SafetyNetPollInterval) can be hours long.</summary>
 internal sealed class RetryDispatchCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IDispatchWakeUp wakeUp)
+    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IDispatchWakeUp wakeUp)
     : IRequestHandler<RetryDispatchCommand, bool>
 {
     public async Task<bool> Handle(RetryDispatchCommand request, CancellationToken cancellationToken)
     {
-        var owns = await dbContext.Competitions
-            .AnyAsync(c => c.Id == request.CompetitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
-        if (!owns)
+        if (await competitionAccess.GetOwnedAsync(request.CompetitionId, currentUser.Sub, cancellationToken) is null)
         {
             return false;
         }

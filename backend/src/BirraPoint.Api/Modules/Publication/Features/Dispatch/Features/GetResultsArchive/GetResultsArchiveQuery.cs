@@ -1,6 +1,7 @@
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,14 +14,12 @@ internal sealed record ResultsArchiveResult(byte[]? ZipBytes, string? Status);
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
 internal sealed record GetResultsArchiveQuery(Guid CompetitionId) : IRequest<ResultsArchiveResult?>;
 
-internal sealed class GetResultsArchiveQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class GetResultsArchiveQueryHandler(AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess)
     : IRequestHandler<GetResultsArchiveQuery, ResultsArchiveResult?>
 {
     public async Task<ResultsArchiveResult?> Handle(GetResultsArchiveQuery request, CancellationToken cancellationToken)
     {
-        var owns = await dbContext.Competitions
-            .AnyAsync(c => c.Id == request.CompetitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
-        if (!owns)
+        if (await competitionAccess.GetOwnedAsync(request.CompetitionId, currentUser.Sub, cancellationToken) is null)
         {
             return null;
         }

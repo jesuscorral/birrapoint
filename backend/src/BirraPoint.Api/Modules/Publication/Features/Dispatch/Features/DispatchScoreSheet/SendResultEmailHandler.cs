@@ -4,6 +4,7 @@ using BirraPoint.Api.Common.Email;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +17,7 @@ namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.Dispatch
 /// IS the delivery-status record, so a failure simply rethrows for <see cref="DispatchWorker"/>'s
 /// existing retry/backoff to handle; this handler never retries on its own.
 /// </summary>
-internal sealed class SendResultEmailHandler(AppDbContext dbContext, IEmailSender emailSender) : IDispatchJobHandler
+internal sealed class SendResultEmailHandler(AppDbContext dbContext, ICompetitionAccess competitionAccess, IEmailSender emailSender) : IDispatchJobHandler
 {
     public DispatchJobType Type => DispatchJobType.SendResultEmail;
 
@@ -26,7 +27,8 @@ internal sealed class SendResultEmailHandler(AppDbContext dbContext, IEmailSende
             ?? throw new InvalidOperationException($"DispatchJob {job.Id} has an empty SendResultEmail payload.");
 
         var participant = await dbContext.Participants.FirstAsync(p => p.Id == payload.ParticipantId, cancellationToken);
-        var competition = await dbContext.Competitions.FirstAsync(c => c.Id == job.CompetitionId, cancellationToken);
+        var competition = await competitionAccess.GetAsync(job.CompetitionId, cancellationToken)
+            ?? throw new InvalidOperationException($"Competition {job.CompetitionId} not found.");
 
         var sheets = await dbContext.BeerEntries
             .Where(e => e.ParticipantId == payload.ParticipantId)

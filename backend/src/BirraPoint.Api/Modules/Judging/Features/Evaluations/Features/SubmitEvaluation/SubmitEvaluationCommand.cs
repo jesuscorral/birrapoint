@@ -7,7 +7,7 @@ using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
-using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Realtime;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -51,7 +51,7 @@ internal static class SubmitEvaluationQueryTags
     public const string GateReplayRecheck = "SubmitEvaluation.GateReplayRecheck";
 }
 
-internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher)
+internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IEventPublisher eventPublisher)
     : IRequestHandler<SubmitEvaluationCommand, SubmitEvaluationResult?>
 {
     public async Task<SubmitEvaluationResult?> Handle(SubmitEvaluationCommand request, CancellationToken cancellationToken)
@@ -84,10 +84,8 @@ internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICu
             .TagWith(SubmitEvaluationQueryTags.TableLoad)
             .SingleAsync(t => t.Id == request.TableId, cancellationToken);
 
-        var competitionState = await dbContext.Competitions
-            .Where(c => c.Id == table.CompetitionId)
-            .Select(c => c.State)
-            .SingleAsync(cancellationToken);
+        var competitionState = (await competitionAccess.GetAsync(table.CompetitionId, cancellationToken)
+            ?? throw new InvalidOperationException("Competition of an existing table not found.")).State;
 
         // FR-029/R-07 idempotency must hold even if a genuinely concurrent submission for this same
         // (judge, entry) pair commits — and the competition/table moves on — in the gap between the

@@ -2,6 +2,7 @@ using System.Text.Json;
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -14,14 +15,12 @@ internal sealed record DispatchStatusDto(Guid ParticipantId, string Email, strin
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
 internal sealed record GetDispatchStatusQuery(Guid CompetitionId) : IRequest<IReadOnlyList<DispatchStatusDto>?>;
 
-internal sealed class GetDispatchStatusQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class GetDispatchStatusQueryHandler(AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess)
     : IRequestHandler<GetDispatchStatusQuery, IReadOnlyList<DispatchStatusDto>?>
 {
     public async Task<IReadOnlyList<DispatchStatusDto>?> Handle(GetDispatchStatusQuery request, CancellationToken cancellationToken)
     {
-        var owns = await dbContext.Competitions
-            .AnyAsync(c => c.Id == request.CompetitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
-        if (!owns)
+        if (await competitionAccess.GetOwnedAsync(request.CompetitionId, currentUser.Sub, cancellationToken) is null)
         {
             return null;
         }

@@ -1,6 +1,6 @@
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
-using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Contracts;
 
 namespace BirraPoint.Api.UnitTests.Modules.Judging.TastingOrder.Features.FixOrder;
 

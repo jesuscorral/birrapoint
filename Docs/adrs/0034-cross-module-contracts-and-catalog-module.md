@@ -16,6 +16,7 @@ ADR-0033 phase 1 moved the features into modules but left direct entity access a
 | `IStyleCatalog` | Catalog | Catalog | Organization (Import, categories, entries list), Judging (table and judge sample projections), Publication (score-sheet PDFs) |
 | `IConflictOfInterestChecker` | Organization | Organization | Judging (table assignment) |
 | `IJudgeDirectory` | Organization | Organization | Judging (`IStoredEvaluations` judge names) |
+| `ICompetitionAccess` (+ `CompetitionSnapshot`, `CompetitionState`) | Organization | Organization | Judging (ownership 404s, state gates, `GetMyTables` batch states), Publication (competition name for jobs) |
 | `IStoredEvaluations` | Judging | Judging | Publication (score-sheet PDFs), Judging Monitoring (entry evaluations) |
 | `ICompetitionFinalizationGuard` | Organization | Judging | Organization |
 | `IEntryTableAssignments` | Organization | Judging | Organization |
@@ -27,12 +28,12 @@ Provider-owned contracts cover downstream-needs-upstream data. When an upstream 
 
 **Finalization is atomic.** `ChangeCompetitionStateCommand` publishes the in-process MediatR notification `CompetitionFinalized` before `SaveChanges`. Publication's handler stages `GeneratePdfs` with `IDispatchJobQueue.Stage` in the same transaction; the worker wake-up signal is sent after commit. This closes the enqueue-after-commit gap. Every state transition runs in a transaction that loads the competition with `SELECT … FOR UPDATE`, so concurrent requests serialize: one wins, the rest get `409 invalid-state-transition`, and at most one `GeneratePdfs` job is staged.
 
-**Enforcement.** `UnitTests/Architecture/ModuleBoundaryTests.cs` scans sources: a module may use another module only through its `Contracts` namespace and may not touch its `DbSet`s. An exact, shrink-only allow-list holds 29 Judging/Publication -> Organization entries (phase-3 debt); a stale entry fails the build. Allowed without listing: `Modules/<M>/Persistence/` FK configurations (shared `AppDbContext`). Permanent kernel exceptions: `Common/Auth` resolvers (Keycloak subject -> organizer/judge), `Realtime/` hub authorization, `Common/Persistence/` (model composition, including the `DispatchJob` -> `Competition` FK).
+**Enforcement.** `UnitTests/Architecture/ModuleBoundaryTests.cs` scans sources: a module may use another module only through its `Contracts` namespace and may not touch its `DbSet`s. An exact, shrink-only allow-list holds 18 Judging/Publication -> Organization entries (phase-3 debt, down from 29 after `ICompetitionAccess`); a stale entry fails the build. Allowed without listing: `Modules/<M>/Persistence/` FK configurations (shared `AppDbContext`). Permanent kernel exceptions: `Common/Auth` resolvers (Keycloak subject -> organizer/judge), `Realtime/` hub authorization, `Common/Persistence/` (model composition, including the `DispatchJob` -> `Competition` FK).
 
 ## Consequences
 - Cross-module data needs go through a typed, reviewable surface; the blind-anonymity boundary stays in Judging.
 - Same-transaction semantics are kept (one process, one `AppDbContext`); no migration or API change.
 - Data from two modules is combined in memory. The catalog is about 120 rows, so this is cheap; larger sets need a join-capable contract.
 - COI co-owner lookup is now case-insensitive.
-- 29 allow-list entries remain; ADR-0033 phase 3 removes them with synchronous contracts (one Organization table per step) and one in-process event for the BOS flag.
+- 18 allow-list entries remain; ADR-0033 phase 3 removes them with synchronous contracts (one Organization table per step) and one in-process event for the BOS flag.
 - Builds on ADR-0033 and ADR-0031; no constitution amendment.

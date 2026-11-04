@@ -58,7 +58,6 @@ public class ModuleLayoutTests
     [Theory]
     [InlineData("Organizer", "Organization")]
     [InlineData("Competition", "Organization")]
-    [InlineData("CompetitionState", "Organization")]
     [InlineData("CompetitionCategory", "Organization")]
     [InlineData("CompetitionCategoryStyle", "Organization")]
     [InlineData("BjcpStyle", "Catalog")]

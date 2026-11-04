@@ -4,7 +4,6 @@ using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
-using BirraPoint.Api.Modules.Organization.Domain;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 

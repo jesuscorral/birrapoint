@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,14 +17,12 @@ internal sealed record GetProgressQuery(Guid CompetitionId) : IRequest<IReadOnly
 /// EvaluationCompleted never disagree.</summary>
 internal sealed record TableProgressSummaryDto(Guid TableId, string Name, string State, int Completed, int Expected, int Percent);
 
-internal sealed class GetProgressQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class GetProgressQueryHandler(AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess)
     : IRequestHandler<GetProgressQuery, IReadOnlyList<TableProgressSummaryDto>?>
 {
     public async Task<IReadOnlyList<TableProgressSummaryDto>?> Handle(GetProgressQuery request, CancellationToken cancellationToken)
     {
-        var competitionExists = await dbContext.Competitions
-            .AnyAsync(c => c.Id == request.CompetitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
-        if (!competitionExists)
+        if (await competitionAccess.GetOwnedAsync(request.CompetitionId, currentUser.Sub, cancellationToken) is null)
         {
             return null;
         }

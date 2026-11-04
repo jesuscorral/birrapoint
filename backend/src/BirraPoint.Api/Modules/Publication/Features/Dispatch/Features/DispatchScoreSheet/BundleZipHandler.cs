@@ -3,7 +3,7 @@ using System.Text.Json;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
-using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Domain;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
 using Microsoft.EntityFrameworkCore;
@@ -18,13 +18,14 @@ namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.Dispatch
 /// delivery status/attempts/lastError live entirely on that job's own row, the same way
 /// <see cref="Invitation"/> tracks judge invites, except here there's no separate status entity.
 /// </summary>
-internal sealed class BundleZipHandler(AppDbContext dbContext, IDispatchJobQueue dispatchJobQueue) : IDispatchJobHandler
+internal sealed class BundleZipHandler(AppDbContext dbContext, ICompetitionAccess competitionAccess, IDispatchJobQueue dispatchJobQueue) : IDispatchJobHandler
 {
     public DispatchJobType Type => DispatchJobType.BundleZip;
 
     public async Task HandleAsync(DispatchJob job, CancellationToken cancellationToken)
     {
-        var competition = await dbContext.Competitions.FirstAsync(c => c.Id == job.CompetitionId, cancellationToken);
+        var competition = await competitionAccess.GetAsync(job.CompetitionId, cancellationToken)
+            ?? throw new InvalidOperationException($"Competition {job.CompetitionId} not found.");
 
         var sheets = await dbContext.BeerEntries
             .Where(e => e.CompetitionId == job.CompetitionId)

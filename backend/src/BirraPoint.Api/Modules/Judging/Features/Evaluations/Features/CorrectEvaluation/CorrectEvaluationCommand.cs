@@ -5,6 +5,7 @@ using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,14 +24,12 @@ internal sealed record CorrectEvaluationCommand(
 internal sealed record CorrectEvaluationResult(Guid EvaluationId, int Total, decimal ConsolidatedMean);
 
 
-internal sealed class CorrectEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter)
+internal sealed class CorrectEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IAuditWriter auditWriter)
     : IRequestHandler<CorrectEvaluationCommand, CorrectEvaluationResult?>
 {
     public async Task<CorrectEvaluationResult?> Handle(CorrectEvaluationCommand request, CancellationToken cancellationToken)
     {
-        var competitionExists = await dbContext.Competitions
-            .AnyAsync(c => c.Id == request.CompetitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);
-        if (!competitionExists)
+        if (await competitionAccess.GetOwnedAsync(request.CompetitionId, currentUser.Sub, cancellationToken) is null)
         {
             return null;
         }

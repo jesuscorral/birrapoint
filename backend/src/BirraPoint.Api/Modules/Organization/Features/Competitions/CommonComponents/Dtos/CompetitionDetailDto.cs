@@ -1,3 +1,4 @@
+using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Domain;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Competitions.CommonComponents.Dtos;
