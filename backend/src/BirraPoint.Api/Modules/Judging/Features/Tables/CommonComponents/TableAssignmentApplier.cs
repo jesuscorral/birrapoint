@@ -73,13 +73,14 @@ internal static class TableAssignmentApplier
 
         // --- BOS flag/unflag, competition-wide (FR-018): Organization owns the flag and updates it in
         // this same unit of work; the response only needs the entries the added judges own. ---
+        var removedJudgeIds = judgeRowsToRemove.Select(row => row.JudgeId).ToList();
+        var ownedEntriesByJudgeId = await conflictChecker.GetEntriesOwnedByJudgesAsync(
+            table.CompetitionId, judgesToAdd.Union(removedJudgeIds).ToList(), cancellationToken);
+
         await publisher.Publish(
             new TableJudgesChanged(
-                table.CompetitionId, table.Id, judgeIdSet, judgesToAdd, judgeRowsToRemove.Select(row => row.JudgeId).ToList()),
+                table.CompetitionId, table.Id, judgeIdSet, judgesToAdd, removedJudgeIds, ownedEntriesByJudgeId),
             cancellationToken);
-
-        var ownedEntriesByJudgeId = await conflictChecker.GetEntriesOwnedByJudgesAsync(
-            table.CompetitionId, judgesToAdd, cancellationToken);
 
         return EntriesOwnedByJudges(judgesToAdd, ownedEntriesByJudgeId).ToList();
     }

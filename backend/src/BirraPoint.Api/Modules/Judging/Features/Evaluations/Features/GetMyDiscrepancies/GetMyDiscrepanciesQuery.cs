@@ -29,24 +29,22 @@ internal sealed class GetMyDiscrepanciesQueryHandler(AppDbContext dbContext, IJu
             .Where(a => a.TastingTableId == request.TableId && a.Status == DiscrepancyStatus.Open)
             .ToListAsync(cancellationToken);
 
-        var views = new List<DiscrepancyView>();
+        var alertEntryIds = openAlerts.Select(a => a.BeerEntryId).ToList();
+        var totalsByEntryId = (await dbContext.Evaluations
+                .Where(e => e.TastingTableId == request.TableId && alertEntryIds.Contains(e.BeerEntryId))
+                .Select(e => new { e.BeerEntryId, e.JudgeId, e.Total })
+                .ToListAsync(cancellationToken))
+            .GroupBy(e => e.BeerEntryId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyDictionary<Guid, int>)g.ToDictionary(e => e.JudgeId, e => e.Total));
 
-        foreach (var alert in openAlerts)
-        {
-            var totals = await dbContext.Evaluations
-                .Where(e => e.TastingTableId == request.TableId && e.BeerEntryId == alert.BeerEntryId)
-                .ToDictionaryAsync(e => e.JudgeId, e => e.Total, cancellationToken);
-            var involved = DiscrepancyRules.ComputeInvolvedJudgeIds(totals);
+        var involvingCaller = openAlerts
+            .Where(alert => DiscrepancyRules
+                .ComputeInvolvedJudgeIds(totalsByEntryId.GetValueOrDefault(alert.BeerEntryId) ?? new Dictionary<Guid, int>())
+                .Contains(judgeId.Value))
+            .Select(alert => (alert.Id, alert.BeerEntryId))
+            .ToList();
 
-            if (!involved.Contains(judgeId.Value))
-            {
-                continue;
-            }
-
-            views.Add(await DiscrepancyViewBuilder.BuildAsync(
-                dbContext, judgeDirectory, entryDirectory, alert.Id, request.TableId, alert.BeerEntryId, judgeId.Value, cancellationToken));
-        }
-
-        return views;
+        return await DiscrepancyViewBuilder.BuildManyAsync(
+            dbContext, judgeDirectory, entryDirectory, request.TableId, involvingCaller, judgeId.Value, cancellationToken);
     }
 }

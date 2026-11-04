@@ -206,7 +206,7 @@ Finalize flow: `ChangeCompetitionStateCommand` checks `ICompetitionFinalizationG
 in the same transaction and the worker is woken after commit.
 
 BOS flag flow (FR-018): table create/update in Judging stages its judge diff and publishes `TableJudgesChanged`
-(table's new judge set, added and removed judges) before `SaveChanges`. Organization's
+(table's new judge set, added and removed judges, and the entries those judges own from `IConflictOfInterestChecker`, looked up once) before `SaveChanges`. Organization's
 `UpdateBosFlagsOnTableJudgesChanged` flags entries owned by added judges and unflags entries of removed judges
 whose co-owner judges are neither at this table nor engaged elsewhere (`IJudgeEngagement`: another active seat
 or any evaluation), all in the same unit of work.

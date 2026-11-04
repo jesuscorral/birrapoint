@@ -33,6 +33,7 @@ internal sealed class BundleZipHandler(
         var entryIds = entries.Select(e => e.EntryId).ToList();
         var pdfByEntryId = await dbContext.GeneratedScoreSheets
             .Where(s => entryIds.Contains(s.BeerEntryId))
+            .Select(s => new { s.BeerEntryId, s.PdfBytes })
             .ToDictionaryAsync(s => s.BeerEntryId, s => s.PdfBytes, cancellationToken);
         var sheets = entries
             .Where(e => pdfByEntryId.ContainsKey(e.EntryId))

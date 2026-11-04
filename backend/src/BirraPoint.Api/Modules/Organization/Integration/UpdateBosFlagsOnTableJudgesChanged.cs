@@ -19,15 +19,12 @@ internal sealed class UpdateBosFlagsOnTableJudgesChanged(
 {
     public async Task Handle(TableJudgesChanged notification, CancellationToken cancellationToken)
     {
-        var changedJudgeIds = notification.AddedJudgeIds.Union(notification.RemovedJudgeIds).ToList();
-        if (changedJudgeIds.Count == 0)
+        if (notification.AddedJudgeIds.Count == 0 && notification.RemovedJudgeIds.Count == 0)
         {
             return;
         }
 
-        var ownedEntriesByJudgeId = await conflictChecker.GetEntriesOwnedByJudgesAsync(
-            notification.CompetitionId, changedJudgeIds, cancellationToken);
-
+        var ownedEntriesByJudgeId = notification.OwnedEntriesByJudgeId;
         var entriesToFlag = EntriesOwnedBy(notification.AddedJudgeIds, ownedEntriesByJudgeId);
         var unflagCandidates = EntriesOwnedBy(notification.RemovedJudgeIds, ownedEntriesByJudgeId);
         unflagCandidates.ExceptWith(entriesToFlag);
