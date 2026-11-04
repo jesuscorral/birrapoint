@@ -21,7 +21,8 @@ internal sealed record UpdateTableCommand(
 
 internal sealed class UpdateTableCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IAuditWriter auditWriter, IEventPublisher eventPublisher,
-    IConflictOfInterestChecker conflictChecker, IStyleCatalog styleCatalog, IJudgeDirectory judgeDirectory)
+    IConflictOfInterestChecker conflictChecker, IStyleCatalog styleCatalog, IJudgeDirectory judgeDirectory,
+    IEntryDirectory entryDirectory, IPublisher publisher)
     : IRequestHandler<UpdateTableCommand, TableMutationResult?>
 {
     public async Task<TableMutationResult?> Handle(UpdateTableCommand request, CancellationToken cancellationToken)
@@ -58,7 +59,7 @@ internal sealed class UpdateTableCommandHandler(
         if (isInEvaluationState)
         {
             return await LiveJudgeRemoval.ApplyAsync(
-                dbContext, styleCatalog, judgeDirectory, auditWriter, eventPublisher, competition.Id, table.Id,
+                dbContext, styleCatalog, judgeDirectory, entryDirectory, auditWriter, eventPublisher, competition.Id, table.Id,
                 request.Name, request.JudgeIds, request.BeerEntryIds, cancellationToken);
         }
 
@@ -73,11 +74,11 @@ internal sealed class UpdateTableCommandHandler(
         table.Name = request.Name;
 
         var bosFlaggedEntryIds = await TableAssignmentApplier.ApplyAsync(
-            dbContext, conflictChecker, table, request.JudgeIds, request.BeerEntryIds, cancellationToken);
+            dbContext, conflictChecker, publisher, table, request.JudgeIds, request.BeerEntryIds, cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var dto = await TableProjector.ProjectAsync(dbContext, styleCatalog, judgeDirectory, table.Id, cancellationToken);
+        var dto = await TableProjector.ProjectAsync(dbContext, styleCatalog, judgeDirectory, entryDirectory, table.Id, cancellationToken);
 
         return TableMutationResult.From(dto, bosFlaggedEntryIds);
     }

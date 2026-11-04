@@ -2,19 +2,22 @@ using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Organization.Contracts;
-using Microsoft.EntityFrameworkCore;
+using BirraPoint.Api.Modules.Organization.Contracts.Events;
+using MediatR;
 
 namespace BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 
 internal static class TableAssignmentApplier
 {
-    /// <summary>Validates COI and stages the table's judge/sample diff plus the competition-wide
-    /// BOS flag changes on <paramref name="dbContext"/>. Does not save: the calling handler owns
-    /// the unit of work and calls SaveChangesAsync. Throws ConflictOfInterest before staging
-    /// anything.</summary>
+    /// <summary>Validates COI, stages the table's judge/sample diff on <paramref name="dbContext"/> and
+    /// publishes <see cref="TableJudgesChanged"/> so Organization stages the competition-wide BOS flag
+    /// changes too. Does not save: the calling handler owns the unit of work and calls SaveChangesAsync.
+    /// Throws ConflictOfInterest before staging anything. Returns the entries owned by added judges
+    /// (now not valid for BOS).</summary>
     public static async Task<IReadOnlyList<Guid>> ApplyAsync(
         AppDbContext dbContext,
         IConflictOfInterestChecker conflictChecker,
+        IPublisher publisher,
         TastingTable table,
         IReadOnlyList<Guid> judgeIds,
         IReadOnlyList<Guid> beerEntryIds,
@@ -23,7 +26,6 @@ internal static class TableAssignmentApplier
         var judgeIdSet = judgeIds.ToHashSet();
         var beerEntryIdSet = beerEntryIds.ToHashSet();
         var currentJudgeIds = table.Judges.Where(tj => tj.RemovedAt == null).Select(tj => tj.JudgeId).ToHashSet();
-        var relevantJudgeIds = judgeIdSet.Union(currentJudgeIds).ToHashSet();
 
         var conflicts = await conflictChecker.FindConflictsAsync(
             table.CompetitionId, judgeIdSet, beerEntryIds, cancellationToken);
@@ -69,98 +71,18 @@ internal static class TableAssignmentApplier
             dbContext.TableSamples.Remove(row);
         }
 
-        // --- BOS flag/unflag, competition-wide (FR-018) ---
+        // --- BOS flag/unflag, competition-wide (FR-018): Organization owns the flag and updates it in
+        // this same unit of work; the response only needs the entries the added judges own. ---
+        await publisher.Publish(
+            new TableJudgesChanged(
+                table.CompetitionId, table.Id, judgeIdSet, judgesToAdd, judgeRowsToRemove.Select(row => row.JudgeId).ToList()),
+            cancellationToken);
+
         var ownedEntriesByJudgeId = await conflictChecker.GetEntriesOwnedByJudgesAsync(
-            table.CompetitionId, relevantJudgeIds, cancellationToken);
+            table.CompetitionId, judgesToAdd, cancellationToken);
 
-        var flaggedEntryIds = EntriesOwnedByJudges(judgesToAdd, ownedEntriesByJudgeId);
-
-        var unflagCandidateEntryIds = new HashSet<Guid>();
-        foreach (var row in judgeRowsToRemove)
-        {
-            if (ownedEntriesByJudgeId.TryGetValue(row.JudgeId, out var owned))
-            {
-                unflagCandidateEntryIds.UnionWith(owned);
-            }
-        }
-
-        unflagCandidateEntryIds.ExceptWith(flaggedEntryIds);
-
-        if (unflagCandidateEntryIds.Count > 0)
-        {
-            var coOwnerJudgesByEntryId = await conflictChecker.GetCoOwnerJudgesAsync(
-                table.CompetitionId, unflagCandidateEntryIds, cancellationToken);
-            var stillEligible = new HashSet<Guid>();
-
-            foreach (var entryId in unflagCandidateEntryIds)
-            {
-                var coOwnerJudgeIds = coOwnerJudgesByEntryId.TryGetValue(entryId, out var coOwners)
-                    ? coOwners
-                    : new HashSet<Guid>();
-
-                var anyCoOwnerStillKeepsFlagAlive = false;
-                foreach (var coOwnerJudgeId in coOwnerJudgeIds)
-                {
-                    // Staying on (or newly added to) THIS table — the mutated table's own
-                    // judgeIdSet reflects the desired end state, ahead of SaveChangesAsync.
-                    if (judgeIdSet.Contains(coOwnerJudgeId))
-                    {
-                        anyCoOwnerStillKeepsFlagAlive = true;
-                        break;
-                    }
-
-                    // Excludes this table (the diff above already accounts for it) so an
-                    // in-flight removal on this same call is never double-counted as "still
-                    // active" from a pre-commit query.
-                    var remainingElsewhere = await dbContext.TableJudges.CountAsync(
-                        tj => tj.JudgeId == coOwnerJudgeId && tj.TastingTableId != table.Id && tj.RemovedAt == null,
-                        cancellationToken);
-                    var hasSubmittedEvaluation = await dbContext.Evaluations.AnyAsync(
-                        e => e.JudgeId == coOwnerJudgeId, cancellationToken);
-
-                    if (!IsEligibleForUnflag(remainingElsewhere, hasSubmittedEvaluation))
-                    {
-                        anyCoOwnerStillKeepsFlagAlive = true;
-                        break;
-                    }
-                }
-
-                if (!anyCoOwnerStillKeepsFlagAlive)
-                {
-                    stillEligible.Add(entryId);
-                }
-            }
-
-            unflagCandidateEntryIds = stillEligible;
-        }
-
-        if (flaggedEntryIds.Count > 0)
-        {
-            var entriesToFlag = await dbContext.BeerEntries
-                .Where(e => flaggedEntryIds.Contains(e.Id))
-                .ToListAsync(cancellationToken);
-            foreach (var entry in entriesToFlag)
-            {
-                entry.NotValidForBos = true;
-            }
-        }
-
-        if (unflagCandidateEntryIds.Count > 0)
-        {
-            var entriesToUnflag = await dbContext.BeerEntries
-                .Where(e => unflagCandidateEntryIds.Contains(e.Id))
-                .ToListAsync(cancellationToken);
-            foreach (var entry in entriesToUnflag)
-            {
-                entry.NotValidForBos = false;
-            }
-        }
-
-        return flaggedEntryIds.ToList();
+        return EntriesOwnedByJudges(judgesToAdd, ownedEntriesByJudgeId).ToList();
     }
-
-    private static bool IsEligibleForUnflag(int remainingActiveTableAssignments, bool hasSubmittedAnyEvaluation) =>
-        remainingActiveTableAssignments == 0 && !hasSubmittedAnyEvaluation;
 
     /// <summary>Union of the entries owned (as participant or collaborator) by the given judges.</summary>
     private static HashSet<Guid> EntriesOwnedByJudges(

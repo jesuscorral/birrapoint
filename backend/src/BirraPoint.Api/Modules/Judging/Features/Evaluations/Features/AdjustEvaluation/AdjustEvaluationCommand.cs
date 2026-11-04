@@ -21,7 +21,7 @@ internal sealed record AdjustEvaluationCommand(
 
 internal sealed record AdjustEvaluationResult(Guid EvaluationId, string Status, int Total, DiscrepancyView? Discrepancy);
 
-internal sealed class AdjustEvaluationCommandHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory, IEventPublisher eventPublisher)
+internal sealed class AdjustEvaluationCommandHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory, IEventPublisher eventPublisher)
     : IRequestHandler<AdjustEvaluationCommand, AdjustEvaluationResult?>
 {
     public async Task<AdjustEvaluationResult?> Handle(AdjustEvaluationCommand request, CancellationToken cancellationToken)
@@ -74,10 +74,7 @@ internal sealed class AdjustEvaluationCommandHandler(AppDbContext dbContext, IJu
         var outcome = await DiscrepancyReconciler.ReconcileAndSaveAsync(
             dbContext, request.TableId, evaluation.BeerEntryId, cancellationToken);
 
-        var blindCode = await dbContext.BeerEntries
-            .Where(e => e.Id == evaluation.BeerEntryId)
-            .Select(e => e.BlindCode)
-            .SingleAsync(cancellationToken);
+        var blindCode = (await entryDirectory.GetSamplesAsync([evaluation.BeerEntryId], cancellationToken))[evaluation.BeerEntryId].BlindCode;
 
         // Events describe the entry as a whole (any judge involved) — contracts/signalr-hub.md's
         // DiscrepancyRaised/Resolved are entry-level notifications, not judge-scoped.
@@ -103,7 +100,7 @@ internal sealed class AdjustEvaluationCommandHandler(AppDbContext dbContext, IJu
         // discrepancy they're no longer part of.
         var discrepancy = outcome.InvolvedJudgeIds.Contains(judgeId.Value)
             ? await DiscrepancyViewBuilder.BuildAsync(
-                dbContext, judgeDirectory, outcome.AlertId!.Value, request.TableId, evaluation.BeerEntryId, judgeId.Value, cancellationToken)
+                dbContext, judgeDirectory, entryDirectory, outcome.AlertId!.Value, request.TableId, evaluation.BeerEntryId, judgeId.Value, cancellationToken)
             : null;
 
         return new AdjustEvaluationResult(evaluation.Id, evaluation.Status.ToString(), evaluation.Total, discrepancy);

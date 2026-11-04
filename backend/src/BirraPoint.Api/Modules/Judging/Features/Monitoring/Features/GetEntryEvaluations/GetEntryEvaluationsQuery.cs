@@ -27,7 +27,8 @@ internal sealed record EvaluationAuditItemDto(
 internal sealed record EntryEvaluationsResult(string BlindCode, IReadOnlyList<EvaluationAuditItemDto> Evaluations, decimal? ConsolidatedMean);
 
 internal sealed class GetEntryEvaluationsQueryHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IStoredEvaluations storedEvaluations)
+    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IStoredEvaluations storedEvaluations,
+    IEntryDirectory entryDirectory)
     : IRequestHandler<GetEntryEvaluationsQuery, EntryEvaluationsResult?>
 {
     public async Task<EntryEvaluationsResult?> Handle(GetEntryEvaluationsQuery request, CancellationToken cancellationToken)
@@ -37,11 +38,8 @@ internal sealed class GetEntryEvaluationsQueryHandler(
             return null;
         }
 
-        var entry = await dbContext.BeerEntries
-            .Where(e => e.Id == request.EntryId && e.CompetitionId == request.CompetitionId)
-            .Select(e => new { e.BlindCode })
-            .SingleOrDefaultAsync(cancellationToken);
-        if (entry is null)
+        var entry = (await entryDirectory.GetSamplesAsync([request.EntryId], cancellationToken)).GetValueOrDefault(request.EntryId);
+        if (entry is null || entry.CompetitionId != request.CompetitionId)
         {
             return null;
         }

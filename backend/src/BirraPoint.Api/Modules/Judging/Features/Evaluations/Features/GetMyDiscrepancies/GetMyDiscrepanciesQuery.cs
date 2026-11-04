@@ -13,7 +13,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.Evaluations.Features.GetMyDisc
 /// Returns null when the caller is not an active member of this table.</summary>
 internal sealed record GetMyDiscrepanciesQuery(Guid TableId) : IRequest<IReadOnlyList<DiscrepancyView>?>;
 
-internal sealed class GetMyDiscrepanciesQueryHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory)
+internal sealed class GetMyDiscrepanciesQueryHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory)
     : IRequestHandler<GetMyDiscrepanciesQuery, IReadOnlyList<DiscrepancyView>?>
 {
     public async Task<IReadOnlyList<DiscrepancyView>?> Handle(GetMyDiscrepanciesQuery request, CancellationToken cancellationToken)
@@ -44,7 +44,7 @@ internal sealed class GetMyDiscrepanciesQueryHandler(AppDbContext dbContext, IJu
             }
 
             views.Add(await DiscrepancyViewBuilder.BuildAsync(
-                dbContext, judgeDirectory, alert.Id, request.TableId, alert.BeerEntryId, judgeId.Value, cancellationToken));
+                dbContext, judgeDirectory, entryDirectory, alert.Id, request.TableId, alert.BeerEntryId, judgeId.Value, cancellationToken));
         }
 
         return views;

@@ -4,7 +4,6 @@ using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Contracts;
-using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Realtime;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +21,7 @@ internal sealed record CloseTableCommand(Guid TableId) : IRequest<CloseTableResu
 
 internal sealed record CloseTableResult(IReadOnlyList<ConsolidatedScoreDto> ConsolidatedScores);
 
-internal sealed class CloseTableCommandHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory, IEventPublisher eventPublisher)
+internal sealed class CloseTableCommandHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory, IEventPublisher eventPublisher)
     : IRequestHandler<CloseTableCommand, CloseTableResult?>
 {
     public async Task<CloseTableResult?> Handle(CloseTableCommand request, CancellationToken cancellationToken)
@@ -60,9 +59,8 @@ internal sealed class CloseTableCommandHandler(AppDbContext dbContext, IJudgeDir
             .Select(ts => ts.BeerEntryId)
             .ToListAsync(cancellationToken);
 
-        var blindCodeByEntryId = await dbContext.BeerEntries
-            .Where(be => sampleBeerEntryIds.Contains(be.Id))
-            .ToDictionaryAsync(be => be.Id, be => be.BlindCode, cancellationToken);
+        var blindCodeByEntryId = (await entryDirectory.GetSamplesAsync(sampleBeerEntryIds, cancellationToken))
+            .ToDictionary(kv => kv.Key, kv => kv.Value.BlindCode);
 
         // Single fetch reused for both the completeness check and the consolidated-mean
         // computation below — the table's evaluations are read-only from this handler's point of

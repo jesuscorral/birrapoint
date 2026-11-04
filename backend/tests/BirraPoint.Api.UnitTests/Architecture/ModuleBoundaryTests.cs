@@ -32,9 +32,6 @@ public class ModuleBoundaryTests
 
     private static readonly string[] KernelFolders = ["Common", "Domain", "Realtime"];
 
-    private const string JudgingReadsOrganization =
-        "Judging reads Organization competition/entry/judge data directly until its ADR-0033 phase 3 contract exists.";
-
     private const string PublicationReadsOrganization =
         "Publication reads Organization competition/entry/participant data for results delivery until its ADR-0033 phase 3 contract exists.";
 
@@ -47,16 +44,6 @@ public class ModuleBoundaryTests
     /// (no violation any more) fails the build, so this list can only shrink.</summary>
     private static readonly Debt[] ModuleAllowList =
     [
-        new("Modules/Judging/Features/Evaluations/CommonComponents/DiscrepancyViewBuilder.cs", "Organization", JudgingReadsOrganization, ["BeerEntries"]),
-        new("Modules/Judging/Features/Evaluations/Features/AdjustEvaluation/AdjustEvaluationCommand.cs", "Organization", JudgingReadsOrganization, ["BeerEntries"]),
-        new("Modules/Judging/Features/Evaluations/Features/CloseTable/CloseTableCommand.cs", "Organization", JudgingReadsOrganization, ["BeerEntries"]),
-        new("Modules/Judging/Features/Evaluations/Features/SubmitEvaluation/SubmitEvaluationCommand.cs", "Organization", JudgingReadsOrganization, ["BeerEntries"]),
-        new("Modules/Judging/Features/Tables/CommonComponents/CommonTableValidationRules.cs", "Organization", JudgingReadsOrganization, ["BeerEntries"]),
-        new("Modules/Judging/Features/Tables/CommonComponents/TableProjector.cs", "Organization", JudgingReadsOrganization, ["BeerEntries", "CompetitionCategories"]),
-        new("Modules/Judging/Features/Tables/Features/UpdateTable/LiveJudgeRemoval.cs", "Organization", JudgingReadsOrganization, ["BeerEntries"]),
-        new("Modules/Judging/Features/TastingOrder/CommonComponents/JudgeSampleProjector.cs", "Organization", JudgingReadsOrganization, ["BeerEntries"]),
-        new("Modules/Judging/Features/Monitoring/Features/GetEntryEvaluations/GetEntryEvaluationsQuery.cs", "Organization", JudgingReadsOrganization, ["BeerEntries"]),
-        new("Modules/Judging/Features/Tables/CommonComponents/TableAssignmentApplier.cs", "Organization", "Flags and unflags BeerEntry.NotValidForBos directly; conflict data comes from IConflictOfInterestChecker.", ["BeerEntries"]),
         new("Modules/Publication/Features/Dispatch/Features/DispatchScoreSheet/BundleZipHandler.cs", "Organization", PublicationReadsOrganization, ["BeerEntries", "Participants"]),
         new("Modules/Publication/Features/Dispatch/Features/DispatchScoreSheet/SendResultEmailHandler.cs", "Organization", PublicationReadsOrganization, ["BeerEntries", "Participants"]),
         new("Modules/Publication/Features/Dispatch/Features/DispatchScoreSheet/GeneratePdfsHandler.cs", "Organization", PublicationReadsOrganization, ["BeerEntries"]),

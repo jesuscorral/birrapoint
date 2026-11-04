@@ -10,12 +10,12 @@ namespace BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 internal static class DiscrepancyViewBuilder
 {
     public static async Task<DiscrepancyView> BuildAsync(
-        AppDbContext dbContext, IJudgeDirectory judgeDirectory, Guid alertId, Guid tableId, Guid beerEntryId, Guid callerJudgeId, CancellationToken cancellationToken)
+        AppDbContext dbContext,
+        IJudgeDirectory judgeDirectory,
+        IEntryDirectory entryDirectory,
+        Guid alertId, Guid tableId, Guid beerEntryId, Guid callerJudgeId, CancellationToken cancellationToken)
     {
-        var blindCode = await dbContext.BeerEntries
-            .Where(e => e.Id == beerEntryId)
-            .Select(e => e.BlindCode)
-            .SingleAsync(cancellationToken);
+        var blindCode = (await entryDirectory.GetSamplesAsync([beerEntryId], cancellationToken))[beerEntryId].BlindCode;
 
         var evaluations = await dbContext.Evaluations
             .Where(e => e.TastingTableId == tableId && e.BeerEntryId == beerEntryId)

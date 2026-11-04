@@ -8,7 +8,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.Tables.Features.CreateTable;
 
 internal sealed class CreateTableCommandValidator : AbstractValidator<CreateTableCommand>
 {
-    public CreateTableCommandValidator(AppDbContext dbContext, ICompetitionAccess competitionAccess, ICurrentUser currentUser, IJudgeDirectory judgeDirectory)
+    public CreateTableCommandValidator(AppDbContext dbContext, ICompetitionAccess competitionAccess, ICurrentUser currentUser, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory)
     {
         var owned = new OwnedCompetitionLookup(competitionAccess, currentUser);
 
@@ -37,7 +37,7 @@ internal sealed class CreateTableCommandValidator : AbstractValidator<CreateTabl
 
         RuleFor(c => c)
             .MustAsync((command, cancellationToken) =>
-                CommonTableValidationRules.AllEntriesAreAssignableAsync(dbContext, owned, command.CompetitionId, excludeTableId: null, command.BeerEntryIds, cancellationToken))
+                CommonTableValidationRules.AllEntriesAreAssignableAsync(dbContext, entryDirectory, owned, command.CompetitionId, excludeTableId: null, command.BeerEntryIds, cancellationToken))
             .WithName(nameof(CreateTableCommand.BeerEntryIds))
             .WithMessage("One or more beer entries do not belong to this competition or are already assigned to another table.");
     }

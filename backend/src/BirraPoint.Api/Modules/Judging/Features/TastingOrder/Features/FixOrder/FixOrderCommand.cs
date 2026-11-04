@@ -20,7 +20,7 @@ internal sealed record FixOrderCommand(Guid TableId, IReadOnlyList<Guid> Ordered
     : IRequest<IReadOnlyList<JudgeSampleDto>?>;
 
 internal sealed class FixOrderCommandHandler(
-    AppDbContext dbContext, IJudgeDirectory judgeDirectory, ICompetitionAccess competitionAccess, IEventPublisher eventPublisher, IStyleCatalog styleCatalog)
+    AppDbContext dbContext, IJudgeDirectory judgeDirectory, ICompetitionAccess competitionAccess, IEventPublisher eventPublisher, IStyleCatalog styleCatalog, IEntryDirectory entryDirectory)
     : IRequestHandler<FixOrderCommand, IReadOnlyList<JudgeSampleDto>?>
 {
     public async Task<IReadOnlyList<JudgeSampleDto>?> Handle(FixOrderCommand request, CancellationToken cancellationToken)
@@ -82,7 +82,7 @@ internal sealed class FixOrderCommandHandler(
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        var result = await JudgeSampleProjector.ProjectAsync(dbContext, styleCatalog, request.TableId, judgeId.Value, cancellationToken);
+        var result = await JudgeSampleProjector.ProjectAsync(dbContext, styleCatalog, entryDirectory, request.TableId, judgeId.Value, cancellationToken);
         var fixedByDisplayName = judges.First(j => j.Id == judgeId).DisplayName;
 
         // Emitted only after the transaction above commits (contracts/signalr-hub.md §Delivery

@@ -18,6 +18,7 @@ internal static class LiveJudgeRemoval
         AppDbContext dbContext,
         IStyleCatalog styleCatalog,
         IJudgeDirectory judgeDirectory,
+        IEntryDirectory entryDirectory,
         IAuditWriter auditWriter,
         IEventPublisher eventPublisher,
         Guid competitionId,
@@ -124,13 +125,11 @@ internal static class LiveJudgeRemoval
                 CancellationToken.None);
         }
 
+        var resolvedSamples = await entryDirectory.GetSamplesAsync(
+            resolvedAlerts.Select(a => a.BeerEntryId).ToList(), cancellationToken);
         foreach (var (alertId, beerEntryId) in resolvedAlerts)
         {
-            var blindCode = await dbContext.BeerEntries
-                .AsNoTracking()
-                .Where(be => be.Id == beerEntryId)
-                .Select(be => be.BlindCode)
-                .SingleAsync(cancellationToken);
+            var blindCode = resolvedSamples[beerEntryId].BlindCode;
 
             var payload = new { alertId, tableId, blindCode };
             await eventPublisher.PublishToTableAsync(tableId, CompetitionEvents.DiscrepancyResolved, payload, CancellationToken.None);
@@ -141,7 +140,7 @@ internal static class LiveJudgeRemoval
         // filtered Include (RemovedAt == null) would otherwise be merged with them by EF fixup.
         dbContext.ChangeTracker.Clear();
 
-        var dto = await TableProjector.ProjectAsync(dbContext, styleCatalog, judgeDirectory, tableId, cancellationToken);
+        var dto = await TableProjector.ProjectAsync(dbContext, styleCatalog, judgeDirectory, entryDirectory, tableId, cancellationToken);
         return TableMutationResult.From(dto, []);
     }
 
