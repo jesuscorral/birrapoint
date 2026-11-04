@@ -17,7 +17,9 @@ namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.Dispatch
 /// IS the delivery-status record, so a failure simply rethrows for <see cref="DispatchWorker"/>'s
 /// existing retry/backoff to handle; this handler never retries on its own.
 /// </summary>
-internal sealed class SendResultEmailHandler(AppDbContext dbContext, ICompetitionAccess competitionAccess, IEmailSender emailSender) : IDispatchJobHandler
+internal sealed class SendResultEmailHandler(
+    AppDbContext dbContext, ICompetitionAccess competitionAccess, IResultRecipients resultRecipients, IEmailSender emailSender)
+    : IDispatchJobHandler
 {
     public DispatchJobType Type => DispatchJobType.SendResultEmail;
 
@@ -26,15 +28,21 @@ internal sealed class SendResultEmailHandler(AppDbContext dbContext, ICompetitio
         var payload = JsonSerializer.Deserialize<SendResultEmailPayload>(job.PayloadJson)
             ?? throw new InvalidOperationException($"DispatchJob {job.Id} has an empty SendResultEmail payload.");
 
-        var participant = await dbContext.Participants.FirstAsync(p => p.Id == payload.ParticipantId, cancellationToken);
+        var recipient = await resultRecipients.GetRecipientAsync(payload.ParticipantId, cancellationToken)
+            ?? throw new InvalidOperationException($"Participant {payload.ParticipantId} not found.");
         var competition = await competitionAccess.GetAsync(job.CompetitionId, cancellationToken)
             ?? throw new InvalidOperationException($"Competition {job.CompetitionId} not found.");
 
-        var sheets = await dbContext.BeerEntries
-            .Where(e => e.ParticipantId == payload.ParticipantId)
-            .Join(dbContext.GeneratedScoreSheets, e => e.Id, s => s.BeerEntryId,
-                (e, s) => new { e.StyleCode, e.BlindCode, s.PdfBytes })
-            .ToListAsync(cancellationToken);
+        var entries = await resultRecipients.GetParticipantEntriesAsync(payload.ParticipantId, cancellationToken);
+        var entryIds = entries.Select(e => e.EntryId).ToList();
+        var pdfByEntryId = await dbContext.GeneratedScoreSheets
+            .Where(s => entryIds.Contains(s.BeerEntryId))
+            .Select(s => new { s.BeerEntryId, s.PdfBytes })
+            .ToDictionaryAsync(s => s.BeerEntryId, s => s.PdfBytes, cancellationToken);
+        var sheets = entries
+            .Where(e => pdfByEntryId.ContainsKey(e.EntryId))
+            .Select(e => new { e.StyleCode, e.BlindCode, PdfBytes = pdfByEntryId[e.EntryId] })
+            .ToList();
 
         var attachments = sheets
             .Select(s => new EmailAttachment($"{s.StyleCode}_{s.BlindCode}.pdf", s.PdfBytes, "application/pdf"))
@@ -42,7 +50,7 @@ internal sealed class SendResultEmailHandler(AppDbContext dbContext, ICompetitio
 
         var (subject, body) = BuildResultEmail(competition.Name);
 
-        await emailSender.SendWithAttachmentsAsync(participant.Email, subject, body, attachments, cancellationToken);
+        await emailSender.SendWithAttachmentsAsync(recipient.Email, subject, body, attachments, cancellationToken);
     }
 
     private static (string Subject, string Body) BuildResultEmail(string competitionName)

@@ -1,6 +1,7 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
@@ -9,14 +10,25 @@ namespace BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 internal static class TableProjector
 {
     /// <summary>Single-table projection, for the CreateTable/UpdateTable responses.</summary>
-    public static async Task<TableDto> ProjectAsync(AppDbContext dbContext, IStyleCatalog styleCatalog, Guid tableId, CancellationToken cancellationToken)
+    public static async Task<TableDto> ProjectAsync(
+        AppDbContext dbContext,
+        IStyleCatalog styleCatalog,
+        IJudgeDirectory judgeDirectory,
+        IEntryDirectory entryDirectory,
+        Guid tableId,
+        CancellationToken cancellationToken)
     {
-        var projected = await ProjectManyAsync(dbContext, styleCatalog, [tableId], cancellationToken);
+        var projected = await ProjectManyAsync(dbContext, styleCatalog, judgeDirectory, entryDirectory, [tableId], cancellationToken);
         return projected.Single();
     }
 
     public static async Task<IReadOnlyList<TableDto>> ProjectManyAsync(
-        AppDbContext dbContext, IStyleCatalog styleCatalog, IReadOnlyList<Guid> tableIds, CancellationToken cancellationToken)
+        AppDbContext dbContext,
+        IStyleCatalog styleCatalog,
+        IJudgeDirectory judgeDirectory,
+        IEntryDirectory entryDirectory,
+        IReadOnlyList<Guid> tableIds,
+        CancellationToken cancellationToken)
     {
         if (tableIds.Count == 0)
         {
@@ -31,40 +43,15 @@ internal static class TableProjector
             .ToListAsync(cancellationToken);
 
         var judgeIds = tables.SelectMany(t => t.Judges).Select(j => j.JudgeId).Distinct().ToList();
-        var judgeById = (await dbContext.Judges
-                .Where(j => judgeIds.Contains(j.Id))
-                .Select(j => new TableJudgeDto(j.Id, j.Email, j.DisplayName))
-                .ToListAsync(cancellationToken))
-            .ToDictionary(j => j.Id);
+        var judgeById = (await judgeDirectory.GetSummariesAsync(judgeIds, cancellationToken))
+            .ToDictionary(j => j.Id, j => new TableJudgeDto(j.Id, j.Email, j.DisplayName));
 
         var entryIds = tables.SelectMany(t => t.Samples).Select(s => s.BeerEntryId).Distinct().ToList();
-        var entries = await dbContext.BeerEntries
-            .Where(e => entryIds.Contains(e.Id))
-            .Select(e => new
-            {
-                e.Id,
-                e.BlindCode,
-                e.StyleCode,
-                e.AbvPercent,
-                e.NotValidForBos,
-                e.EntryInstructions,
-                e.CompetitionCategoryId,
-            })
-            .ToListAsync(cancellationToken);
-        var entryById = entries.ToDictionary(e => e.Id);
+        var entryById = await entryDirectory.GetSamplesAsync(entryIds, cancellationToken);
+        var entries = entryById.Values.ToList();
 
         var styleCodes = entries.Select(e => e.StyleCode).Distinct(StringComparer.Ordinal).ToList();
         var styleByCode = await styleCatalog.GetByCodesAsync(styleCodes, cancellationToken);
-
-        var categoryIds = entries.Where(e => e.CompetitionCategoryId.HasValue)
-            .Select(e => e.CompetitionCategoryId!.Value).Distinct().ToList();
-        var categoryNameById = categoryIds.Count == 0
-            ? new Dictionary<Guid, string>()
-            : (await dbContext.CompetitionCategories
-                    .Where(c => categoryIds.Contains(c.Id))
-                    .Select(c => new { c.Id, c.Name })
-                    .ToListAsync(cancellationToken))
-                .ToDictionary(c => c.Id, c => c.Name);
 
         var submittedByTableId = (await dbContext.Evaluations
                 .Where(e => tableIds.Contains(e.TastingTableId))
@@ -93,14 +80,10 @@ internal static class TableProjector
                     .Select(e =>
                     {
                         styleByCode.TryGetValue(e!.StyleCode, out var style);
-                        var competitionCategoryName = e.CompetitionCategoryId.HasValue
-                            && categoryNameById.TryGetValue(e.CompetitionCategoryId.Value, out var name)
-                                ? name
-                                : null;
                         return new TableSampleDto(
                             e.Id, e.BlindCode, e.StyleCode, style?.Name ?? e.StyleCode, style?.AbvLow, style?.AbvHigh,
                             e.AbvPercent, e.NotValidForBos, e.EntryInstructions,
-                            competitionCategoryName, style?.CategoryNumber, style?.CategoryName);
+                            e.CompetitionCategoryName, style?.CategoryNumber, style?.CategoryName);
                     })
                     .ToList();
 

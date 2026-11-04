@@ -6,6 +6,7 @@ using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Realtime;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +17,8 @@ internal static class LiveJudgeRemoval
     public static async Task<TableMutationResult> ApplyAsync(
         AppDbContext dbContext,
         IStyleCatalog styleCatalog,
+        IJudgeDirectory judgeDirectory,
+        IEntryDirectory entryDirectory,
         IAuditWriter auditWriter,
         IEventPublisher eventPublisher,
         Guid competitionId,
@@ -27,7 +30,7 @@ internal static class LiveJudgeRemoval
     {
         var removedJudgeIds = new List<Guid>();
         var resolvedAlerts = new List<(Guid AlertId, Guid BeerEntryId)>();
-        var judgeNames = new Dictionary<Guid, string>();
+        IReadOnlyDictionary<Guid, string> judgeNames = new Dictionary<Guid, string>();
 
         // Cheap pre-lock rejection with untracked reads; the decision is re-made after the lock
         // (the first tracked instance of each row must be the post-lock one, not an EF
@@ -72,10 +75,7 @@ internal static class LiveJudgeRemoval
             if (classification.Kind == LiveEditKind.Removal)
             {
                 removedJudgeIds.AddRange(classification.RemovedJudgeIds);
-                judgeNames = await dbContext.Judges
-                    .AsNoTracking()
-                    .Where(j => removedJudgeIds.Contains(j.Id))
-                    .ToDictionaryAsync(j => j.Id, j => j.DisplayName, cancellationToken);
+                judgeNames = await judgeDirectory.GetDisplayNamesAsync(removedJudgeIds, cancellationToken);
 
                 var removedAt = DateTimeOffset.UtcNow;
                 foreach (var row in activeRows.Where(r => removedJudgeIds.Contains(r.JudgeId)))
@@ -125,13 +125,11 @@ internal static class LiveJudgeRemoval
                 CancellationToken.None);
         }
 
+        var resolvedSamples = await entryDirectory.GetSamplesAsync(
+            resolvedAlerts.Select(a => a.BeerEntryId).ToList(), cancellationToken);
         foreach (var (alertId, beerEntryId) in resolvedAlerts)
         {
-            var blindCode = await dbContext.BeerEntries
-                .AsNoTracking()
-                .Where(be => be.Id == beerEntryId)
-                .Select(be => be.BlindCode)
-                .SingleAsync(cancellationToken);
+            var blindCode = resolvedSamples[beerEntryId].BlindCode;
 
             var payload = new { alertId, tableId, blindCode };
             await eventPublisher.PublishToTableAsync(tableId, CompetitionEvents.DiscrepancyResolved, payload, CancellationToken.None);
@@ -142,7 +140,7 @@ internal static class LiveJudgeRemoval
         // filtered Include (RemovedAt == null) would otherwise be merged with them by EF fixup.
         dbContext.ChangeTracker.Clear();
 
-        var dto = await TableProjector.ProjectAsync(dbContext, styleCatalog, tableId, cancellationToken);
+        var dto = await TableProjector.ProjectAsync(dbContext, styleCatalog, judgeDirectory, entryDirectory, tableId, cancellationToken);
         return TableMutationResult.From(dto, []);
     }
 

@@ -3,8 +3,11 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
+using BirraPoint.Api.Modules.Judging.Integration;
+using BirraPoint.Api.Modules.Organization.Contracts.Events;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Integration;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.IntegrationTests.Modules.Judging.Tables.CommonComponents;
@@ -13,7 +16,9 @@ namespace BirraPoint.Api.IntegrationTests.Modules.Judging.Tables.CommonComponent
 /// Drives <see cref="TableAssignmentApplier.ApplyAsync"/> directly against a real PostgreSQL
 /// Testcontainer (no EF InMemory). Covers the rules that used to live in the pure CoiDetector and
 /// BosFlagRules classes: conflict-of-interest detection (FR-017) and competition-wide
-/// NotValidForBos flag/unflag (FR-018). Each test seeds its own competition, so tests are independent.
+/// NotValidForBos flag/unflag (FR-018), which Organization applies on the published TableJudgesChanged
+/// (routed here to the real handler on the same DbContext). Each test seeds its own competition, so tests
+/// are independent.
 /// </summary>
 public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
@@ -136,7 +141,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
             .Include(t => t.Judges)
             .Include(t => t.Samples)
             .SingleAsync(t => t.Id == tableId);
-        var flaggedEntryIds = await TableAssignmentApplier.ApplyAsync(db, new ConflictOfInterestChecker(db), table, judgeIds, beerEntryIds, CancellationToken.None);
+        var flaggedEntryIds = await TableAssignmentApplier.ApplyAsync(db, new ConflictOfInterestChecker(db), new InProcessPublisher(db), table, judgeIds, beerEntryIds, CancellationToken.None);
         await db.SaveChangesAsync();
         return flaggedEntryIds;
     }
@@ -182,7 +187,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
                 .SingleAsync(t => t.Id == tableId, TestContext.Current.CancellationToken);
 
             // Judge owns ownedEntryId (unassigned), so adding them would flag it for BOS.
-            await TableAssignmentApplier.ApplyAsync(db, new ConflictOfInterestChecker(db), table, [judgeId], [], TestContext.Current.CancellationToken);
+            await TableAssignmentApplier.ApplyAsync(db, new ConflictOfInterestChecker(db), new InProcessPublisher(db), table, [judgeId], [], TestContext.Current.CancellationToken);
 
             Assert.True(db.ChangeTracker.HasChanges());
         }
@@ -442,5 +447,20 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
         await ApplyAsync(s.TableId, [], [s.SampleEntryId]);
 
         Assert.True(await IsNotValidForBosAsync(s.OwnedEntryId));
+    }
+
+    /// <summary>Routes TableJudgesChanged to Organization's real handler on the applier's DbContext, as
+    /// MediatR does in the app (same scope, same unit of work).</summary>
+    private sealed class InProcessPublisher(AppDbContext db) : IPublisher
+    {
+        public Task Publish(object notification, CancellationToken cancellationToken = default) =>
+            Publish((INotification)notification, cancellationToken);
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification =>
+            notification is TableJudgesChanged changed
+                ? new UpdateBosFlagsOnTableJudgesChanged(db, new ConflictOfInterestChecker(db), new JudgeEngagement(db))
+                    .Handle(changed, cancellationToken)
+                : throw new InvalidOperationException($"Unexpected notification {notification.GetType().Name}.");
     }
 }

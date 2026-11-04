@@ -15,7 +15,8 @@ internal sealed record DispatchStatusDto(Guid ParticipantId, string Email, strin
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
 internal sealed record GetDispatchStatusQuery(Guid CompetitionId) : IRequest<IReadOnlyList<DispatchStatusDto>?>;
 
-internal sealed class GetDispatchStatusQueryHandler(AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess)
+internal sealed class GetDispatchStatusQueryHandler(
+    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IResultRecipients resultRecipients)
     : IRequestHandler<GetDispatchStatusQuery, IReadOnlyList<DispatchStatusDto>?>
 {
     public async Task<IReadOnlyList<DispatchStatusDto>?> Handle(GetDispatchStatusQuery request, CancellationToken cancellationToken)
@@ -30,10 +31,8 @@ internal sealed class GetDispatchStatusQueryHandler(AppDbContext dbContext, ICur
             .Where(j => j.CompetitionId == request.CompetitionId && j.Type == DispatchJobType.SendResultEmail)
             .ToListAsync(cancellationToken);
 
-        var participantEmails = await dbContext.Participants
-            .AsNoTracking()
-            .Where(p => p.CompetitionId == request.CompetitionId)
-            .ToDictionaryAsync(p => p.Id, p => p.Email, cancellationToken);
+        var participantEmails = (await resultRecipients.GetRecipientsAsync(request.CompetitionId, cancellationToken))
+            .ToDictionary(r => r.ParticipantId, r => r.Email);
 
         return jobs
             .Select(job =>

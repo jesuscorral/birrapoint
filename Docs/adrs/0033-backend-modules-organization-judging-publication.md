@@ -1,6 +1,6 @@
 # 0033 - Backend modules: Catalog, Organization, Judging, Publication
 
-**Status:** Accepted (phase 2 detailed in ADR-0034; Catalog became a fourth module there)
+**Status:** Accepted (phase 2 detailed in ADR-0034; Catalog became a fourth module there; phase 3 done 2026-11-04)
 **Date:** 2026-11-01
 
 ## Context
@@ -24,7 +24,7 @@ Delivery in three phases:
 
 1. **Phase 1 (done)**: pure move. Cross-module entity access is unchanged.
 2. **Phase 2 (done, ADR-0034)**: Catalog module, `Contracts/` + `Integration/` per module, atomic finalization, and `ModuleBoundaryTests` forbidding cross-module access with a shrink-only allow-list.
-3. **Phase 3 (open, revised 2026-11-02; step 3a `ICompetitionAccess` done)**: synchronous contracts only, one Organization table per step — `ICompetitionAccess` (done), extended `IJudgeDirectory`, `IEntryDirectory` and `IResultRecipients` — until the module allow-list is empty. The one cross-module write (`NotValidForBos` set by Judging) becomes an in-process event, `EntryJudgeAssignmentsChanged`, handled by Organization in the same transaction (ADR-0034 conventions). No behaviour change, so no spec amendment.
+3. **Phase 3 (done 2026-11-04, revised 2026-11-02)**: synchronous contracts only, one Organization table per step — `ICompetitionAccess`, extended `IJudgeDirectory` (also replaces `ICurrentUser.GetJudgeRecordsAsync` in Judging, so Judging never receives `Judge` entities), `IEntryDirectory` and `IResultRecipients` — until the module allow-list was empty; the allow-list mechanism is gone. The one cross-module write (`NotValidForBos` set by Judging) became an in-process event handled by Organization in the same transaction (ADR-0034 conventions). It is named `TableJudgesChanged` (table's new judge set, added and removed judges, and the entries those judges own from `IConflictOfInterestChecker`, looked up once) rather than the planned `EntryJudgeAssignmentsChanged`: the FR-018 unflag rule needs judge-level data, namely whether a co-owner judge is still seated elsewhere or has evaluated, which Organization reads through `IJudgeEngagement`, a port it owns and Judging implements. No behaviour change, so no spec amendment.
 4. **Follow-ups (behaviour changes, spec amendment first)**: `JudgeEmailChanged` (re-check COI/BOS after an e-mail correction) and `EvaluationCorrected` (stale PDFs after a post-finalize correction).
 
 Dropped from phase 3: Judging-local copies of samples and judges, their backfill migration, and events without a consumer (`EntriesConsolidated`, `JudgeRegistered`, `TableClosed`, a generic `CompetitionStateChanged`). With one process and one `AppDbContext` they add eventual consistency and sync code without a current need. Revisit only if a module is split into its own service.

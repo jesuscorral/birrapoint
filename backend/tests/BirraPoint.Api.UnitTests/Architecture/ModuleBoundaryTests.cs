@@ -23,49 +23,14 @@ namespace BirraPoint.Api.UnitTests.Architecture;
 /// <item><c>Modules/&lt;X&gt;/Persistence/</c> is exempt: FK configurations are allowed with the shared DbContext.</item>
 /// </list>
 ///
-/// Module allow-list = temporary debt (shrinks; ADR-0033 phase 3 replaces each group with an Organization contract).
-/// Kernel exceptions = permanent (ADR-0034).
+/// No module-to-module exception exists: ADR-0033 phase 3 replaced every direct read with a contract.
+/// Kernel exceptions are permanent (ADR-0034).
 /// </summary>
 public class ModuleBoundaryTests
 {
     private const string ModulesNamespace = "BirraPoint.Api.Modules";
 
     private static readonly string[] KernelFolders = ["Common", "Domain", "Realtime"];
-
-    private const string JudgingReadsOrganization =
-        "Judging reads Organization competition/entry/judge data directly until its ADR-0033 phase 3 contract exists.";
-
-    private const string PublicationReadsOrganization =
-        "Publication reads Organization competition/entry/participant data for results delivery until its ADR-0033 phase 3 contract exists.";
-
-    /// <summary>A tolerated violation. <paramref name="DbSets"/> (optional) narrows it to exactly those DbSet
-    /// members, so a file that must lose some of its reads cannot hide behind a broader entry; using directives
-    /// of the same module pair stay tolerated.</summary>
-    private sealed record Debt(string File, string Module, string Reason, string[]? DbSets = null);
-
-    /// <summary>Violations that remain after the contracts are in place (phase 3 removes them). A stale entry
-    /// (no violation any more) fails the build, so this list can only shrink.</summary>
-    private static readonly Debt[] ModuleAllowList =
-    [
-        new("Modules/Judging/Features/Evaluations/CommonComponents/DiscrepancyViewBuilder.cs", "Organization", JudgingReadsOrganization, ["BeerEntries", "Judges"]),
-        new("Modules/Judging/Features/Evaluations/Features/AdjustEvaluation/AdjustEvaluationCommand.cs", "Organization", JudgingReadsOrganization, ["BeerEntries"]),
-        new("Modules/Judging/Features/Evaluations/Features/CloseTable/CloseTableCommand.cs", "Organization", JudgingReadsOrganization, ["BeerEntries"]),
-        new("Modules/Judging/Features/Evaluations/Features/SubmitEvaluation/SubmitEvaluationCommand.cs", "Organization", JudgingReadsOrganization, ["BeerEntries"]),
-        new("Modules/Judging/Features/Tables/CommonComponents/CommonTableValidationRules.cs", "Organization", JudgingReadsOrganization, ["BeerEntries", "Judges"]),
-        new("Modules/Judging/Features/Tables/CommonComponents/TableProjector.cs", "Organization", JudgingReadsOrganization, ["BeerEntries", "CompetitionCategories", "Judges"]),
-        new("Modules/Judging/Features/Tables/Features/UpdateTable/LiveJudgeRemoval.cs", "Organization", JudgingReadsOrganization, ["BeerEntries", "Judges"]),
-        new("Modules/Judging/Features/TastingOrder/CommonComponents/JudgeSampleProjector.cs", "Organization", JudgingReadsOrganization, ["BeerEntries"]),
-        new("Modules/Judging/Features/TastingOrder/CommonComponents/JudgeTableAccess.cs", "Organization", JudgingReadsOrganization, []),
-        new("Modules/Judging/Features/TastingOrder/Features/FixOrder/FixOrderCommand.cs", "Organization", JudgingReadsOrganization, ["Judges"]),
-        new("Modules/Judging/Features/TastingOrder/Features/GetMyTables/GetMyTablesQuery.cs", "Organization", JudgingReadsOrganization, ["Judges"]),
-        new("Modules/Judging/Features/TastingOrder/Features/GetTableJudges/GetTableJudgesQuery.cs", "Organization", JudgingReadsOrganization, ["Judges"]),
-        new("Modules/Judging/Features/Monitoring/Features/GetEntryEvaluations/GetEntryEvaluationsQuery.cs", "Organization", JudgingReadsOrganization, ["BeerEntries"]),
-        new("Modules/Judging/Features/Tables/CommonComponents/TableAssignmentApplier.cs", "Organization", "Flags and unflags BeerEntry.NotValidForBos directly; conflict data comes from IConflictOfInterestChecker.", ["BeerEntries"]),
-        new("Modules/Publication/Features/Dispatch/Features/DispatchScoreSheet/BundleZipHandler.cs", "Organization", PublicationReadsOrganization, ["BeerEntries", "Participants"]),
-        new("Modules/Publication/Features/Dispatch/Features/DispatchScoreSheet/SendResultEmailHandler.cs", "Organization", PublicationReadsOrganization, ["BeerEntries", "Participants"]),
-        new("Modules/Publication/Features/Dispatch/Features/DispatchScoreSheet/GeneratePdfsHandler.cs", "Organization", PublicationReadsOrganization, ["BeerEntries"]),
-        new("Modules/Publication/Features/Dispatch/Features/GetDispatchStatus/GetDispatchStatusQuery.cs", "Organization", PublicationReadsOrganization, ["Participants"]),
-    ];
 
     /// <summary>Permanent kernel → module exceptions (ADR-0034), by path prefix relative to the API project.</summary>
     private static readonly (string PathPrefix, string Reason)[] KernelExceptions =
@@ -76,34 +41,11 @@ public class ModuleBoundaryTests
     ];
 
     [Fact]
-    public void ModulesReferenceOtherModulesOnlyThroughContractsOrAllowList()
+    public void ModulesReferenceOtherModulesOnlyThroughContracts()
     {
-        var undeclared = ScanModules()
-            .Where(v => !IsTolerated(v))
-            .Select(Describe)
-            .ToList();
+        var violations = ScanModules().Select(Describe).ToList();
 
-        Assert.True(undeclared.Count == 0, "Undeclared cross-module references:\n" + string.Join('\n', undeclared));
-    }
-
-    [Fact]
-    public void ModuleAllowListHasNoStaleEntries()
-    {
-        var actual = ScanModules().ToDictionary(v => (v.File, v.Module));
-        var stale = ModuleAllowList
-            .Where(a => !actual.TryGetValue((a.File, a.Module), out var v)
-                || (a.DbSets is not null && a.DbSets.Any(name => !v.Members.Contains(name))))
-            .Select(a => $"{a.File} -> {a.Module}")
-            .ToList();
-
-        Assert.True(stale.Count == 0, "Allow-list entries without a violation (remove them):\n" + string.Join('\n', stale));
-    }
-
-    [Fact]
-    public void ModuleAllowListEntriesAreUniqueAndExplained()
-    {
-        Assert.Empty(ModuleAllowList.GroupBy(a => (a.File, a.Module)).Where(g => g.Count() > 1).Select(g => g.Key));
-        Assert.Empty(ModuleAllowList.Where(a => string.IsNullOrWhiteSpace(a.Reason)).Select(a => a.File));
+        Assert.True(violations.Count == 0, "Cross-module references outside Contracts:\n" + string.Join('\n', violations));
     }
 
     [Fact]
@@ -118,14 +60,6 @@ public class ModuleBoundaryTests
     }
 
     private static string Describe(Violation v) => $"{v.File} -> {v.Module}: {string.Join("; ", v.Members.Order(StringComparer.Ordinal))}";
-
-    private static bool IsTolerated(Violation v)
-    {
-        var debt = ModuleAllowList.SingleOrDefault(a => a.File == v.File && a.Module == v.Module);
-        return debt is not null
-            && (debt.DbSets is null
-                || v.Members.Where(m => !ModuleBoundaryScanner.IsReferenceMember(m)).All(debt.DbSets.Contains));
-    }
 
     private static string ApiRoot { get; } = FindApiRoot();
 

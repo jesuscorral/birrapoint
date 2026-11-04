@@ -13,6 +13,8 @@ internal static class OrganizationModule
         services.AddScoped<IConflictOfInterestChecker, ConflictOfInterestChecker>();
         services.AddScoped<IJudgeDirectory, JudgeDirectory>();
         services.AddScoped<ICompetitionAccess, CompetitionAccess>();
+        services.AddScoped<IEntryDirectory, EntryDirectory>();
+        services.AddScoped<IResultRecipients, ResultRecipients>();
 
         // SendInvitation is enqueued only by the explicit "Notify judges" action; account provisioning
         // is enqueued eagerly by RegisterJudges and ConsolidateJudgeImport (R-20/US14).

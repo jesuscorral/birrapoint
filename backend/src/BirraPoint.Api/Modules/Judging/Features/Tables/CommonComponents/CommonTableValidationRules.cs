@@ -1,4 +1,5 @@
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
@@ -34,7 +35,7 @@ internal static class CommonTableValidationRules
     }
 
     public static async Task<bool> AllJudgesBelongToCompetitionAsync(
-        AppDbContext dbContext,
+        IJudgeDirectory judgeDirectory,
          OwnedCompetitionLookup owned,
         Guid competitionId,
         IReadOnlyList<Guid> judgeIds,
@@ -46,16 +47,16 @@ internal static class CommonTableValidationRules
         }
 
         var distinctIds = judgeIds.Distinct().ToList();
-        var matchCount = await dbContext.Judges.CountAsync(
-            j => j.CompetitionId == competitionId && distinctIds.Contains(j.Id), cancellationToken);
+        var members = await judgeDirectory.GetCompetitionJudgeIdsAsync(competitionId, distinctIds, cancellationToken);
 
-        return matchCount == distinctIds.Count;
+        return members.Count == distinctIds.Count;
     }
 
     /// <summary>An entry is assignable when it belongs to this competition and is unassigned or
     /// already assigned to <paramref name="excludeTableId"/> (the table being edited, if any).</summary>
     public static async Task<bool> AllEntriesAreAssignableAsync(
         AppDbContext dbContext,
+        IEntryDirectory entryDirectory,
          OwnedCompetitionLookup owned,
         Guid competitionId,
         Guid? excludeTableId,
@@ -69,10 +70,9 @@ internal static class CommonTableValidationRules
 
         var distinctIds = beerEntryIds.Distinct().ToList();
 
-        var validEntryCount = await dbContext.BeerEntries
-            .CountAsync(e => e.CompetitionId == competitionId && distinctIds.Contains(e.Id), cancellationToken);
+        var competitionEntryIds = await entryDirectory.GetCompetitionEntryIdsAsync(competitionId, distinctIds, cancellationToken);
 
-        if (validEntryCount != distinctIds.Count)
+        if (competitionEntryIds.Count != distinctIds.Count)
         {
             return false;
         }

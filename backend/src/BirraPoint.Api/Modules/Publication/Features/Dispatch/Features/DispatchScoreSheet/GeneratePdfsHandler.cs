@@ -11,13 +11,18 @@ using QuestPDF.Fluent;
 namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.DispatchScoreSheet;
 
 /// <summary>
-/// FR-036/FR-040: renders one <see cref="GeneratedScoreSheet"/> per <see cref="BeerEntry"/> in
+/// FR-036/FR-040: renders one <see cref="GeneratedScoreSheet"/> per <see cref="ResultEntry"/> in
 /// the competition (upsert by BeerEntryId so a retry never duplicates rows), then enqueues
 /// <see cref="DispatchJobType.BundleZip"/> for the same competition. Payload is empty — the job's
 /// own <see cref="DispatchJob.CompetitionId"/> is all that's needed.
 /// </summary>
 internal sealed class GeneratePdfsHandler(
-    AppDbContext dbContext, ICompetitionAccess competitionAccess, IDispatchJobQueue dispatchJobQueue, IStyleCatalog styleCatalog, IStoredEvaluations storedEvaluations) : IDispatchJobHandler
+    AppDbContext dbContext,
+    ICompetitionAccess competitionAccess,
+    IResultRecipients resultRecipients,
+    IDispatchJobQueue dispatchJobQueue,
+    IStyleCatalog styleCatalog,
+    IStoredEvaluations storedEvaluations) : IDispatchJobHandler
 {
     public DispatchJobType Type => DispatchJobType.GeneratePdfs;
 
@@ -26,19 +31,17 @@ internal sealed class GeneratePdfsHandler(
         var competition = await competitionAccess.GetAsync(job.CompetitionId, cancellationToken)
             ?? throw new InvalidOperationException($"Competition {job.CompetitionId} not found.");
 
-        var entries = await dbContext.BeerEntries
-            .Where(e => e.CompetitionId == job.CompetitionId)
-            .ToListAsync(cancellationToken);
+        var entries = await resultRecipients.GetEntriesAsync(job.CompetitionId, cancellationToken);
 
         var styleByCode = await styleCatalog.GetByCodesAsync(
             entries.Select(e => e.StyleCode).Distinct(StringComparer.Ordinal).ToList(), cancellationToken);
         var evaluationsByEntry = await storedEvaluations.GetByEntriesAsync(
-            entries.Select(e => e.Id).ToList(), cancellationToken);
+            entries.Select(e => e.EntryId).ToList(), cancellationToken);
 
         foreach (var entry in entries)
         {
             var style = styleByCode[entry.StyleCode];
-            var evaluations = evaluationsByEntry[entry.Id];
+            var evaluations = evaluationsByEntry[entry.EntryId];
 
             var judgeEntries = evaluations
                 .Select(x => new ScoreSheetJudgeEntry(
@@ -66,13 +69,13 @@ internal sealed class GeneratePdfsHandler(
             var pdfBytes = document.GeneratePdf();
 
             var existingSheet = await dbContext.GeneratedScoreSheets
-                .FirstOrDefaultAsync(s => s.BeerEntryId == entry.Id, cancellationToken);
+                .FirstOrDefaultAsync(s => s.BeerEntryId == entry.EntryId, cancellationToken);
 
             if (existingSheet is null)
             {
                 dbContext.GeneratedScoreSheets.Add(new GeneratedScoreSheet
                 {
-                    BeerEntryId = entry.Id,
+                    BeerEntryId = entry.EntryId,
                     PdfBytes = pdfBytes,
                     GeneratedAt = DateTimeOffset.UtcNow,
                 });

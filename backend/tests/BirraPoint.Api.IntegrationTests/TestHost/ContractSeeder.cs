@@ -28,7 +28,11 @@ internal sealed class ContractSeeder(IServiceProvider services)
         return competition.Id;
     }
 
-    public async Task<Guid> EntryAsync(Guid competitionId, string participantEmail, string[]? collaboratorEmails = null)
+    public async Task<Guid> EntryAsync(
+        Guid competitionId,
+        string participantEmail,
+        string[]? collaboratorEmails = null,
+        Action<BeerEntry>? configure = null)
     {
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -44,6 +48,7 @@ internal sealed class ContractSeeder(IServiceProvider services)
             StyleCode = "21A",
             BlindCode = $"B{Guid.NewGuid():N}"[..8],
         };
+        configure?.Invoke(entry);
         foreach (var email in collaboratorEmails ?? [])
         {
             entry.Collaborators.Add(new EntryCollaborator { Email = email });
@@ -54,7 +59,7 @@ internal sealed class ContractSeeder(IServiceProvider services)
         return entry.Id;
     }
 
-    public async Task<Guid> JudgeAsync(Guid competitionId, string email, string? displayName = null)
+    public async Task<Guid> JudgeAsync(Guid competitionId, string email, string? displayName = null, string? bjcpRank = null)
     {
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -63,6 +68,7 @@ internal sealed class ContractSeeder(IServiceProvider services)
             CompetitionId = competitionId,
             Email = email,
             DisplayName = displayName ?? email.Split('@')[0],
+            BjcpRank = bjcpRank,
             KeycloakUserId = $"kc-{Guid.NewGuid():N}",
         };
         db.Judges.Add(judge);
@@ -78,6 +84,29 @@ internal sealed class ContractSeeder(IServiceProvider services)
         db.TastingTables.Add(table);
         await db.SaveChangesAsync();
         return table.Id;
+    }
+
+    public async Task<Guid> CategoryAsync(Guid competitionId, string name)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var category = new CompetitionCategory { CompetitionId = competitionId, Name = name };
+        db.CompetitionCategories.Add(category);
+        await db.SaveChangesAsync();
+        return category.Id;
+    }
+
+    public async Task TableJudgeAsync(Guid tableId, Guid judgeId, bool removed = false)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.TableJudges.Add(new TableJudge
+        {
+            TastingTableId = tableId,
+            JudgeId = judgeId,
+            RemovedAt = removed ? DateTimeOffset.UtcNow : null,
+        });
+        await db.SaveChangesAsync();
     }
 
     public async Task SampleAsync(Guid tableId, Guid beerEntryId)

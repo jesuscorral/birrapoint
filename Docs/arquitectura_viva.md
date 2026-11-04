@@ -4,7 +4,7 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-11-02 (backend modules, ADR-0033/ADR-0034, `ICompetitionAccess`)
+**Last updated:** 2026-11-04 (backend modules, ADR-0033 phase 3 complete: no cross-module read outside `Contracts/`)
 
 ## Status
 
@@ -191,24 +191,30 @@ registered by `Add<M>Module` (ADR-0034).
 | Contract | Defined in | Implemented by |
 |---|---|---|
 | `IStyleCatalog` | Catalog | Catalog |
-| `IConflictOfInterestChecker`, `IJudgeDirectory` | Organization | Organization |
+| `IConflictOfInterestChecker` | Organization | Organization |
+| `IJudgeDirectory` (signed-in judge records, display names, `JudgeSummary` ordered by DB collation, competition membership) | Organization | Organization |
 | `ICompetitionAccess` (`GetOwnedAsync` ownership check, `GetAsync` snapshot, `GetStatesAsync` batch) + `CompetitionSnapshot(Id, Name, State)`, `CompetitionState` | Organization | Organization |
+| `IEntryDirectory` (anonymous `EntrySampleInfo`, competition membership; BR-01/FR-019, property set pinned by a unit test) | Organization | Organization |
+| `IResultRecipients` (`ResultEntry`, `ResultRecipient`; results delivery only) | Organization | Organization |
 | `IStoredEvaluations` | Judging | Judging |
-| `ICompetitionFinalizationGuard`, `IEntryTableAssignments` (consumer-owned ports, avoid a cycle) | Organization | Judging |
+| `ICompetitionFinalizationGuard`, `IEntryTableAssignments`, `IJudgeEngagement` (consumer-owned ports, avoid a cycle) | Organization | Judging |
 | `CompetitionFinalized` (MediatR notification) | Organization | handled by Publication |
+| `TableJudgesChanged` (MediatR notification) | Organization | published by Judging, handled by Organization |
 
 Finalize flow: `ChangeCompetitionStateCommand` checks `ICompetitionFinalizationGuard`, publishes
 `CompetitionFinalized` before `SaveChanges`; Publication stages `GeneratePdfs` via `IDispatchJobQueue.Stage`
 in the same transaction and the worker is woken after commit.
 
-Boundary rule: `UnitTests/Architecture/ModuleBoundaryTests.cs` forbids using another module outside its
-`Contracts` namespace or touching its `DbSet`s. `Persistence/` FK configurations are exempt. Permanent kernel
-exceptions: `Common/Auth` resolvers, `Realtime/` hub, `Common/Persistence/` (incl. the `DispatchJob` -> `Competition` FK).
+BOS flag flow (FR-018): table create/update in Judging stages its judge diff and publishes `TableJudgesChanged`
+(table's new judge set, added and removed judges, and the entries those judges own from `IConflictOfInterestChecker`, looked up once) before `SaveChanges`. Organization's
+`UpdateBosFlagsOnTableJudgesChanged` flags entries owned by added judges and unflags entries of removed judges
+whose co-owner judges are neither at this table nor engaged elsewhere (`IJudgeEngagement`: another active seat
+or any evaluation), all in the same unit of work.
 
-Known gap: 18 Judging/Publication -> Organization reads remain in the exact, shrink-only allow-list (no
-`Competitions` read is left). Phase 3 remainder
-(ADR-0033: synchronous contracts `IJudgeDirectory` (extended), `IEntryDirectory`, `IResultRecipients`, plus the
-`EntryJudgeAssignmentsChanged` event for the BOS flag) removes them; no local copies.
+Boundary rule: `UnitTests/Architecture/ModuleBoundaryTests.cs` forbids using another module outside its
+`Contracts` namespace or touching its `DbSet`s, with no module-to-module exception. `Persistence/` FK
+configurations are exempt. Permanent kernel exceptions: `Common/Auth` resolvers, `Realtime/` hub,
+`Common/Persistence/` (incl. the `DispatchJob` -> `Competition` FK).
 
 ### Domain
 

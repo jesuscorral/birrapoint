@@ -18,7 +18,9 @@ namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.Dispatch
 /// delivery status/attempts/lastError live entirely on that job's own row, the same way
 /// <see cref="Invitation"/> tracks judge invites, except here there's no separate status entity.
 /// </summary>
-internal sealed class BundleZipHandler(AppDbContext dbContext, ICompetitionAccess competitionAccess, IDispatchJobQueue dispatchJobQueue) : IDispatchJobHandler
+internal sealed class BundleZipHandler(
+    AppDbContext dbContext, ICompetitionAccess competitionAccess, IResultRecipients resultRecipients, IDispatchJobQueue dispatchJobQueue)
+    : IDispatchJobHandler
 {
     public DispatchJobType Type => DispatchJobType.BundleZip;
 
@@ -27,11 +29,16 @@ internal sealed class BundleZipHandler(AppDbContext dbContext, ICompetitionAcces
         var competition = await competitionAccess.GetAsync(job.CompetitionId, cancellationToken)
             ?? throw new InvalidOperationException($"Competition {job.CompetitionId} not found.");
 
-        var sheets = await dbContext.BeerEntries
-            .Where(e => e.CompetitionId == job.CompetitionId)
-            .Join(dbContext.GeneratedScoreSheets, e => e.Id, s => s.BeerEntryId,
-                (e, s) => new { e.ParticipantId, e.StyleCode, e.BlindCode, s.PdfBytes })
-            .ToListAsync(cancellationToken);
+        var entries = await resultRecipients.GetEntriesAsync(job.CompetitionId, cancellationToken);
+        var entryIds = entries.Select(e => e.EntryId).ToList();
+        var pdfByEntryId = await dbContext.GeneratedScoreSheets
+            .Where(s => entryIds.Contains(s.BeerEntryId))
+            .Select(s => new { s.BeerEntryId, s.PdfBytes })
+            .ToDictionaryAsync(s => s.BeerEntryId, s => s.PdfBytes, cancellationToken);
+        var sheets = entries
+            .Where(e => pdfByEntryId.ContainsKey(e.EntryId))
+            .Select(e => new { e.ParticipantId, e.StyleCode, e.BlindCode, PdfBytes = pdfByEntryId[e.EntryId] })
+            .ToList();
 
         using var memoryStream = new MemoryStream();
         using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true))
@@ -67,10 +74,9 @@ internal sealed class BundleZipHandler(AppDbContext dbContext, ICompetitionAcces
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var participantIds = await dbContext.Participants
-            .Where(p => p.CompetitionId == job.CompetitionId)
-            .Select(p => p.Id)
-            .ToListAsync(cancellationToken);
+        var participantIds = (await resultRecipients.GetRecipientsAsync(job.CompetitionId, cancellationToken))
+            .Select(r => r.ParticipantId)
+            .ToList();
 
         // IDispatchJobHandler is at-least-once (DispatchWorker may re-run this handler after a
         // crash or a transient failure marking THIS job Completed, even though the fan-out below

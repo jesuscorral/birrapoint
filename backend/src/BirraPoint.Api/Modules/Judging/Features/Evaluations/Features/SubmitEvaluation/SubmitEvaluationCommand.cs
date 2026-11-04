@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
@@ -51,12 +50,12 @@ internal static class SubmitEvaluationQueryTags
     public const string GateReplayRecheck = "SubmitEvaluation.GateReplayRecheck";
 }
 
-internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IEventPublisher eventPublisher)
+internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory, ICompetitionAccess competitionAccess, IEventPublisher eventPublisher)
     : IRequestHandler<SubmitEvaluationCommand, SubmitEvaluationResult?>
 {
     public async Task<SubmitEvaluationResult?> Handle(SubmitEvaluationCommand request, CancellationToken cancellationToken)
     {
-        var judges = await currentUser.GetJudgeRecordsAsync(cancellationToken);
+        var judges = await judgeDirectory.GetSignedInJudgesAsync(cancellationToken);
         var judgeId = await JudgeTableAccess.FindActiveMembershipAsync(dbContext, judges, request.TableId, cancellationToken);
         if (judgeId is null)
         {
@@ -204,10 +203,7 @@ internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICu
         var outcome = await DiscrepancyReconciler.ReconcileAndSaveAsync(dbContext, request.TableId, request.BeerEntryId, cancellationToken);
 
         var tableProgress = await ComputeTableProgressAsync(request.TableId, cancellationToken);
-        var blindCode = await dbContext.BeerEntries
-            .Where(e => e.Id == request.BeerEntryId)
-            .Select(e => e.BlindCode)
-            .SingleAsync(cancellationToken);
+        var blindCode = (await entryDirectory.GetSamplesAsync([request.BeerEntryId], cancellationToken))[request.BeerEntryId].BlindCode;
         var judgeDisplayName = judges.First(j => j.Id == judgeId).DisplayName;
 
         // Emitted only after SaveChangesAsync above commits (contracts/signalr-hub.md §Delivery
@@ -239,7 +235,7 @@ internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICu
         // even though an alert remains open for this entry.
         var discrepancy = outcome.InvolvedJudgeIds.Contains(judgeId.Value)
             ? await DiscrepancyViewBuilder.BuildAsync(
-                dbContext, outcome.AlertId!.Value, request.TableId, request.BeerEntryId, judgeId.Value, cancellationToken)
+                dbContext, judgeDirectory, entryDirectory, outcome.AlertId!.Value, request.TableId, request.BeerEntryId, judgeId.Value, cancellationToken)
             : null;
 
         return new SubmitEvaluationResult(evaluation.Id, evaluation.Status.ToString(), evaluation.Total, discrepancy)
@@ -320,7 +316,7 @@ internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, ICu
         }
 
         return await DiscrepancyViewBuilder.BuildAsync(
-            dbContext, alertId.Value, tableId, storedEvaluation.BeerEntryId, callerJudgeId, cancellationToken);
+            dbContext, judgeDirectory, entryDirectory, alertId.Value, tableId, storedEvaluation.BeerEntryId, callerJudgeId, cancellationToken);
     }
 
     private async Task<object> ComputeTableProgressAsync(Guid tableId, CancellationToken cancellationToken)

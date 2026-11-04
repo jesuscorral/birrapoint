@@ -1,4 +1,3 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Organization.Contracts;
@@ -11,12 +10,12 @@ namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder.Features.GetMyTab
 /// actively assigned to, across every competition that has left Draft (FR-020/US6).</summary>
 internal sealed record GetMyTablesQuery : IRequest<IReadOnlyList<JudgeTableSummaryDto>>;
 
-internal sealed class GetMyTablesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess)
+internal sealed class GetMyTablesQueryHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory, ICompetitionAccess competitionAccess)
     : IRequestHandler<GetMyTablesQuery, IReadOnlyList<JudgeTableSummaryDto>>
 {
     public async Task<IReadOnlyList<JudgeTableSummaryDto>> Handle(GetMyTablesQuery request, CancellationToken cancellationToken)
     {
-        var judges = await currentUser.GetJudgeRecordsAsync(cancellationToken);
+        var judges = await judgeDirectory.GetSignedInJudgesAsync(cancellationToken);
         if (judges.Count == 0)
         {
             return [];
@@ -44,11 +43,7 @@ internal sealed class GetMyTablesQueryHandler(AppDbContext dbContext, ICurrentUs
             .Distinct()
             .ToList();
 
-        var fixerNames = fixerIds.Count == 0
-            ? new Dictionary<Guid, string>()
-            : await dbContext.Judges
-                .Where(j => fixerIds.Contains(j.Id))
-                .ToDictionaryAsync(j => j.Id, j => j.DisplayName, cancellationToken);
+        var fixerNames = await judgeDirectory.GetDisplayNamesAsync(fixerIds, cancellationToken);
 
         return rows
             .Select(r => new JudgeTableSummaryDto(

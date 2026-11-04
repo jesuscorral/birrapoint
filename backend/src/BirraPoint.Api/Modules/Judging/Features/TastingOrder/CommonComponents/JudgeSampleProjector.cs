@@ -2,21 +2,21 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents.Dtos;
-using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 
 /// <summary>
 /// Shared JudgeSampleDto projection for GetTableSamples and FixOrder's response (data-model.md
-/// §Anonymity boundary) — mirrors Modules/Judging/Features/Tables/TableProjector's dictionary-lookup shape, but
-/// selects only BeerEntry.Id/BlindCode/StyleCode into the query, never BeerName or any
-/// Participant/EntryCollaborator field (BR-01/FR-019).
+/// §Anonymity boundary) — mirrors Modules/Judging/Features/Tables/TableProjector's dictionary-lookup shape;
+/// entries come from <see cref="IEntryDirectory"/>, whose <see cref="EntrySampleInfo"/> physically lacks
+/// BeerName and every Participant/EntryCollaborator field (BR-01/FR-019).
 /// </summary>
 internal static class JudgeSampleProjector
 {
     public static async Task<IReadOnlyList<JudgeSampleDto>> ProjectAsync(
-        AppDbContext dbContext, IStyleCatalog styleCatalog, Guid tableId, Guid judgeId, CancellationToken cancellationToken)
+        AppDbContext dbContext, IStyleCatalog styleCatalog, IEntryDirectory entryDirectory, Guid tableId, Guid judgeId, CancellationToken cancellationToken)
     {
         var evaluationStatusByEntryId = await dbContext.Evaluations
             .Where(e => e.TastingTableId == tableId && e.JudgeId == judgeId)
@@ -27,10 +27,7 @@ internal static class JudgeSampleProjector
             .ToListAsync(cancellationToken);
 
         var entryIds = samples.Select(s => s.BeerEntryId).ToList();
-        var entries = await dbContext.BeerEntries
-            .Where(e => entryIds.Contains(e.Id))
-            .Select(e => new { e.Id, e.BlindCode, e.StyleCode, e.AbvPercent, e.EntryInstructions })
-            .ToListAsync(cancellationToken);
+        var entries = (await entryDirectory.GetSamplesAsync(entryIds, cancellationToken)).Values.ToList();
 
         var styleCodes = entries.Select(e => e.StyleCode).Distinct(StringComparer.Ordinal).ToList();
         var styleByCode = await styleCatalog.GetByCodesAsync(styleCodes, cancellationToken);

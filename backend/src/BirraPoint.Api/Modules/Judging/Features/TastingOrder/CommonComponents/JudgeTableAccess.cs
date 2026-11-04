@@ -1,6 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Domain;
-using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
@@ -8,8 +8,8 @@ namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 /// <summary>
 /// Shared judge-membership check for GetMyTables/GetTableSamples/FixOrder. Mirrors
 /// CompetitionHub.JoinTable's KeycloakUserId/email matching (Realtime/CompetitionHub.cs), but is
-/// built on <see cref="Common.Auth.ICurrentUser.GetJudgeRecordsAsync"/> — which already resolves
-/// every Judge row matching the caller's email and backfills KeycloakUserId — rather than
+/// built on <see cref="IJudgeDirectory.GetSignedInJudgesAsync"/> — which already resolves every
+/// judge record matching the caller's email and backfills KeycloakUserId — rather than
 /// re-deriving sub/email matching against raw claims here.
 /// </summary>
 internal static class JudgeTableAccess
@@ -18,7 +18,7 @@ internal static class JudgeTableAccess
     /// table, or null when none of the caller's resolved Judge rows are an active member —
     /// callers map that to a plain 404 (never reveal whether the table exists).</summary>
     public static async Task<Guid?> FindActiveMembershipAsync(
-        AppDbContext dbContext, IReadOnlyList<Judge> callerJudges, Guid tableId, CancellationToken cancellationToken)
+        AppDbContext dbContext, IReadOnlyList<JudgeSummary> callerJudges, Guid tableId, CancellationToken cancellationToken)
     {
         if (callerJudges.Count == 0)
         {

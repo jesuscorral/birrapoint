@@ -15,7 +15,8 @@ internal sealed record CreateTableCommand(Guid CompetitionId, string Name, IRead
     : IRequest<TableMutationResult?>;
 
 internal sealed class CreateTableCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IConflictOfInterestChecker conflictChecker, IStyleCatalog styleCatalog)
+    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IConflictOfInterestChecker conflictChecker, IStyleCatalog styleCatalog,
+    IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory, IPublisher publisher)
     : IRequestHandler<CreateTableCommand, TableMutationResult?>
 {
     /// <summary>Returns null when the competition is not found or not owned by the caller — the
@@ -33,7 +34,7 @@ internal sealed class CreateTableCommandHandler(
         var table = AddTable(competition, request.Name);
 
         var bosFlaggedEntryIds = await TableAssignmentApplier.ApplyAsync(
-            dbContext, conflictChecker, table, request.JudgeIds, request.BeerEntryIds, cancellationToken);
+            dbContext, conflictChecker, publisher, table, request.JudgeIds, request.BeerEntryIds, cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -66,7 +67,7 @@ internal sealed class CreateTableCommandHandler(
     private async Task<TableMutationResult> BuildResultAsync(
         Guid tableId, IReadOnlyList<Guid> bosFlaggedEntryIds, CancellationToken cancellationToken)
     {
-        var table = await TableProjector.ProjectAsync(dbContext, styleCatalog, tableId, cancellationToken);
+        var table = await TableProjector.ProjectAsync(dbContext, styleCatalog, judgeDirectory, entryDirectory, tableId, cancellationToken);
         return TableMutationResult.From(table, bosFlaggedEntryIds);
     }
 }
