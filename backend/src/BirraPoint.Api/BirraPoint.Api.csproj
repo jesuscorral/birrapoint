@@ -31,5 +31,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Aspire\BirraPoint.ServiceDefaults\BirraPoint.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Audit\BuildingBlocks.Audit.csproj" />
   </ItemGroup>
 </Project>

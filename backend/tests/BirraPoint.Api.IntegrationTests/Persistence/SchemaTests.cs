@@ -60,6 +60,29 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
     }
 
     [Fact]
+    public async Task AuditLogsKeepsOnlyTheAuditBlockColumnsWithJsonbData()
+    {
+        await using var db = NewContext();
+        var connection = (NpgsqlConnection)db.Database.GetDbConnection();
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var command = new NpgsqlCommand(
+            "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'AuditLogs'", connection);
+        var columns = new Dictionary<string, string>(StringComparer.Ordinal);
+        await using (var reader = await command.ExecuteReaderAsync(TestContext.Current.CancellationToken))
+        {
+            while (await reader.ReadAsync(TestContext.Current.CancellationToken))
+            {
+                columns[reader.GetString(0)] = reader.GetString(1);
+            }
+        }
+
+        Assert.Equal(
+            ["Action", "ActorUserId", "DataJson", "EntityId", "EntityType", "Id", "OccurredAt"],
+            columns.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal("jsonb", columns["DataJson"]);
+    }
+
+    [Fact]
     public async Task EvaluationTotalIsComputedByTheDatabase()
     {
         await using var db = NewContext();

@@ -4,6 +4,7 @@ using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Features.Import;
 using BirraPoint.Api.Modules.Publication.Domain;
+using BuildingBlocks.Audit;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Common.Persistence;
@@ -57,7 +58,12 @@ internal class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
-        => modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+    {
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+        // Audit trail from the BuildingBlocks.Audit block (ADR-0035); DataJson is jsonb in PostgreSQL.
+        modelBuilder.ApplyAuditLog(configure: audit => audit.Property(a => a.DataJson).HasColumnType("jsonb"));
+    }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {

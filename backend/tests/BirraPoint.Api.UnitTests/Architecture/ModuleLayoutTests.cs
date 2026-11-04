@@ -33,7 +33,7 @@ public class ModuleLayoutTests
     [Fact]
     public void SharedDomainNamespaceOnlyHoldsTheSharedKernel()
     {
-        string[] allowed = ["Entity", "AuditLog", "DispatchJob", "DispatchJobStatus", "DispatchJobType", "ITimestamped"];
+        string[] allowed = ["Entity", "DispatchJob", "DispatchJobStatus", "DispatchJobType", "ITimestamped"];
         var actual = ApiTypes()
             .Where(t => t.Namespace == "BirraPoint.Api.Domain")
             .Select(t => t.Name)
@@ -144,7 +144,7 @@ public class ModuleLayoutTests
     }
 
     [Fact]
-    public void EveryEntityLivesInADomainNamespaceOrTheImportFeature()
+    public void EveryEntityLivesInADomainNamespaceTheImportFeatureOrABuildingBlock()
     {
         const string importNs = "BirraPoint.Api.Modules.Organization.Features.Import";
         var dbContext = Api.GetType("BirraPoint.Api.Common.Persistence.AppDbContext", throwOnError: true)!;
@@ -159,9 +159,14 @@ public class ModuleLayoutTests
             .Append(importNs)
             .ToHashSet(StringComparer.Ordinal);
 
+        // Entities provided by reusable building blocks (ADR-0035) live in their own assembly and namespace.
+        static bool IsBuildingBlockEntity(Type t) =>
+            t.Assembly.GetName().Name!.StartsWith("BuildingBlocks.", StringComparison.Ordinal)
+            && t.Namespace!.StartsWith("BuildingBlocks.", StringComparison.Ordinal);
+
         var offenders = subclasses.Concat(dbSetEntities)
             .Distinct()
-            .Where(t => !allowedDomains.Contains(t.Namespace!))
+            .Where(t => !allowedDomains.Contains(t.Namespace!) && !IsBuildingBlockEntity(t))
             .Select(t => t.FullName)
             .ToList();
 

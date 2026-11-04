@@ -17,53 +17,358 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.AuditLog", b =>
+            modelBuilder.Entity("BirraPoint.Api.Domain.DispatchJob", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
 
-                    b.Property<string>("ActorUserId")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
+                    b.Property<Guid>("CompetitionId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("DataJson")
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LeaseOwner")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PayloadJson")
                         .IsRequired()
                         .HasColumnType("jsonb");
 
-                    b.Property<string>("EntityId")
+                    b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
-                    b.Property<string>("EntityType")
+                    b.Property<string>("Type")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTimeOffset>("OccurredAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
-                    b.ToTable("AuditLogs");
+                    b.HasIndex("CompetitionId");
+
+                    b.HasIndex("Status", "LeaseExpiresAt");
+
+                    b.HasIndex("Status", "NextAttemptAt");
+
+                    b.ToTable("DispatchJobs");
+                });
+
+            modelBuilder.Entity("BirraPoint.Api.Modules.Catalog.Domain.BjcpStyle", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal?>("ABVHigh")
+                        .HasColumnType("decimal(4,1)");
+
+                    b.Property<decimal?>("ABVLow")
+                        .HasColumnType("decimal(4,1)");
+
+                    b.Property<string>("CategoryName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("CategoryNumber")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DescriptionJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<decimal?>("FGHigh")
+                        .HasColumnType("decimal(4,3)");
+
+                    b.Property<decimal?>("FGLow")
+                        .HasColumnType("decimal(4,3)");
+
+                    b.Property<int?>("IBUHigh")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("IBULow")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal?>("OGHigh")
+                        .HasColumnType("decimal(4,3)");
+
+                    b.Property<decimal?>("OGLow")
+                        .HasColumnType("decimal(4,3)");
+
+                    b.Property<decimal?>("SRMHigh")
+                        .HasColumnType("decimal(5,1)");
+
+                    b.Property<decimal?>("SRMLow")
+                        .HasColumnType("decimal(5,1)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Code");
+
+                    b.ToTable("BjcpStyles");
+                });
+
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.DiscrepancyAlert", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BeerEntryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TastingTableId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BeerEntryId");
+
+                    b.HasIndex("TastingTableId", "BeerEntryId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'Open'");
+
+                    b.ToTable("DiscrepancyAlerts");
+                });
+
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.Evaluation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AppearanceComment")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("AppearanceScore")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("AromaComment")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("AromaScore")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("BeerEntryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DescriptorsJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("FeedbackComment")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("FlavorComment")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("FlavorScore")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("JudgeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MouthfeelComment")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("MouthfeelScore")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OverallComment")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("OverallScore")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TastingTableId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Total")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("integer")
+                        .HasComputedColumnSql("\"AromaScore\" + \"AppearanceScore\" + \"FlavorScore\" + \"MouthfeelScore\" + \"OverallScore\"", true);
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BeerEntryId");
+
+                    b.HasIndex("TastingTableId");
+
+                    b.HasIndex("JudgeId", "BeerEntryId")
+                        .IsUnique();
+
+                    b.ToTable("Evaluations");
+                });
+
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TableJudge", b =>
+                {
+                    b.Property<Guid>("TastingTableId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("JudgeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("RemovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("TastingTableId", "JudgeId");
+
+                    b.HasIndex("JudgeId");
+
+                    b.ToTable("TableJudges");
+                });
+
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TableSample", b =>
+                {
+                    b.Property<Guid>("TastingTableId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BeerEntryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("SequenceOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("TastingTableId", "BeerEntryId");
+
+                    b.HasIndex("BeerEntryId")
+                        .IsUnique();
+
+                    b.HasIndex("TastingTableId", "SequenceOrder")
+                        .IsUnique();
+
+                    b.ToTable("TableSamples");
+                });
+
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TastingTable", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CompetitionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("OrderFixedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("OrderFixedByJudgeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderFixedByJudgeId");
+
+                    b.HasIndex("CompetitionId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("TastingTables");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", b =>
@@ -148,72 +453,6 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("BeerEntries");
-                });
-
-            modelBuilder.Entity("BirraPoint.Api.Modules.Catalog.Domain.BjcpStyle", b =>
-                {
-                    b.Property<string>("Code")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<decimal?>("ABVHigh")
-                        .HasColumnType("decimal(4,1)");
-
-                    b.Property<decimal?>("ABVLow")
-                        .HasColumnType("decimal(4,1)");
-
-                    b.Property<string>("CategoryName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("CategoryNumber")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DescriptionJson")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<decimal?>("FGHigh")
-                        .HasColumnType("decimal(4,3)");
-
-                    b.Property<decimal?>("FGLow")
-                        .HasColumnType("decimal(4,3)");
-
-                    b.Property<int?>("IBUHigh")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("IBULow")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<decimal?>("OGHigh")
-                        .HasColumnType("decimal(4,3)");
-
-                    b.Property<decimal?>("OGLow")
-                        .HasColumnType("decimal(4,3)");
-
-                    b.Property<decimal?>("SRMHigh")
-                        .HasColumnType("decimal(5,1)");
-
-                    b.Property<decimal?>("SRMLow")
-                        .HasColumnType("decimal(5,1)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Code");
-
-                    b.ToTable("BjcpStyles");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.Competition", b =>
@@ -347,100 +586,6 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("CompetitionCategoryStyles");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.DiscrepancyAlert", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BeerEntryId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("ResolvedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<Guid>("TastingTableId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BeerEntryId");
-
-                    b.HasIndex("TastingTableId", "BeerEntryId")
-                        .IsUnique()
-                        .HasFilter("\"Status\" = 'Open'");
-
-                    b.ToTable("DiscrepancyAlerts");
-                });
-
-            modelBuilder.Entity("BirraPoint.Api.Domain.DispatchJob", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Attempts")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("CompetitionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LastError")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LeaseOwner")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTimeOffset?>("NextAttemptAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PayloadJson")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CompetitionId");
-
-                    b.HasIndex("Status", "LeaseExpiresAt");
-
-                    b.HasIndex("Status", "NextAttemptAt");
-
-                    b.ToTable("DispatchJobs");
-                });
-
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.EntryCollaborator", b =>
                 {
                     b.Property<Guid>("BeerEntryId")
@@ -459,129 +604,6 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.HasKey("BeerEntryId", "Email");
 
                     b.ToTable("EntryCollaborators");
-                });
-
-            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.Evaluation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("AppearanceComment")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<int>("AppearanceScore")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("AromaComment")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<int>("AromaScore")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("BeerEntryId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DescriptorsJson")
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("FeedbackComment")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<string>("FlavorComment")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<int>("FlavorScore")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("JudgeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("MouthfeelComment")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<int>("MouthfeelScore")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("OverallComment")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<int>("OverallScore")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTimeOffset>("SubmittedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("TastingTableId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Total")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("integer")
-                        .HasComputedColumnSql("\"AromaScore\" + \"AppearanceScore\" + \"FlavorScore\" + \"MouthfeelScore\" + \"OverallScore\"", true);
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BeerEntryId");
-
-                    b.HasIndex("TastingTableId");
-
-                    b.HasIndex("JudgeId", "BeerEntryId")
-                        .IsUnique();
-
-                    b.ToTable("Evaluations");
-                });
-
-            modelBuilder.Entity("BirraPoint.Api.Modules.Publication.Domain.GeneratedScoreSheet", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BeerEntryId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset>("GeneratedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<byte[]>("PdfBytes")
-                        .IsRequired()
-                        .HasColumnType("bytea");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BeerEntryId")
-                        .IsUnique();
-
-                    b.ToTable("GeneratedScoreSheets");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.Invitation", b =>
@@ -759,132 +781,6 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Participants");
-                });
-
-            modelBuilder.Entity("BirraPoint.Api.Modules.Publication.Domain.ResultsArchive", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CompetitionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset>("GeneratedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<byte[]>("ZipBytes")
-                        .IsRequired()
-                        .HasColumnType("bytea");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CompetitionId")
-                        .IsUnique();
-
-                    b.ToTable("ResultsArchives");
-                });
-
-            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TableJudge", b =>
-                {
-                    b.Property<Guid>("TastingTableId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("JudgeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("RemovedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("TastingTableId", "JudgeId");
-
-                    b.HasIndex("JudgeId");
-
-                    b.ToTable("TableJudges");
-                });
-
-            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TableSample", b =>
-                {
-                    b.Property<Guid>("TastingTableId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BeerEntryId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("SequenceOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("TastingTableId", "BeerEntryId");
-
-                    b.HasIndex("BeerEntryId")
-                        .IsUnique();
-
-                    b.HasIndex("TastingTableId", "SequenceOrder")
-                        .IsUnique();
-
-                    b.ToTable("TableSamples");
-                });
-
-            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TastingTable", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset?>("ClosedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("CompetitionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTimeOffset?>("OrderFixedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("OrderFixedByJudgeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("State")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrderFixedByJudgeId");
-
-                    b.HasIndex("CompetitionId", "Name")
-                        .IsUnique();
-
-                    b.ToTable("TastingTables");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.BeerImportBatch", b =>
@@ -1110,6 +1006,192 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("JudgeImportRows");
                 });
 
+            modelBuilder.Entity("BirraPoint.Api.Modules.Publication.Domain.GeneratedScoreSheet", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BeerEntryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("GeneratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<byte[]>("PdfBytes")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BeerEntryId")
+                        .IsUnique();
+
+                    b.ToTable("GeneratedScoreSheets");
+                });
+
+            modelBuilder.Entity("BirraPoint.Api.Modules.Publication.Domain.ResultsArchive", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompetitionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("GeneratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<byte[]>("ZipBytes")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompetitionId")
+                        .IsUnique();
+
+                    b.ToTable("ResultsArchives");
+                });
+
+            modelBuilder.Entity("BuildingBlocks.Audit.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ActorUserId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("DataJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("EntityId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AuditLogs", (string)null);
+                });
+
+            modelBuilder.Entity("BirraPoint.Api.Domain.DispatchJob", b =>
+                {
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
+                        .WithMany()
+                        .HasForeignKey("CompetitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.DiscrepancyAlert", b =>
+                {
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", null)
+                        .WithMany()
+                        .HasForeignKey("BeerEntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BirraPoint.Api.Modules.Judging.Domain.TastingTable", null)
+                        .WithMany()
+                        .HasForeignKey("TastingTableId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.Evaluation", b =>
+                {
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", null)
+                        .WithMany()
+                        .HasForeignKey("BeerEntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Judge", null)
+                        .WithMany()
+                        .HasForeignKey("JudgeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BirraPoint.Api.Modules.Judging.Domain.TastingTable", null)
+                        .WithMany()
+                        .HasForeignKey("TastingTableId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TableJudge", b =>
+                {
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Judge", null)
+                        .WithMany()
+                        .HasForeignKey("JudgeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BirraPoint.Api.Modules.Judging.Domain.TastingTable", null)
+                        .WithMany("Judges")
+                        .HasForeignKey("TastingTableId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TableSample", b =>
+                {
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", null)
+                        .WithMany()
+                        .HasForeignKey("BeerEntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BirraPoint.Api.Modules.Judging.Domain.TastingTable", null)
+                        .WithMany("Samples")
+                        .HasForeignKey("TastingTableId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TastingTable", b =>
+                {
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
+                        .WithMany()
+                        .HasForeignKey("CompetitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Judge", null)
+                        .WithMany()
+                        .HasForeignKey("OrderFixedByJudgeId");
+                });
+
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", b =>
                 {
                     b.HasOne("BirraPoint.Api.Modules.Organization.Domain.CompetitionCategory", null)
@@ -1174,64 +1256,10 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.DiscrepancyAlert", b =>
-                {
-                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", null)
-                        .WithMany()
-                        .HasForeignKey("BeerEntryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("BirraPoint.Api.Modules.Judging.Domain.TastingTable", null)
-                        .WithMany()
-                        .HasForeignKey("TastingTableId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("BirraPoint.Api.Domain.DispatchJob", b =>
-                {
-                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
-                        .WithMany()
-                        .HasForeignKey("CompetitionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.EntryCollaborator", b =>
                 {
                     b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", null)
                         .WithMany("Collaborators")
-                        .HasForeignKey("BeerEntryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.Evaluation", b =>
-                {
-                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", null)
-                        .WithMany()
-                        .HasForeignKey("BeerEntryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Judge", null)
-                        .WithMany()
-                        .HasForeignKey("JudgeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("BirraPoint.Api.Modules.Judging.Domain.TastingTable", null)
-                        .WithMany()
-                        .HasForeignKey("TastingTableId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("BirraPoint.Api.Modules.Publication.Domain.GeneratedScoreSheet", b =>
-                {
-                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", null)
-                        .WithMany()
                         .HasForeignKey("BeerEntryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1262,58 +1290,6 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                         .HasForeignKey("CompetitionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("BirraPoint.Api.Modules.Publication.Domain.ResultsArchive", b =>
-                {
-                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
-                        .WithMany()
-                        .HasForeignKey("CompetitionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TableJudge", b =>
-                {
-                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Judge", null)
-                        .WithMany()
-                        .HasForeignKey("JudgeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("BirraPoint.Api.Modules.Judging.Domain.TastingTable", null)
-                        .WithMany("Judges")
-                        .HasForeignKey("TastingTableId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TableSample", b =>
-                {
-                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", null)
-                        .WithMany()
-                        .HasForeignKey("BeerEntryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("BirraPoint.Api.Modules.Judging.Domain.TastingTable", null)
-                        .WithMany("Samples")
-                        .HasForeignKey("TastingTableId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TastingTable", b =>
-                {
-                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
-                        .WithMany()
-                        .HasForeignKey("CompetitionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Judge", null)
-                        .WithMany()
-                        .HasForeignKey("OrderFixedByJudgeId");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.BeerImportBatch", b =>
@@ -1352,6 +1328,31 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("BirraPoint.Api.Modules.Publication.Domain.GeneratedScoreSheet", b =>
+                {
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", null)
+                        .WithMany()
+                        .HasForeignKey("BeerEntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BirraPoint.Api.Modules.Publication.Domain.ResultsArchive", b =>
+                {
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
+                        .WithMany()
+                        .HasForeignKey("CompetitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TastingTable", b =>
+                {
+                    b.Navigation("Judges");
+
+                    b.Navigation("Samples");
+                });
+
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", b =>
                 {
                     b.Navigation("Collaborators");
@@ -1360,13 +1361,6 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.CompetitionCategory", b =>
                 {
                     b.Navigation("Styles");
-                });
-
-            modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TastingTable", b =>
-                {
-                    b.Navigation("Judges");
-
-                    b.Navigation("Samples");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.BeerImportBatch", b =>

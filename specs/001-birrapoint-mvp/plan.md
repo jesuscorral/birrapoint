@@ -161,10 +161,10 @@ backend/
 │   └── BirraPoint.Api/                 # Single deployable modular monolith
 │       ├── Program.cs                  # Minimal API bootstrap, auth, SignalR, OpenAPI
 │       ├── Dockerfile                  # Multi-stage: .NET SDK build → ASP.NET runtime
-│       ├── Domain/                     # Shared kernel: Entity, AuditLog, DispatchJob
+│       ├── Domain/                     # Shared kernel: Entity, DispatchJob
 │       ├── Common/                     # Cross-cutting: MediatR behaviors (validation),
 │       │                               #   ProblemDetails mapping, auth policies,
-│       │                               #   persistence (DbContext), audit, job queue
+│       │                               #   persistence (DbContext), job queue
 │       ├── Modules/                    # ADR-0033/0034; each: Domain/, Persistence/, Contracts/, Integration/, Features/
 │       │   ├── Catalog/                # BJCP reference data (GetStyles, GetStyleDetails)
 │       │   ├── Organization/           # Competitions, Import, Judges

@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
-using BirraPoint.Api.Common.Audit;
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Behaviors;
 using BirraPoint.Api.Common.Email;
@@ -16,6 +15,7 @@ using BirraPoint.Api.Modules.Organization;
 using BirraPoint.Api.Modules.Publication;
 using BirraPoint.Api.Realtime;
 using BirraPoint.ServiceDefaults;
+using BuildingBlocks.Audit;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -62,8 +62,8 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 // MediatR + FluentValidation ValidationBehavior pipeline.
 builder.Services.AddMediatRWithValidation(typeof(Program).Assembly);
 
-// Immutable audit trail writer.
-builder.Services.AddScoped<IAuditWriter, AuditWriter>();
+// Immutable audit trail writer (BuildingBlocks.Audit, ADR-0035); the actor is the Keycloak subject.
+builder.Services.AddAudit<AppDbContext, CurrentUserAuditActor>();
 
 // CompetitionHub + emit-after-commit event dispatcher. Enum payload fields (e.g.
 // DispatchProgress's `status`) serialize as their name, not the default int, matching the
