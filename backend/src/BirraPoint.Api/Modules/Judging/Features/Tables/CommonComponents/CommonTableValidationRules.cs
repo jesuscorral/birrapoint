@@ -1,4 +1,5 @@
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
@@ -34,7 +35,7 @@ internal static class CommonTableValidationRules
     }
 
     public static async Task<bool> AllJudgesBelongToCompetitionAsync(
-        AppDbContext dbContext,
+        IJudgeDirectory judgeDirectory,
          OwnedCompetitionLookup owned,
         Guid competitionId,
         IReadOnlyList<Guid> judgeIds,
@@ -46,10 +47,9 @@ internal static class CommonTableValidationRules
         }
 
         var distinctIds = judgeIds.Distinct().ToList();
-        var matchCount = await dbContext.Judges.CountAsync(
-            j => j.CompetitionId == competitionId && distinctIds.Contains(j.Id), cancellationToken);
+        var members = await judgeDirectory.GetCompetitionJudgeIdsAsync(competitionId, distinctIds, cancellationToken);
 
-        return matchCount == distinctIds.Count;
+        return members.Count == distinctIds.Count;
     }
 
     /// <summary>An entry is assignable when it belongs to this competition and is unassigned or

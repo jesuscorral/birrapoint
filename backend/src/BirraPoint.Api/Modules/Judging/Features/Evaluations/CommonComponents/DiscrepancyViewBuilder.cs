@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
@@ -9,18 +10,25 @@ namespace BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 internal static class DiscrepancyViewBuilder
 {
     public static async Task<DiscrepancyView> BuildAsync(
-        AppDbContext dbContext, Guid alertId, Guid tableId, Guid beerEntryId, Guid callerJudgeId, CancellationToken cancellationToken)
+        AppDbContext dbContext, IJudgeDirectory judgeDirectory, Guid alertId, Guid tableId, Guid beerEntryId, Guid callerJudgeId, CancellationToken cancellationToken)
     {
         var blindCode = await dbContext.BeerEntries
             .Where(e => e.Id == beerEntryId)
             .Select(e => e.BlindCode)
             .SingleAsync(cancellationToken);
 
-        var totals = await dbContext.Evaluations
+        var evaluations = await dbContext.Evaluations
             .Where(e => e.TastingTableId == tableId && e.BeerEntryId == beerEntryId)
-            .Join(dbContext.Judges, e => e.JudgeId, j => j.Id, (e, j) => new { e.Id, e.Total, e.JudgeId, j.DisplayName })
-            .Select(x => new DiscrepancyTotalDto(x.DisplayName, x.Total, x.JudgeId == callerJudgeId, x.Id))
+            .Select(e => new { e.Id, e.Total, e.JudgeId })
             .ToListAsync(cancellationToken);
+
+        var judgeNames = await judgeDirectory.GetDisplayNamesAsync(
+            evaluations.Select(e => e.JudgeId).ToList(), cancellationToken);
+
+        var totals = evaluations
+            .Where(e => judgeNames.ContainsKey(e.JudgeId))
+            .Select(e => new DiscrepancyTotalDto(judgeNames[e.JudgeId], e.Total, e.JudgeId == callerJudgeId, e.Id))
+            .ToList();
 
         return new DiscrepancyView(alertId, blindCode, totals);
     }

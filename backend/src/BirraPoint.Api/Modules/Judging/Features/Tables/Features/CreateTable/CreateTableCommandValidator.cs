@@ -8,7 +8,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.Tables.Features.CreateTable;
 
 internal sealed class CreateTableCommandValidator : AbstractValidator<CreateTableCommand>
 {
-    public CreateTableCommandValidator(AppDbContext dbContext, ICompetitionAccess competitionAccess, ICurrentUser currentUser)
+    public CreateTableCommandValidator(AppDbContext dbContext, ICompetitionAccess competitionAccess, ICurrentUser currentUser, IJudgeDirectory judgeDirectory)
     {
         var owned = new OwnedCompetitionLookup(competitionAccess, currentUser);
 
@@ -31,7 +31,7 @@ internal sealed class CreateTableCommandValidator : AbstractValidator<CreateTabl
 
         RuleFor(c => c)
             .MustAsync((command, cancellationToken) =>
-                CommonTableValidationRules.AllJudgesBelongToCompetitionAsync(dbContext, owned, command.CompetitionId, command.JudgeIds, cancellationToken))
+                CommonTableValidationRules.AllJudgesBelongToCompetitionAsync(judgeDirectory, owned, command.CompetitionId, command.JudgeIds, cancellationToken))
             .WithName(nameof(CreateTableCommand.JudgeIds))
             .WithMessage("One or more judges do not belong to this competition.");
 

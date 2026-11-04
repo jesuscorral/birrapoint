@@ -1,8 +1,8 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using MediatR;
 
 namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder.Features.GetTableSamples;
@@ -12,12 +12,12 @@ namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder.Features.GetTable
 /// plain 404 (never reveals whether the table exists).</summary>
 internal sealed record GetTableSamplesQuery(Guid TableId) : IRequest<IReadOnlyList<JudgeSampleDto>?>;
 
-internal sealed class GetTableSamplesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser, IStyleCatalog styleCatalog)
+internal sealed class GetTableSamplesQueryHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory, IStyleCatalog styleCatalog)
     : IRequestHandler<GetTableSamplesQuery, IReadOnlyList<JudgeSampleDto>?>
 {
     public async Task<IReadOnlyList<JudgeSampleDto>?> Handle(GetTableSamplesQuery request, CancellationToken cancellationToken)
     {
-        var judges = await currentUser.GetJudgeRecordsAsync(cancellationToken);
+        var judges = await judgeDirectory.GetSignedInJudgesAsync(cancellationToken);
         var judgeId = await JudgeTableAccess.FindActiveMembershipAsync(dbContext, judges, request.TableId, cancellationToken);
 
         return judgeId is null

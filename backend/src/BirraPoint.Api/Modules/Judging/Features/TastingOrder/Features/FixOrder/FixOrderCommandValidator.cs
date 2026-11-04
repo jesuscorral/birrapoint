@@ -1,6 +1,6 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,14 +8,14 @@ namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder.Features.FixOrder
 
 internal sealed class FixOrderCommandValidator : AbstractValidator<FixOrderCommand>
 {
-    public FixOrderCommandValidator(AppDbContext dbContext, ICurrentUser currentUser)
+    public FixOrderCommandValidator(AppDbContext dbContext, IJudgeDirectory judgeDirectory)
     {
         RuleFor(c => c.OrderedBeerEntryIds).NotNull();
 
         RuleFor(c => c)
             .MustAsync(async (command, cancellationToken) =>
             {
-                var judges = await currentUser.GetJudgeRecordsAsync(cancellationToken);
+                var judges = await judgeDirectory.GetSignedInJudgesAsync(cancellationToken);
                 var judgeId = await JudgeTableAccess.FindActiveMembershipAsync(
                     dbContext, judges, command.TableId, cancellationToken);
                 if (judgeId is null)

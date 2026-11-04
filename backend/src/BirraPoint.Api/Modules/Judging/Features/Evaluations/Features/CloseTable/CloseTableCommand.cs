@@ -1,9 +1,9 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Realtime;
 using MediatR;
@@ -22,12 +22,12 @@ internal sealed record CloseTableCommand(Guid TableId) : IRequest<CloseTableResu
 
 internal sealed record CloseTableResult(IReadOnlyList<ConsolidatedScoreDto> ConsolidatedScores);
 
-internal sealed class CloseTableCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher)
+internal sealed class CloseTableCommandHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory, IEventPublisher eventPublisher)
     : IRequestHandler<CloseTableCommand, CloseTableResult?>
 {
     public async Task<CloseTableResult?> Handle(CloseTableCommand request, CancellationToken cancellationToken)
     {
-        var judges = await currentUser.GetJudgeRecordsAsync(cancellationToken);
+        var judges = await judgeDirectory.GetSignedInJudgesAsync(cancellationToken);
         var judgeId = await JudgeTableAccess.FindActiveMembershipAsync(dbContext, judges, request.TableId, cancellationToken);
         if (judgeId is null)
         {

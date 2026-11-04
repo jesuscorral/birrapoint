@@ -9,7 +9,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.Tables.Features.UpdateTable;
 
 internal sealed class UpdateTableCommandValidator : AbstractValidator<UpdateTableCommand>
 {
-    public UpdateTableCommandValidator(AppDbContext dbContext, ICompetitionAccess competitionAccess, ICurrentUser currentUser)
+    public UpdateTableCommandValidator(AppDbContext dbContext, ICompetitionAccess competitionAccess, ICurrentUser currentUser, IJudgeDirectory judgeDirectory)
     {
         var owned = new OwnedCompetitionLookup(competitionAccess, currentUser);
 
@@ -33,7 +33,7 @@ internal sealed class UpdateTableCommandValidator : AbstractValidator<UpdateTabl
 
         RuleFor(c => c)
             .MustAsync((command, cancellationToken) =>
-                CommonTableValidationRules.AllJudgesBelongToCompetitionAsync(dbContext, owned, command.CompetitionId, command.JudgeIds, cancellationToken))
+                CommonTableValidationRules.AllJudgesBelongToCompetitionAsync(judgeDirectory, owned, command.CompetitionId, command.JudgeIds, cancellationToken))
             .WithName(nameof(UpdateTableCommand.JudgeIds))
             .WithMessage("One or more judges do not belong to this competition.")
             .WhenAsync((command, ct) => ShouldValidateAssignmentAsync(dbContext, owned, command.CompetitionId, command.TableId, ct));

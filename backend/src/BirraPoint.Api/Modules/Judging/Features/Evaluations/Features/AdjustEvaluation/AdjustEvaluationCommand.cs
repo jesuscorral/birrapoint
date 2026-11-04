@@ -1,9 +1,9 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Realtime;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -21,12 +21,12 @@ internal sealed record AdjustEvaluationCommand(
 
 internal sealed record AdjustEvaluationResult(Guid EvaluationId, string Status, int Total, DiscrepancyView? Discrepancy);
 
-internal sealed class AdjustEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IEventPublisher eventPublisher)
+internal sealed class AdjustEvaluationCommandHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory, IEventPublisher eventPublisher)
     : IRequestHandler<AdjustEvaluationCommand, AdjustEvaluationResult?>
 {
     public async Task<AdjustEvaluationResult?> Handle(AdjustEvaluationCommand request, CancellationToken cancellationToken)
     {
-        var judges = await currentUser.GetJudgeRecordsAsync(cancellationToken);
+        var judges = await judgeDirectory.GetSignedInJudgesAsync(cancellationToken);
         var judgeId = await JudgeTableAccess.FindActiveMembershipAsync(dbContext, judges, request.TableId, cancellationToken);
         if (judgeId is null)
         {
@@ -103,7 +103,7 @@ internal sealed class AdjustEvaluationCommandHandler(AppDbContext dbContext, ICu
         // discrepancy they're no longer part of.
         var discrepancy = outcome.InvolvedJudgeIds.Contains(judgeId.Value)
             ? await DiscrepancyViewBuilder.BuildAsync(
-                dbContext, outcome.AlertId!.Value, request.TableId, evaluation.BeerEntryId, judgeId.Value, cancellationToken)
+                dbContext, judgeDirectory, outcome.AlertId!.Value, request.TableId, evaluation.BeerEntryId, judgeId.Value, cancellationToken)
             : null;
 
         return new AdjustEvaluationResult(evaluation.Id, evaluation.Status.ToString(), evaluation.Total, discrepancy);

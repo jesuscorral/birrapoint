@@ -54,7 +54,7 @@ internal sealed class ContractSeeder(IServiceProvider services)
         return entry.Id;
     }
 
-    public async Task<Guid> JudgeAsync(Guid competitionId, string email, string? displayName = null)
+    public async Task<Guid> JudgeAsync(Guid competitionId, string email, string? displayName = null, string? bjcpRank = null)
     {
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -63,6 +63,7 @@ internal sealed class ContractSeeder(IServiceProvider services)
             CompetitionId = competitionId,
             Email = email,
             DisplayName = displayName ?? email.Split('@')[0],
+            BjcpRank = bjcpRank,
             KeycloakUserId = $"kc-{Guid.NewGuid():N}",
         };
         db.Judges.Add(judge);

@@ -21,7 +21,7 @@ internal sealed record UpdateTableCommand(
 
 internal sealed class UpdateTableCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IAuditWriter auditWriter, IEventPublisher eventPublisher,
-    IConflictOfInterestChecker conflictChecker, IStyleCatalog styleCatalog)
+    IConflictOfInterestChecker conflictChecker, IStyleCatalog styleCatalog, IJudgeDirectory judgeDirectory)
     : IRequestHandler<UpdateTableCommand, TableMutationResult?>
 {
     public async Task<TableMutationResult?> Handle(UpdateTableCommand request, CancellationToken cancellationToken)
@@ -58,7 +58,7 @@ internal sealed class UpdateTableCommandHandler(
         if (isInEvaluationState)
         {
             return await LiveJudgeRemoval.ApplyAsync(
-                dbContext, styleCatalog, auditWriter, eventPublisher, competition.Id, table.Id,
+                dbContext, styleCatalog, judgeDirectory, auditWriter, eventPublisher, competition.Id, table.Id,
                 request.Name, request.JudgeIds, request.BeerEntryIds, cancellationToken);
         }
 
@@ -77,7 +77,7 @@ internal sealed class UpdateTableCommandHandler(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var dto = await TableProjector.ProjectAsync(dbContext, styleCatalog, table.Id, cancellationToken);
+        var dto = await TableProjector.ProjectAsync(dbContext, styleCatalog, judgeDirectory, table.Id, cancellationToken);
 
         return TableMutationResult.From(dto, bosFlaggedEntryIds);
     }

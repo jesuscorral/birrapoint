@@ -1,4 +1,3 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
@@ -21,12 +20,12 @@ internal sealed record FixOrderCommand(Guid TableId, IReadOnlyList<Guid> Ordered
     : IRequest<IReadOnlyList<JudgeSampleDto>?>;
 
 internal sealed class FixOrderCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IEventPublisher eventPublisher, IStyleCatalog styleCatalog)
+    AppDbContext dbContext, IJudgeDirectory judgeDirectory, ICompetitionAccess competitionAccess, IEventPublisher eventPublisher, IStyleCatalog styleCatalog)
     : IRequestHandler<FixOrderCommand, IReadOnlyList<JudgeSampleDto>?>
 {
     public async Task<IReadOnlyList<JudgeSampleDto>?> Handle(FixOrderCommand request, CancellationToken cancellationToken)
     {
-        var judges = await currentUser.GetJudgeRecordsAsync(cancellationToken);
+        var judges = await judgeDirectory.GetSignedInJudgesAsync(cancellationToken);
         var judgeId = await JudgeTableAccess.FindActiveMembershipAsync(dbContext, judges, request.TableId, cancellationToken);
         if (judgeId is null)
         {
@@ -45,11 +44,8 @@ internal sealed class FixOrderCommandHandler(
             ?? throw new InvalidOperationException("Competition of an existing table not found.")).State;
 
         var isAlreadyFixed = table.OrderFixedByJudgeId is not null;
-        var fixerName = isAlreadyFixed
-            ? await dbContext.Judges
-                .Where(j => j.Id == table.OrderFixedByJudgeId)
-                .Select(j => j.DisplayName)
-                .SingleOrDefaultAsync(cancellationToken)
+        var fixerName = table.OrderFixedByJudgeId is { } fixerId
+            ? (await judgeDirectory.GetDisplayNamesAsync([fixerId], cancellationToken)).GetValueOrDefault(fixerId)
             : null;
 
         TastingOrderRules.EnsureOrderCanBeFixed(isAlreadyFixed, fixerName, competitionState);
