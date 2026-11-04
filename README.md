@@ -36,7 +36,7 @@ Out of scope: Best of Show and tie-breaks (only a `NotValidForBos` flag is recor
 Prerequisites: Docker Desktop, .NET 10 SDK, Node.js 24+.
 
 ```bash
-dotnet run --project backend/src/BirraPoint.AppHost
+dotnet run --project backend/src/Aspire/BirraPoint.AppHost
 ```
 
 This starts the whole stack. The PWA runs at <http://localhost:4200> (seeded login

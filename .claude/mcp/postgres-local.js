@@ -19,7 +19,7 @@ try {
   container = docker(['ps', '--filter', 'name=^postgres-', '--filter', 'status=running', '--format', '{{.Names}}'])
     .split('\n').filter(Boolean)[0];
 } catch { fail('Docker is not running.'); }
-if (!container) fail('Aspire Postgres container (postgres-*) is not running. Start the stack: dotnet run --project backend/src/BirraPoint.AppHost');
+if (!container) fail('Aspire Postgres container (postgres-*) is not running. Start the stack: dotnet run --project backend/src/Aspire/BirraPoint.AppHost');
 
 const env = Object.fromEntries(
   docker(['inspect', '-f', '{{range .Config.Env}}{{println .}}{{end}}', container])

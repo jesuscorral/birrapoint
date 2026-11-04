@@ -12,6 +12,6 @@
     <PackageReference Include="MessagePack" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\BirraPoint.Api\BirraPoint.Api.csproj" />
+    <ProjectReference Include="..\..\BirraPoint.Api\BirraPoint.Api.csproj" />
   </ItemGroup>
 </Project>

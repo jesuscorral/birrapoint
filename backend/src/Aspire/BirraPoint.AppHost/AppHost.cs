@@ -43,8 +43,8 @@ var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26
     .WithEnvironment("KC_DB_URL", keycloakDb.Resource.JdbcConnectionString)
     .WithEnvironment("KC_DB_USERNAME", postgres.Resource.UserNameReference)
     .WithEnvironment("KC_DB_PASSWORD", postgres.Resource.PasswordParameter)
-    .WithBindMount("../../../infra/keycloak", "/opt/keycloak/data/import", isReadOnly: true)
-    .WithBindMount("../../../infra/keycloak/themes/birrapoint", "/opt/keycloak/themes/birrapoint", isReadOnly: true)
+    .WithBindMount("../../../../infra/keycloak", "/opt/keycloak/data/import", isReadOnly: true)
+    .WithBindMount("../../../../infra/keycloak/themes/birrapoint", "/opt/keycloak/themes/birrapoint", isReadOnly: true)
     .WithLifetime(ContainerLifetime.Persistent)
     .WithHttpEndpoint(port: 8081, targetPort: 8080, name: "http")
     .WithExternalHttpEndpoints()
@@ -88,7 +88,7 @@ var api = builder.AddProject<Projects.BirraPoint_Api>("api")
 // Angular PWA via ng serve (fixed :4200, matching the SPA client redirect URIs). AddNodeApp's
 // 3rd arg is a *script path* run as `node <path>` — AddJavaScriptApp's is an npm script name
 // ("npm run start"), the actual AddNpmApp-equivalent semantics this resource needs.
-builder.AddJavaScriptApp("frontend", "../../../frontend", "start")
+builder.AddJavaScriptApp("frontend", "../../../../frontend", "start")
     .WithHttpEndpoint(port: 4200, isProxied: false)
     .WithExternalHttpEndpoints()
     .WaitFor(api);

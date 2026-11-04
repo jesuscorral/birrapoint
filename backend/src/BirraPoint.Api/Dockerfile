@@ -11,12 +11,12 @@ WORKDIR /src
 
 # Restore first, from project files only, so the layer is cached across source-only changes.
 COPY Directory.Build.props Directory.Packages.props ./
-COPY src/BirraPoint.ServiceDefaults/BirraPoint.ServiceDefaults.csproj src/BirraPoint.ServiceDefaults/
+COPY src/Aspire/BirraPoint.ServiceDefaults/BirraPoint.ServiceDefaults.csproj src/Aspire/BirraPoint.ServiceDefaults/
 COPY src/BirraPoint.Api/BirraPoint.Api.csproj src/BirraPoint.Api/
 RUN dotnet restore src/BirraPoint.Api/BirraPoint.Api.csproj
 
 COPY .editorconfig ./
-COPY src/BirraPoint.ServiceDefaults/ src/BirraPoint.ServiceDefaults/
+COPY src/Aspire/BirraPoint.ServiceDefaults/ src/Aspire/BirraPoint.ServiceDefaults/
 COPY src/BirraPoint.Api/ src/BirraPoint.Api/
 RUN dotnet publish src/BirraPoint.Api/BirraPoint.Api.csproj \
     --configuration Release --no-restore --output /app/publish /p:UseAppHost=false

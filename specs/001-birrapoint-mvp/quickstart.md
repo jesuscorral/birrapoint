@@ -22,7 +22,7 @@ This is the end-to-end validation guide for the feature. Commands mirror `CLAUDE
 # Keycloak (birrapoint realm auto-imported: roles ORGANIZER/JUDGE, seeded organizer),
 # Mailpit (SMTP sink), the backend API (EF migrations incl. BJCP 2021 seed applied on
 # startup in Development) and the Angular frontend.
-dotnet run --project backend/src/BirraPoint.AppHost
+dotnet run --project backend/src/Aspire/BirraPoint.AppHost
 # Aspire dashboard (resources, logs, traces, health): https://localhost:17202, login URL
 # printed on startup
 # API: http://localhost:5121 · https://localhost:7075 (OpenAPI at /openapi/v1.json; full

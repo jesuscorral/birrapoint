@@ -4,4 +4,4 @@
 **/*.user
 **/appsettings.*.Local.json
 tests/
-src/BirraPoint.AppHost/
+src/Aspire/BirraPoint.AppHost/
