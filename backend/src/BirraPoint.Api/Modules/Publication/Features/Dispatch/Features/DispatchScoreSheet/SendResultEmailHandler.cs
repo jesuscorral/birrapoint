@@ -1,11 +1,11 @@
 using System.Net;
 using System.Text.Json;
-using BirraPoint.Api.Common.Email;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
+using BuildingBlocks.EmailSender;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.DispatchScoreSheet;

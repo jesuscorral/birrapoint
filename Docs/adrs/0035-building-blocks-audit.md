@@ -26,6 +26,17 @@ Cross-cutting capabilities move to `backend/src/BuildingBlocks/BuildingBlocks.<C
 
 BirraPoint keeps the same `IAuditWriter.Record` calls (only the namespace changes), implements `CurrentUserAuditActor` (Keycloak `sub`) and maps the entity in `AppDbContext`. Migration `DropAuditLogTimestamps` removes `AuditLogs.CreatedAt`/`UpdatedAt`; `Down` recreates them from `OccurredAt`.
 
+**BuildingBlocks.EmailSender** (second block) depends on `MailKit` and `Microsoft.Extensions.Options.ConfigurationExtensions`:
+
+| Type | Role |
+|---|---|
+| `IEmailSender` | `SendAsync` / `SendWithAttachmentsAsync(toEmail, subject, htmlBody, ...)`; one HTML email to one recipient |
+| `EmailAttachment` | `FileName`, `Content` (`ReadOnlyMemory<byte>`), `ContentType` |
+| `SmtpOptions` | `Host`, `Port`, `UseStartTls`, `From`, `Username`/`Password`; no defaults of any host; validated on every send (missing host/from, port outside 1-65535, invalid mailbox, user without password), so a host without SMTP still starts |
+| `services.AddEmailSender(section, configure)` | Binds the section after the host's `configure` defaults (configuration wins); singleton MailKit sender (internal) unless the host registered an `IEmailSender`; options read through `IOptionsMonitor`, so reloads apply without a restart |
+
+BirraPoint binds the `Smtp` section and supplies `BirraPoint <no-reply@birrapoint.local>` as the default `From` (previously hard-coded in `SmtpSettings`); the AWS/Azure deployments keep setting `Smtp__From`. Tests run against a real Mailpit container, with and without SMTP authentication.
+
 ## Consequences
 - Audit can be reused by another service without BirraPoint code, and tested on its own.
 - The audit entity is no longer part of BirraPoint's shared kernel and is not `ITimestamped`; `OccurredAt` is the only timestamp of an audit row.

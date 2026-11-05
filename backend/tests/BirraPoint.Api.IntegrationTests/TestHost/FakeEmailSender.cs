@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using BirraPoint.Api.Common.Email;
+using BuildingBlocks.EmailSender;
 
 namespace BirraPoint.Api.IntegrationTests.TestHost;
 

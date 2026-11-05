@@ -10,7 +10,6 @@
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="MessagePack" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
-    <PackageReference Include="MailKit" />
     <PackageReference Include="MediatR" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
@@ -32,5 +31,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Aspire\BirraPoint.ServiceDefaults\BirraPoint.ServiceDefaults.csproj" />
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Audit\BuildingBlocks.Audit.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.EmailSender\BuildingBlocks.EmailSender.csproj" />
   </ItemGroup>
 </Project>

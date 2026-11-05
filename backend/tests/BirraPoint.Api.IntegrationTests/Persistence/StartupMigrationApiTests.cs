@@ -1,10 +1,10 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
-using BirraPoint.Api.Common.Email;
 using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.IntegrationTests.TestHost;
+using BuildingBlocks.EmailSender;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;

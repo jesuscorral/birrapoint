@@ -87,7 +87,7 @@ backend/src/Aspire/{BirraPoint.AppHost, BirraPoint.ServiceDefaults} | backend/sr
                  Features/<Feature>/ (Base<X>Endpoints.cs + Features/<Slice>/ + CommonComponents/, ADR-0031).
                  Other modules only via Contracts/ (ModuleBoundaryTests)
   Api/Realtime/  CompetitionHub + emit-after-commit publisher
-backend/src/BuildingBlocks/BuildingBlocks.<X>/   ADR-0035: reusable cross-cutting blocks (Audit), no BirraPoint
+backend/src/BuildingBlocks/BuildingBlocks.<X>/   ADR-0035: reusable cross-cutting blocks (Audit, EmailSender), no BirraPoint
                  reference, public API in BuildingBlocks.<X>; tests in backend/tests/BuildingBlocks/
 backend/tests/   UnitTests + IntegrationTests
 frontend/src/app/  FSD: core/ (auth, api, realtime, offline, layout), features/, shared/

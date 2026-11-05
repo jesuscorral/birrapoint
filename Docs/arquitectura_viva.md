@@ -109,7 +109,8 @@ One-time setup: shared `infra/ci-setup.md`, then `infra/azure/github-actions-set
 Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Aspire/BirraPoint.ServiceDefaults`
 (OpenTelemetry, health checks, HTTP resilience), `BirraPoint.Api.UnitTests`,
 `BirraPoint.Api.IntegrationTests`, and reusable blocks agnostic of BirraPoint under `src/BuildingBlocks/`
-(ADR-0035; today `BuildingBlocks.Audit`, tested by `tests/BuildingBlocks/BuildingBlocks.Audit.Tests`). Package versions are centralized in
+(ADR-0035; today `BuildingBlocks.Audit` and `BuildingBlocks.EmailSender`, each tested by its own
+`tests/BuildingBlocks/BuildingBlocks.<X>.Tests`). Package versions are centralized in
 `backend/Directory.Packages.props` (including `$(BirraPointTargetFramework)`).
 
 ### Pipeline and cross-cutting (`Common/`)
@@ -165,8 +166,10 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
   completed first login; returns `null` otherwise. `KeycloakAdminOptionsValidator`
   (`ValidateOnStart`) rejects a missing, blank or dev-placeholder `AdminClientSecret` outside
   Development/Testing.
-- **Email** (`Common/Email/`): MailKit `IEmailSender` (`SendAsync`, `SendWithAttachmentsAsync`);
-  optional SMTP auth/STARTTLS.
+- **Email** (`BuildingBlocks.EmailSender`, ADR-0035): MailKit `IEmailSender` (`SendAsync`,
+  `SendWithAttachmentsAsync`), registered with `AddEmailSender(Smtp section)`; `SmtpOptions`
+  (`Host`, `Port`, `UseStartTls`, `From`, `Username`/`Password`) validated on every send, optional SMTP
+  auth/STARTTLS. BirraPoint supplies `BirraPoint <no-reply@birrapoint.local>` as the default `From`.
 - **Realtime** (`Realtime/`): `CompetitionHub` at `/hubs/competition`, server → client only.
   `JoinCompetitionAsOrganizer` (role + ownership) and `JoinTable` (active `TableJudge`
   membership), reading `Context.User`. `IEventPublisher` emits after commit; enums serialize as
