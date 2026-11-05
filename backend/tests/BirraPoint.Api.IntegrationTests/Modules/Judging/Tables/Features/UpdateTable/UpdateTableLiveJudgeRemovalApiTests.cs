@@ -9,6 +9,7 @@ using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Tables.Features.UpdateTable;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BuildingBlocks.Audit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 

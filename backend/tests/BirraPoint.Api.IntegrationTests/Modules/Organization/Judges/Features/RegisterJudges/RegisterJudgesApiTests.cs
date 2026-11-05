@@ -1,15 +1,7 @@
-using System.Diagnostics;
 using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
-using BirraPoint.Api.Common.Email;
-using BirraPoint.Api.Common.Keycloak;
-using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace BirraPoint.Api.IntegrationTests.Modules.Organization.Judges.Features.RegisterJudges;
 

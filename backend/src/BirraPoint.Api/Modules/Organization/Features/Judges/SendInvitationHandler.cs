@@ -1,11 +1,11 @@
 using System.Net;
 using System.Text.Json;
-using BirraPoint.Api.Common.Email;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BuildingBlocks.EmailSender;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Judges;

@@ -226,6 +226,21 @@ approval, then guards that the HCP workspace holds the same environment. It then
 waits until every ECS service is stable and runs the task definition Terraform applied (a rollback
 by the circuit breaker fails the job).
 
+#### Rolling back past a schema-contracting migration
+
+The API migrates on start, but redeploying an older image never runs a migration's `Down`. If the
+release you roll back past drops columns the older image still writes, roll the schema back first,
+against the Neon **direct** (non-pooled) connection string, then redeploy the older version:
+
+```powershell
+dotnet ef database update <last migration of the target release> --project backend/src/BirraPoint.Api --connection "<Neon direct connection string>"
+```
+
+Known case: `DropAuditLogTimestamps` (ADR-0035) drops `AuditLogs.CreatedAt`/`UpdatedAt`. To go back to
+a release before it, run the command with `AddDispatchJobLease`; otherwise every audited command of
+the older image fails. Deploy that release outside a live competition: while the new revision
+starts and migrates, the old one cannot record audit rows.
+
 ## Tear down (wipes everything, data included)
 
 ```powershell

@@ -7,6 +7,7 @@ using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BuildingBlocks.Audit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 

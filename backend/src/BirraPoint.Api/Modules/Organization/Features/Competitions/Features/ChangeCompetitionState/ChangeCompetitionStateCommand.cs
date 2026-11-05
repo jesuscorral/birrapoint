@@ -1,4 +1,3 @@
-using BirraPoint.Api.Common.Audit;
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Jobs;
@@ -7,6 +6,7 @@ using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Contracts.Events;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Realtime;
+using BuildingBlocks.Audit;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 

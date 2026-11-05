@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>BuildingBlocks.EmailSender</RootNamespace>
+    <Description>Outbound HTML email (optionally with attachments) over SMTP with MailKit, configured through SmtpOptions.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MailKit" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="BuildingBlocks.EmailSender.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -106,9 +106,11 @@ One-time setup: shared `infra/ci-setup.md`, then `infra/azure/github-actions-set
 
 ## Backend (`backend/`, .NET 10 / C# 14)
 
-Projects: `BirraPoint.Api` (modular monolith), `BirraPoint.AppHost`, `BirraPoint.ServiceDefaults`
+Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Aspire/BirraPoint.ServiceDefaults`
 (OpenTelemetry, health checks, HTTP resilience), `BirraPoint.Api.UnitTests`,
-`BirraPoint.Api.IntegrationTests`. Package versions are centralized in
+`BirraPoint.Api.IntegrationTests`, and reusable blocks agnostic of BirraPoint under `src/BuildingBlocks/`
+(ADR-0035; today `BuildingBlocks.Audit` and `BuildingBlocks.EmailSender`, each tested by its own
+`tests/BuildingBlocks/BuildingBlocks.<X>.Tests`). Package versions are centralized in
 `backend/Directory.Packages.props` (including `$(BirraPointTargetFramework)`).
 
 ### Pipeline and cross-cutting (`Common/`)
@@ -136,8 +138,9 @@ Projects: `BirraPoint.Api` (modular monolith), `BirraPoint.AppHost`, `BirraPoint
   `Retry-After`. In memory, so exact only because the API runs as one replica (Azure and AWS).
 - **Validation** (`Common/Behaviors/`): MediatR 12.5 + `ValidationBehavior` running every
   FluentValidation validator before the handler.
-- **Audit** (`Common/Audit/`): `IAuditWriter.Record(...)` stages an `AuditLog` row (`{before,
-  after}` jsonb) in the caller's transaction.
+- **Audit** (`BuildingBlocks.Audit`, ADR-0035): `IAuditWriter.Record(...)` stages an `AuditLog` row
+  (`{before, after}` jsonb) in the caller's transaction; actor = Keycloak `sub` via
+  `Common/Auth/CurrentUserAuditActor`; registered with `AddAudit<AppDbContext, CurrentUserAuditActor>()`.
 - **Persistence** (`Common/Persistence/`): `AppDbContext`, one configuration per entity, central
   `CreatedAt`/`UpdatedAt` stamping, enums stored as strings (ADR-0004). Key constraints: unique
   `(JudgeId, BeerEntryId)` on `Evaluation`; `Evaluation.Total` is a stored computed column; unique
@@ -163,8 +166,10 @@ Projects: `BirraPoint.Api` (modular monolith), `BirraPoint.AppHost`, `BirraPoint
   completed first login; returns `null` otherwise. `KeycloakAdminOptionsValidator`
   (`ValidateOnStart`) rejects a missing, blank or dev-placeholder `AdminClientSecret` outside
   Development/Testing.
-- **Email** (`Common/Email/`): MailKit `IEmailSender` (`SendAsync`, `SendWithAttachmentsAsync`);
-  optional SMTP auth/STARTTLS.
+- **Email** (`BuildingBlocks.EmailSender`, ADR-0035): MailKit `IEmailSender` (`SendAsync`,
+  `SendWithAttachmentsAsync`), registered with `AddEmailSender(Smtp section)`; `SmtpOptions`
+  (`Host`, `Port`, `UseStartTls`, `From`, `Username`/`Password`) validated on every send, optional SMTP
+  auth/STARTTLS. BirraPoint supplies `BirraPoint <no-reply@birrapoint.local>` as the default `From`.
 - **Realtime** (`Realtime/`): `CompetitionHub` at `/hubs/competition`, server → client only.
   `JoinCompetitionAsOrganizer` (role + ownership) and `JoinTable` (active `TableJudge`
   membership), reading `Context.User`. `IEventPublisher` emits after commit; enums serialize as
@@ -174,7 +179,7 @@ Projects: `BirraPoint.Api` (modular monolith), `BirraPoint.AppHost`, `BirraPoint
 
 Code lives in `backend/src/BirraPoint.Api/Modules/<Module>/` (`Domain/`, `Persistence/` EF configurations,
 `Contracts/`, `Integration/`, `Features/<Feature>/`, `<Module>Module.cs`, `<Module>ModuleEndpoints.cs`). One `AppDbContext` and one schema; no per-module DB.
-`Api/Domain/` is the shared kernel (`Entity` + `ITimestamped`, `AuditLog`, `DispatchJob`). `UnitTests/Architecture/ModuleLayoutTests.cs` checks the layout.
+`Api/Domain/` is the shared kernel (`Entity` + `ITimestamped`, `DispatchJob`). `UnitTests/Architecture/ModuleLayoutTests.cs` checks the layout.
 
 | Module | Features | Entities |
 |---|---|---|

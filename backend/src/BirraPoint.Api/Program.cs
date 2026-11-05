@@ -1,9 +1,7 @@
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
-using BirraPoint.Api.Common.Audit;
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Behaviors;
-using BirraPoint.Api.Common.Email;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Keycloak;
@@ -16,6 +14,8 @@ using BirraPoint.Api.Modules.Organization;
 using BirraPoint.Api.Modules.Publication;
 using BirraPoint.Api.Realtime;
 using BirraPoint.ServiceDefaults;
+using BuildingBlocks.Audit;
+using BuildingBlocks.EmailSender;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -62,8 +62,14 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 // MediatR + FluentValidation ValidationBehavior pipeline.
 builder.Services.AddMediatRWithValidation(typeof(Program).Assembly);
 
-// Immutable audit trail writer.
-builder.Services.AddScoped<IAuditWriter, AuditWriter>();
+// Immutable audit trail writer (BuildingBlocks.Audit, ADR-0035); the actor is the Keycloak subject.
+builder.Services.AddAudit<AppDbContext, CurrentUserAuditActor>();
+
+// Invitation/result email delivery (R-10, BuildingBlocks.EmailSender, ADR-0035): MailKit against
+// Smtp:Host/Smtp:Port (Mailpit locally); Smtp:From defaults to BirraPoint's no-reply sender unless configured.
+builder.Services.AddEmailSender(
+    builder.Configuration.GetSection(SmtpOptions.DefaultSectionName),
+    smtp => smtp.From = "BirraPoint <no-reply@birrapoint.local>");
 
 // CompetitionHub + emit-after-commit event dispatcher. Enum payload fields (e.g.
 // DispatchProgress's `status`) serialize as their name, not the default int, matching the
@@ -91,9 +97,6 @@ builder.Services.AddSingleton<IValidateOptions<KeycloakAdminOptions>, KeycloakAd
 builder.Services.AddOptions<KeycloakAdminOptions>()
     .BindConfiguration(KeycloakAdminOptions.SectionName)
     .ValidateOnStart();
-
-// Invitation/result email delivery (R-10): MailKit against Smtp:Host/Smtp:Port (Mailpit locally).
-builder.Services.AddScoped<IEmailSender, MailKitEmailSender>();
 
 // Module registrations: contract implementations plus the module's DispatchJob handlers
 // (auto-discovered by DispatchWorker): Organization (SendInvitation, judge account provisioning,

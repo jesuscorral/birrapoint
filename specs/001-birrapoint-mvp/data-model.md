@@ -3,7 +3,7 @@
 **Date**: 2026-07-06 | **Plan**: [plan.md](./plan.md) | **Spec**: [spec.md](./spec.md)
 
 Server of record: PostgreSQL via EF Core code-first. Client-side stores (Dexie) at the end.
-All PKs are `Guid` (v7/sequential). All entities carry `CreatedAt`/`UpdatedAt` (UTC).
+All PKs are `Guid` (v7/sequential). All entities carry `CreatedAt`/`UpdatedAt` (UTC), except the insert-only `AuditLog`, whose only timestamp is `OccurredAt`.
 
 ## Entity Catalog
 
@@ -447,6 +447,8 @@ medium this stack has, consistent with Postgres being the server of record.
 
 ### AuditLog
 
+Provided by the `BuildingBlocks.Audit` block (ADR-0035) and mapped into `AppDbContext`.
+
 | Field | Type | Constraints |
 |-------|------|-------------|
 | Id | Guid | PK |
@@ -482,7 +484,7 @@ the UI surfaces via the offline badge (FR-027).
 
 ## Relationship overview
 
-Module ownership (ADR-0033/0034): Catalog = `BjcpStyle`; Organization = organizers, competitions, categories, participants, entries, judges, invitations, import staging; Judging = tables, table judges, samples, evaluations, discrepancy alerts; Publication = generated score sheets, results archive; shared kernel = `AuditLog`, `DispatchJob`.
+Module ownership (ADR-0033/0034): Catalog = `BjcpStyle`; Organization = organizers, competitions, categories, participants, entries, judges, invitations, import staging; Judging = tables, table judges, samples, evaluations, discrepancy alerts; Publication = generated score sheets, results archive; shared kernel = `DispatchJob`; `AuditLog` comes from `BuildingBlocks.Audit` (ADR-0035).
 
 ```text
 Organizer 1─* Competition (OrganizerId, additive alongside the existing CreatedByUserId claim check)
