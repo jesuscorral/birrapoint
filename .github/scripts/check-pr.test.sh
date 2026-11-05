@@ -20,6 +20,7 @@ check "conventional title and filled body pass" 0 '' 'feat(ci): add PR template'
 # Built at runtime: a literal id here would trip check-no-task-ids.sh.
 ids="T$((150 + 1)), T$((150 + 2))"
 check "breaking-change marker and task ids are allowed" 0 '' "refactor(modules)!: split contracts ($ids)" "$good_body"
+check "comma-separated scopes pass" 0 '' 'fix(tables,dashboard): keep order' "$good_body"
 check "scope is optional" 0 '' 'chore: bump tools' "$good_body"
 check "CRLF body passes" 0 '' 'fix: x' $'## What and why\r\n\r\nReal text.\r\n'
 check "non-conventional title fails" 1 '::error::.*title' 'Add rateLimiting' "$good_body"

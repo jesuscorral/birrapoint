@@ -16,7 +16,7 @@ fi
 
 fail=0
 types='feat|fix|refactor|perf|docs|test|build|ci|chore|style|revert'
-if ! grep -Eq "^($types)(\([a-z0-9._/-]+\))?!?: [^ ].*" <<<"$title"; then
+if ! grep -Eq "^($types)(\([a-z0-9._/,-]+\))?!?: [^ ].*" <<<"$title"; then
   echo "::error::PR title must follow Conventional Commits: '<type>(<scope>): <subject>' with type one of ${types//|/, } (got: '$title')."
   fail=1
 fi

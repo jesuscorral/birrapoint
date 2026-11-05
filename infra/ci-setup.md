@@ -92,4 +92,5 @@ gh secret set ANTHROPIC_API_KEY
 ```
 
 Re-review a PR after new commits from the Actions tab: **Claude review → Run workflow**, PR number.
-`pr.yml` needs no setup: missing labels (`backend`, `size/M`...) are created on first use.
+`pr.yml` needs no setup: its `labels` job has `issues: write`, so missing labels (`backend`,
+`size/M`...) are created on first use.
