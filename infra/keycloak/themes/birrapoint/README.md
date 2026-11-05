@@ -161,4 +161,4 @@ docker-compose up
 ## Relacionado
 
 - `birrapoint-realm.json` — Configuración del realm (registrationAllowed, themes, etc.)
-- `frontend/src/styles.css` — Tailwind v4 con mismos tokens (sincronizar cambios)
+- `src/Birrapoint.Web/src/styles.css` — Tailwind v4 con mismos tokens (sincronizar cambios)

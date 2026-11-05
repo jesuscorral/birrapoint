@@ -22,14 +22,14 @@ This is the end-to-end validation guide for the feature. Commands mirror `CLAUDE
 # Keycloak (birrapoint realm auto-imported: roles ORGANIZER/JUDGE, seeded organizer),
 # Mailpit (SMTP sink), the backend API (EF migrations incl. BJCP 2021 seed applied on
 # startup in Development) and the Angular frontend.
-dotnet run --project backend/src/Aspire/BirraPoint.AppHost
+dotnet run --project src/Aspire/BirraPoint.AppHost
 # Aspire dashboard (resources, logs, traces, health): https://localhost:17202, login URL
 # printed on startup
 # API: http://localhost:5121 · https://localhost:7075 (OpenAPI at /openapi/v1.json; full
 # endpoint surface in contracts/rest-api.md) · PWA: http://localhost:4200 · Keycloak: http://localhost:8081
 
 # Frontend-only iteration (optional, API already running):
-cd frontend && npm ci && npm start
+cd src/Birrapoint.Web && npm ci && npm start
 ```
 
 Configuration is environment-variable driven (no secrets in the repo or in any image):
@@ -40,7 +40,7 @@ the AppHost; in the cloud the non-secret ones are Container Apps env vars and th
 (`ConnectionStrings__*`, `Keycloak__AdminClientSecret`, `Smtp__Password`) are read from Key Vault
 through the Dapr secret store when `Dapr__SecretStore` is set (Neon pooled endpoint for runtime,
 direct endpoint for migrations; ADR-0021). The PWA reads `/config.json` at startup
-(`frontend/public/config.json` locally; generated from env vars by the web container).
+(`src/Birrapoint.Web/public/config.json` locally; generated from env vars by the web container).
 
 ## Cloud deployment (SC-011)
 
@@ -75,7 +75,7 @@ gh workflow run deploy-aws.yml -f version=X.Y.Z   # CI path (aws-production appr
 Restore: Neon point-in-time recovery, procedure in `infra/azure/terraform/README.md` (FR-047).
 
 Local production-image smoke (no Azure needed): build the three images
-(`docker build -f backend/src/BirraPoint.Api/Dockerfile backend`, `docker build frontend`,
+(`docker build -f src/BirraPoint.Api/Dockerfile .`, `docker build src/Birrapoint.Web`,
 `docker build infra/keycloak`) and run them on one Docker network with a `postgres:16`
 container; the web container needs `API_UPSTREAM=http://<api container>:8080` and
 `KEYCLOAK_URL`.
@@ -84,22 +84,22 @@ container; the web container needs `API_UPSTREAM=http://<api container>:8080` an
 
 ```bash
 # Backend unit (handlers + validators)
-dotnet test backend/tests/BirraPoint.Api.UnitTests
+dotnet test tests/BirraPoint.Api.UnitTests
 
 # Backend contract/integration (WebApplicationFactory + Testcontainers PostgreSQL)
-dotnet test backend/tests/BirraPoint.Api.IntegrationTests
+dotnet test tests/BirraPoint.Api.IntegrationTests
 
 # Single test
-dotnet test backend/tests/BirraPoint.Api.UnitTests --filter "FullyQualifiedName~SubmitEvaluation"
+dotnet test tests/BirraPoint.Api.UnitTests --filter "FullyQualifiedName~SubmitEvaluation"
 
 # Frontend unit / E2E (incl. offline + axe accessibility suites)
-cd frontend && npx jest
-cd frontend && npm run e2e   # = playwright test -c e2e (config lives in e2e/)
-cd frontend && npx ng lint
-cd frontend && npm run format:check
+cd src/Birrapoint.Web && npx jest
+cd src/Birrapoint.Web && npm run e2e   # = playwright test -c e2e (config lives in e2e/)
+cd src/Birrapoint.Web && npx ng lint
+cd src/Birrapoint.Web && npm run format:check
 
 # Bundle size gate (Principle IX, 500 KB gzipped initial bundle)
-cd frontend && npm run build:budget
+cd src/Birrapoint.Web && npm run build:budget
 
 # API performance budgets (Principle IX, reads p95 <200ms / writes p95 <500ms) — needs a
 # pre-obtained ORGANIZER/JUDGE bearer token; see the script's header comment
@@ -131,7 +131,7 @@ Each scenario maps to a spec user story (US) and must pass before that story is 
 
 - All endpoints exercised by contract tests asserting status codes, ProblemDetails `type` URNs,
   and — for judge-facing payloads — the **absence** of entrant fields (BR-01 structural test).
-- `npm run e2e -- a11y` runs axe-core (`frontend/e2e/a11y/routes.a11y.spec.ts`) against every
+- `npm run e2e -- a11y` runs axe-core (`src/Birrapoint.Web/e2e/a11y/routes.a11y.spec.ts`) against every
   organizer and judge route in `app.routes.ts` (WCAG 2.1 AA, SC-009) — a merge gate.
 - Performance: dashboard latency (scenario 9) and draft-save timing (Jest fake-timer coverage in
   `sync.service.spec.ts`, more precise than an E2E wall-clock assertion) both within budget; API

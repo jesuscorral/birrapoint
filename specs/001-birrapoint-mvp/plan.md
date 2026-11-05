@@ -153,33 +153,36 @@ specs/001-birrapoint-mvp/
 ### Source Code (repository root)
 
 ```text
-backend/
-├── src/
+BirraPoint.sln                          # .NET solution at the repo root, with Directory.Build.props,
+Directory.Packages.props                #   Directory.Packages.props, .editorconfig, .dockerignore
+src/
+├── Aspire/
 │   ├── BirraPoint.AppHost/             # .NET Aspire orchestration: PostgreSQL, Keycloak (realm
 │   │                                   #   import), Mailpit, API, frontend
-│   ├── BirraPoint.ServiceDefaults/     # OpenTelemetry, health checks, resilience defaults
-│   ├── BuildingBlocks/                 # ADR-0035: reusable blocks with no BirraPoint reference
-│   │   ├── BuildingBlocks.Audit/       #   immutable audit trail on the host DbContext
-│   │   └── BuildingBlocks.EmailSender/ #   MailKit SMTP sender (SmtpOptions, AddEmailSender)
-│   └── BirraPoint.Api/                 # Single deployable modular monolith
-│       ├── Program.cs                  # Minimal API bootstrap, auth, SignalR, OpenAPI
-│       ├── Dockerfile                  # Multi-stage: .NET SDK build → ASP.NET runtime
-│       ├── Domain/                     # Shared kernel: Entity, DispatchJob
-│       ├── Common/                     # Cross-cutting: MediatR behaviors (validation),
-│       │                               #   ProblemDetails mapping, auth policies,
-│       │                               #   persistence (DbContext), job queue
-│       ├── Modules/                    # ADR-0033/0034; each: Domain/, Persistence/, Contracts/, Integration/, Features/
-│       │   ├── Catalog/                # BJCP reference data (GetStyles, GetStyleDetails)
-│       │   ├── Organization/           # Competitions, Import, Judges
-│       │   ├── Judging/                # Tables, TastingOrder, Evaluations, Monitoring
-│       │   └── Publication/            # Dispatch (PDF/ZIP jobs, result emails)
-│       └── Realtime/                   # CompetitionHub + group management
-└── tests/
-    ├── BirraPoint.Api.UnitTests/       # Handler + validator tests per slice
-    ├── BirraPoint.Api.IntegrationTests/# Contract tests (WebApplicationFactory + Testcontainers)
-    └── BuildingBlocks/                 # BuildingBlocks.<X>.Tests, host-agnostic (Testcontainers)
+│   └── BirraPoint.ServiceDefaults/     # OpenTelemetry, health checks, resilience defaults
+├── Birrapoint.Web/                     # Angular PWA (detailed below)
+├── BuildingBlocks/                     # ADR-0035: reusable blocks with no BirraPoint reference
+│   ├── BuildingBlocks.Audit/           #   immutable audit trail on the host DbContext
+│   └── BuildingBlocks.EmailSender/     #   MailKit SMTP sender (SmtpOptions, AddEmailSender)
+└── BirraPoint.Api/                     # Single deployable modular monolith
+    ├── Program.cs                      # Minimal API bootstrap, auth, SignalR, OpenAPI
+    ├── Dockerfile                      # Multi-stage: .NET SDK build → ASP.NET runtime (context: repo root)
+    ├── Domain/                         # Shared kernel: Entity, DispatchJob
+    ├── Common/                         # Cross-cutting: MediatR behaviors (validation),
+    │                                   #   ProblemDetails mapping, auth policies,
+    │                                   #   persistence (DbContext), job queue
+    ├── Modules/                        # ADR-0033/0034; each: Domain/, Persistence/, Contracts/, Integration/, Features/
+    │   ├── Catalog/                    # BJCP reference data (GetStyles, GetStyleDetails)
+    │   ├── Organization/               # Competitions, Import, Judges
+    │   ├── Judging/                    # Tables, TastingOrder, Evaluations, Monitoring
+    │   └── Publication/                # Dispatch (PDF/ZIP jobs, result emails)
+    └── Realtime/                       # CompetitionHub + group management
+tests/
+├── BirraPoint.Api.UnitTests/           # Handler + validator tests per slice
+├── BirraPoint.Api.IntegrationTests/    # Contract tests (WebApplicationFactory + Testcontainers)
+└── BuildingBlocks/                     # BuildingBlocks.<X>.Tests, host-agnostic (Testcontainers)
 
-frontend/
+src/Birrapoint.Web/                     # Angular PWA, own npm project (package.json, angular.json)
 ├── Dockerfile                          # Multi-stage: Node build → Nginx Alpine (static serve)
 ├── nginx.conf
 ├── src/
@@ -223,9 +226,9 @@ infra/
 
 **Structure Decision**: Web application layout (backend + frontend at repo root, matching the
 constitution's modular-monolith + FSD mandate). Backend slices live under
-`backend/src/BirraPoint.Api/Modules/<Catalog|Organization|Judging|Publication>/Features/` (ADR-0033, ADR-0034; cross-module access only via `Contracts/`), one
+`src/BirraPoint.Api/Modules/<Catalog|Organization|Judging|Publication>/Features/` (ADR-0033, ADR-0034; cross-module access only via `Contracts/`), one
 directory per business capability, with `Domain/` and `Common/` as the deliberately small shared kernel. Frontend mirrors the same capabilities under
-`frontend/src/app/features/` with shared infrastructure in `core/`. Local orchestration lives in
+`src/Birrapoint.Web/src/app/features/` with shared infrastructure in `core/`. Local orchestration lives in
 the Aspire `BirraPoint.AppHost` project; the cloud topology in `infra/azure/terraform/` or
 `infra/aws/terraform/` (one target per deployment; production PostgreSQL on Neon, everything else
 in Azure Container Apps or ECS Fargate).

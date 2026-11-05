@@ -43,11 +43,11 @@ jobs:
       matrix:
         include:
           - name: birrapoint-api
-            context: backend
-            dockerfile: backend/src/BirraPoint.Api/Dockerfile
+            context: .
+            dockerfile: src/BirraPoint.Api/Dockerfile
           - name: birrapoint-web
-            context: frontend
-            dockerfile: frontend/Dockerfile
+            context: src/Birrapoint.Web
+            dockerfile: src/Birrapoint.Web/Dockerfile
           - name: birrapoint-keycloak
             context: infra/keycloak
             dockerfile: infra/keycloak/Dockerfile

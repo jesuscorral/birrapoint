@@ -135,11 +135,11 @@ jobs:
       matrix:
         include:
           - component: api
-            context: backend
-            dockerfile: backend/src/BirraPoint.Api/Dockerfile
+            context: .
+            dockerfile: src/BirraPoint.Api/Dockerfile
           - component: web
-            context: frontend
-            dockerfile: frontend/Dockerfile
+            context: src/Birrapoint.Web
+            dockerfile: src/Birrapoint.Web/Dockerfile
           - component: keycloak
             context: infra/keycloak
             dockerfile: infra/keycloak/Dockerfile

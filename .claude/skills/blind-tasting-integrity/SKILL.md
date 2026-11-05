@@ -21,14 +21,14 @@ checks the code matches them, not the other way around.
 
 **Documented exceptions (allowed, don't flag):** `EntryInstructions` (ADR-0011, FR-019) and
 `AbvPercent` (FR-062) on judge sample DTOs; tablemates' `DisplayName`/`BjcpRank` from
-`GET /me/tables/{tableId}/judges` (judge data, not entrant data). Judge DTOs live in `backend/src/BirraPoint.Api/Modules/Judging/Features/TastingOrder/`:
+`GET /me/tables/{tableId}/judges` (judge data, not entrant data). Judge DTOs live in `src/BirraPoint.Api/Modules/Judging/Features/TastingOrder/`:
 `CommonComponents/Dtos/JudgeSampleDto.cs`, `Features/GetMyTables/GetMyTablesQuery.cs`
 (`JudgeTableSummaryDto`) and `Features/GetTableJudges/GetTableJudgesQuery.cs`
 (`JudgeTableMemberDto`); start there.
 
 ## Steps
 
-1. **Backend DTOs.** Grep `backend/src/BirraPoint.Api/Modules/Judging/Features/TastingOrder/`,
+1. **Backend DTOs.** Grep `src/BirraPoint.Api/Modules/Judging/Features/TastingOrder/`,
    `Modules/Judging/Features/Evaluations/`, and any other slice that projects data toward `/me/**` judge
    endpoints or judge-scoped SignalR groups. For every response type, list its fields against
    `data-model.md` §Anonymity. Flag any field not explicitly allowed there — especially anything
@@ -43,7 +43,7 @@ checks the code matches them, not the other way around.
    deny-by-default per CLAUDE.md §Security. A judge must never be able to fetch another judge's
    table or a table outside their assignment (expect `404`, not `403`, per the "never reveal
    existence outside caller's scope" rule).
-4. **Frontend judge views.** Grep `frontend/src/app/features/judge-tables/`,
+4. **Frontend judge views.** Grep `src/Birrapoint.Web/src/app/features/judge-tables/`,
    `features/evaluation-sheet/`, `features/discrepancy/` and `core/offline/` (Dexie schemas) for
    any field or API call
    requesting entrant data. Check Dexie-cached judge data doesn't accidentally persist a field

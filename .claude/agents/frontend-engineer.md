@@ -1,6 +1,6 @@
 ---
 name: frontend-engineer
-description: Angular 20 frontend implementer for BirraPoint. Use for any change under frontend/src (standalone components, Signals, FSD core/features/shared, Dexie offline engine, Keycloak auth, SignalR client) plus Jest unit tests, including visual verification in the browser. Give it one scoped task; it returns a diff summary, gate results and what it verified visually. Not for frontend/e2e (qa-engineer) or backend.
+description: Angular 20 frontend implementer for BirraPoint. Use for any change under src/Birrapoint.Web/src (standalone components, Signals, FSD core/features/shared, Dexie offline engine, Keycloak auth, SignalR client) plus Jest unit tests, including visual verification in the browser. Give it one scoped task; it returns a diff summary, gate results and what it verified visually. Not for src/Birrapoint.Web/e2e (qa-engineer) or backend.
 tools: Read, Edit, Write, Grep, Glob, Bash, mcp__codegraph__codegraph_explore, mcp__ide__getDiagnostics, mcp__claude-in-chrome__tabs_context_mcp, mcp__claude-in-chrome__tabs_create_mcp, mcp__claude-in-chrome__tabs_close_mcp, mcp__claude-in-chrome__navigate, mcp__claude-in-chrome__computer, mcp__claude-in-chrome__read_page, mcp__claude-in-chrome__find, mcp__claude-in-chrome__form_input, mcp__claude-in-chrome__javascript_tool, mcp__claude-in-chrome__read_console_messages, mcp__claude-in-chrome__read_network_requests, mcp__claude-in-chrome__resize_window, mcp__claude_ai_Context7__resolve-library-id, mcp__claude_ai_Context7__query-docs
 model: sonnet
 ---
@@ -14,8 +14,8 @@ truth: `specs/001-birrapoint-mvp/` (spec, tasks, `contracts/`). Current architec
 
 ## Scope
 
-`frontend/src/**`, `frontend/angular.json`, `frontend/package.json`. Not `frontend/e2e/**`
-(`qa-engineer`), not `backend/**`, never `contracts/` (report gaps instead).
+`src/Birrapoint.Web/src/**`, `src/Birrapoint.Web/angular.json`, `src/Birrapoint.Web/package.json`. Not `src/Birrapoint.Web/e2e/**`
+(`qa-engineer`), not `src/**` or `tests/**`, never `contracts/` (report gaps instead).
 
 ## How to work efficiently
 
@@ -49,10 +49,10 @@ running, say so — don't start it yourself.
 ## Gates (run all, report results)
 
 ```
-cd frontend && npx jest
-cd frontend && npx ng lint
-cd frontend && npm run format:check
-cd frontend && npm run build:budget
+cd src/Birrapoint.Web && npx jest
+cd src/Birrapoint.Web && npx ng lint
+cd src/Birrapoint.Web && npm run format:check
+cd src/Birrapoint.Web && npm run build:budget
 ```
 
 ## Report (keep it short)

@@ -49,7 +49,7 @@ import { check } from 'k6';
 //
 //   k6 run infra/perf/api-budgets.js
 //
-// against a running local Aspire topology (`dotnet run --project backend/src/Aspire/BirraPoint.AppHost`).
+// against a running local Aspire topology (`dotnet run --project src/Aspire/BirraPoint.AppHost`).
 // `k6` itself is not installed in every environment this repo is checked out in — install it
 // separately (https://k6.io/docs/get-started/installation/) before running.
 

@@ -1,0 +1,36 @@
+# syntax=docker/dockerfile:1
+# BirraPoint API — multi-stage image (FR-043, constitution Containerization constraint).
+# Build context is the repo root (needs Directory.*.props, .editorconfig, BirraPoint.ServiceDefaults and
+# the BuildingBlocks.* projects the API references; .editorconfig carries the analyzer settings the
+# warnings-as-errors build depends on). The root .dockerignore keeps src/Birrapoint.Web/, infra/ and docs out:
+#   docker build -f src/BirraPoint.Api/Dockerfile .
+# No secrets or environment-specific configuration are baked in: connection strings, Keycloak,
+# SMTP and Frontend__BaseUrl all arrive as environment variables at container start (FR-046).
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# Restore first, from project files only, so the layer is cached across source-only changes.
+COPY Directory.Build.props Directory.Packages.props ./
+COPY src/Aspire/BirraPoint.ServiceDefaults/BirraPoint.ServiceDefaults.csproj src/Aspire/BirraPoint.ServiceDefaults/
+COPY src/BuildingBlocks/BuildingBlocks.Audit/BuildingBlocks.Audit.csproj src/BuildingBlocks/BuildingBlocks.Audit/
+COPY src/BuildingBlocks/BuildingBlocks.EmailSender/BuildingBlocks.EmailSender.csproj src/BuildingBlocks/BuildingBlocks.EmailSender/
+COPY src/BirraPoint.Api/BirraPoint.Api.csproj src/BirraPoint.Api/
+RUN dotnet restore src/BirraPoint.Api/BirraPoint.Api.csproj
+
+COPY .editorconfig ./
+COPY src/Aspire/BirraPoint.ServiceDefaults/ src/Aspire/BirraPoint.ServiceDefaults/
+COPY src/BuildingBlocks/ src/BuildingBlocks/
+COPY src/BirraPoint.Api/ src/BirraPoint.Api/
+RUN dotnet publish src/BirraPoint.Api/BirraPoint.Api.csproj \
+    --configuration Release --no-restore --output /app/publish /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+ENV ASPNETCORE_HTTP_PORTS=8080 \
+    DOTNET_RUNNING_IN_CONTAINER=true
+EXPOSE 8080
+COPY --from=build /app/publish .
+# Non-root user shipped by the official .NET images.
+USER $APP_UID
+ENTRYPOINT ["dotnet", "BirraPoint.Api.dll"]

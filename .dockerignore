@@ -1,0 +1,14 @@
+# Build context of the API image is the repo root (src/BirraPoint.Api/Dockerfile).
+# Allowlist: only the backend build inputs are sent to the daemon.
+*
+!.editorconfig
+!Directory.Build.props
+!Directory.Packages.props
+!src/
+src/Aspire/BirraPoint.AppHost/
+src/Birrapoint.Web/
+**/bin/
+**/obj/
+**/TestResults/
+**/*.user
+**/appsettings.*.Local.json

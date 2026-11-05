@@ -48,12 +48,12 @@ process.stdin.on('end', () => {
   // The task-id guard is a bash script; skip it where bash isn't installed.
   const hasBash = () => { try { sh('bash --version', root, 15000); return true; } catch { return false; } };
 
-  const frontendSources =changed.filter(f => /^frontend\/src\/.*\.(ts|html)$/.test(f) && fs.existsSync(path.join(root, f)));
+  const frontendSources =changed.filter(f => /^src\/Birrapoint\.Web\/src\/.*\.(ts|html)$/.test(f) && fs.existsSync(path.join(root, f)));
   const checks = [
     {
       name: 'backend',
-      files: changed.filter(f => /^backend\/.*\.(cs|csproj|props|json)$/.test(f)),
-      cmd: 'dotnet build backend/BirraPoint.sln -v q --nologo',
+      files: changed.filter(f => /^((?!src\/Birrapoint\.Web\/)(src|tests)\/.*\.(cs|csproj|props|json)|BirraPoint\.sln|Directory\.(Build|Packages)\.props|\.editorconfig)$/.test(f)),
+      cmd: 'dotnet build BirraPoint.sln -v q --nologo',
       cwd: root,
       label: 'dotnet build FAILED'
     },
@@ -61,15 +61,18 @@ process.stdin.on('end', () => {
       name: 'frontend-lint',
       files: frontendSources,
       // Only the changed files, with a persistent cache; node + JS entry avoids the slow .cmd shim.
-      cmd: `node node_modules/eslint/bin/eslint.js --cache --cache-location node_modules/.cache/eslint-hook/ ${frontendSources.map(f => `"${f.slice('frontend/'.length)}"`).join(' ')}`,
-      cwd: path.join(root, 'frontend'),
+      // Past ~100 files (a folder move) the argument list would exceed the Windows command-line
+      // limit, so lint the whole src/ instead; the cache keeps that cheap.
+      cmd: `node node_modules/eslint/bin/eslint.js --cache --cache-location node_modules/.cache/eslint-hook/ ${
+        frontendSources.length > 100 ? 'src' : frontendSources.map(f => `"${f.slice('src/Birrapoint.Web/'.length)}"`).join(' ')}`,
+      cwd: path.join(root, 'src', 'Birrapoint.Web'),
       label: 'ESLint FAILED'
     },
     {
       name: 'frontend-tsc',
       files: frontendSources.filter(f => f.endsWith('.ts') && !f.endsWith('.spec.ts')),
       cmd: 'node node_modules/typescript/bin/tsc --noEmit -p tsconfig.app.json',
-      cwd: path.join(root, 'frontend'),
+      cwd: path.join(root, 'src', 'Birrapoint.Web'),
       label: 'Frontend type-check (tsc) FAILED'
     },
     {
@@ -81,7 +84,7 @@ process.stdin.on('end', () => {
     },
     {
       name: 'task-ids',
-      files: (src => (src.length && hasBash() ? src : []))(changed.filter(f => /^(backend|frontend|infra|\.github)\//.test(f) && fs.existsSync(path.join(root, f)))),
+      files: (src => (src.length && hasBash() ? src : []))(changed.filter(f => /^(src|tests|infra|\.github)\//.test(f) && fs.existsSync(path.join(root, f)))),
       cmd: 'bash .github/scripts/check-no-task-ids.sh',
       cwd: root,
       label: 'Task ids (T###) in code - cite FR-/SC-/US/ADR or the reason instead'

@@ -1,6 +1,6 @@
 ---
 name: backend-engineer
-description: .NET 10 / C# 14 backend implementer for BirraPoint. Use for any change under backend/src (BirraPoint.Api, AppHost, ServiceDefaults) and backend unit tests — vertical slices, MediatR 12, Minimal APIs, EF Core/Npgsql migrations, SignalR emits, DispatchJob handlers, Keycloak Admin, MailKit. Give it one scoped task (task id + files + contract refs); it returns a diff summary and gate results. Not for frontend, E2E or infra.
+description: .NET 10 / C# 14 backend implementer for BirraPoint. Use for any change under src/ (BirraPoint.Api, Aspire AppHost/ServiceDefaults, BuildingBlocks) and backend unit tests — vertical slices, MediatR 12, Minimal APIs, EF Core/Npgsql migrations, SignalR emits, DispatchJob handlers, Keycloak Admin, MailKit. Give it one scoped task (task id + files + contract refs); it returns a diff summary and gate results. Not for frontend, E2E or infra.
 tools: Read, Edit, Write, Grep, Glob, Bash, mcp__codegraph__codegraph_explore, mcp__ide__getDiagnostics, mcp__microsoft-learn__microsoft_docs_search, mcp__microsoft-learn__microsoft_docs_fetch, mcp__microsoft-learn__microsoft_code_sample_search, mcp__postgres-local__list_schemas, mcp__postgres-local__list_objects, mcp__postgres-local__get_object_details, mcp__postgres-local__execute_sql, mcp__postgres-local__explain_query
 model: sonnet
 ---
@@ -14,9 +14,9 @@ Source of truth order: constitution → `specs/001-birrapoint-mvp/spec.md` → `
 
 ## Scope
 
-`backend/src/**`, `backend/tests/BirraPoint.Api.UnitTests/**`. Integration/contract tests
-(`backend/tests/BirraPoint.Api.IntegrationTests/**`) only when the task explicitly assigns them to
-you; otherwise they belong to `qa-engineer`. Never touch `frontend/**` or `infra/**`.
+`src/**`, `tests/BirraPoint.Api.UnitTests/**`. Integration/contract tests
+(`tests/BirraPoint.Api.IntegrationTests/**`) only when the task explicitly assigns them to
+you; otherwise they belong to `qa-engineer`. Never touch `src/Birrapoint.Web/**` or `infra/**`.
 
 ## How to work efficiently
 
@@ -34,7 +34,7 @@ you; otherwise they belong to `qa-engineer`. Never touch `frontend/**` or `infra
    commit, or `Stage` before your own `SaveChangesAsync` + `IDispatchWakeUp.Signal()` after commit when the
    job must commit atomically with the change (ADR-0034). One-shot state flips
    use `SELECT … FOR UPDATE` in a transaction (see `FixOrder`, `CloseTable`).
-5. **Schema changes**: `dotnet ef migrations add <Name> --project backend/src/BirraPoint.Api` (then run
+5. **Schema changes**: `dotnet ef migrations add <Name> --project src/BirraPoint.Api` (then run
    the `migration-safety` skill),
    and update `data-model.md` in the same change. Endpoint/event changes update `contracts/`.
 
@@ -56,10 +56,10 @@ you; otherwise they belong to `qa-engineer`. Never touch `frontend/**` or `infra
 ## Gates (run all, report results)
 
 ```
-dotnet build backend/BirraPoint.sln
-dotnet test backend/tests/BirraPoint.Api.UnitTests
-dotnet test backend/tests/BirraPoint.Api.IntegrationTests   # when touched or affected; needs Docker
-dotnet format backend/BirraPoint.sln --verify-no-changes
+dotnet build BirraPoint.sln
+dotnet test tests/BirraPoint.Api.UnitTests
+dotnet test tests/BirraPoint.Api.IntegrationTests   # when touched or affected; needs Docker
+dotnet format BirraPoint.sln --verify-no-changes
 ```
 
 If one cannot run (e.g. Docker down), say which and what you verified instead.

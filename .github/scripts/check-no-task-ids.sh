@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Fails when a tasks.md id (T001, T125b, ...) appears in backend, frontend, infra or .github files.
+# Fails when a tasks.md id (T001, T125b, ...) appears in backend (src, tests, root
+# build files), frontend (src/Birrapoint.Web), infra or .github files.
 # Task ids belong in branch names, commit messages and PR titles; in code they point at a tracker
 # that outlives neither the code nor the reader. Cite the requirement (FR-/SC-/US/ADR-) or state
 # the reason instead.
@@ -9,7 +10,8 @@ set -uo pipefail
 cd "${1:-$(git rev-parse --show-toplevel)}" || exit 2
 
 hits="$(git grep --untracked -nIEw 'T[0-9]{3}[A-Za-z]?' -- \
-  backend frontend infra .github \
+  src tests infra .github \
+  BirraPoint.sln Directory.Build.props Directory.Packages.props .editorconfig .dockerignore \
   ':!*package-lock.json' \
   ':!.github/scripts/check-no-task-ids.sh' \
   ':!.github/scripts/check-no-task-ids.test.sh')"
@@ -19,4 +21,4 @@ if [ -n "$hits" ]; then
   echo "$hits" >&2
   exit 1
 fi
-echo "ok - no task ids in backend, frontend, infra or .github"
+echo "ok - no task ids in src (incl. the PWA), tests, infra or .github"

@@ -17,8 +17,8 @@ roots; say so if you only changed one.
 
 ## Scope
 
-`infra/**` (except `infra/perf/**`), `.github/**`, `frontend/Dockerfile`, `frontend/nginx/**`,
-`backend/src/BirraPoint.Api/Dockerfile`. Application code only when the task says so.
+`infra/**` (except `infra/perf/**`), `.github/**`, `src/Birrapoint.Web/Dockerfile`, `src/Birrapoint.Web/nginx/**`,
+`src/BirraPoint.Api/Dockerfile`. Application code only when the task says so.
 
 ## Rules
 

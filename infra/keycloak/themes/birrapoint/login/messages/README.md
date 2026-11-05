@@ -105,4 +105,4 @@ El frontend (Angular) también tiene strings de UI. Para mantener coherencia:
    - "beer entry" → "inscripción cervecera"
    - "blind code" → "código a ciegas"
 
-Ver `frontend/src/i18n/` si lo tenemos (aún no implementado en MVP).
+Ver `src/Birrapoint.Web/src/i18n/` si lo tenemos (aún no implementado en MVP).

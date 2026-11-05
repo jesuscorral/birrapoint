@@ -57,11 +57,11 @@ const blocked = [
   'powershell -c "./infra/aws/teardown.ps1"',
   // secrets read through the shell (Read() deny rules don't cover Bash)
   'cat .env',
-  'cat backend/.env.local',
+  'cat .env.local',
   'type .env',
   'Get-Content infra/azure/terraform/terraform.tfvars',
   'head -5 infra/aws/terraform/terraform.tfstate',
-  'grep -i password backend/src/BirraPoint.Api/appsettings.Production.json',
+  'grep -i password src/BirraPoint.Api/appsettings.Production.json',
   'cat ~/.aws/credentials',
   // PR #75 review: pushes naming main, quoted/indirect secret reads, shell escapes
   'git push -u origin main',
@@ -121,9 +121,9 @@ const allowed = [
   'git commit -m "never gh pr merge or cat .env"',
   'git commit --amend -m x',
   'cat .env.example',
-  'cat frontend/src/environments/environment.ts',
+  'cat src/Birrapoint.Web/src/environments/environment.ts',
   'cat infra/aws/terraform/environments/prod.tfvars',
-  'bash -c "dotnet build backend/BirraPoint.sln"',
+  'bash -c "dotnet build BirraPoint.sln"',
   'bash .github/scripts/version.test.sh',
   // on a feature branch these are fine
   'git push',
@@ -131,7 +131,7 @@ const allowed = [
   'git commit -m x',
   // PR #75 review: false positives
   'cp .env.example .env',
-  'cat backend/.env.development.example',
+  'cat .env.development.example',
   'cat infra/aws/terraform/terraform.tfvars.example',
   'grep -rn TODO . --exclude=.env',
   'gh api repos/o/r/pulls/12/reviews',
