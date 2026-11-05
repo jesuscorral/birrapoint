@@ -1,0 +1,43 @@
+# Area labels for pull requests, applied by pr.yml (actions/labeler). Paths follow the layout in
+# CLAUDE.md; keep both in sync when folders move.
+backend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/BirraPoint.Api/**'
+          - 'src/Aspire/**'
+          - 'src/BuildingBlocks/**'
+          - 'tests/**'
+          - 'BirraPoint.sln'
+          - 'Directory.*.props'
+
+frontend:
+  - changed-files:
+      - any-glob-to-any-file: ['src/Birrapoint.Web/**']
+
+e2e:
+  - changed-files:
+      - any-glob-to-any-file: ['src/Birrapoint.Web/e2e/**']
+
+migration:
+  - changed-files:
+      - any-glob-to-any-file: ['src/BirraPoint.Api/Common/Persistence/Migrations/**']
+
+infra:
+  - changed-files:
+      - any-glob-to-any-file: ['infra/**']
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file: ['.github/**']
+
+claude:
+  - changed-files:
+      - any-glob-to-any-file: ['.claude/**', 'CLAUDE.md']
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file: ['Docs/**', '**/*.md']
+
+spec:
+  - changed-files:
+      - any-glob-to-any-file: ['specs/**', '.specify/memory/**']
