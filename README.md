@@ -36,14 +36,14 @@ Out of scope: Best of Show and tie-breaks (only a `NotValidForBos` flag is recor
 Prerequisites: Docker Desktop, .NET 10 SDK, Node.js 24+.
 
 ```bash
-dotnet run --project backend/src/Aspire/BirraPoint.AppHost
+dotnet run --project src/Aspire/BirraPoint.AppHost
 ```
 
 This starts the whole stack. The PWA runs at <http://localhost:4200> (seeded login
 `organizer` / `organizer`), Keycloak at <http://localhost:8081> and Mailpit at
 <http://localhost:8025>. The Aspire dashboard URL is printed on startup.
 
-Tests: `dotnet test backend/BirraPoint.sln` · `cd frontend && npx jest` · `cd frontend && npm run e2e`
+Tests: `dotnet test BirraPoint.sln` · `cd src/Birrapoint.Web && npx jest` · `cd src/Birrapoint.Web && npm run e2e`
 (E2E needs the running stack).
 
 ## Deploy to Azure or AWS

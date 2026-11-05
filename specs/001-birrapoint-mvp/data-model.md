@@ -358,7 +358,7 @@ collaborator of any `TableSample` entry at this table — checked transactionall
 | SubmittedAt | DateTimeOffset | required |
 
 **DescriptorsJson shape (FR-063, ADR-0015)** — `EvaluationDescriptorsDto`
-(`backend/src/BirraPoint.Api/Modules/Judging/Features/Evaluations/CommonComponents/Dtos/EvaluationDescriptorsDto.cs`), camelCase on the
+(`src/BirraPoint.Api/Modules/Judging/Features/Evaluations/CommonComponents/Dtos/EvaluationDescriptorsDto.cs`), camelCase on the
 wire and in storage (`JsonSerializerDefaults.Web`). Every field below is independently optional;
 none of it feeds `Total` or the FR-023 caps.
 

@@ -8,12 +8,12 @@
             "program": "${workspaceFolder}"
         },
         {
-            // Needs the PWA running (Aspire launch above, or `npm start` in frontend/).
+            // Needs the PWA running (Aspire launch above, or `npm start` in src/Birrapoint.Web/).
             "type": "msedge",
             "request": "launch",
             "name": "PWA: debug in Edge (:4200)",
             "url": "http://localhost:4200",
-            "webRoot": "${workspaceFolder}/frontend"
+            "webRoot": "${workspaceFolder}/src/Birrapoint.Web"
         }
     ]
 }

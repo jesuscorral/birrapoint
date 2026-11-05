@@ -54,17 +54,17 @@ first, never silently into code.
 Prereqs: Docker Desktop, .NET 10 SDK, Node 24+.
 
 ```bash
-dotnet run --project backend/src/Aspire/BirraPoint.AppHost   # full local stack: Postgres 16, Keycloak 26,
+dotnet run --project src/Aspire/BirraPoint.AppHost   # full local stack: Postgres 16, Keycloak 26,
   # Mailpit, API, PWA. Aspire https://localhost:17202 · API :5121/:7075 · PWA :4200 ·
   # Keycloak :8081 (realm birrapoint) · Mailpit port via Aspire dashboard
-dotnet build backend/BirraPoint.sln
-dotnet test backend/tests/BirraPoint.Api.UnitTests
-dotnet test backend/tests/BirraPoint.Api.IntegrationTests   # Testcontainers, needs Docker
+dotnet build BirraPoint.sln
+dotnet test tests/BirraPoint.Api.UnitTests
+dotnet test tests/BirraPoint.Api.IntegrationTests   # Testcontainers, needs Docker
 dotnet test <project> --filter "FullyQualifiedName~Name"
-dotnet format backend/BirraPoint.sln --verify-no-changes
+dotnet format BirraPoint.sln --verify-no-changes
 
-cd frontend && npm ci && npm start    # ng serve :4200
-npx jest | npx ng lint | npm run format:check | npm run build:budget   # (from frontend/)
+cd src/Birrapoint.Web && npm ci && npm start    # ng serve :4200
+npx jest | npx ng lint | npm run format:check | npm run build:budget   # (from src/Birrapoint.Web/)
 npm run e2e                           # Playwright + axe; plain `npx playwright test` fails
 k6 run infra/perf/api-budgets.js      # needs bearer token, see script header
 
@@ -79,7 +79,7 @@ gh workflow run deploy-azure.yml -f version=X.Y.Z       # or deploy-aws.yml
 ## Layout (binding — by business capability, never `controllers/`/`services/`/`repositories/`)
 
 ```text
-backend/src/Aspire/{BirraPoint.AppHost, BirraPoint.ServiceDefaults} | backend/src/BirraPoint.Api/
+src/Aspire/{BirraPoint.AppHost, BirraPoint.ServiceDefaults} | src/BirraPoint.Api/
   Api/Domain/    shared kernel: Entity(+ITimestamped), DispatchJob     Api/Common/   AppDbContext, auth, persistence, errors, behaviors, job queue
   Api/Modules/   ADR-0033/0034: Catalog (Catalog), Organization (Competitions, Import, Judges), Judging
                  (Tables, TastingOrder, Evaluations, Monitoring), Publication (Dispatch); each module =
@@ -87,11 +87,11 @@ backend/src/Aspire/{BirraPoint.AppHost, BirraPoint.ServiceDefaults} | backend/sr
                  Features/<Feature>/ (Base<X>Endpoints.cs + Features/<Slice>/ + CommonComponents/, ADR-0031).
                  Other modules only via Contracts/ (ModuleBoundaryTests)
   Api/Realtime/  CompetitionHub + emit-after-commit publisher
-backend/src/BuildingBlocks/BuildingBlocks.<X>/   ADR-0035: reusable cross-cutting blocks (Audit, EmailSender), no BirraPoint
-                 reference, public API in BuildingBlocks.<X>; tests in backend/tests/BuildingBlocks/
-backend/tests/   UnitTests + IntegrationTests
-frontend/src/app/  FSD: core/ (auth, api, realtime, offline, layout), features/, shared/
-frontend/e2e/    Playwright (+ e2e/a11y axe)
+src/BuildingBlocks/BuildingBlocks.<X>/   ADR-0035: reusable cross-cutting blocks (Audit, EmailSender), no BirraPoint
+                 reference, public API in BuildingBlocks.<X>; tests in tests/BuildingBlocks/
+tests/   UnitTests + IntegrationTests
+src/Birrapoint.Web/src/app/  FSD: core/ (auth, api, realtime, offline, layout), features/, shared/
+src/Birrapoint.Web/e2e/    Playwright (+ e2e/a11y axe)
 infra/           azure/ and aws/, each: terraform/ (azure: ACA, Key Vault, Dapr, Neon; aws: ECS Fargate,
                  ALB, CloudFront, Secrets Manager), teardown.ps1 + Teardown.psm1, tests/ (Pester),
                  github-actions-setup.md + deployment-runbook.md; ci-setup.md (shared CI setup);
@@ -172,6 +172,6 @@ can't run, say why and what was verified instead.
 implementation. Never force-push or `--no-verify`.
 
 Task ids (like `T` plus three digits) live in branch names, commit messages and PR titles only — never in code
-comments, test names or config under `backend/`, `frontend/`, `infra/`, `.github/` (enforced by
+comments, test names or config under `src/` (PWA included), `tests/`, `infra/`, `.github/` (enforced by
 `.github/scripts/check-no-task-ids.sh`, run by CI and the stop hook). In code, cite the requirement
 (`FR-`/`SC-`/`US`/ADR) or state the reason.

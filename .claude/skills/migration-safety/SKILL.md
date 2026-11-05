@@ -1,6 +1,6 @@
 ---
 name: "migration-safety"
-description: "Review a new or changed EF Core migration (backend/src/BirraPoint.Api/Common/Persistence/Migrations) before it ships: data loss, locking, constraints on existing rows, invariant-backing indexes, model snapshot and data-model.md sync. Use whenever a diff adds or edits a migration."
+description: "Review a new or changed EF Core migration (src/BirraPoint.Api/Common/Persistence/Migrations) before it ships: data loss, locking, constraints on existing rows, invariant-backing indexes, model snapshot and data-model.md sync. Use whenever a diff adds or edits a migration."
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -34,7 +34,7 @@ Find the migrations in the change: `git diff main...HEAD --name-only -- '*Migrat
 6. **Raw SQL.** `migrationBuilder.Sql` must be static and parameter-free; no data that depends on
    environment, no secrets.
 7. **Model sync.** Snapshot matches the entity configuration (run
-   `dotnet ef migrations has-pending-model-changes --project backend/src/BirraPoint.Api` when
+   `dotnet ef migrations has-pending-model-changes --project src/BirraPoint.Api` when
    available); `Down` reverses `Up`; `specs/001-birrapoint-mvp/data-model.md` reflects the schema
    change in the same diff.
 8. **One migration per change.** Several migrations for one task that was never released should be

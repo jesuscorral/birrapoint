@@ -112,7 +112,7 @@ Estados persistentes y excepciones que comunican un significado más allá de la
 - **Fraunces** (serif, display): títulos, reclamos, encabezados. Pesos: 600, 700.
 - **Inter** (sans, ui): cuerpo, labels, acciones. Pesos: 400, 500, 600, 700.
 
-Ambas importadas de Google Fonts en `frontend/index.html`.
+Ambas importadas de Google Fonts en `src/Birrapoint.Web/index.html`.
 
 ### Escala
 
@@ -296,7 +296,7 @@ Antes de pasar a staging:
 npx axe-core URL
 
 # En CSS: contrast checker (autoprefixer + lightningcss)
-npx lightningcss --minify frontend/src/styles.css
+npx lightningcss --minify src/Birrapoint.Web/src/styles.css
 ```
 
 ---
@@ -305,7 +305,7 @@ npx lightningcss --minify frontend/src/styles.css
 
 ### Importar tokens
 
-Los tokens están en `frontend/src/styles.css` como `@theme` de Tailwind. Las clases generadas están disponibles inmediatamente:
+Los tokens están en `src/Birrapoint.Web/src/styles.css` como `@theme` de Tailwind. Las clases generadas están disponibles inmediatamente:
 
 ```typescript
 // En template:

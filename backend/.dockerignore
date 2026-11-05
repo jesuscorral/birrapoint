@@ -1,7 +1,0 @@
-**/bin/
-**/obj/
-**/TestResults/
-**/*.user
-**/appsettings.*.Local.json
-tests/
-src/Aspire/BirraPoint.AppHost/

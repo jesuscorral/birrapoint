@@ -47,7 +47,7 @@ resource "time_sleep" "key_vault_rbac_propagation" {
 locals {
   # Key Vault secret names allow only alphanumerics and '-'. The API's secrets use "--" for the
   # configuration section separator (ConnectionStrings--db -> ConnectionStrings:db, see
-  # backend/src/BirraPoint.Api/Common/Secrets/DaprSecrets.cs); Keycloak's are mapped to its
+  # src/BirraPoint.Api/Common/Secrets/DaprSecrets.cs); Keycloak's are mapped to its
   # environment variables by DAPR_SECRETS (apps.tf, built from keycloak_secret_env below). The
   # Keycloak admin-client secret is shared: the API authenticates with the same value Keycloak's
   # realm import sets.

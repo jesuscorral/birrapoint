@@ -6,7 +6,7 @@
 |---------|-----------|
 | `Docs/design/design-system.md` | Documentación completa: tokens, componentes, accesibilidad |
 | `Docs/design/auth-mockup.html` | Mockup interactivo (7 pantallas, tokens visibles) |
-| `frontend/src/styles.css` | Tokens Tailwind v4 `@theme` + componentes en `@layer` |
+| `src/Birrapoint.Web/src/styles.css` | Tokens Tailwind v4 `@theme` + componentes en `@layer` |
 
 ## Cómo empezar
 
@@ -16,7 +16,7 @@ Abre `Docs/design/auth-mockup.html` en el navegador. Las 7 pestañas muestran el
 
 ### 2. Tokens en componentes Angular
 
-En `frontend/src/styles.css` hay un bloque `@theme` con todos los tokens (colores, espaciado, radio, fuentes). Tailwind genera clases automáticamente.
+En `src/Birrapoint.Web/src/styles.css` hay un bloque `@theme` con todos los tokens (colores, espaciado, radio, fuentes). Tailwind genera clases automáticamente.
 
 ```html
 <!-- Usar utilidades generadas -->
@@ -78,7 +78,7 @@ Si usas un componente fuera del design system, verifica con [axe-core](https://g
 ## Preguntas frecuentes
 
 **P: ¿Puedo cambiar los colores?**  
-R: Edita los valores `--color-bp-*` en `frontend/src/styles.css` bajo `@theme`. Todas las referencias se actualizan automáticamente.
+R: Edita los valores `--color-bp-*` en `src/Birrapoint.Web/src/styles.css` bajo `@theme`. Todas las referencias se actualizan automáticamente.
 
 **P: ¿Cómo añado más componentes?**  
 R: Agrega la clase en `@layer components` en `styles.css` y documenta en `design-system.md`. Ejemplo: `.btn-tertiary`, `.card`, `.badge`.

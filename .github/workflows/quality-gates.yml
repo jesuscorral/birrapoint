@@ -31,22 +31,22 @@ jobs:
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
-      - run: dotnet build backend/BirraPoint.sln --configuration Release
-      - run: dotnet format backend/BirraPoint.sln --verify-no-changes
+      - run: dotnet build BirraPoint.sln --configuration Release
+      - run: dotnet format BirraPoint.sln --verify-no-changes
       - run: >-
-          dotnet test backend/tests/BirraPoint.Api.UnitTests --configuration Release --no-build
+          dotnet test tests/BirraPoint.Api.UnitTests --configuration Release --no-build
           --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/unit"
       # Testcontainers starts a real PostgreSQL through the runner's Docker daemon.
       - run: >-
-          dotnet test backend/tests/BirraPoint.Api.IntegrationTests --configuration Release --no-build
+          dotnet test tests/BirraPoint.Api.IntegrationTests --configuration Release --no-build
           --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/integration"
       # Reusable building blocks (ADR-0035), host-agnostic; Testcontainers PostgreSQL as above.
       - run: >-
-          dotnet test backend/tests/BuildingBlocks/BuildingBlocks.Audit.Tests --configuration Release --no-build
+          dotnet test tests/BuildingBlocks/BuildingBlocks.Audit.Tests --configuration Release --no-build
           --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/building-blocks-audit"
       # Testcontainers Mailpit (a real SMTP server) through the runner's Docker daemon.
       - run: >-
-          dotnet test backend/tests/BuildingBlocks/BuildingBlocks.EmailSender.Tests --configuration Release --no-build
+          dotnet test tests/BuildingBlocks/BuildingBlocks.EmailSender.Tests --configuration Release --no-build
           --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/building-blocks-emailsender"
       - name: Upload test results
         if: failure()
@@ -74,7 +74,7 @@ jobs:
     timeout-minutes: 20
     defaults:
       run:
-        working-directory: frontend
+        working-directory: src/Birrapoint.Web
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -84,7 +84,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: src/Birrapoint.Web/package-lock.json
       # No dependency lifecycle scripts; the Angular/esbuild toolchain ships prebuilt binaries.
       - run: npm ci --ignore-scripts
       - run: npm run lint

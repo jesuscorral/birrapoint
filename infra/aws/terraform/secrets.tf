@@ -13,7 +13,7 @@
 
 locals {
   # Same names as the Azure Key Vault ("--" stands for the ':' configuration separator, see
-  # backend/src/BirraPoint.Api/Common/Secrets/DaprSecrets.cs); Keycloak's are mapped to its
+  # src/BirraPoint.Api/Common/Secrets/DaprSecrets.cs); Keycloak's are mapped to its
   # environment variables by DAPR_SECRETS (ecs.tf, built from keycloak_secret_env below). The
   # Keycloak admin-client secret is shared: the API authenticates with the same value Keycloak's
   # realm import sets.

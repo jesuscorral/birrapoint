@@ -6,9 +6,9 @@ argument-hint: [backend|frontend|all]
 Scope: $ARGUMENTS (empty means all).
 
 Suites:
-- backend: `dotnet test backend/tests/BirraPoint.Api.UnitTests` and
-  `dotnet test backend/tests/BirraPoint.Api.IntegrationTests` (needs Docker running)
-- frontend: `cd frontend && npx jest`
+- backend: `dotnet test tests/BirraPoint.Api.UnitTests` and
+  `dotnet test tests/BirraPoint.Api.IntegrationTests` (needs Docker running)
+- frontend: `cd src/Birrapoint.Web && npx jest`
 
 Loop: run the suite, and for each failure read the test and the code under test (use
 `codegraph_explore`), find the real cause, fix it, re-run only the failing tests

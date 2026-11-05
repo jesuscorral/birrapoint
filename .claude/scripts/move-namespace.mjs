@@ -2,12 +2,12 @@
 // Re-syncs C# namespaces and `using` directives after files/folders were moved (git mv).
 // Pure text pass, no MSBuild/Roslyn load: ~1 s for the whole backend instead of a build loop.
 //
-//   node .claude/scripts/move-namespace.mjs [--root backend] [--dry-run]
+//   node .claude/scripts/move-namespace.mjs [--root <dir>] [--dry-run]
 //       Sets every file's namespace to <project name>.<folder path> (the rule IDE0130 enforces) and
 //       fixes consumers: adds `using` for types whose namespace changed, drops usings that no
 //       longer supply anything, and rewrites fully-qualified references.
 //
-//   dotnet build backend/BirraPoint.sln 2>&1 | node .claude/scripts/move-namespace.mjs --fix-build
+//   dotnet build BirraPoint.sln 2>&1 | node .claude/scripts/move-namespace.mjs --fix-build
 //       Namespaces were already edited by hand: reads CS0246/CS0103 errors from the build output
 //       and adds the missing `using` for the (unique) top-level type each error names.
 //
@@ -22,10 +22,10 @@ const args = process.argv.slice(2);
 const flag = n => args.includes(n);
 const opt = (n, d) => (args.includes(n) ? args[args.indexOf(n) + 1] : d);
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const root = path.resolve(repo, opt('--root', 'backend'));
+const root = path.resolve(repo, opt('--root', '.')); // repo root: src/ + tests/
 const dryRun = flag('--dry-run');
 
-const SKIP_DIRS = new Set(['bin', 'obj', 'node_modules', '.git', 'TestResults']);
+const SKIP_DIRS = new Set(['bin', 'obj', 'node_modules', '.git', 'TestResults', 'Birrapoint.Web', 'infra', 'Docs', 'specs']);
 const NS_RE = /^namespace\s+([\w.]+)\s*[;{]/m;
 const USING_RE = /^using\s+([\w.]+)\s*;\s*$/;
 const GLOBAL_USING_RE = /^global\s+using\s+([\w.]+)\s*;\s*$/;

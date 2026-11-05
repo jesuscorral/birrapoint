@@ -8,7 +8,7 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 git -C "$tmp" init -q
-mkdir -p "$tmp/backend" "$tmp/frontend" "$tmp/docs"
+mkdir -p "$tmp/src/Birrapoint.Web" "$tmp/tests" "$tmp/docs"
 
 assert_passes() { # <description>
   if bash "$script" "$tmp" >/dev/null 2>&1; then
@@ -28,18 +28,28 @@ assert_fails() { # <description>
   fi
 }
 
-printf '// Deny-by-default fallback policy (FR-005, ADR-0009).\n' > "$tmp/backend/Clean.cs"
-printf 'const stamp = "2026-07-09T090754Z"; // T-shaped, not a task id\n' > "$tmp/frontend/clean.ts"
+printf '// Deny-by-default fallback policy (FR-005, ADR-0009).\n' > "$tmp/src/Clean.cs"
+printf 'const stamp = "2026-07-09T090754Z"; // T-shaped, not a task id\n' > "$tmp/src/Birrapoint.Web/clean.ts"
 printf 'Pending work lives in T092.\n' > "$tmp/docs/tasks-note.md"
 assert_passes 'clean files and ids outside the scanned folders pass'
 
-printf '// JWT bearer against Keycloak (T011).\n' > "$tmp/backend/Bad.cs"
+printf '// JWT bearer against Keycloak (T011).\n' > "$tmp/src/Bad.cs"
 assert_fails 'an id in a backend comment fails'
-rm "$tmp/backend/Bad.cs"
+rm "$tmp/src/Bad.cs"
 
-printf 'describe("pool filters (T125b)", () => {});\n' > "$tmp/frontend/bad.spec.ts"
+printf '[Fact] // Regression for T140
+' > "$tmp/tests/BadTests.cs"
+assert_fails 'an id in a backend test name fails'
+rm "$tmp/tests/BadTests.cs"
+
+printf '<Project><!-- T042 --></Project>
+' > "$tmp/Directory.Build.props"
+assert_fails 'an id in a root build file fails'
+rm "$tmp/Directory.Build.props"
+
+printf 'describe("pool filters (T125b)", () => {});\n' > "$tmp/src/Birrapoint.Web/bad.spec.ts"
 assert_fails 'an id with a letter suffix in a frontend test name fails'
-rm "$tmp/frontend/bad.spec.ts"
+rm "$tmp/src/Birrapoint.Web/bad.spec.ts"
 
 assert_passes 'passes again once the offending files are gone'
 

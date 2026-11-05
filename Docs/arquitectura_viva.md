@@ -20,7 +20,7 @@
 
 ## Topology
 
-### Local (.NET Aspire — `dotnet run --project backend/src/Aspire/BirraPoint.AppHost`)
+### Local (.NET Aspire — `dotnet run --project src/Aspire/BirraPoint.AppHost`)
 
 | Resource | Implementation | Endpoint | Notes |
 |---|---|---|---|
@@ -104,14 +104,18 @@ No data is kept. Idempotent, with a direct sweep fallback when the destroy fails
 One-time setup: shared `infra/ci-setup.md`, then `infra/azure/github-actions-setup.md` or `infra/aws/github-actions-setup.md`. Prerequisites and Neon PITR restore:
 `infra/azure/terraform/README.md`.
 
-## Backend (`backend/`, .NET 10 / C# 14)
+## Backend (`src/` + `tests/` at the repo root, .NET 10 / C# 14)
 
+Solution `BirraPoint.sln` lives at the repo root next to `Directory.Build.props`,
+`Directory.Packages.props`, `.editorconfig` and `.dockerignore`; the API image builds with the repo root as
+context (the `.dockerignore` allowlist sends only the root build files and the .NET projects under `src/`,
+not `src/Birrapoint.Web/`).
 Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Aspire/BirraPoint.ServiceDefaults`
 (OpenTelemetry, health checks, HTTP resilience), `BirraPoint.Api.UnitTests`,
 `BirraPoint.Api.IntegrationTests`, and reusable blocks agnostic of BirraPoint under `src/BuildingBlocks/`
 (ADR-0035; today `BuildingBlocks.Audit` and `BuildingBlocks.EmailSender`, each tested by its own
 `tests/BuildingBlocks/BuildingBlocks.<X>.Tests`). Package versions are centralized in
-`backend/Directory.Packages.props` (including `$(BirraPointTargetFramework)`).
+`Directory.Packages.props` (including `$(BirraPointTargetFramework)`).
 
 ### Pipeline and cross-cutting (`Common/`)
 
@@ -177,7 +181,7 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
 
 ### Modules (ADR-0033)
 
-Code lives in `backend/src/BirraPoint.Api/Modules/<Module>/` (`Domain/`, `Persistence/` EF configurations,
+Code lives in `src/BirraPoint.Api/Modules/<Module>/` (`Domain/`, `Persistence/` EF configurations,
 `Contracts/`, `Integration/`, `Features/<Feature>/`, `<Module>Module.cs`, `<Module>ModuleEndpoints.cs`). One `AppDbContext` and one schema; no per-module DB.
 `Api/Domain/` is the shared kernel (`Entity` + `ITimestamped`, `DispatchJob`). `UnitTests/Architecture/ModuleLayoutTests.cs` checks the layout.
 
@@ -255,7 +259,7 @@ Namespaces equal folders (IDE0130). Integration tests mirror it.
 `DiscrepancyRaised`, `DiscrepancyResolved`, `JudgeRemoved`, `DispatchProgress` — payloads per
 audience in `contracts/signalr-hub.md`.
 
-## Frontend (`frontend/`, Angular 20)
+## Frontend (`src/Birrapoint.Web/`, Angular 20)
 
 Standalone components + Signals, zone-based change detection (ADR-0003), PWA (`ngsw`, production
 only), Tailwind CSS v4, Angular-lockstep packages pinned to 20.x (ADR-0002). UI text is Spain
@@ -312,10 +316,10 @@ Shared primitives live in `shared/components/` (`bp-button`, `bp-input`, `bp-ale
 
 | Suite | Command | Scope |
 |---|---|---|
-| Backend unit | `dotnet test backend/tests/BirraPoint.Api.UnitTests` | pure rules, validators, handlers, auth, jobs |
-| Backend integration | `dotnet test backend/tests/BirraPoint.Api.IntegrationTests` | `WebApplicationFactory` + Testcontainers PostgreSQL; `TestJwtIssuer` signs test tokens with real `realm_access` claims; contract tests assert blind DTO field absence |
-| Frontend unit | `cd frontend && npx jest` | jest-preset-angular, jsdom, `fake-indexeddb`; hand-rolled fakes, no mocking library |
-| E2E + a11y | `cd frontend && npm run e2e` | Playwright (Chromium) per story + `e2e/a11y/routes.a11y.spec.ts` axe sweep; needs the full Aspire stack |
+| Backend unit | `dotnet test tests/BirraPoint.Api.UnitTests` | pure rules, validators, handlers, auth, jobs |
+| Backend integration | `dotnet test tests/BirraPoint.Api.IntegrationTests` | `WebApplicationFactory` + Testcontainers PostgreSQL; `TestJwtIssuer` signs test tokens with real `realm_access` claims; contract tests assert blind DTO field absence |
+| Frontend unit | `cd src/Birrapoint.Web && npx jest` | jest-preset-angular, jsdom, `fake-indexeddb`; hand-rolled fakes, no mocking library |
+| E2E + a11y | `cd src/Birrapoint.Web && npm run e2e` | Playwright (Chromium) per story + `e2e/a11y/routes.a11y.spec.ts` axe sweep; needs the full Aspire stack |
 | Performance | `k6 run infra/perf/api-budgets.js`, `npm run build:budget` | API p95 budgets (needs a bearer token); gzip initial-bundle gate |
 | Lint/format | `ng lint`, `npm run format:check`, `dotnet format --verify-no-changes` | CI gates |
 | Infra | `terraform -chdir=infra/azure/terraform test`, `Invoke-Pester infra/azure/tests`, `version.test.sh`, `DaprSecretsEnv.test.sh`, `RealmProd.test.sh`, `ApiAdminSecretGuard.test.sh` | Terraform image/naming rules, teardown logic, release versioning, Keycloak secret loader, production realm derivation, admin-secret guard |
