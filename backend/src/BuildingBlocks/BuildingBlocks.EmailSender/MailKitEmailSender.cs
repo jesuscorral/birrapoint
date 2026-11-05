@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using MailKit.Net.Smtp;
 using Microsoft.Extensions.Options;
 using MimeKit;
@@ -32,12 +33,20 @@ internal sealed class MailKitEmailSender(IOptionsMonitor<SmtpOptions> options) :
         var bodyBuilder = new BodyBuilder { HtmlBody = htmlBody };
         foreach (var attachment in attachments)
         {
-            bodyBuilder.Attachments.Add(attachment.FileName, attachment.Content.ToArray(), ContentType.Parse(attachment.ContentType));
+            // MimeKit copies the stream into the message, so the stream can be disposed right after.
+            using var content = OpenRead(attachment.Content);
+            bodyBuilder.Attachments.Add(attachment.FileName, content, ContentType.Parse(attachment.ContentType));
         }
 
         message.Body = bodyBuilder.ToMessageBody();
         return message;
     }
+
+    /// <summary>Reads array-backed memory in place; only memory owned elsewhere (pooled, native) is copied.</summary>
+    private static MemoryStream OpenRead(ReadOnlyMemory<byte> content) =>
+        MemoryMarshal.TryGetArray(content, out var segment)
+            ? new MemoryStream(segment.Array!, segment.Offset, segment.Count, writable: false)
+            : new MemoryStream(content.ToArray(), writable: false);
 
     private async Task SendMessageAsync(
         string toEmail, string subject, string htmlBody, IReadOnlyList<EmailAttachment> attachments, CancellationToken cancellationToken)

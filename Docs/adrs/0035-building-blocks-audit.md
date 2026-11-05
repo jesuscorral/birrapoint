@@ -11,7 +11,7 @@ Cross-cutting capabilities move to `backend/src/BuildingBlocks/BuildingBlocks.<C
 
 - No reference to any BirraPoint project or type; a test asserts it. The host plugs in what the block cannot know through small interfaces (e.g. who the actor is).
 - Public API in the `BuildingBlocks.<Capability>` namespace only, documented, with defaults that suit any host and hooks to refine them.
-- Depends only on framework or well-known packages it really needs; versions come from `Directory.Packages.props` while it lives here; `net10.0` set literally, not through `$(BirraPointTargetFramework)`.
+- Depends only on framework or well-known packages it really needs; versions come from `Directory.Packages.props` while it lives here; the block project sets `net10.0` literally, never through `$(BirraPointTargetFramework)` or any other BirraPoint MSBuild property (it would not build outside this repository; the independence tests read the csproj to assert it). Test projects may use the repository property.
 - Tests use their own host-agnostic fixtures (Testcontainers PostgreSQL, no EF InMemory), not BirraPoint's.
 
 **BuildingBlocks.Audit** (first block) depends on `Microsoft.EntityFrameworkCore.Relational` only (no provider):
@@ -40,6 +40,7 @@ BirraPoint binds the `Smtp` section and supplies `BirraPoint <no-reply@birrapoin
 ## Consequences
 - Audit can be reused by another service without BirraPoint code, and tested on its own.
 - The audit entity is no longer part of BirraPoint's shared kernel and is not `ITimestamped`; `OccurredAt` is the only timestamp of an audit row.
+- `DropAuditLogTimestamps` is a contract-only change: the release before it still writes `CreatedAt`/`UpdatedAt`. While Azure swaps revisions, the old revision's audited commands can fail for a few seconds, so deploy this version outside a live competition. Rolling the image back past it needs the schema rolled back first (`dotnet ef database update AddDispatchJobLease`, see both `infra/*/deployment-runbook.md`); otherwise every audited command of the old image fails. Accepted because the columns only duplicated `OccurredAt` and the MVP has a single API replica.
 - The API image must copy every referenced block (`src/BuildingBlocks/`) into the build context.
 - Moving the blocks to their own repository later means publishing them as NuGet packages and replacing the `ProjectReference`s; the public API is what other repositories will depend on, so changes to it become breaking changes.
 - Rejected: one `BuildingBlocks` project for every capability (every consumer would carry every dependency); a dependency-free abstractions package plus an EF Core adapter (more moving parts without a second storage today); keeping the redundant timestamp columns via shadow properties (keeps BirraPoint concerns in the block's table).

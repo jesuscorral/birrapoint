@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>$(BirraPointTargetFramework)</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>BuildingBlocks.EmailSender</RootNamespace>
     <Description>Outbound HTML email (optionally with attachments) over SMTP with MailKit, configured through SmtpOptions.</Description>
   </PropertyGroup>

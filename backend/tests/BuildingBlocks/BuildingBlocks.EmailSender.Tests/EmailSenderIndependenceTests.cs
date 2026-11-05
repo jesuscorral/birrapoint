@@ -12,6 +12,17 @@ public sealed class EmailSenderIndependenceTests
     }
 
     [Fact]
+    public void ProjectFileUsesNoHostMsBuildProperty()
+    {
+        // Assembly references cannot show an MSBuild coupling such as $(BirraPointTargetFramework),
+        // which would leave TargetFramework empty outside this repository.
+        var project = File.ReadAllText(BlockProjectFile.Find("BuildingBlocks.EmailSender"));
+
+        Assert.DoesNotContain("BirraPoint", project, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<TargetFramework>net10.0</TargetFramework>", project, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PublicSurfaceLivesInTheBlockNamespace()
     {
         var namespaces = typeof(IEmailSender).Assembly.GetExportedTypes().Select(t => t.Namespace).Distinct();

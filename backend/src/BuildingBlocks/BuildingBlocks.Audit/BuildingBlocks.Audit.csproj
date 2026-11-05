@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>$(BirraPointTargetFramework)</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>BuildingBlocks.Audit</RootNamespace>
     <Description>Immutable audit trail staged on the host EF Core DbContext and committed atomically with the business change.</Description>
   </PropertyGroup>

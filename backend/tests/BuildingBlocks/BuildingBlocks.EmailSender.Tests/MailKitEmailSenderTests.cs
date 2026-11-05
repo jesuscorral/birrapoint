@@ -1,4 +1,5 @@
 using System.Text;
+using MailKit;
 using MailKit.Security;
 
 namespace BuildingBlocks.EmailSender.Tests;
@@ -146,6 +147,51 @@ public sealed class MailKitEmailSenderTests(OpenMailpitFixture mailpit) : IClass
         Assert.Equal("a.txt", attachment.FileName);
         Assert.Equal("text/plain", attachment.ContentType.MimeType);
     }
+
+    public static TheoryData<string> AttachmentMemoryShapes => ["whole array", "array slice", "memory manager"];
+
+    [Theory]
+    [MemberData(nameof(AttachmentMemoryShapes))]
+    public void BuildMessageAttachesExactlyTheBytesOfAnyMemoryShape(string shape)
+    {
+        byte[] expected = [0x25, 0x50, 0x44, 0x46, 0x00, 0xFF];
+        using var manager = new WrappedMemoryManager(expected);
+        byte[] padded = [0xAA, .. expected, 0xBB];
+        ReadOnlyMemory<byte> content = shape switch
+        {
+            "whole array" => expected.ToArray(),
+            "array slice" => padded.AsMemory(1, expected.Length),
+            _ => manager.Memory,
+        };
+
+        using var message = MailKitEmailSender.BuildMessage(
+            "Sender <from@example.test>", "to@example.test", "Subject", "<p>Body</p>",
+            [new EmailAttachment("file.bin", content, "application/octet-stream")]);
+
+        var attachment = Assert.IsAssignableFrom<MimeKit.MimePart>(Assert.Single(message.Attachments));
+        using var decoded = new MemoryStream();
+        attachment.Content!.DecodeTo(decoded, TestContext.Current.CancellationToken);
+        Assert.Equal(expected, decoded.ToArray());
+    }
+}
+
+/// <summary>
+/// Memory owned by a <see cref="System.Buffers.MemoryManager{T}"/> (as pooled or native buffers are):
+/// <c>MemoryMarshal.TryGetArray</c> returns false for it, exercising the copy fallback.
+/// </summary>
+internal sealed class WrappedMemoryManager(byte[] source) : System.Buffers.MemoryManager<byte>
+{
+    private readonly byte[] _buffer = source.ToArray();
+
+    public override Span<byte> GetSpan() => _buffer;
+
+    public override System.Buffers.MemoryHandle Pin(int elementIndex = 0) => throw new NotSupportedException();
+
+    public override void Unpin() => throw new NotSupportedException();
+
+    protected override void Dispose(bool disposing)
+    {
+    }
 }
 
 /// <summary>Delivery through an SMTP relay that requires authentication.</summary>
@@ -184,11 +230,11 @@ public sealed class AuthenticatedMailKitEmailSenderTests(AuthenticatedMailpitFix
     [Fact]
     public async Task WithoutAUsernameTheSenderDoesNotAuthenticate()
     {
-        // A relay that requires authentication refuses the message: proves no credentials are sent.
+        // The relay answers 530 (authentication required) to an unauthenticated sender: proves no credentials are sent.
         var recipient = MailpitFixture.NewRecipient();
         var sender = MailpitFixture.Sender(mailpit.Options());
 
-        await Assert.ThrowsAnyAsync<Exception>(() =>
+        await Assert.ThrowsAsync<ServiceNotAuthenticatedException>(() =>
             sender.SendAsync(recipient, "x", "<p>x</p>", TestContext.Current.CancellationToken));
         Assert.Equal(0, await mailpit.CountMessagesToAsync(recipient));
     }

@@ -158,6 +158,9 @@ backend/
 │   ├── BirraPoint.AppHost/             # .NET Aspire orchestration: PostgreSQL, Keycloak (realm
 │   │                                   #   import), Mailpit, API, frontend
 │   ├── BirraPoint.ServiceDefaults/     # OpenTelemetry, health checks, resilience defaults
+│   ├── BuildingBlocks/                 # ADR-0035: reusable blocks with no BirraPoint reference
+│   │   ├── BuildingBlocks.Audit/       #   immutable audit trail on the host DbContext
+│   │   └── BuildingBlocks.EmailSender/ #   MailKit SMTP sender (SmtpOptions, AddEmailSender)
 │   └── BirraPoint.Api/                 # Single deployable modular monolith
 │       ├── Program.cs                  # Minimal API bootstrap, auth, SignalR, OpenAPI
 │       ├── Dockerfile                  # Multi-stage: .NET SDK build → ASP.NET runtime
@@ -173,7 +176,8 @@ backend/
 │       └── Realtime/                   # CompetitionHub + group management
 └── tests/
     ├── BirraPoint.Api.UnitTests/       # Handler + validator tests per slice
-    └── BirraPoint.Api.IntegrationTests/# Contract tests (WebApplicationFactory + Testcontainers)
+    ├── BirraPoint.Api.IntegrationTests/# Contract tests (WebApplicationFactory + Testcontainers)
+    └── BuildingBlocks/                 # BuildingBlocks.<X>.Tests, host-agnostic (Testcontainers)
 
 frontend/
 ├── Dockerfile                          # Multi-stage: Node build → Nginx Alpine (static serve)
