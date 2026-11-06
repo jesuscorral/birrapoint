@@ -5,7 +5,6 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="ClosedXML" />
-    <PackageReference Include="Dapr.Extensions.Configuration" />
     <PackageReference Include="FluentValidation" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="MessagePack" />
@@ -31,6 +30,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Aspire\BirraPoint.ServiceDefaults\BirraPoint.ServiceDefaults.csproj" />
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Audit\BuildingBlocks.Audit.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.DaprSecrets\BuildingBlocks.DaprSecrets.csproj" />
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.EmailSender\BuildingBlocks.EmailSender.csproj" />
   </ItemGroup>
 </Project>

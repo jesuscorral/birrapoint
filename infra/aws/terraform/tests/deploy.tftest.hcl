@@ -383,10 +383,10 @@ run "optional_smtp_password_secret" {
 run "task_roles_read_only_their_own_secrets" {
   command = apply
 
-  # Literal sets: backend DaprSecrets.cs (API) and infra/azure/terraform/secrets.tf (Keycloak).
+  # Literal sets: BirraPointSecrets.cs (API) and infra/azure/terraform/secrets.tf (Keycloak).
   assert {
     condition     = toset(local.app_secret_names.api) == toset(["ConnectionStrings--db", "ConnectionStrings--dbDirect", "Keycloak--AdminClientSecret", "Smtp--Password"])
-    error_message = "the API reads exactly the secrets DaprSecrets.cs asks for"
+    error_message = "the API reads exactly the secrets BirraPointSecrets.cs asks for"
   }
   assert {
     condition     = toset(local.app_secret_names.keycloak) == toset(["keycloak-db-password", "keycloak-bootstrap-admin-password", "Keycloak--AdminClientSecret", "Smtp--Password"])

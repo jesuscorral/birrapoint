@@ -44,6 +44,9 @@ jobs:
       - run: >-
           dotnet test tests/BuildingBlocks/BuildingBlocks.Audit.Tests --configuration Release --no-build
           --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/building-blocks-audit"
+      - run: >-
+          dotnet test tests/BuildingBlocks/BuildingBlocks.DaprSecrets.Tests --configuration Release --no-build
+          --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/building-blocks-daprsecrets"
       # Testcontainers Mailpit (a real SMTP server) through the runner's Docker daemon.
       - run: >-
           dotnet test tests/BuildingBlocks/BuildingBlocks.EmailSender.Tests --configuration Release --no-build

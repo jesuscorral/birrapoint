@@ -114,14 +114,19 @@ not `src/Birrapoint.Web/`).
 Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Aspire/BirraPoint.ServiceDefaults`
 (OpenTelemetry, health checks, HTTP resilience), `BirraPoint.Api.UnitTests`,
 `BirraPoint.Api.IntegrationTests`, and reusable blocks agnostic of BirraPoint under `src/BuildingBlocks/`
-(ADR-0035; today `BuildingBlocks.Audit` and `BuildingBlocks.EmailSender`, each tested by its own
+(ADR-0035, ADR-0037; today `BuildingBlocks.Audit`, `BuildingBlocks.DaprSecrets` and
+`BuildingBlocks.EmailSender`, each tested by its own
 `tests/BuildingBlocks/BuildingBlocks.<X>.Tests`). Package versions are centralized in
 `Directory.Packages.props` (including `$(BirraPointTargetFramework)`).
 
 ### Pipeline and cross-cutting (`Common/`)
 
-- **Startup**: `AddDaprSecrets()` first (only when `Dapr:SecretStore` is set; retries while the
-  sidecar or a new role assignment is not ready, then fails startup). Migrations run on startup in
+- **Startup**: `AddDaprSecrets(BirraPointSecrets.Configure)` first (`BuildingBlocks.DaprSecrets`,
+  ADR-0037; only when `Dapr:SecretStore` is set). `Common/Secrets/BirraPointSecrets.cs` lists the
+  four store secrets (`ConnectionStrings--db`, `ConnectionStrings--dbDirect`,
+  `Keycloak--AdminClientSecret`, optional `Smtp--Password`; names match both clouds'
+  `secrets.tf`); the block waits up to 60 s for the sidecar, retries store errors 15 × 10 s (a new
+  role assignment may not have propagated), then fails startup; `--` maps to `:`. Migrations run on startup in
   Development or when `Database:MigrateOnStartup=true`, over `dbDirect` when present. Outside
   Development: `UseForwardedHeaders`, no HTTPS redirection (TLS ends at ACA), HSTS on.
 - **Middleware order**: exception handler → CORS (Development only, `localhost:4200`) →
