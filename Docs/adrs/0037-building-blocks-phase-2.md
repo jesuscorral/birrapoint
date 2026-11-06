@@ -21,7 +21,7 @@ Five more capabilities become blocks, delivered in this order (simplest and leas
 
 Rules added to ADR-0035's:
 
-- Both Keycloak blocks validate their options at startup (`ValidateOnStart`): Authentication fails when `Authority` or audience is blank in any environment; Admin also requires `Authority` and `AdminClientId` outside Development/Testing. Messages are generic (no BirraPoint names).
+- Both Keycloak blocks fail fast on bad options: Authentication throws during service registration when `Authority` or audience is blank in any environment (settings are captured at registration, so later or reloaded configuration doesn't apply); Admin uses `ValidateOnStart` and also requires `Authority` and `AdminClientId` outside Development/Testing. Messages are generic (no BirraPoint names).
 - Keycloak is two projects, so a service that only validates tokens doesn't carry the admin client and the reverse.
 - ProblemDetails has no MediatR dependency; `BuildingBlocks.Validation.MediatR` is the only block that takes MediatR, pinned like the API.
 - `BuildingBlocks.Jobs` is PostgreSQL-only (documented in its public API). It keeps BirraPoint's existing table: the host maps table and column names through `ApplyJobs(configure)`, the job type and status are already stored as strings, and the group key (`CompetitionId` today) is a host-named column; the block reads table and column names from the EF model for its raw SQL instead of hard-coding them. No data migration; the task proves it with an empty `dotnet ef migrations add` diff.

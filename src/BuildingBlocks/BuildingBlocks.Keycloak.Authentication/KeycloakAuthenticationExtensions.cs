@@ -11,6 +11,11 @@ public static class KeycloakAuthenticationExtensions
     /// turns <c>realm_access.roles</c> into role claims. Throws immediately when the authority or
     /// audience is blank, so a misconfigured host fails at startup rather than on the first request.
     /// </summary>
+    /// <remarks>
+    /// <paramref name="configure"/> runs once, eagerly, and the resulting options are captured and
+    /// validated at registration. Configuration added or reloaded after this call does not apply;
+    /// read any configuration source inside <paramref name="configure"/>, before it returns.
+    /// </remarks>
     public static AuthenticationBuilder AddKeycloakJwtBearer(
         this IServiceCollection services, Action<KeycloakJwtBearerOptions> configure)
     {

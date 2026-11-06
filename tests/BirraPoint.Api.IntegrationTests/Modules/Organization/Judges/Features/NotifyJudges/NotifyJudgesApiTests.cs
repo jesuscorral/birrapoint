@@ -74,6 +74,10 @@ public sealed class NotifyJudgesApiTests(ApiFactory factory) : JudgesApiTestBase
         Assert.Equal(email, queued[0].GetProperty("email").GetString());
 
         await PollForInvitationStatusAsync(organizer, competitionId, email);
+
+        // Literal on purpose: a changed role constant must fail this test (R-10).
+        var fakeKeycloak = (FakeKeycloakAdminClient)Factory.Services.GetRequiredService<IKeycloakAdminClient>();
+        Assert.Equal("JUDGE", fakeKeycloak.RequestedRole(email));
     }
 
     [Fact]

@@ -2,7 +2,12 @@ using Microsoft.AspNetCore.Http;
 
 namespace BuildingBlocks.Keycloak.Authentication;
 
-/// <summary>Settings for <see cref="KeycloakAuthenticationExtensions.AddKeycloakJwtBearer"/>.</summary>
+/// <summary>
+/// Settings for <see cref="KeycloakAuthenticationExtensions.AddKeycloakJwtBearer"/>. The values are
+/// captured and validated once at registration: a blank <see cref="Authority"/> or
+/// <see cref="Audience"/> throws immediately, and changes made or configuration reloaded afterwards
+/// do not apply (they are not read lazily when the first request arrives).
+/// </summary>
 public sealed class KeycloakJwtBearerOptions
 {
     /// <summary>The realm's issuer URL (<c>https://host/realms/name</c>); the OIDC metadata is discovered from it.</summary>
