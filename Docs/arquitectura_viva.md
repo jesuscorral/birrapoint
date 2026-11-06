@@ -96,7 +96,9 @@ No data is kept. Idempotent, with a direct sweep fallback when the destroy fails
 |---|---|---|
 | `ci.yml` | PR, push to `main` | backend/frontend gates (`quality-gates.yml`, reusable), image builds; on `main` pushes `sha-<short>` and `latest` |
 | `infra.yml` | `infra/**` changes | `terraform fmt`/`validate`/`test` (mocked providers), Pester (teardown, matrix azure/aws), Dapr loader test |
-| `workflows.yml` | `.github/**` changes | actionlint, `version.test.sh` |
+| `workflows.yml` | `.github/**` changes | actionlint, `.github/scripts/*.test.sh` |
+| `pr.yml` | PRs to `main` (`pull_request_target`, base code only) | `check-pr.sh`: Conventional Commits title, filled "What and why" of `.github/pull_request_template.md` (bots skipped); `actions/labeler` area labels (`.github/labeler.yml`) and `size/XS…XL` (`pr-size.sh`) (ADR-0036) |
+| `claude-review.yml` | PRs to `main` opened/reopened/ready, manual re-run | `anthropics/claude-code-action` review following `senior-code-reviewer.md`: one summary comment + inline Blocker/Major comments, never approves; skipped without `CLAUDE_CODE_OAUTH_TOKEN`/`ANTHROPIC_API_KEY` (ADR-0036) |
 | `release.yml` | manual, from `main` (ADR-0019) | builds `ref` (`main`, `hotfix/*`, `v*` tag), runs gates, pushes `-release:X.Y.Z` images, tags `vX.Y.Z`, creates the GitHub Release, bumps `version.txt` on `main`; idempotent re-runs |
 | `deploy-azure.yml` | manual, from `main` | validates versions, then (after `azure-production` environment approval) OIDC runs `terraform init` + `apply` with the release versions; identity needs Contributor + User Access Administrator |
 | `deploy-aws.yml` | manual, from `main` | same flow for `aws-production`: AWS OIDC role (`AWS_ROLE_ARN`), `terraform apply`, health gate `aws ecs wait services-stable` |

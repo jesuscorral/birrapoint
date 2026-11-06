@@ -76,6 +76,7 @@ const blocked = [
   'git show HEAD:.env',
   'gh api -X PUT repos/o/r/pulls/12/merge',
   'gh api repos/o/r/pulls/12/reviews -f event=APPROVE',
+  'gh api repos/o/r/pulls/12/reviews -f event=COMMENT -f body=x',
   'pwsh -Command terraform destroy',
   'pwsh -EncodedCommand ZQBjAGgAbwA=',
   'powershell -enc ZQBjAGgAbwA=',
@@ -117,6 +118,8 @@ const allowed = [
   'gh pr view 12',
   'gh pr create --base main --title "x" --body-file b.md',
   'gh pr comment 12 --body-file f.md',
+  // Line-anchored PR comments (/review-pr inline findings) are comments, not reviews.
+  'gh api repos/o/r/pulls/12/comments -f commit_id=abc -f path=src/x.cs -F line=3 -f side=RIGHT -f body=fix',
   'gh pr checks 12',
   'git commit -m "never gh pr merge or cat .env"',
   'git commit --amend -m x',

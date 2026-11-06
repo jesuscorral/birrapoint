@@ -48,3 +48,5 @@ jobs:
       - run: bash .github/scripts/ecs-health.test.sh
       - run: bash .github/scripts/require-dockerhub-read.test.sh
       - run: bash .github/scripts/check-no-task-ids.test.sh
+      - run: bash .github/scripts/check-pr.test.sh
+      - run: bash .github/scripts/pr-size.test.sh

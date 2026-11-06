@@ -21,7 +21,12 @@ written by the owning agents.
    infra-engineer agent). If one can't run, record why.
 6. **Docs**: launch `docs-keeper` with the task id and branch (living doc, ADR if a significant
    decision, drift check, mark the task `[X]` only if fully delivered).
-7. **PR**: semantic commit(s), push, `gh pr create --base main` with summary, test evidence and
-   anything not verified. Then run `/review-pr <n>`.
+7. **PR**: semantic commit(s), push, then `gh pr create --base main --title "<type>(<scope>):
+   <subject> (<task id>)" --body-file <file>`. Build the body from
+   `.github/pull_request_template.md`: fill every section with real data (requirements, reading
+   order, invariants touched, gate results, anything not verified, risks), delete the areas and
+   the screenshots block the change doesn't use, keep no `<!-- -->` hints. When most files are
+   moves or generated, say so under "How to review" and how to list the rest. pr.yml rejects a
+   non-Conventional title or an empty "What and why". Then run `/review-pr <n>`.
 8. **Reply**: PR link, review verdict with its Blocker/Major findings, and what still needs a human.
    Fix findings only when asked (`/address-review <n>`).

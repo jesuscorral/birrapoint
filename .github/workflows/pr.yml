@@ -1,0 +1,70 @@
+# Pull request hygiene (ADR-0036): checks the title (Conventional Commits) and the description
+# (.github/pull_request_template.md), and labels the PR by area (.github/labeler.yml) and size.
+#
+# pull_request_target so fork PRs can be labeled too: it runs the BASE branch's workflow and
+# scripts with a write token. Never check out or run the PR's own code here; the title and body
+# reach the script only through environment variables.
+name: PR
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Base branch (the pull_request_target default), never the PR head.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Title and description
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: bash .github/scripts/check-pr.sh
+
+  labels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+      # Labels missing from the repository are created on first use, which needs issues: write.
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7.0.0
+        with:
+          # Drop an area label once the PR no longer touches that area.
+          sync-labels: true
+      - name: Size label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          ADDITIONS: ${{ github.event.pull_request.additions }}
+          DELETIONS: ${{ github.event.pull_request.deletions }}
+        run: |
+          CHANGED=$((ADDITIONS + DELETIONS))
+          label="$(bash .github/scripts/pr-size.sh "$CHANGED")"
+          for size in XS S M L XL; do
+            if [ "size/$size" != "$label" ]; then
+              # Not applied is fine (404). The '/' of the label name is URL-encoded.
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$PR/labels/size%2F$size" >/dev/null 2>&1 || true
+            fi
+          done
+          # Adding a label through the issues API creates it when the repository lacks it.
+          gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" -f "labels[]=$label" >/dev/null
+          echo "Labeled $label ($CHANGED changed lines)"

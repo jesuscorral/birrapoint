@@ -50,6 +50,7 @@ verify it with Microsoft Learn or Context7 before reporting it instead of relyin
 
 ```
 ## Review — PR #<n>: <title>
+**Verdict (informational):** Ready to merge | Merge after fixing blockers | Needs rework
 <1–2 sentence assessment>
 
 ### Findings
@@ -59,11 +60,21 @@ verify it with Microsoft Learn or Context7 before reporting it instead of relyin
 | M1 | Major | … | … | … |
 | m1 | Minor | … | … | … |
 
-### Verified OK
+<details>
+<summary>Verified OK</summary>
+
 <short bullets of important things you checked and found correct>
 
-**Verdict (informational):** Ready to merge | Merge after fixing blockers | Needs rework
+</details>
 ```
+
+Verdict first, so a reader gets the outcome without scrolling; "Verified OK" stays collapsed.
+
+After the comment body, add an `### Inline` block (the main session posts it, not as part of the
+comment): one entry per Blocker/Major finding that maps to one changed line, as JSON lines
+`{"path": "...", "line": <n>, "body": "..."}`. `line` is the line number in the PR head version
+of the file and must be inside the diff. When the fix is a few lines, put a GitHub
+` ```suggestion ` block in `body`. Omit the block when there is nothing to anchor.
 
 Blocker = invariant/security violation, data loss, or broken behavior. Major = likely bug,
 missing test or doc for new behavior. Minor = improvement. Every finding must cite file:line and
