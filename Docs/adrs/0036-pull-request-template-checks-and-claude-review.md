@@ -1,6 +1,6 @@
 # 0036 - Pull request template, PR checks and automated Claude review
 
-**Status:** Accepted
+**Status:** Accepted (amended 2026-11-06: the CI review was removed, see below)
 **Date:** 2026-11-05
 
 ## Context
@@ -18,3 +18,6 @@ PR descriptions were free text written by `/deliver` or by hand, with uneven str
 - The CI review costs tokens per opened PR (subscription quota or API billing); re-reviews after new commits are manual to keep that bounded. The repository is public: fork PRs get no secrets, and the action only runs for authors with write access; manual re-reviews refuse fork PRs, because the action restores `.claude/` and `CLAUDE.md` from the base branch only for `pull_request` events and a dispatched fork checkout would run the fork's Claude hooks with the secret present.
 - Two more third-party actions with write tokens; both are pinned by SHA and kept current by Dependabot.
 - Rejected: `amannn/action-semantic-pull-request` and similar (a small script covers the rule and is tested like the other `.github/scripts`); posting reviews with `event: COMMENT` (would require relaxing the guard against approvals); reviewing on every push (cost).
+
+## Amendment (2026-11-06): CI review removed
+`claude-review.yml` is deleted at the user's request after its first runs failed on the Anthropic API call (credential side, not GitHub). Reviews stay local: `/review-pr` with the same reviewer rules, summary comment and line comments. The template, `pr.yml` checks and labels are unchanged. Re-adding a CI review means restoring the workflow from git history together with this ADR's security notes (fork refusal on manual runs, `.claude-pr/` on pull_request runs) and a working `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`.

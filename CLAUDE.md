@@ -36,8 +36,8 @@ first, never silently into code.
   4. Semantic commit, push, PR to `main` via `gh`: Conventional Commits title, body from
      `.github/pull_request_template.md` (`pr.yml` checks both and labels the PR; ADR-0036).
   5. `/review-pr <n>`: runs `senior-code-reviewer` and posts its findings as an informational PR
-     comment plus inline line comments (never approve/request changes — a human merges); CI's
-     `claude-review.yml` does the same when its secret is set. `/address-review <n>` fixes them.
+     comment plus inline line comments (never approve/request changes — a human merges).
+     `/address-review <n>` fixes them.
   6. Docs in the same change (`docs-keeper` agent): ADR in `Docs/adrs/NNNN-kebab-title.md` (per
      `template.md`) for significant decisions; update `Docs/arquitectura_viva.md`. All docs in
      English.

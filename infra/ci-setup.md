@@ -16,7 +16,6 @@ HCP Terraform workspace and `environments/<env>.tfvars`. Nothing below is stored
 | `infra.yml` | Changes to `infra/**` | `terraform fmt`/`validate`/`test` (no backend) and Pester (teardown), per cloud | nothing |
 | `workflows.yml` | Changes to `.github/**` | actionlint, script tests | nothing |
 | `pr.yml` | PRs to `main` (`pull_request_target`) | Title/description check, area and size labels (ADR-0036) | nothing |
-| `claude-review.yml` | PRs to `main` opened/reopened/ready, manual | Informational Claude review comment + inline findings (ADR-0036) | Claude credentials (section 3), optional |
 | `release.yml` | Manual | Publishes `<ns>/birrapoint-*-release:X.Y.Z`, tag, GitHub Release, bumps `version.txt` | Docker Hub |
 | `deploy-azure.yml` | Manual, approval | Applies the Azure Terraform root with a release version (ADR-0022), then waits for healthy revisions | Azure OIDC, HCP Terraform, Neon, SMTP, `azure-production` environment |
 | `deploy-aws.yml` | Manual, approval | Applies the AWS Terraform root with a release version (ADR-0022, ADR-0023), then waits for stable ECS services | AWS OIDC role, HCP Terraform, Neon, SMTP, `aws-production` environment |
@@ -74,23 +73,7 @@ the path filters. The reusable gates report as `gates / backend` and `gates / fr
 `release.yml`, `deploy-azure.yml` and `deploy-aws.yml` refuse to run unless dispatched from `main` ("Use workflow from:
 main" in the Actions tab, the default).
 
-## 3. Claude pull request review (optional)
+## 3. Pull request checks
 
-`claude-review.yml` reviews each PR with the rules of `.claude/agents/senior-code-reviewer.md`
-and comments; it never approves. Without credentials the job only prints a notice.
-
-1. Install the Claude GitHub App on the repository (`/install-github-app` in Claude Code, or
-   https://github.com/apps/claude): it lets the action post comments as Claude.
-2. Store one credential as a repository secret:
-
-```powershell
-# Claude subscription (Pro/Max): prints a long-lived token for CI.
-claude setup-token
-gh secret set CLAUDE_CODE_OAUTH_TOKEN
-# or, billed per use through the Anthropic API:
-gh secret set ANTHROPIC_API_KEY
-```
-
-Re-review a PR after new commits from the Actions tab: **Claude review → Run workflow**, PR number.
 `pr.yml` needs no setup: its `labels` job has `issues: write`, so missing labels (`backend`,
 `size/M`...) are created on first use.
