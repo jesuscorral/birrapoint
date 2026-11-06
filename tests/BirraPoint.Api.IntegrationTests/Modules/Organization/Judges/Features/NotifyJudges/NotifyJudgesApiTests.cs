@@ -1,8 +1,8 @@
 using System.Net;
 using System.Text.Json;
-using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using BuildingBlocks.EmailSender;
+using BuildingBlocks.Keycloak.Admin;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BirraPoint.Api.IntegrationTests.Modules.Organization.Judges.Features.NotifyJudges;

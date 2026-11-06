@@ -2,7 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 
-namespace BirraPoint.Api.Common.Auth;
+namespace BuildingBlocks.Keycloak.Authentication;
 
 /// <summary>
 /// Keycloak puts realm roles under a nested `realm_access.roles` claim, not flat role claims —

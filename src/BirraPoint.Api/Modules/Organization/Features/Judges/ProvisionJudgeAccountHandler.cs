@@ -4,6 +4,7 @@ using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BuildingBlocks.Keycloak.Admin;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Judges;
@@ -47,6 +48,6 @@ internal sealed class ProvisionJudgeAccountHandler(AppDbContext dbContext, IKeyc
             return;
         }
 
-        await keycloakAdminClient.EnsureUserWithTemporaryPasswordAsync(judge.Email, cancellationToken);
+        await keycloakAdminClient.EnsureUserWithTemporaryPasswordAsync(judge.Email, BirraPointKeycloak.JudgeRole, cancellationToken);
     }
 }

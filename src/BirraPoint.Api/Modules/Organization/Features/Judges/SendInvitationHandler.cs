@@ -6,6 +6,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BuildingBlocks.EmailSender;
+using BuildingBlocks.Keycloak.Admin;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Judges;
@@ -40,7 +41,7 @@ internal sealed class SendInvitationHandler(
 
         try
         {
-            var temporaryPassword = await keycloakAdminClient.EnsureUserWithTemporaryPasswordAsync(judge.Email, cancellationToken);
+            var temporaryPassword = await keycloakAdminClient.EnsureUserWithTemporaryPasswordAsync(judge.Email, BirraPointKeycloak.JudgeRole, cancellationToken);
             var loginUrl = configuration["Frontend:BaseUrl"] ?? throw new InvalidOperationException("Frontend:BaseUrl is not configured.");
             var (subject, body) = temporaryPassword is null
                 ? BuildAlreadyActiveEmail(competition.Name, loginUrl)

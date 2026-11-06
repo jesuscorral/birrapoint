@@ -1,7 +1,6 @@
 using System.Security.Claims;
-using BirraPoint.Api.Common.Auth;
 
-namespace BirraPoint.Api.UnitTests.Common.Auth;
+namespace BuildingBlocks.Keycloak.Authentication.Tests;
 
 public sealed class KeycloakRolesClaimsTransformationTests
 {

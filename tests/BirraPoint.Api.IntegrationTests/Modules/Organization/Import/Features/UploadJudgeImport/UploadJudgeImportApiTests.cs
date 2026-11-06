@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BirraPoint.Api.Common.Jobs;
-using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Organization.Domain;

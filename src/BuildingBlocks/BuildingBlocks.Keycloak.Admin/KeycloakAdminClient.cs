@@ -1,31 +1,43 @@
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Options;
 
-namespace BirraPoint.Api.Common.Keycloak;
+namespace BuildingBlocks.Keycloak.Admin;
 
-internal sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration configuration) : IKeycloakAdminClient
+internal sealed class KeycloakAdminClient : IKeycloakAdminClient
 {
-    private readonly string _authority = configuration["Keycloak:Authority"]
-        ?? throw new InvalidOperationException("Keycloak:Authority is not configured.");
-    private readonly string _clientId = configuration["Keycloak:AdminClientId"]
-        ?? throw new InvalidOperationException("Keycloak:AdminClientId is not configured.");
-    private readonly string _clientSecret = configuration["Keycloak:AdminClientSecret"]
-        ?? throw new InvalidOperationException("Keycloak:AdminClientSecret is not configured.");
+    private readonly HttpClient _httpClient;
+    private readonly string _authority;
+    private readonly string _clientId;
+    private readonly string _clientSecret;
+
+    public KeycloakAdminClient(HttpClient httpClient, IOptions<KeycloakAdminOptions> options)
+    {
+        ArgumentNullException.ThrowIfNull(httpClient);
+        ArgumentNullException.ThrowIfNull(options);
+
+        _httpClient = httpClient;
+        var value = options.Value;
+        _authority = value.Authority ?? throw new InvalidOperationException("Keycloak Authority is not configured.");
+        _clientId = value.AdminClientId ?? throw new InvalidOperationException("Keycloak AdminClientId is not configured.");
+        _clientSecret = value.AdminClientSecret ?? throw new InvalidOperationException("Keycloak AdminClientSecret is not configured.");
+    }
 
     // ".../realms/birrapoint" -> ".../admin/realms/birrapoint" — no separate config key needed.
     private string AdminRealmBaseUrl => _authority.Replace("/realms/", "/admin/realms/", StringComparison.Ordinal);
 
-    public async Task<string?> EnsureUserWithTemporaryPasswordAsync(string email, CancellationToken cancellationToken)
+    public async Task<string?> EnsureUserWithTemporaryPasswordAsync(string email, string realmRole, CancellationToken cancellationToken)
     {
-        var token = await GetAdminAccessTokenAsync(cancellationToken);
-        var existingUser = await FindUserByEmailAsync(email, token, cancellationToken);
+        var token = await GetAdminAccessTokenAsync(cancellationToken).ConfigureAwait(false);
+        var existingUser = await FindUserByEmailAsync(email, token, cancellationToken).ConfigureAwait(false);
 
         string userId;
         bool needsPassword;
         if (existingUser is null)
         {
-            userId = await CreateUserAsync(email, token, cancellationToken);
+            userId = await CreateUserAsync(email, token, cancellationToken).ConfigureAwait(false);
             needsPassword = true;
         }
         else
@@ -34,29 +46,28 @@ internal sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration 
             needsPassword = HasPendingPasswordUpdate(existingUser);
         }
 
-        await EnsureJudgeRoleAsync(userId, token, cancellationToken);
+        await EnsureRealmRoleAsync(userId, realmRole, token, cancellationToken).ConfigureAwait(false);
 
         if (!needsPassword)
         {
-            // Account already completed its own UPDATE_PASSWORD setup — some other persona
-            // (e.g. this same email organizing a different competition, R-20/JudgeResolver) may
-            // be actively using this password. Granting JUDGE must not reset it out from under them.
+            // Account already completed its own UPDATE_PASSWORD setup: another persona sharing this
+            // email may be actively using this password, so granting the role must not reset it.
             return null;
         }
 
         var temporaryPassword = GenerateTemporaryPassword();
-        await ResetPasswordAsync(userId, temporaryPassword, token, cancellationToken);
+        await ResetPasswordAsync(userId, temporaryPassword, token, cancellationToken).ConfigureAwait(false);
         return temporaryPassword;
     }
 
     public async Task UpdateUserEmailAsync(string oldEmail, string newEmail, CancellationToken cancellationToken)
     {
-        var token = await GetAdminAccessTokenAsync(cancellationToken);
-        var existingUser = await FindUserByEmailAsync(oldEmail, token, cancellationToken);
+        var token = await GetAdminAccessTokenAsync(cancellationToken).ConfigureAwait(false);
+        var existingUser = await FindUserByEmailAsync(oldEmail, token, cancellationToken).ConfigureAwait(false);
         if (existingUser is null)
         {
-            // Not provisioned yet — the pending SendInvitation job reads Judge.Email fresh and
-            // will create the Keycloak account under the corrected address directly.
+            // Not provisioned yet — the caller creates the account under the corrected address
+            // when it provisions the user.
             return;
         }
 
@@ -64,7 +75,7 @@ internal sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration 
         existingUser["email"] = newEmail;
         existingUser["username"] = newEmail;
 
-        await PutUserAsync(userId, existingUser, token, cancellationToken);
+        await PutUserAsync(userId, existingUser, token, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<string> GetAdminAccessTokenAsync(CancellationToken cancellationToken)
@@ -77,11 +88,11 @@ internal sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration 
         };
 
         using var content = new FormUrlEncodedContent(form);
-        using var response = await httpClient.PostAsync(
-            new Uri($"{_authority}/protocol/openid-connect/token", UriKind.Absolute), content, cancellationToken);
+        using var response = await _httpClient.PostAsync(
+            new Uri($"{_authority}/protocol/openid-connect/token", UriKind.Absolute), content, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        var payload = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken);
+        var payload = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken).ConfigureAwait(false);
         return payload?["access_token"]?.GetValue<string>()
             ?? throw new InvalidOperationException("Keycloak token response did not include an access_token.");
     }
@@ -92,10 +103,10 @@ internal sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration 
             HttpMethod.Get, $"{AdminRealmBaseUrl}/users?email={Uri.EscapeDataString(email)}&exact=true");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        var users = await response.Content.ReadFromJsonAsync<JsonArray>(cancellationToken);
+        var users = await response.Content.ReadFromJsonAsync<JsonArray>(cancellationToken).ConfigureAwait(false);
         return users?.OfType<JsonObject>().FirstOrDefault();
     }
 
@@ -116,7 +127,7 @@ internal sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration 
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
         // Keycloak's user-create endpoint returns 201 with no body; the new id is the last
@@ -126,62 +137,61 @@ internal sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration 
         return location.Segments[^1];
     }
 
-    // default-roles-birrapoint (the composite Keycloak assigns automatically on user creation)
-    // grants ORGANIZER + offline_access, never JUDGE (infra/keycloak/birrapoint-realm.json) — so
-    // every judge account, new or pre-existing, needs this explicit grant. Looked up via the
-    // user-scoped "available roles" endpoint rather than the realm-scoped /roles/{name}: the
-    // latter requires the realm-management view-realm permission, which the birrapoint-api-admin
-    // service account (manage-users/view-users only) doesn't have.
-    private async Task EnsureJudgeRoleAsync(string userId, string token, CancellationToken cancellationToken)
+    // The realm's default-roles composite (assigned automatically on user creation) is not expected
+    // to grant the role, so every account, new or pre-existing, needs this explicit grant. Looked
+    // up via the user-scoped "available roles" endpoint rather than the realm-scoped /roles/{name}:
+    // the latter requires the realm-management view-realm permission, which a least-privilege
+    // service account (manage-users/view-users only) does not have.
+    private async Task EnsureRealmRoleAsync(string userId, string realmRole, string token, CancellationToken cancellationToken)
     {
         using var availableRolesRequest = new HttpRequestMessage(
             HttpMethod.Get, $"{AdminRealmBaseUrl}/users/{userId}/role-mappings/realm/available");
         availableRolesRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        using var availableRolesResponse = await httpClient.SendAsync(availableRolesRequest, cancellationToken);
+        using var availableRolesResponse = await _httpClient.SendAsync(availableRolesRequest, cancellationToken).ConfigureAwait(false);
         availableRolesResponse.EnsureSuccessStatusCode();
 
-        var availableRoles = await availableRolesResponse.Content.ReadFromJsonAsync<JsonArray>(cancellationToken);
-        var judgeRole = availableRoles?.OfType<JsonObject>().FirstOrDefault(role => string.Equals(role["name"]?.GetValue<string>(), "JUDGE", StringComparison.Ordinal));
-        if (judgeRole is null)
+        var availableRoles = await availableRolesResponse.Content.ReadFromJsonAsync<JsonArray>(cancellationToken).ConfigureAwait(false);
+        var role = availableRoles?.OfType<JsonObject>().FirstOrDefault(candidate => string.Equals(candidate["name"]?.GetValue<string>(), realmRole, StringComparison.Ordinal));
+        if (role is null)
         {
-            // Absent from "available" is ambiguous by itself: it means either JUDGE is already
-            // assigned to this user (the common, correct-and-idempotent case), or JUDGE doesn't
+            // Absent from "available" is ambiguous by itself: it means either the role is already
+            // assigned to this user (the common, correct-and-idempotent case), or the role does not
             // exist in this realm at all (wrong realm, partial import, renamed role — the same
             // silent-failure shape this method exists to fix). Disambiguate against the user's
             // actually-assigned roles instead of guessing.
-            if (await UserHasJudgeRoleAssignedAsync(userId, token, cancellationToken))
+            if (await UserHasRealmRoleAssignedAsync(userId, realmRole, token, cancellationToken).ConfigureAwait(false))
             {
                 return;
             }
 
             throw new InvalidOperationException(
-                $"Keycloak realm role \"JUDGE\" was not found among user {userId}'s available or " +
+                $"Keycloak realm role \"{realmRole}\" was not found among user {userId}'s available or " +
                 "assigned realm roles — it may not exist in this realm.");
         }
 
         using var assignRoleRequest = new HttpRequestMessage(
             HttpMethod.Post, $"{AdminRealmBaseUrl}/users/{userId}/role-mappings/realm")
         {
-            Content = JsonContent.Create(new JsonArray(judgeRole.DeepClone())),
+            Content = JsonContent.Create(new JsonArray(role.DeepClone())),
         };
         assignRoleRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        using var assignRoleResponse = await httpClient.SendAsync(assignRoleRequest, cancellationToken);
+        using var assignRoleResponse = await _httpClient.SendAsync(assignRoleRequest, cancellationToken).ConfigureAwait(false);
         assignRoleResponse.EnsureSuccessStatusCode();
     }
 
-    private async Task<bool> UserHasJudgeRoleAssignedAsync(string userId, string token, CancellationToken cancellationToken)
+    private async Task<bool> UserHasRealmRoleAssignedAsync(string userId, string realmRole, string token, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(
             HttpMethod.Get, $"{AdminRealmBaseUrl}/users/{userId}/role-mappings/realm");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        var assignedRoles = await response.Content.ReadFromJsonAsync<JsonArray>(cancellationToken);
-        return assignedRoles?.OfType<JsonObject>().Any(role => string.Equals(role["name"]?.GetValue<string>(), "JUDGE", StringComparison.Ordinal)) ?? false;
+        var assignedRoles = await response.Content.ReadFromJsonAsync<JsonArray>(cancellationToken).ConfigureAwait(false);
+        return assignedRoles?.OfType<JsonObject>().Any(assigned => string.Equals(assigned["name"]?.GetValue<string>(), realmRole, StringComparison.Ordinal)) ?? false;
     }
 
     // An account still mid-setup (never completed its first login) has UPDATE_PASSWORD pending —
@@ -199,7 +209,7 @@ internal sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration 
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
     }
 
@@ -218,7 +228,7 @@ internal sealed class KeycloakAdminClient(HttpClient httpClient, IConfiguration 
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
     }
 
