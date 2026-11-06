@@ -367,3 +367,54 @@ Numbered R-21 because R-20 was already taken by the judge-roster decision.
 Everything else (`MediatR`, `FluentValidation`, EF Core/Npgsql, SignalR, Tailwind, CDK,
 `@angular/pwa`, .NET Aspire AppHost/ServiceDefaults, Docker, Terraform, Neon) is already mandated
 by the constitution's Technology Constraints (v1.3.0).
+
+## R-22: BuildingBlocks phase 2 — design unknowns *(added 2026-11-06, ADR-0037)*
+
+Pure refactor: no requirement, contract, schema or behaviour changes. The ADR-0035 rules apply to
+every block (no BirraPoint reference, asserted by tests; `net10.0` literal; host-agnostic tests).
+
+- **(a) Jobs claim SQL without hard-coded names** — *Decision*: build the claim and recovery
+  queries with `FromSqlRaw`, taking the schema, table and column names from the EF model
+  (`IEntityType.GetTableName()`/`GetSchema()`, `IProperty.GetColumnName(StoreObjectIdentifier.Table(...))`),
+  quoted as PostgreSQL identifiers, with every value (`Pending`, now, limit) as a `DbParameter`.
+  *Rationale*: identifiers cannot be SQL parameters, and the host owns the names (BirraPoint keeps
+  `"DispatchJobs"` and `"CompetitionId"`); model metadata is trusted input, not user input, which
+  is the case EF documents for `FromSqlRaw`. EF10's raw-SQL concatenation analyzer warning is
+  suppressed at that one call with this justification. *Alternatives*: fixed names in the block
+  (forces every host to the same table); a stored procedure (schema object outside the model).
+- **(b) Moving `DispatchJob` to the block without a migration** — *Decision*: the block owns the
+  entity type; BirraPoint maps it to the same table, columns, lengths, indexes and FK through
+  `ApplyJobs(configure)`. The relational model is unchanged, so `dotnet ef migrations add` must
+  produce empty `Up`/`Down` (only the snapshot's entity type name changes); the PR keeps no
+  migration file. *Rationale*: EF diffs tables and columns, not CLR types; the same move of
+  `AuditLog` into `BuildingBlocks.Audit` produced only the intended `DropColumn`s.
+  *Alternatives*: neutral table/column names (needs a rename migration and a careful deploy;
+  rejected with the user, ADR-0037).
+- **(c) Job type and status** — *Decision*: `Type` becomes a string in the block (already stored as
+  the enum name, max 30 chars); BirraPoint keeps `DispatchJobType` and passes `nameof`-equivalent
+  names, so stored values and the `DispatchProgress` payload are unchanged. Status stays an enum in
+  the block with the same names (`Pending`, `Running`, `Completed`, `Failed`), stored as strings.
+  `CreatedAt`/`UpdatedAt` are stamped by the block itself, not by BirraPoint's `ITimestamped`.
+- **(d) Progress notification** — *Decision*: `IJobObserver.OnStateChangedAsync(job)` (default
+  no-op), called after each persisted state change and isolated from the outcome (a failing
+  observer is logged, never reverts the job), exactly as `PublishProgressSafelyAsync` behaves today.
+  BirraPoint's implementation publishes `DispatchProgress` to the organizers group.
+- **(e) Keycloak admin client tests** — *Decision*: `Testcontainers.Keycloak` 4.15.0 (same version
+  line as the pinned `Testcontainers` 4.15.0), test-only, importing a minimal realm with a
+  confidential admin client and one test realm role. *Rationale*: the client's value is its exact
+  Admin REST calls (find by email, create, reset password with `temporary`, role mapping,
+  `UPDATE_PASSWORD` detection); a fake HTTP handler would test our assumptions, not Keycloak.
+  *Alternatives*: generic `Testcontainers` container (more setup code for the same image);
+  mocked `HttpMessageHandler` (rejected as above).
+- **(f) Exception-to-ProblemDetails order** — *Decision*: `IExceptionHandler`s run in registration
+  order; the block registers mapped handlers first and the catch-all 500 last, and exposes one
+  `AddProblemDetailsMapping` entry point so hosts can't register them out of order. BirraPoint maps
+  `DomainException` through its catalog; the existing handler tests and the error-catalog contract
+  tests are the guard that responses don't change.
+- **(g) Block-to-block reference** — *Decision*: `BuildingBlocks.Validation.MediatR` references
+  `BuildingBlocks.ProblemDetails` to register its 400 mapping; no other block references another.
+  The independence tests allow references to `BuildingBlocks.*` only, never `BirraPoint.*`.
+- **(h) Shared test helpers** — *Decision*: each block test project keeps its own small
+  `BlockProjectFile` helper (as Audit/EmailSender do) instead of a shared test library.
+  *Rationale*: blocks must be movable to another repository one by one; a shared test project would
+  couple them. The duplication is ~20 lines per project.

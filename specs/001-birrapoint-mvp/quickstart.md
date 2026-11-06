@@ -106,6 +106,29 @@ cd src/Birrapoint.Web && npm run build:budget
 k6 run infra/perf/api-budgets.js
 ```
 
+## BuildingBlocks refactor validation (ADR-0037)
+
+Each block extraction (DaprSecrets, Keycloak, ProblemDetails/Validation, Spreadsheet, Jobs) is a
+no-behaviour-change refactor. Before its PR is Done:
+
+```bash
+dotnet build BirraPoint.sln                                   # 0 warnings
+dotnet test tests/BuildingBlocks/BuildingBlocks.<X>.Tests      # block tests + independence tests
+dotnet test tests/BirraPoint.Api.UnitTests                     # incl. ModuleBoundaryTests
+dotnet test tests/BirraPoint.Api.IntegrationTests              # contract tests unchanged and green
+dotnet format BirraPoint.sln --verify-no-changes
+# Jobs only: the model must not change the schema (expect empty Up/Down, then remove it)
+dotnet ef migrations add VerifyNoSchemaChange --project src/BirraPoint.Api
+```
+
+| Block | Extra check | Expected |
+|---|---|---|
+| DaprSecrets | `keycloak-dapr-secrets` CI job; API starts locally without `Dapr:SecretStore` | No sidecar needed locally; cloud secret names unchanged |
+| Keycloak | Scenarios 1, 4 and 14 below | Sign-in, role landing, judge provisioning and email change behave as before |
+| ProblemDetails / Validation | Error-catalog contract tests | Same `type`, `status`, `title` and `errors` for every catalogued error |
+| Spreadsheet | Scenarios 3 and 14 below | Same row-level results and `invalid-import-file` cases |
+| Jobs | Scenarios 4, 10 and 14 below; `DispatchConcurrencyTests` | Jobs claimed once, retried with backoff, `DispatchProgress` unchanged |
+
 ## End-to-end validation scenarios
 
 Each scenario maps to a spec user story (US) and must pass before that story is Done.

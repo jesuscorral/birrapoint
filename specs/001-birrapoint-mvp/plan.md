@@ -43,7 +43,9 @@ Dexie.js on judge devices (drafts + offline outbox only, never the source of tru
 
 **Testing**: Backend: xUnit; handler-level unit tests; contract/integration tests with
 `WebApplicationFactory` + Testcontainers (PostgreSQL). Frontend: Jest (unit), Playwright (E2E,
-including offline simulation and `axe-core` accessibility checks). Deployment tooling: Pester 5+
+including offline simulation and `axe-core` accessibility checks). BuildingBlocks: one host-agnostic
+test project per block (Testcontainers PostgreSQL/Mailpit, and `Testcontainers.Keycloak` for the
+Keycloak admin client, research R-22e). Deployment tooling: Pester 5+
 (PowerShell's de facto test framework, preinstalled on GitHub runners; test-only) for
 `infra/azure/Teardown.psm1` (and `infra/aws/Teardown.psm1`, T146), and `terraform test` (mocked
 providers) for the Terraform variables (T143, ADR-0022).
@@ -131,6 +133,18 @@ in-environment ACA container to Neon (managed Postgres-as-a-service); see resear
 change to any other principle or slice; Phase 16 (T095–T099) not yet started, so no code exists
 that needs migrating — only spec/plan/research/tasks artifacts, updated in this same change.
 
+**Post-addition re-check (2026-11-06, BuildingBlocks phase 2, ADR-0037)**: ✅ PASS — pure refactor:
+no requirement, contract (Principle VI), schema or behaviour change; DaprSecrets, Keycloak
+(Authentication + Admin), ProblemDetails + Validation.MediatR, Spreadsheet and Jobs move out of
+`Common/` and the Import module into blocks under ADR-0035's rules. Principle II: the API stays one
+deployable; blocks are libraries it references, and `Common/` shrinks to BirraPoint-specific glue.
+Principle III: moved tests move with their code, contract tests stay in the API and must pass
+unchanged. Principle V: the only new dependency is test-only `Testcontainers.Keycloak` (R-22e);
+MediatR stays pinned at 12.x inside `Validation.MediatR`. Principle VII: secrets handling, JWT
+validation, deny-by-default policies and the claim SQL (identifiers from EF metadata, values as
+parameters, R-22a) keep today's guarantees. Jobs (R-22a–d) is delivered last and must show an
+empty migration diff. No Complexity Tracking entries.
+
 ## Project Structure
 
 ### Documentation (this feature)
@@ -161,9 +175,17 @@ src/
 │   │                                   #   import), Mailpit, API, frontend
 │   └── BirraPoint.ServiceDefaults/     # OpenTelemetry, health checks, resilience defaults
 ├── Birrapoint.Web/                     # Angular PWA (detailed below)
-├── BuildingBlocks/                     # ADR-0035: reusable blocks with no BirraPoint reference
+├── BuildingBlocks/                     # ADR-0035/0037: reusable blocks with no BirraPoint reference
 │   ├── BuildingBlocks.Audit/           #   immutable audit trail on the host DbContext
-│   └── BuildingBlocks.EmailSender/     #   MailKit SMTP sender (SmtpOptions, AddEmailSender)
+│   ├── BuildingBlocks.EmailSender/     #   MailKit SMTP sender (SmtpOptions, AddEmailSender)
+│   │                                   # planned, ADR-0037 (in delivery order):
+│   ├── BuildingBlocks.DaprSecrets/     #   Dapr secret store -> IConfiguration at startup
+│   ├── BuildingBlocks.Keycloak.Authentication/ # JWT bearer + realm roles -> role claims
+│   ├── BuildingBlocks.Keycloak.Admin/  #   admin client: users, temp passwords, realm roles
+│   ├── BuildingBlocks.ProblemDetails/  #   exception -> RFC 7807 mapping, catch-all 500
+│   ├── BuildingBlocks.Validation.MediatR/ # FluentValidation pipeline behavior + 400 mapping
+│   ├── BuildingBlocks.Spreadsheet/     #   ClosedXML reader by header, typed cells
+│   └── BuildingBlocks.Jobs/            #   PostgreSQL job queue: lease claim, retry, wake-up
 └── BirraPoint.Api/                     # Single deployable modular monolith
     ├── Program.cs                      # Minimal API bootstrap, auth, SignalR, OpenAPI
     ├── Dockerfile                      # Multi-stage: .NET SDK build → ASP.NET runtime (context: repo root)
