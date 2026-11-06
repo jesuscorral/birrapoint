@@ -47,7 +47,7 @@ resource "time_sleep" "key_vault_rbac_propagation" {
 locals {
   # Key Vault secret names allow only alphanumerics and '-'. The API's secrets use "--" for the
   # configuration section separator (ConnectionStrings--db -> ConnectionStrings:db, see
-  # src/BirraPoint.Api/Common/Secrets/DaprSecrets.cs); Keycloak's are mapped to its
+  # src/BirraPoint.Api/Common/Secrets/BirraPointSecrets.cs); Keycloak's are mapped to its
   # environment variables by DAPR_SECRETS (apps.tf, built from keycloak_secret_env below). The
   # Keycloak admin-client secret is shared: the API authenticates with the same value Keycloak's
   # realm import sets.
@@ -84,7 +84,7 @@ locals {
 
   # Least privilege: each app's identity reads exactly the secrets it uses - Dapr component scopes
   # only decide which apps may use the component, not which secrets they get, and an identity can
-  # also call Key Vault directly. The API's list must match DaprSecrets.cs. The web app has an
+  # also call Key Vault directly. The API's list must match BirraPointSecrets.cs. The web app has an
   # identity but no secret, so no grant (ADR-0021).
   app_secret_names = {
     api = concat(
@@ -129,7 +129,7 @@ resource "azurerm_role_assignment" "app_key_vault_secrets_user" {
 
 # An app's first revision starts before its identity has these roles (they need the identity,
 # which exists only with the app). Waiting here makes `terraform apply` return only once they
-# have propagated, so the revisions it started can read their secrets; the apps also retry on their own (DaprSecrets.cs, DaprSecretsEnv.java).
+# have propagated, so the revisions it started can read their secrets; the apps also retry on their own (BuildingBlocks.DaprSecrets, DaprSecretsEnv.java).
 resource "time_sleep" "app_rbac_propagation" {
   create_duration = "120s"
 

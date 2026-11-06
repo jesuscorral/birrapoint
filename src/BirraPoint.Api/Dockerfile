@@ -14,6 +14,7 @@ WORKDIR /src
 COPY Directory.Build.props Directory.Packages.props ./
 COPY src/Aspire/BirraPoint.ServiceDefaults/BirraPoint.ServiceDefaults.csproj src/Aspire/BirraPoint.ServiceDefaults/
 COPY src/BuildingBlocks/BuildingBlocks.Audit/BuildingBlocks.Audit.csproj src/BuildingBlocks/BuildingBlocks.Audit/
+COPY src/BuildingBlocks/BuildingBlocks.DaprSecrets/BuildingBlocks.DaprSecrets.csproj src/BuildingBlocks/BuildingBlocks.DaprSecrets/
 COPY src/BuildingBlocks/BuildingBlocks.EmailSender/BuildingBlocks.EmailSender.csproj src/BuildingBlocks/BuildingBlocks.EmailSender/
 COPY src/BirraPoint.Api/BirraPoint.Api.csproj src/BirraPoint.Api/
 RUN dotnet restore src/BirraPoint.Api/BirraPoint.Api.csproj

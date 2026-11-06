@@ -15,6 +15,7 @@ using BirraPoint.Api.Modules.Publication;
 using BirraPoint.Api.Realtime;
 using BirraPoint.ServiceDefaults;
 using BuildingBlocks.Audit;
+using BuildingBlocks.DaprSecrets;
 using BuildingBlocks.EmailSender;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
@@ -25,9 +26,10 @@ QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Secrets from Key Vault through the Dapr secret store when Dapr:SecretStore is set (Azure,
-// ADR-0021); first, so every registration below already sees them. Locally: plain settings.
-builder.Configuration.AddDaprSecrets();
+// Secrets from Key Vault / Secrets Manager through the Dapr secret store when Dapr:SecretStore is
+// set (ADR-0021, ADR-0023, ADR-0037); first, so every registration below already sees them.
+// Locally: plain settings.
+builder.Configuration.AddDaprSecrets(BirraPointSecrets.Configure);
 
 // OpenTelemetry, health checks, service discovery, resilience (FR-048).
 builder.AddServiceDefaults();
