@@ -412,6 +412,10 @@ points from any other submitted total (spec edge case: ≥3 judges).
 
 ### DispatchJob *(R-06 background queue)*
 
+*Planned (ADR-0037, research R-22):* the entity moves to `BuildingBlocks.Jobs` as `Job` (string
+`Type`, generic group key). BirraPoint maps it onto this same table, columns, indexes and FK, so the
+schema below stays exactly as is (no migration); `CompetitionId` is the group key.
+
 | Field | Type | Constraints |
 |-------|------|-------------|
 | Id | Guid | PK |
