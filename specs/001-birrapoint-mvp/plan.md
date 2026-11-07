@@ -181,17 +181,17 @@ src/
 │   ├── BuildingBlocks.EmailSender/     #   MailKit SMTP sender (SmtpOptions, AddEmailSender)
 │   ├── BuildingBlocks.Keycloak.Authentication/ # JWT bearer + realm roles -> role claims
 │   ├── BuildingBlocks.Keycloak.Admin/  #   admin client: users, temp passwords, realm roles
-│   │                                   # planned, ADR-0037 (in delivery order):
 │   ├── BuildingBlocks.ProblemDetails/  #   exception -> RFC 7807 mapping, catch-all 500
 │   ├── BuildingBlocks.Validation.MediatR/ # FluentValidation pipeline behavior + 400 mapping
+│   │                                   # planned, ADR-0037 (in delivery order):
 │   ├── BuildingBlocks.Spreadsheet/     #   ClosedXML reader by header, typed cells
 │   └── BuildingBlocks.Jobs/            #   PostgreSQL job queue: lease claim, retry, wake-up
 └── BirraPoint.Api/                     # Single deployable modular monolith
     ├── Program.cs                      # Minimal API bootstrap, auth, SignalR, OpenAPI
     ├── Dockerfile                      # Multi-stage: .NET SDK build → ASP.NET runtime (context: repo root)
     ├── Domain/                         # Shared kernel: Entity, DispatchJob
-    ├── Common/                         # Cross-cutting: MediatR behaviors (validation),
-    │                                   #   ProblemDetails mapping, auth policies,
+    ├── Common/                         # Cross-cutting: error catalog and mapping setup,
+    │                                   #   auth policies,
     │                                   #   persistence (DbContext), job queue
     ├── Modules/                        # ADR-0033/0034; each: Domain/, Persistence/, Contracts/, Integration/, Features/
     │   ├── Catalog/                    # BJCP reference data (GetStyles, GetStyleDetails)

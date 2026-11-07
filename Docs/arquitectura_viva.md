@@ -4,7 +4,7 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-11-06 (Keycloak authentication and admin extracted to BuildingBlocks, ADR-0037)
+**Last updated:** 2026-11-07 (ProblemDetails and Validation.MediatR extracted to BuildingBlocks, ADR-0037)
 
 ## Status
 
@@ -116,7 +116,8 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
 `BirraPoint.Api.IntegrationTests`, and reusable blocks agnostic of BirraPoint under `src/BuildingBlocks/`
 (ADR-0035, ADR-0037; today `BuildingBlocks.Audit`, `BuildingBlocks.DaprSecrets`,
 `BuildingBlocks.EmailSender`, `BuildingBlocks.Keycloak.Authentication` and
-`BuildingBlocks.Keycloak.Admin`, each tested by its own
+`BuildingBlocks.Keycloak.Admin`, `BuildingBlocks.ProblemDetails` and
+`BuildingBlocks.Validation.MediatR`, each tested by its own
 `tests/BuildingBlocks/BuildingBlocks.<X>.Tests`). Package versions are centralized in
 `Directory.Packages.props` (including `$(BirraPointTargetFramework)`).
 
@@ -141,16 +142,21 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
   sub/email/name/roles; `OrganizerResolver` creates the `Organizer` row lazily on first write;
   `JudgeResolver` backfills `Judge.KeycloakUserId` on every competition row sharing the email.
   Ownership checks use `Competition.CreatedByUserId == sub`; misses return `404`.
-- **Errors** (`Common/Errors/`): `DomainExceptionHandler` (15-entry `DomainErrorType` catalog →
-  `urn:birrapoint:*`), `ValidationExceptionHandler` (`400` + field map), fallback `500` without
-  internals.
+- **Errors** (`BuildingBlocks.ProblemDetails`, ADR-0037): `AddProblemDetailsMapping(map => map.Map<T>(...) /
+  MapProblem<T>(...))` is the single entry point. An internal handler applies the mappings in
+  registration order; the catch-all `500` (no message or stack) is registered last, and repeated calls
+  append mappings without adding a second fallback. BirraPoint maps `DomainException` in
+  `Common/Errors/ErrorHandlingExtensions.cs` (15-entry `DomainErrorType` catalog via `DomainErrorCatalog`
+  → `urn:birrapoint:*`) and keeps the `429` writer.
 - **Rate limiting** (`Common/RateLimiting/`, ADR-0029): policy `NotifyJudges` on `POST
   /competitions/{id}/judges/notify` only. Fixed window per JWT `sub`; config
   `RateLimiting:NotifyJudges:PermitLimit` (default 2, `AppHost` sets 1000 locally for shared-organizer
   E2E) and `WindowSeconds` (default 30). Rejection: `429` `urn:birrapoint:rate-limited` + integer
   `Retry-After`. In memory, so exact only because the API runs as one replica (Azure and AWS).
-- **Validation** (`Common/Behaviors/`): MediatR 12.5 + `ValidationBehavior` running every
-  FluentValidation validator before the handler.
+- **Validation** (`BuildingBlocks.Validation.MediatR`, ADR-0037): `AddMediatRWithValidation` registers
+  MediatR 12.5 and an internal `ValidationBehavior` that runs every FluentValidation validator before the
+  handler. `MapValidation(o => { o.Type; o.Title; })` (both required) registers the `400` with camelCase
+  field errors through the ProblemDetails block; BirraPoint passes `urn:birrapoint:validation`.
 - **Audit** (`BuildingBlocks.Audit`, ADR-0035): `IAuditWriter.Record(...)` stages an `AuditLog` row
   (`{before, after}` jsonb) in the caller's transaction; actor = Keycloak `sub` via
   `Common/Auth/CurrentUserAuditActor`; registered with `AddAudit<AppDbContext, CurrentUserAuditActor>()`.

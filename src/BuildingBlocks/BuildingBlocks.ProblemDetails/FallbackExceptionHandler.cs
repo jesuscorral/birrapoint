@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
-namespace BirraPoint.Api.Common.Errors;
+namespace BuildingBlocks.ProblemDetails;
 
 /// <summary>
 /// Catches anything the other handlers don't own. Logs the real exception server-side and
@@ -15,7 +16,7 @@ internal sealed partial class FallbackExceptionHandler(ILogger<FallbackException
     {
         LogUnhandled(logger, exception, httpContext.Request.Method, httpContext.Request.Path.Value);
 
-        var problemDetails = new ProblemDetails
+        var problemDetails = new Microsoft.AspNetCore.Mvc.ProblemDetails
         {
             Status = StatusCodes.Status500InternalServerError,
             Title = "An unexpected error occurred.",
@@ -30,7 +31,7 @@ internal sealed partial class FallbackExceptionHandler(ILogger<FallbackException
             HttpContext = httpContext,
             ProblemDetails = problemDetails,
             Exception = exception,
-        });
+        }).ConfigureAwait(false);
     }
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Error, Message = "Unhandled exception processing {Method} {Path}")]

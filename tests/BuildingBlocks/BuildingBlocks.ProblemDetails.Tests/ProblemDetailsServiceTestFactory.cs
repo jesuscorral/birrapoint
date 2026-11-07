@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace BirraPoint.Api.UnitTests.Common.Errors;
+namespace BuildingBlocks.ProblemDetails.Tests;
 
 /// <summary>Builds the real <see cref="IProblemDetailsService"/> DI would provide, so handler
 /// tests exercise the same content-type/serialization behavior as production.</summary>

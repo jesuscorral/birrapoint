@@ -1,9 +1,8 @@
-using BirraPoint.Api.Common.Behaviors;
 using FluentValidation;
 using FluentValidation.Results;
 using MediatR;
 
-namespace BirraPoint.Api.UnitTests.Common.Behaviors;
+namespace BuildingBlocks.Validation.MediatR.Tests;
 
 public sealed class ValidationBehaviorTests
 {

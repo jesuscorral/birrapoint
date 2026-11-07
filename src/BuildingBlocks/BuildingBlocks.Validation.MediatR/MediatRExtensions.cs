@@ -1,9 +1,10 @@
 using System.Reflection;
 using FluentValidation;
+using Microsoft.Extensions.DependencyInjection;
 
-namespace BirraPoint.Api.Common.Behaviors;
+namespace BuildingBlocks.Validation.MediatR;
 
-internal static class MediatRExtensions
+public static class MediatRExtensions
 {
     /// <summary>
     /// Registers MediatR handlers, FluentValidation validators, and <see cref="ValidationBehavior{TRequest,TResponse}"/>
