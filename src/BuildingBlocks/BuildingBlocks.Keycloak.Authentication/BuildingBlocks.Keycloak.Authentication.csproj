@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>BuildingBlocks.Keycloak.Authentication</RootNamespace>
+    <Description>JWT bearer authentication against a Keycloak realm: audience pinning, raw claim names, optional access_token query acceptance on chosen paths, and realm roles mapped to role claims.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="BuildingBlocks.Keycloak.Authentication.Tests" />
+  </ItemGroup>
+
+</Project>

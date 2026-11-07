@@ -2,6 +2,8 @@ using System.Net;
 using System.Text.Json;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
+using BuildingBlocks.Keycloak.Admin;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BirraPoint.Api.IntegrationTests.Modules.Organization.Judges.Features.RegisterJudges;
 
@@ -98,6 +100,10 @@ public sealed class RegisterJudgesApiTests(ApiFactory factory) : JudgesApiTestBa
         using var document = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var judge = document.RootElement.EnumerateArray().Single(j => j.GetProperty("email").GetString() == email);
         Assert.Equal("Pending", judge.GetProperty("invitationStatus").GetString());
+
+        // Literal on purpose: a changed role constant must fail this test (R-10).
+        var fakeKeycloak = (FakeKeycloakAdminClient)Factory.Services.GetRequiredService<IKeycloakAdminClient>();
+        Assert.Equal("JUDGE", fakeKeycloak.RequestedRole(email));
     }
 
     // ---- GET /judges --------------------------------------------------------------------------

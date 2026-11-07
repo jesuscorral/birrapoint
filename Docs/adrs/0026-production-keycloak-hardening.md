@@ -9,10 +9,10 @@ The production realm was the dev realm minus the seeded account and local secret
 ## Decision
 - Hardening lives in `infra/keycloak/realm-prod.jq`, a prod-only derivation applied at image build. `RealmProd.test.sh` asserts the result.
 - **Brute force** on, temporary lockout only: 5 failures, 60 s wait doubling to 15 min, `permanentLockout=false`. Permanent lockout would let anyone lock organizers out.
-- **Password policy** `length(12) and notUsername and notEmail`. Limited to rules the judge temporary-password generator (24 random base64 chars, `KeycloakAdminClient.cs`) always satisfies. Character-class rules require changing the generator first.
+- **Password policy** `length(12) and notUsername and notEmail`. Limited to rules the judge temporary-password generator (24 random base64 chars, `KeycloakAdminClient.cs`, now in `BuildingBlocks.Keycloak.Admin`, ADR-0037) always satisfies. Character-class rules require changing the generator first.
 - **`verifyEmail=true`**, because self-registration grants `ORGANIZER`. It depends on SMTP, which is a required Terraform variable in both roots.
 - **Admin console off**: `KC_FEATURES_DISABLED=admin` (feature name verified on Keycloak 26.2.5). The `admin-api` feature stays on for judge provisioning.
-- **Fail fast**: the Keycloak entrypoint exits when `API_ADMIN_CLIENT_SECRET` is missing (`ApiAdminSecretGuard.test.sh`). The API rejects a missing, blank or dev-placeholder `Keycloak:AdminClientSecret` outside Development/Testing (`KeycloakAdminOptionsValidator`, `ValidateOnStart`).
+- **Fail fast**: the Keycloak entrypoint exits when `API_ADMIN_CLIENT_SECRET` is missing (`ApiAdminSecretGuard.test.sh`). The API rejects a missing, blank or dev-placeholder `Keycloak:AdminClientSecret` outside Development/Testing (`KeycloakAdminOptions` validation in `BuildingBlocks.Keycloak.Admin`, `ValidateOnStart`).
 - The temporary bootstrap admin is replaced through the Admin REST API or `kcadm` (`infra/keycloak/admin-runbook.md`).
 
 ## Consequences

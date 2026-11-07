@@ -14,7 +14,7 @@ hardened; this page lists what that means for operators.
   `length(12) and notUsername and notEmail`; `verifyEmail=true` (self-registration grants ORGANIZER);
   no seeded `organizer` account; the API admin client secret comes only from `API_ADMIN_CLIENT_SECRET`.
   The password policy deliberately has no character-class rules: the temporary judge password the API
-  generates (`KeycloakAdminClient.GenerateTemporaryPassword`, 24 random base64 characters) does not
+  generates (`BuildingBlocks.Keycloak.Admin` `KeycloakAdminClient.GenerateTemporaryPassword`, 24 random base64 characters) does not
   always contain digits or symbols. Adding class rules requires changing that generator first.
 - **`verifyEmail` needs working SMTP.** Both Terraform roots require `smtp_host` and
   `smtp_from_address`, but cannot prove the relay works: with a wrong relay nobody can complete

@@ -19,6 +19,6 @@ reliable there. Browser WebSocket handshakes also cannot send an `Authorization`
 ## Consequences
 
 - Helpers shared by REST and hub authorization must take a `ClaimsPrincipal`, not
-  `ICurrentUser`. Role mapping (`KeycloakRolesClaimsTransformation`) works the same for the hub.
+  `ICurrentUser`. Role mapping (`KeycloakRolesClaimsTransformation`, now in `BuildingBlocks.Keycloak.Authentication`, ADR-0037) works the same for the hub.
 - Query-string tokens can reach access logs; exposure is limited to the hub path, and the web
   nginx access log omits query strings.

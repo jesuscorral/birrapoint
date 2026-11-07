@@ -8,7 +8,6 @@
     <PackageReference Include="FluentValidation" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="MessagePack" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="MediatR" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
@@ -32,5 +31,7 @@
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Audit\BuildingBlocks.Audit.csproj" />
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.DaprSecrets\BuildingBlocks.DaprSecrets.csproj" />
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.EmailSender\BuildingBlocks.EmailSender.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Keycloak.Admin\BuildingBlocks.Keycloak.Admin.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Keycloak.Authentication\BuildingBlocks.Keycloak.Authentication.csproj" />
   </ItemGroup>
 </Project>

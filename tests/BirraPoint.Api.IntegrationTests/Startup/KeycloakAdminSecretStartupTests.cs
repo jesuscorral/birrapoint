@@ -25,10 +25,10 @@ public sealed class KeycloakAdminSecretStartupTests
     [Fact]
     public void ProductionHostWithPlaceholderAdminClientSecretFailsToStartWithoutLeakingIt()
     {
-        var ex = StartProduction(secret: KeycloakAdminOptions.LocalDevPlaceholder);
+        var ex = StartProduction(secret: BirraPointKeycloak.LocalDevPlaceholder);
 
         Assert.Contains("Keycloak:AdminClientSecret", ex.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain(KeycloakAdminOptions.LocalDevPlaceholder, ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(BirraPointKeycloak.LocalDevPlaceholder, ex.Message, StringComparison.Ordinal);
     }
 
     private static OptionsValidationException StartProduction(string secret)

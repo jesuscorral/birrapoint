@@ -1,18 +1,18 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using BirraPoint.Api.Common.Keycloak;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 
-namespace BirraPoint.Api.UnitTests.Common.Keycloak;
+namespace BuildingBlocks.Keycloak.Admin.Tests;
 
 /// <summary>
-/// Covers the JUDGE realm-role grant that <see cref="KeycloakAdminClient.EnsureUserWithTemporaryPasswordAsync"/>
-/// must perform for every provisioned judge (new or pre-existing Keycloak user), since
-/// `default-roles-birrapoint` never grants JUDGE (infra/keycloak/birrapoint-realm.json).
+/// Covers the realm-role grant that <see cref="KeycloakAdminClient.EnsureUserWithTemporaryPasswordAsync"/>
+/// must perform for every provisioned user (new or pre-existing Keycloak user), since the realm's
+/// default roles do not include it. The role name is a caller-supplied argument.
 /// </summary>
 public sealed class KeycloakAdminClientTests
 {
+    private const string JudgeRoleName = "JUDGE";
     private const string Authority = "https://fake-issuer.test/realms/birrapoint";
     private const string AdminRealmBaseUrl = "https://fake-issuer.test/admin/realms/birrapoint";
     private const string NewUserId = "11111111-1111-1111-1111-111111111111";
@@ -23,17 +23,15 @@ public sealed class KeycloakAdminClientTests
 
     private static KeycloakAdminClient BuildClient(RecordingHandler handler)
     {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Keycloak:Authority"] = Authority,
-                ["Keycloak:AdminClientId"] = "birrapoint-api-admin",
-                ["Keycloak:AdminClientSecret"] = "dev-only-secret-change-me",
-            })
-            .Build();
+        var options = Options.Create(new KeycloakAdminOptions
+        {
+            Authority = Authority,
+            AdminClientId = "admin-client",
+            AdminClientSecret = "some-secret",
+        });
 
         var httpClient = handler.Own(new HttpClient(handler, disposeHandler: false));
-        return new KeycloakAdminClient(httpClient, configuration);
+        return new KeycloakAdminClient(httpClient, options);
     }
 
     [Fact]
@@ -58,7 +56,7 @@ public sealed class KeycloakAdminClientTests
 
         var client = BuildClient(handler);
 
-        var password = await client.EnsureUserWithTemporaryPasswordAsync("new.judge@example.test", CancellationToken.None);
+        var password = await client.EnsureUserWithTemporaryPasswordAsync("new.judge@example.test", JudgeRoleName, CancellationToken.None);
 
         Assert.False(string.IsNullOrWhiteSpace(password));
 
@@ -107,7 +105,7 @@ public sealed class KeycloakAdminClientTests
 
         var client = BuildClient(handler);
 
-        var password = await client.EnsureUserWithTemporaryPasswordAsync("existing.judge@example.test", CancellationToken.None);
+        var password = await client.EnsureUserWithTemporaryPasswordAsync("existing.judge@example.test", JudgeRoleName, CancellationToken.None);
 
         Assert.False(string.IsNullOrWhiteSpace(password));
 
@@ -152,7 +150,7 @@ public sealed class KeycloakAdminClientTests
 
         var client = BuildClient(handler);
 
-        var password = await client.EnsureUserWithTemporaryPasswordAsync("active.organizer@example.test", CancellationToken.None);
+        var password = await client.EnsureUserWithTemporaryPasswordAsync("active.organizer@example.test", JudgeRoleName, CancellationToken.None);
 
         Assert.Null(password);
 
@@ -198,7 +196,7 @@ public sealed class KeycloakAdminClientTests
 
         var client = BuildClient(handler);
 
-        var password = await client.EnsureUserWithTemporaryPasswordAsync("already.judge@example.test", CancellationToken.None);
+        var password = await client.EnsureUserWithTemporaryPasswordAsync("already.judge@example.test", JudgeRoleName, CancellationToken.None);
 
         Assert.False(string.IsNullOrWhiteSpace(password));
         Assert.DoesNotContain(
@@ -231,12 +229,25 @@ public sealed class KeycloakAdminClientTests
 
         var client = BuildClient(handler);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => client.EnsureUserWithTemporaryPasswordAsync("misconfigured.judge@example.test", CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.EnsureUserWithTemporaryPasswordAsync("misconfigured.judge@example.test", JudgeRoleName, CancellationToken.None));
+
+        Assert.Contains("\"JUDGE\"", ex.Message, StringComparison.Ordinal);
 
         Assert.DoesNotContain(
             handler.Requests,
             r => r.Method == HttpMethod.Put && r.Path.EndsWith("/reset-password", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void MissingAuthorityOrClientCredentialsFailAtConstructionNamingTheSetting()
+    {
+        using var httpClient = new HttpClient();
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => new KeycloakAdminClient(httpClient, Options.Create(new KeycloakAdminOptions { AdminClientId = "c", AdminClientSecret = "s" })));
+
+        Assert.Contains("Authority", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -258,7 +269,7 @@ public sealed class KeycloakAdminClientTests
         var client = BuildClient(handler);
 
         await Assert.ThrowsAsync<HttpRequestException>(
-            () => client.EnsureUserWithTemporaryPasswordAsync("forbidden.judge@example.test", CancellationToken.None));
+            () => client.EnsureUserWithTemporaryPasswordAsync("forbidden.judge@example.test", JudgeRoleName, CancellationToken.None));
 
         Assert.DoesNotContain(
             handler.Requests,

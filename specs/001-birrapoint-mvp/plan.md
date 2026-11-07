@@ -179,9 +179,9 @@ src/
 │   ├── BuildingBlocks.Audit/           #   immutable audit trail on the host DbContext
 │   ├── BuildingBlocks.DaprSecrets/     #   Dapr secret store -> IConfiguration at startup
 │   ├── BuildingBlocks.EmailSender/     #   MailKit SMTP sender (SmtpOptions, AddEmailSender)
-│   │                                   # planned, ADR-0037 (in delivery order):
 │   ├── BuildingBlocks.Keycloak.Authentication/ # JWT bearer + realm roles -> role claims
 │   ├── BuildingBlocks.Keycloak.Admin/  #   admin client: users, temp passwords, realm roles
+│   │                                   # planned, ADR-0037 (in delivery order):
 │   ├── BuildingBlocks.ProblemDetails/  #   exception -> RFC 7807 mapping, catch-all 500
 │   ├── BuildingBlocks.Validation.MediatR/ # FluentValidation pipeline behavior + 400 mapping
 │   ├── BuildingBlocks.Spreadsheet/     #   ClosedXML reader by header, typed cells

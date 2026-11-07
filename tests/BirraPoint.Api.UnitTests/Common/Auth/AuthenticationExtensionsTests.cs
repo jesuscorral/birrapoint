@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using Microsoft.AspNetCore.Authentication;
@@ -20,6 +21,7 @@ public sealed class AuthenticationExtensionsTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Keycloak:Authority"] = "https://fake-issuer.test/realms/birrapoint",
+                ["Keycloak:ApiAudience"] = "birrapoint-api",
             })
             .Build();
 
@@ -67,13 +69,16 @@ public sealed class AuthenticationExtensionsTests
     }
 
     [Fact]
-    public void RegistersTheKeycloakClaimsTransformation()
+    public async Task RegistersTheKeycloakClaimsTransformation()
     {
         using var provider = BuildProvider();
 
         var transformation = provider.GetRequiredService<IClaimsTransformation>();
+        var identity = new ClaimsIdentity([new Claim("realm_access", """{"roles":["JUDGE"]}""")], "test");
 
-        Assert.IsType<KeycloakRolesClaimsTransformation>(transformation);
+        var principal = await transformation.TransformAsync(new ClaimsPrincipal(identity));
+
+        Assert.True(principal.IsInRole("JUDGE"));
     }
 
     [Fact]

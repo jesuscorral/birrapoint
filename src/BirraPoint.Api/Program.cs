@@ -17,6 +17,8 @@ using BirraPoint.ServiceDefaults;
 using BuildingBlocks.Audit;
 using BuildingBlocks.DaprSecrets;
 using BuildingBlocks.EmailSender;
+using BuildingBlocks.Keycloak.Admin;
+using BuildingBlocks.Keycloak.Authentication;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -94,11 +96,7 @@ builder.Services.AddHostedService<DispatchWorker>();
 
 // Judge provisioning (R-10): Keycloak Admin REST API via a typed HttpClient (client-credentials
 // grant against Keycloak:AdminClientId/AdminClientSecret).
-builder.Services.AddHttpClient<IKeycloakAdminClient, KeycloakAdminClient>();
-builder.Services.AddSingleton<IValidateOptions<KeycloakAdminOptions>, KeycloakAdminOptionsValidator>();
-builder.Services.AddOptions<KeycloakAdminOptions>()
-    .BindConfiguration(KeycloakAdminOptions.SectionName)
-    .ValidateOnStart();
+builder.Services.AddKeycloakAdmin(builder.Configuration.GetSection("Keycloak"), BirraPointKeycloak.ConfigureAdmin);
 
 // Module registrations: contract implementations plus the module's DispatchJob handlers
 // (auto-discovered by DispatchWorker): Organization (SendInvitation, judge account provisioning,

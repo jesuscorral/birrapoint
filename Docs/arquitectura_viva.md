@@ -4,7 +4,7 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-11-04 (backend modules, ADR-0033 phase 3 complete: no cross-module read outside `Contracts/`)
+**Last updated:** 2026-11-06 (Keycloak authentication and admin extracted to BuildingBlocks, ADR-0037)
 
 ## Status
 
@@ -114,8 +114,9 @@ not `src/Birrapoint.Web/`).
 Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Aspire/BirraPoint.ServiceDefaults`
 (OpenTelemetry, health checks, HTTP resilience), `BirraPoint.Api.UnitTests`,
 `BirraPoint.Api.IntegrationTests`, and reusable blocks agnostic of BirraPoint under `src/BuildingBlocks/`
-(ADR-0035, ADR-0037; today `BuildingBlocks.Audit`, `BuildingBlocks.DaprSecrets` and
-`BuildingBlocks.EmailSender`, each tested by its own
+(ADR-0035, ADR-0037; today `BuildingBlocks.Audit`, `BuildingBlocks.DaprSecrets`,
+`BuildingBlocks.EmailSender`, `BuildingBlocks.Keycloak.Authentication` and
+`BuildingBlocks.Keycloak.Admin`, each tested by its own
 `tests/BuildingBlocks/BuildingBlocks.<X>.Tests`). Package versions are centralized in
 `Directory.Packages.props` (including `$(BirraPointTargetFramework)`).
 
@@ -131,8 +132,10 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
   Development: `UseForwardedHeaders`, no HTTPS redirection (TLS ends at ACA), HSTS on.
 - **Middleware order**: exception handler → CORS (Development only, `localhost:4200`) →
   authentication → authorization → rate limiter → endpoints. Production is same-origin, no CORS.
-- **Auth** (`Common/Auth/`): JWT bearer against Keycloak, audience `birrapoint-api` validated
-  (ADR-0009); `KeycloakRolesClaimsTransformation` maps `realm_access.roles` to role claims;
+- **Auth** (`Common/Auth/AuthenticationExtensions.cs`): JWT bearer against Keycloak through
+  `AddKeycloakJwtBearer` (`BuildingBlocks.Keycloak.Authentication`, ADR-0037): audience `birrapoint-api`
+  validated (ADR-0009), an internal claims transformation maps `realm_access.roles` to role claims,
+  startup fails when `Keycloak:Authority` or `ApiAudience` is blank; BirraPoint keeps
   deny-by-default fallback policy + `ORGANIZER`/`JUDGE` policies. The hub reads the token from
   `?access_token=` on `/hubs/competition` only (ADR-0006). `ICurrentUser` exposes
   sub/email/name/roles; `OrganizerResolver` creates the `Organizer` row lazily on first write;
@@ -170,12 +173,14 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
   capped exponential backoff enforced by `NextAttemptAt` (ADR-0008, max 5 attempts) and
   `DispatchProgress` emits. `RetryDispatch` resets only `Failed` `SendResultEmail` jobs (FR-041) and wakes the worker right after the reset. Each sweep (startup included) schedules one wake at the earliest lease expiry or `NextAttemptAt` (+1 s, capped at the poll interval), so with a long poll only `Pending` jobs written by another revision and legacy NULL-lease `Running` rows wait for the next sweep. A failed sweep schedules a retry wake after 5 s * 2^n (capped at the poll interval). Handlers: `ProvisionJudgeAccount`, `SendInvitation`,
   `GeneratePdfs`, `BundleZip`, `SendResultEmail`.
-- **Keycloak Admin** (`Common/Keycloak/`): client-credentials as `birrapoint-api-admin`.
-  `EnsureUserWithTemporaryPasswordAsync` finds or creates the user, always grants `JUDGE`, and
+- **Keycloak Admin** (`BuildingBlocks.Keycloak.Admin`, ADR-0037; registered with `AddKeycloakAdmin`
+  from `Common/Keycloak/BirraPointKeycloak.cs`, which supplies the `JUDGE` role and the dev
+  placeholder): client-credentials as `birrapoint-api-admin`.
+  `EnsureUserWithTemporaryPasswordAsync(email, realmRole)` finds or creates the user, grants the role, and
   resets a temporary password (`UPDATE_PASSWORD` required action) only for accounts that never
-  completed first login; returns `null` otherwise. `KeycloakAdminOptionsValidator`
-  (`ValidateOnStart`) rejects a missing, blank or dev-placeholder `AdminClientSecret` outside
-  Development/Testing.
+  completed first login; returns `null` otherwise. `KeycloakAdminOptions`
+  validation (`ValidateOnStart`) rejects a missing `Authority`/`AdminClientId` and a missing, blank or
+  host-placeholder `AdminClientSecret` outside Development/Testing.
 - **Email** (`BuildingBlocks.EmailSender`, ADR-0035): MailKit `IEmailSender` (`SendAsync`,
   `SendWithAttachmentsAsync`), registered with `AddEmailSender(Smtp section)`; `SmtpOptions`
   (`Host`, `Port`, `UseStartTls`, `From`, `Username`/`Password`) validated on every send, optional SMTP

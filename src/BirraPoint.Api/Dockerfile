@@ -16,6 +16,8 @@ COPY src/Aspire/BirraPoint.ServiceDefaults/BirraPoint.ServiceDefaults.csproj src
 COPY src/BuildingBlocks/BuildingBlocks.Audit/BuildingBlocks.Audit.csproj src/BuildingBlocks/BuildingBlocks.Audit/
 COPY src/BuildingBlocks/BuildingBlocks.DaprSecrets/BuildingBlocks.DaprSecrets.csproj src/BuildingBlocks/BuildingBlocks.DaprSecrets/
 COPY src/BuildingBlocks/BuildingBlocks.EmailSender/BuildingBlocks.EmailSender.csproj src/BuildingBlocks/BuildingBlocks.EmailSender/
+COPY src/BuildingBlocks/BuildingBlocks.Keycloak.Admin/BuildingBlocks.Keycloak.Admin.csproj src/BuildingBlocks/BuildingBlocks.Keycloak.Admin/
+COPY src/BuildingBlocks/BuildingBlocks.Keycloak.Authentication/BuildingBlocks.Keycloak.Authentication.csproj src/BuildingBlocks/BuildingBlocks.Keycloak.Authentication/
 COPY src/BirraPoint.Api/BirraPoint.Api.csproj src/BirraPoint.Api/
 RUN dotnet restore src/BirraPoint.Api/BirraPoint.Api.csproj
 

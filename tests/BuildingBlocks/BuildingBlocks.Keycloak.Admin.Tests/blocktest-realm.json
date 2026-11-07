@@ -1,0 +1,59 @@
+{
+  "realm": "blocktest",
+  "enabled": true,
+  "sslRequired": "none",
+  "loginWithEmailAllowed": true,
+  "registrationEmailAsUsername": true,
+  "duplicateEmailsAllowed": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "BLOCK_ROLE",
+        "description": "Realm role the admin client grants; deliberately not part of the default roles"
+      },
+      {
+        "name": "default-roles-blocktest",
+        "description": "Default roles for new users",
+        "composite": true,
+        "clientRole": false,
+        "composites": {
+          "realm": [
+            "offline_access"
+          ]
+        }
+      }
+    ]
+  },
+  "defaultRole": {
+    "name": "default-roles-blocktest",
+    "description": "Default roles for realm blocktest",
+    "composite": true,
+    "clientRole": false
+  },
+  "clients": [
+    {
+      "clientId": "block-admin",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "secret": "block-admin-secret"
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-block-admin",
+      "enabled": true,
+      "serviceAccountClientId": "block-admin",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users"
+        ]
+      }
+    }
+  ]
+}

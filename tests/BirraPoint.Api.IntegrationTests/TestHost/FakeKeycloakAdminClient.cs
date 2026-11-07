@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using BirraPoint.Api.Common.Keycloak;
+using BuildingBlocks.Keycloak.Admin;
 
 namespace BirraPoint.Api.IntegrationTests.TestHost;
 
@@ -9,10 +9,14 @@ namespace BirraPoint.Api.IntegrationTests.TestHost;
 internal sealed class FakeKeycloakAdminClient : IKeycloakAdminClient
 {
     private readonly ConcurrentDictionary<string, int> _passwordResetCallCounts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, string> _requestedRoles = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _activeAccounts = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Registered singleton — used by regression tests to assert a judge's password was (not) reset again.</summary>
     public int PasswordResetCallCount(string email) => _passwordResetCallCounts.GetValueOrDefault(email);
+
+    /// <summary>The realm role last requested for <paramref name="email"/>, or <see langword="null"/> if never provisioned.</summary>
+    public string? RequestedRole(string email) => _requestedRoles.GetValueOrDefault(email);
 
     /// <summary>
     /// Test seam: marks <paramref name="email"/> as an already-active Keycloak account (its own
@@ -22,8 +26,9 @@ internal sealed class FakeKeycloakAdminClient : IKeycloakAdminClient
     /// </summary>
     public void MarkAccountActive(string email) => _activeAccounts[email] = 0;
 
-    public Task<string?> EnsureUserWithTemporaryPasswordAsync(string email, CancellationToken cancellationToken)
+    public Task<string?> EnsureUserWithTemporaryPasswordAsync(string email, string realmRole, CancellationToken cancellationToken)
     {
+        _requestedRoles[email] = realmRole;
         if (_activeAccounts.ContainsKey(email))
         {
             return Task.FromResult<string?>(null);
