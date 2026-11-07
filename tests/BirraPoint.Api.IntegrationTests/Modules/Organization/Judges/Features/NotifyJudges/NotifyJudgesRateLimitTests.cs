@@ -132,7 +132,7 @@ public sealed class NotifyJudgesRateLimitTests(ApiFactory factory) : IClassFixtu
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var payloads = await db.DispatchJobs
-            .Where(j => j.CompetitionId == competitionId && j.Type == DispatchJobType.SendInvitation)
+            .Where(j => j.GroupKey == competitionId && j.Type == DispatchJobType.SendInvitation)
             .Select(j => j.PayloadJson)
             .ToListAsync(TestContext.Current.CancellationToken);
         return judgeIds.ToDictionary(

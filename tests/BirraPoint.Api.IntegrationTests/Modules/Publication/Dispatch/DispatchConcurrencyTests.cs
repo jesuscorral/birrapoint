@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
-using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BuildingBlocks.Jobs;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -15,7 +15,7 @@ namespace BirraPoint.Api.IntegrationTests.Modules.Publication.Dispatch;
 
 /// <summary>
 /// DispatchJob must be safe under overlapping API revisions. Several
-/// API hosts (each with its own DispatchWorker) share one Postgres; jobs are claimed atomically
+/// API hosts (each with its own job worker) share one Postgres; jobs are claimed atomically
 /// (FOR UPDATE SKIP LOCKED + lease) and only expired leases are resumed. The shared base
 /// ApiFactory host is never started here (its worker would run the real handlers): jobs are
 /// seeded straight into the container and extra hosts are derived with a counting handler.
@@ -26,13 +26,13 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(100);
 
     /// <summary>Counts handler invocations per job id; optional delay widens the race window.</summary>
-    private sealed class CountingHandler(TimeSpan delay) : IDispatchJobHandler
+    private sealed class CountingHandler(TimeSpan delay) : IJobHandler
     {
         public ConcurrentDictionary<Guid, int> Calls { get; } = new();
 
-        public DispatchJobType Type => DispatchJobType.SendInvitation;
+        public string Type => DispatchJobType.SendInvitation;
 
-        public async Task HandleAsync(DispatchJob job, CancellationToken cancellationToken)
+        public async Task HandleAsync(Job job, CancellationToken cancellationToken)
         {
             Calls.AddOrUpdate(job.Id, 1, (_, n) => n + 1);
             if (delay > TimeSpan.Zero)
@@ -43,7 +43,7 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
     }
 
     /// <summary>Blocks the gated job's handler until released, so a test can act mid-handler.</summary>
-    private sealed class GatedHandler : IDispatchJobHandler
+    private sealed class GatedHandler : IJobHandler
     {
         private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -54,11 +54,11 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
 
         public ConcurrentDictionary<Guid, int> Calls { get; } = new();
 
-        public DispatchJobType Type => DispatchJobType.SendInvitation;
+        public string Type => DispatchJobType.SendInvitation;
 
         public void Release() => _release.TrySetResult();
 
-        public async Task HandleAsync(DispatchJob job, CancellationToken cancellationToken)
+        public async Task HandleAsync(Job job, CancellationToken cancellationToken)
         {
             Calls.AddOrUpdate(job.Id, 1, (_, n) => n + 1);
             if (job.Id == GatedJobId)
@@ -72,17 +72,17 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
     private AppDbContext NewDb() =>
         new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options);
 
-    /// <summary>Derives a full API host (own DispatchWorker, own wake-up channel) on the shared
+    /// <summary>Derives a full API host (own job worker, own wake-up channel) on the shared
     /// database whose only job handler is <paramref name="handler"/>.</summary>
-    private WebApplicationFactory<Program> NewWorkerHost(IDispatchJobHandler handler, string leaseDuration = "00:00:05") =>
+    private WebApplicationFactory<Program> NewWorkerHost(IJobHandler handler, string leaseDuration = "00:00:05") =>
         factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(
                 new Dictionary<string, string?> { ["Dispatch:LeaseDuration"] = leaseDuration }));
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IDispatchJobHandler>();
-                services.AddSingleton<IDispatchJobHandler>(handler);
+                services.RemoveAll<IJobHandler>();
+                services.AddSingleton<IJobHandler>(handler);
             });
         });
 
@@ -102,14 +102,14 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
         return competition.Id;
     }
 
-    private async Task<DispatchJob> SeedJobAsync(
-        Guid competitionId, DispatchJobStatus status = DispatchJobStatus.Pending,
+    private async Task<Job> SeedJobAsync(
+        Guid competitionId, JobStatus status = JobStatus.Pending,
         string? leaseOwner = null, DateTimeOffset? leaseExpiresAt = null)
     {
         await using var db = NewDb();
-        var job = new DispatchJob
+        var job = new Job
         {
-            CompetitionId = competitionId,
+            GroupKey = competitionId,
             Type = DispatchJobType.SendInvitation,
             PayloadJson = "{}",
             Status = status,
@@ -121,14 +121,14 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
         return job;
     }
 
-    private async Task<DispatchJob> LoadAsync(Guid jobId)
+    private async Task<Job> LoadAsync(Guid jobId)
     {
         await using var db = NewDb();
         return await db.DispatchJobs.AsNoTracking().SingleAsync(j => j.Id == jobId);
     }
 
-    private static void Wake(WebApplicationFactory<Program> host, Guid jobId) =>
-        Assert.True(host.Services.GetRequiredService<Channel<Guid>>().Writer.TryWrite(jobId));
+    private static void Wake(WebApplicationFactory<Program> host) =>
+        host.Services.GetRequiredService<IJobWakeUp>().Signal();
 
     private async Task BackdateUpdatedAtAsync(Guid jobId, TimeSpan age)
     {
@@ -171,14 +171,14 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
         }
 
         // Wake both workers at once so their claim sweeps overlap.
-        Wake(hostA, jobIds[0]);
-        Wake(hostB, jobIds[0]);
+        Wake(hostA);
+        Wake(hostB);
 
         await WaitUntilAsync(async () =>
         {
             await using var db = NewDb();
             return await db.DispatchJobs.CountAsync(
-                j => j.CompetitionId == competitionId && j.Status == DispatchJobStatus.Completed) == jobCount;
+                j => j.GroupKey == competitionId && j.Status == JobStatus.Completed) == jobCount;
         }, "all jobs Completed");
 
         // The hosts share the database with the other tests, whose leftover Running jobs (e.g. a
@@ -188,7 +188,7 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
         Assert.All(jobIds, id => Assert.Equal(1, handler.Calls[id]));
 
         await using var verify = NewDb();
-        var jobs = await verify.DispatchJobs.AsNoTracking().Where(j => j.CompetitionId == competitionId).ToListAsync(TestContext.Current.CancellationToken);
+        var jobs = await verify.DispatchJobs.AsNoTracking().Where(j => j.GroupKey == competitionId).ToListAsync(TestContext.Current.CancellationToken);
         Assert.All(jobs, j => Assert.Equal(0, j.Attempts));
     }
 
@@ -197,21 +197,21 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
     {
         var competitionId = await SeedCompetitionAsync();
         var leaseExpiry = DateTimeOffset.UtcNow.AddHours(1);
-        var running = await SeedJobAsync(competitionId, DispatchJobStatus.Running, "other-revision-worker", leaseExpiry);
+        var running = await SeedJobAsync(competitionId, JobStatus.Running, "other-revision-worker", leaseExpiry);
         var sentinel = await SeedJobAsync(competitionId);
         var handler = new CountingHandler(TimeSpan.Zero);
 
         await using var host = NewWorkerHost(handler);
         _ = host.Services; // starts the worker: RecoverExpiredLeasesAsync runs first
-        Wake(host, sentinel.Id);
+        Wake(host);
 
         // The sentinel completing proves the worker finished its startup resume and a full
         // processing cycle; only then is "the foreign job was left alone" a meaningful assertion.
         await WaitUntilAsync(
-            async () => (await LoadAsync(sentinel.Id)).Status == DispatchJobStatus.Completed, "sentinel Completed");
+            async () => (await LoadAsync(sentinel.Id)).Status == JobStatus.Completed, "sentinel Completed");
 
         var after = await LoadAsync(running.Id);
-        Assert.Equal(DispatchJobStatus.Running, after.Status);
+        Assert.Equal(JobStatus.Running, after.Status);
         Assert.Equal(0, after.Attempts);
         Assert.Equal("other-revision-worker", after.LeaseOwner);
         Assert.Equal(leaseExpiry.ToUnixTimeMilliseconds(), after.LeaseExpiresAt!.Value.ToUnixTimeMilliseconds());
@@ -223,7 +223,7 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
     {
         var competitionId = await SeedCompetitionAsync();
         var running = await SeedJobAsync(
-            competitionId, DispatchJobStatus.Running, "crashed-worker", DateTimeOffset.UtcNow.AddMinutes(-1));
+            competitionId, JobStatus.Running, "crashed-worker", DateTimeOffset.UtcNow.AddMinutes(-1));
         var handler = new CountingHandler(TimeSpan.Zero);
 
         await using var host = NewWorkerHost(handler);
@@ -232,7 +232,7 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
         // Recovery goes through the retry path (Attempts++, backoff) and the job is then
         // claimed and processed by the new worker.
         await WaitUntilAsync(
-            async () => (await LoadAsync(running.Id)).Status == DispatchJobStatus.Completed,
+            async () => (await LoadAsync(running.Id)).Status == JobStatus.Completed,
             "expired-lease job recovered and Completed");
 
         var after = await LoadAsync(running.Id);
@@ -245,20 +245,20 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
     {
         // A pre-lease revision marks jobs Running without a lease while its handler is mid-flight.
         var competitionId = await SeedCompetitionAsync();
-        var running = await SeedJobAsync(competitionId, DispatchJobStatus.Running);
+        var running = await SeedJobAsync(competitionId, JobStatus.Running);
         await BackdateUpdatedAtAsync(running.Id, TimeSpan.Zero);
         var sentinel = await SeedJobAsync(competitionId);
         var handler = new CountingHandler(TimeSpan.Zero);
 
         await using var host = NewWorkerHost(handler);
         _ = host.Services;
-        Wake(host, sentinel.Id);
+        Wake(host);
 
         await WaitUntilAsync(
-            async () => (await LoadAsync(sentinel.Id)).Status == DispatchJobStatus.Completed, "sentinel Completed");
+            async () => (await LoadAsync(sentinel.Id)).Status == JobStatus.Completed, "sentinel Completed");
 
         var after = await LoadAsync(running.Id);
-        Assert.Equal(DispatchJobStatus.Running, after.Status);
+        Assert.Equal(JobStatus.Running, after.Status);
         Assert.Equal(0, after.Attempts);
         Assert.False(handler.Calls.ContainsKey(running.Id));
     }
@@ -267,7 +267,7 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
     public async Task StartingWorkerRecoversStaleRunningJobWithNullLease()
     {
         var competitionId = await SeedCompetitionAsync();
-        var running = await SeedJobAsync(competitionId, DispatchJobStatus.Running);
+        var running = await SeedJobAsync(competitionId, JobStatus.Running);
         await BackdateUpdatedAtAsync(running.Id, TimeSpan.FromMinutes(1)); // older than the 5 s lease
         var handler = new CountingHandler(TimeSpan.Zero);
 
@@ -275,7 +275,7 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
         _ = host.Services;
 
         await WaitUntilAsync(
-            async () => (await LoadAsync(running.Id)).Status == DispatchJobStatus.Completed,
+            async () => (await LoadAsync(running.Id)).Status == JobStatus.Completed,
             "stale null-lease job recovered and Completed");
 
         var after = await LoadAsync(running.Id);
@@ -295,13 +295,13 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
         _ = hostB.Services;
 
         var job = await SeedJobAsync(competitionId);
-        Wake(hostA, job.Id);
+        Wake(hostA);
 
         // Keep host B sweeping (recovery runs on every wake-up) for the whole handler duration.
         await WaitUntilAsync(async () =>
         {
-            hostB.Services.GetRequiredService<Channel<Guid>>().Writer.TryWrite(job.Id);
-            return (await LoadAsync(job.Id)).Status == DispatchJobStatus.Completed;
+            hostB.Services.GetRequiredService<IJobWakeUp>().Signal();
+            return (await LoadAsync(job.Id)).Status == JobStatus.Completed;
         }, "long job Completed");
 
         var after = await LoadAsync(job.Id);
@@ -319,7 +319,7 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
 
         await using var host = NewWorkerHost(handler);
         _ = host.Services;
-        Wake(host, job.Id);
+        Wake(host);
         await handler.Started.WaitAsync(PollTimeout, TestContext.Current.CancellationToken);
 
         // Another worker "takes over": different owner, lease kept live.
@@ -336,10 +336,10 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
 
         // The worker is sequential: the sentinel completing proves it already tried to finish the gated job.
         await WaitUntilAsync(
-            async () => (await LoadAsync(sentinel.Id)).Status == DispatchJobStatus.Completed, "sentinel Completed");
+            async () => (await LoadAsync(sentinel.Id)).Status == JobStatus.Completed, "sentinel Completed");
 
         var after = await LoadAsync(job.Id);
-        Assert.Equal(DispatchJobStatus.Running, after.Status);
+        Assert.Equal(JobStatus.Running, after.Status);
         Assert.Equal("thief", after.LeaseOwner);
         Assert.Equal(0, after.Attempts);
     }

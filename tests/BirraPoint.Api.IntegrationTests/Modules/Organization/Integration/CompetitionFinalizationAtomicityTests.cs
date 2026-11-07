@@ -47,7 +47,7 @@ public sealed class CompetitionFinalizationAtomicityTests(ApiFactory factory) : 
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var competition = await db.Competitions.AsNoTracking().SingleAsync(c => c.Id == competitionId, TestContext.Current.CancellationToken);
         Assert.Equal(CompetitionState.InEvaluation, competition.State);
-        Assert.False(await db.DispatchJobs.AnyAsync(j => j.CompetitionId == competitionId, TestContext.Current.CancellationToken));
+        Assert.False(await db.DispatchJobs.AnyAsync(j => j.GroupKey == competitionId, TestContext.Current.CancellationToken));
     }
 
     private sealed class ThrowingHandler : INotificationHandler<CompetitionFinalized>

@@ -28,12 +28,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>Inert unless a test arms it — see its own doc comment. Registered once, on every
     /// <c>AppDbContext</c> this factory creates, regardless of which test class file needs it, so no
     /// test ever has to spin up a second host (<c>WithWebHostBuilder</c>) just to get an interceptor
-    /// in — a second host would run its own <c>DispatchWorker</c> hosted service against the same
+    /// in — a second host would run its own <c>the job worker</c> hosted service against the same
     /// database, which is unnecessary here.</summary>
     internal SubmitEvaluationRaceInterceptor EvaluationRaceInterceptor { get; } = new();
 
     /// <summary>Connection string of this factory's Testcontainer, for tests that seed or inspect
-    /// rows directly without starting the API host (and thus its DispatchWorker).</summary>
+    /// rows directly without starting the API host (and thus its the job worker).</summary>
     public string ConnectionString => _container.GetConnectionString();
 
     public async ValueTask InitializeAsync()
@@ -49,7 +49,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     async ValueTask IAsyncDisposable.DisposeAsync()
     {
-        // Stop hosted services (DispatchWorker) and drain the Npgsql pool against a live DB
+        // Stop hosted services (the job worker) and drain the Npgsql pool against a live DB
         // before the container goes away, not after.
         await base.DisposeAsync();
         await _container.DisposeAsync();

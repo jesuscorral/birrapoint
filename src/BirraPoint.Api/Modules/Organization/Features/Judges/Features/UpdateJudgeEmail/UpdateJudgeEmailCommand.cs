@@ -49,7 +49,7 @@ internal sealed class UpdateJudgeEmailCommandHandler(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // Side effect after the transaction above commits (same convention as
-        // IDispatchJobQueue/IEventPublisher calls elsewhere — see ChangeCompetitionStateCommand.cs). No-op if the
+        // IJobQueue/IEventPublisher calls elsewhere — see ChangeCompetitionStateCommand.cs). No-op if the
         // Keycloak account for oldEmail doesn't exist yet: the pending SendInvitation job reads
         // Judge.Email fresh when it eventually runs, so it will provision the corrected address
         // directly instead of needing an update here.

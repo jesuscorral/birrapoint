@@ -1,8 +1,8 @@
 using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BuildingBlocks.Jobs;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,7 +14,7 @@ internal sealed record ResendInvitationResult(InvitationStatus Status);
 internal sealed record ResendInvitationCommand(Guid CompetitionId, Guid JudgeId) : IRequest<ResendInvitationResult?>;
 
 internal sealed class ResendInvitationCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IDispatchJobQueue dispatchJobQueue)
+    AppDbContext dbContext, ICurrentUser currentUser, IJobQueue dispatchJobQueue)
     : IRequestHandler<ResendInvitationCommand, ResendInvitationResult?>
 {
     public async Task<ResendInvitationResult?> Handle(ResendInvitationCommand request, CancellationToken cancellationToken)

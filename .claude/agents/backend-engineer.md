@@ -30,8 +30,8 @@ you; otherwise they belong to `qa-engineer`. Never touch `src/Birrapoint.Web/**`
    right reason, then implement.
 4. **Slice shape**: request + handler + validator + endpoint mapping in
    `Modules/<Module>/Features/<Feature>/Features/<Slice>/` (ADR-0031, ADR-0033); other modules only via `Modules/<M>/Contracts/` (implementations in `Integration/`, ADR-0034, enforced by `ModuleBoundaryTests`); pure rules in `<X>Rules.cs` for unit tests without Postgres.
-   Emit SignalR events only after `SaveChangesAsync`/commit. Jobs: `IDispatchJobQueue.EnqueueAsync` after
-   commit, or `Stage` before your own `SaveChangesAsync` + `IDispatchWakeUp.Signal()` after commit when the
+   Emit SignalR events only after `SaveChangesAsync`/commit. Jobs: `IJobQueue.EnqueueAsync` after
+   commit, or `Stage` before your own `SaveChangesAsync` + `IJobWakeUp.Signal()` after commit when the
    job must commit atomically with the change (ADR-0034). One-shot state flips
    use `SELECT … FOR UPDATE` in a transaction (see `FixOrder`, `CloseTable`).
 5. **Schema changes**: `dotnet ef migrations add <Name> --project src/BirraPoint.Api` (then run

@@ -1,11 +1,11 @@
 using System.Net;
 using System.Text.Json;
-using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BuildingBlocks.EmailSender;
+using BuildingBlocks.Jobs;
 using BuildingBlocks.Keycloak.Admin;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,20 +15,20 @@ namespace BirraPoint.Api.Modules.Organization.Features.Judges;
 internal sealed record SendInvitationPayload(Guid JudgeId);
 
 /// <summary>
-/// First real <see cref="IDispatchJobHandler"/>. Tracks outcome on the <see
-/// cref="Invitation"/> row independently of <see cref="DispatchJob"/>'s own Attempts/LastError —
+/// First real <see cref="IJobHandler"/>. Tracks outcome on the <see
+/// cref="Invitation"/> row independently of <see cref="Job"/>'s own Attempts/LastError —
 /// on failure it rethrows so <see cref="DispatchWorker"/>'s existing retry/backoff
-/// (<see cref="DispatchRetryPolicy"/>) schedules the reattempt; this handler never retries on its own.
+/// (the jobs block's retry policy) schedules the reattempt; this handler never retries on its own.
 /// </summary>
 internal sealed class SendInvitationHandler(
     AppDbContext dbContext, IKeycloakAdminClient keycloakAdminClient, IEmailSender emailSender, IConfiguration configuration)
-    : IDispatchJobHandler
+    : IJobHandler
 {
     private const int LastErrorMaxLength = 2000; // matches InvitationConfiguration.LastError
 
-    public DispatchJobType Type => DispatchJobType.SendInvitation;
+    public string Type => DispatchJobType.SendInvitation;
 
-    public async Task HandleAsync(DispatchJob job, CancellationToken cancellationToken)
+    public async Task HandleAsync(Job job, CancellationToken cancellationToken)
     {
         var payload = JsonSerializer.Deserialize<SendInvitationPayload>(job.PayloadJson)
             ?? throw new InvalidOperationException($"DispatchJob {job.Id} has an empty SendInvitation payload.");

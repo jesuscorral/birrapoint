@@ -4,7 +4,7 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-11-07 (Spreadsheet block extracted, ADR-0037; ProblemDetails and Validation.MediatR extracted; per-module domain errors, ADR-0038)
+**Last updated:** 2026-11-07 (Jobs block extracted, ADR-0037; Spreadsheet block extracted; ProblemDetails and Validation.MediatR extracted; per-module domain errors, ADR-0038)
 
 ## Status
 
@@ -117,7 +117,7 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
 (ADR-0035, ADR-0037; today `BuildingBlocks.Audit`, `BuildingBlocks.DaprSecrets`,
 `BuildingBlocks.EmailSender`, `BuildingBlocks.Keycloak.Authentication` and
 `BuildingBlocks.Keycloak.Admin`, `BuildingBlocks.ProblemDetails` and
-`BuildingBlocks.Validation.MediatR` and `BuildingBlocks.Spreadsheet`, each tested by its own
+`BuildingBlocks.Validation.MediatR`, `BuildingBlocks.Spreadsheet` and `BuildingBlocks.Jobs`, each tested by its own
 `tests/BuildingBlocks/BuildingBlocks.<X>.Tests`). Package versions are centralized in
 `Directory.Packages.props` (including `$(BirraPointTargetFramework)`).
 
@@ -178,17 +178,17 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
   open `DiscrepancyAlert`s; date-window check constraints on `Competition`. The BJCP 2021 catalog
   (125 styles, full guide text) is seeded by migration from the embedded
   `Modules/Catalog/Features/Catalog/Data/bjcp-2021.json`, with its SHA-256 pinned by a unit test (ADR-0005).
-- **Background jobs** (`Common/Jobs/`, R-06): `DispatchJobQueue` inserts a `Pending` row and wakes
-  `DispatchWorker` through a channel (plus a safety-net poll, `Dispatch:SafetyNetPollInterval`, default 30 s, floor 1 s; cloud deployments set 1 h, ADR-0025). The worker claims one eligible
+- **Background jobs** (`BuildingBlocks.Jobs`, ADR-0037, R-06; PostgreSQL only): `IJobQueue` inserts a `Pending` `Job` row and wakes
+  the generic `JobWorker` through a channel (plus a safety-net poll, `Dispatch:SafetyNetPollInterval`, default 30 s, floor 1 s; cloud deployments set 1 h, ADR-0025). The worker claims one eligible
   `Pending` job per transaction (`FOR UPDATE SKIP LOCKED`), marks it `Running` with
   `LeaseOwner`/`LeaseExpiresAt`, runs the handler outside the transaction, renews the lease every
   `LeaseDuration`/3 (`Dispatch:LeaseDuration`, default 2 min) and writes the outcome only
   `WHERE LeaseOwner = me` (lost lease: result discarded, warning logged). `Running` rows with an
   expired lease, or a null lease and `UpdatedAt` older than `LeaseDuration` (legacy pre-lease
   claim), are recovered at startup and every sweep as failed attempts; live leases are
-  never touched (ADR-0024). Dispatch is by `DispatchJobType` to an `IDispatchJobHandler`, with
+  never touched (ADR-0024). The claim/recovery SQL reads table and column names from the EF model. Dispatch is by the string `Type` to an `IJobHandler`, with
   capped exponential backoff enforced by `NextAttemptAt` (ADR-0008, max 5 attempts) and
-  `DispatchProgress` emits. `RetryDispatch` resets only `Failed` `SendResultEmail` jobs (FR-041) and wakes the worker right after the reset. Each sweep (startup included) schedules one wake at the earliest lease expiry or `NextAttemptAt` (+1 s, capped at the poll interval), so with a long poll only `Pending` jobs written by another revision and legacy NULL-lease `Running` rows wait for the next sweep. A failed sweep schedules a retry wake after 5 s * 2^n (capped at the poll interval). Handlers: `ProvisionJudgeAccount`, `SendInvitation`,
+  `IJobObserver` callbacks (BirraPoint's `Realtime/DispatchProgressObserver` publishes `DispatchProgress`). `RetryDispatch` resets only `Failed` `SendResultEmail` jobs (FR-041) and wakes the worker right after the reset. Each sweep (startup included) schedules one wake at the earliest lease expiry or `NextAttemptAt` (+1 s, capped at the poll interval), so with a long poll only `Pending` jobs written by another revision and legacy NULL-lease `Running` rows wait for the next sweep. A failed sweep schedules a retry wake after 5 s * 2^n (capped at the poll interval). BirraPoint maps the block with `AppDbContext.ApplyJobs` onto the `DispatchJobs` table (`GroupKey` = `CompetitionId`, FK to `Competition`); config section `Dispatch`; type names are constants in `Domain/DispatchJobType.cs`. Handlers: `ProvisionJudgeAccount`, `SendInvitation`,
   `GeneratePdfs`, `BundleZip`, `SendResultEmail`.
 - **Keycloak Admin** (`BuildingBlocks.Keycloak.Admin`, ADR-0037; registered with `AddKeycloakAdmin`
   from `Common/Keycloak/BirraPointKeycloak.cs`, which supplies the `JUDGE` role and the dev
@@ -211,7 +211,7 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
 
 Code lives in `src/BirraPoint.Api/Modules/<Module>/` (`Domain/`, `Persistence/` EF configurations,
 `Contracts/`, `Integration/`, `Features/<Feature>/`, `<Module>Module.cs`, `<Module>ModuleEndpoints.cs`). One `AppDbContext` and one schema; no per-module DB.
-`Api/Domain/` is the shared kernel (`Entity` + `ITimestamped`, `DispatchJob`). `UnitTests/Architecture/ModuleLayoutTests.cs` checks the layout.
+`Api/Domain/` is the shared kernel (`Entity` + `ITimestamped`, `DispatchJobType` names). `UnitTests/Architecture/ModuleLayoutTests.cs` checks the layout.
 
 | Module | Features | Entities |
 |---|---|---|
@@ -239,7 +239,7 @@ registered by `Add<M>Module` (ADR-0034).
 | `TableJudgesChanged` (MediatR notification) | Organization | published by Judging, handled by Organization |
 
 Finalize flow: `ChangeCompetitionStateCommand` checks `ICompetitionFinalizationGuard`, publishes
-`CompetitionFinalized` before `SaveChanges`; Publication stages `GeneratePdfs` via `IDispatchJobQueue.Stage`
+`CompetitionFinalized` before `SaveChanges`; Publication stages `GeneratePdfs` via `IJobQueue.Stage`
 in the same transaction and the worker is woken after commit.
 
 BOS flag flow (FR-018): table create/update in Judging stages its judge diff and publishes `TableJudgesChanged`
@@ -251,7 +251,7 @@ or any evaluation), all in the same unit of work.
 Boundary rule: `UnitTests/Architecture/ModuleBoundaryTests.cs` forbids using another module outside its
 `Contracts` namespace or touching its `DbSet`s, with no module-to-module exception. `Persistence/` FK
 configurations are exempt. Permanent kernel exceptions: `Common/Auth` resolvers, `Realtime/` hub,
-`Common/Persistence/` (incl. the `DispatchJob` -> `Competition` FK).
+`Common/Persistence/` (incl. the `DispatchJobs` -> `Competition` FK).
 
 ### Domain
 
@@ -356,8 +356,8 @@ Shared primitives live in `shared/components/` (`bp-button`, `bp-input`, `bp-ale
 
 - **E2E suite not in CI** (T139) and fragile after the wizard/landing redesign; `/select-role` has
   no E2E/axe coverage.
-- **No integration tests** for `CompetitionHub` join authorization or for the `DispatchWorker`
-  DB loop.
+- **No integration tests** for `CompetitionHub` join authorization or for the host-level
+  job worker loop (the block has its own Testcontainers tests).
 - **Health/telemetry**: `/alive` (no DB) and `/health` (incl. `db` check) are mapped anonymously in all environments (ADR-0028). ACA API probes use `/alive` (startup 250 s); AWS API has no probe. Cloud telemetry is platform-collected console logs; metrics/traces only if an OTLP endpoint is set (FR-048, spec clarification 2026-10-11); ACA/ECS visibility is unvalidated (T099). Keycloak ACA startup probe threshold 30 exceeds the ACA maximum of 10 (T099).
 - **Probes no longer reflect DB reachability** (Keycloak ACA probe, AWS ALB check use `/health/live`; ADR-0025). Keycloak runs one replica (`KC_CACHE=local`): AWS deploys stop-then-start (short Keycloak outage); Azure revisions overlap during a deploy, so an in-progress login or Admin-API password reset can hit the other node. Deploy outside live events. Neon billing behaviour and the probes are unverified on real accounts (T099/T137).
 - **Single API replica**: scaling out needs a SignalR backplane and a migration job (the job queue is already multi-worker safe, ADR-0024).

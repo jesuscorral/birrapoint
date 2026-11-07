@@ -7,6 +7,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BuildingBlocks.Jobs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -92,7 +93,7 @@ public abstract class JudgesApiTestBase(ApiFactory factory)
 
     /// <summary>Polls GET /judges until the named judge's invitationStatus leaves "Pending" —
     /// the invitation is dispatched asynchronously via a DispatchJob picked up by the live
-    /// DispatchWorker background service, so it must not be asserted on synchronously
+    /// the job worker background service, so it must not be asserted on synchronously
     /// right after POST /judges.</summary>
     private protected static async Task<JsonElement> PollForInvitationStatusAsync(
         HttpClient client, Guid competitionId, string email, string expectedStatus = "Sent")
@@ -121,10 +122,10 @@ public abstract class JudgesApiTestBase(ApiFactory factory)
     }
 
     /// <summary>Polls until a <see cref="DispatchJobType"/> DispatchJob for this competition
-    /// reaches <see cref="DispatchJobStatus.Completed"/> — used to synchronize with
+    /// reaches <see cref="JobStatus.Completed"/> — used to synchronize with
     /// ProvisionJudgeAccountHandler, which (unlike SendInvitationHandler) leaves no
     /// judge/invitation-row side effect to poll for instead (R-20).</summary>
-    private protected async Task WaitForDispatchJobCompletionAsync(Guid competitionId, DispatchJobType type)
+    private protected async Task WaitForDispatchJobCompletionAsync(Guid competitionId, string type)
     {
         var deadline = DateTime.UtcNow + PollTimeout;
         while (DateTime.UtcNow < deadline)
@@ -132,7 +133,7 @@ public abstract class JudgesApiTestBase(ApiFactory factory)
             await using var scope = factory.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var completed = await db.DispatchJobs.AnyAsync(j =>
-                j.CompetitionId == competitionId && j.Type == type && j.Status == DispatchJobStatus.Completed);
+                j.GroupKey == competitionId && j.Type == type && j.Status == JobStatus.Completed);
 
             if (completed)
             {

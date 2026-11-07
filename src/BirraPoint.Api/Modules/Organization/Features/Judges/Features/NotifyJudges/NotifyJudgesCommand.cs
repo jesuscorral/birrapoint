@@ -1,9 +1,9 @@
 using System.Text.Json;
 using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BuildingBlocks.Jobs;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,7 +24,7 @@ internal sealed record NotifyJudgesCommand(Guid CompetitionId) : IRequest<Notify
 /// a Pending/Running SendInvitation job are skipped, so repeated notifies never duplicate emails.
 /// </summary>
 internal sealed class NotifyJudgesCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IDispatchWakeUp dispatchWakeUp)
+    AppDbContext dbContext, ICurrentUser currentUser, IJobWakeUp dispatchWakeUp)
     : IRequestHandler<NotifyJudgesCommand, NotifyJudgesResult?>
 {
     public async Task<NotifyJudgesResult?> Handle(NotifyJudgesCommand request, CancellationToken cancellationToken)
@@ -57,9 +57,9 @@ internal sealed class NotifyJudgesCommandHandler(
             .ToListAsync(cancellationToken);
 
         var inFlightPayloads = await dbContext.DispatchJobs
-            .Where(j => j.CompetitionId == request.CompetitionId
-                && j.Type == DispatchJobType.SendInvitation
-                && (j.Status == DispatchJobStatus.Pending || j.Status == DispatchJobStatus.Running))
+            .OfDispatchType(DispatchJobType.SendInvitation)
+            .Where(j => j.GroupKey == request.CompetitionId
+                && (j.Status == JobStatus.Pending || j.Status == JobStatus.Running))
             .Select(j => j.PayloadJson)
             .ToListAsync(cancellationToken);
         var alreadyQueued = NotifyJudgesRules.JudgeIdsWithInFlightInvitation(inFlightPayloads);
@@ -68,9 +68,9 @@ internal sealed class NotifyJudgesCommandHandler(
 
         foreach (var judge in toQueue)
         {
-            dbContext.DispatchJobs.Add(new DispatchJob
+            dbContext.DispatchJobs.Add(new Job
             {
-                CompetitionId = request.CompetitionId,
+                GroupKey = request.CompetitionId,
                 Type = DispatchJobType.SendInvitation,
                 PayloadJson = JsonSerializer.Serialize(new SendInvitationPayload(judge.Id)),
             });

@@ -9,6 +9,7 @@ using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BuildingBlocks.EmailSender;
+using BuildingBlocks.Jobs;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BirraPoint.Api.IntegrationTests.Modules.Publication.Dispatch;
@@ -169,14 +170,14 @@ public abstract class DispatchApiTestBase(ApiFactory factory)
     }
 
     private protected async Task<Guid> SeedDispatchJobAsync(
-        Guid competitionId, DispatchJobType type, DispatchJobStatus status, object payload,
+        Guid competitionId, string type, JobStatus status, object payload,
         int attempts = 0, string? lastError = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var job = new DispatchJob
+        var job = new Job
         {
-            CompetitionId = competitionId,
+            GroupKey = competitionId,
             Type = type,
             PayloadJson = JsonSerializer.Serialize(payload),
             Status = status,

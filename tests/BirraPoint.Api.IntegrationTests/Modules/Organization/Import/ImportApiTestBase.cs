@@ -2,11 +2,11 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BuildingBlocks.Jobs;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -308,14 +308,14 @@ public abstract class ImportApiTestBase(ApiFactory factory)
             preferences,
         };
 
-    private protected async Task<bool> HasDispatchJobAsync(Guid competitionId, DispatchJobType type)
+    private protected async Task<bool> HasDispatchJobAsync(Guid competitionId, string type)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        return await db.DispatchJobs.AnyAsync(j => j.CompetitionId == competitionId && j.Type == type);
+        return await db.DispatchJobs.AnyAsync(j => j.GroupKey == competitionId && j.Type == type);
     }
 
-    private protected async Task WaitForDispatchJobCompletionAsync(Guid competitionId, DispatchJobType type, int expectedCount = 1)
+    private protected async Task WaitForDispatchJobCompletionAsync(Guid competitionId, string type, int expectedCount = 1)
     {
         var deadline = DateTime.UtcNow + PollTimeout;
         while (DateTime.UtcNow < deadline)
@@ -323,7 +323,7 @@ public abstract class ImportApiTestBase(ApiFactory factory)
             await using var scope = factory.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var completedCount = await db.DispatchJobs.CountAsync(j =>
-                j.CompetitionId == competitionId && j.Type == type && j.Status == DispatchJobStatus.Completed);
+                j.GroupKey == competitionId && j.Type == type && j.Status == JobStatus.Completed);
 
             if (completedCount >= expectedCount)
             {

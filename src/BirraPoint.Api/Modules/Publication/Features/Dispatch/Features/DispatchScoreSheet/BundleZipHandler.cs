@@ -1,11 +1,11 @@
 using System.IO.Compression;
 using System.Text.Json;
-using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Domain;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
+using BuildingBlocks.Jobs;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.DispatchScoreSheet;
@@ -19,17 +19,17 @@ namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.Dispatch
 /// <see cref="Invitation"/> tracks judge invites, except here there's no separate status entity.
 /// </summary>
 internal sealed class BundleZipHandler(
-    AppDbContext dbContext, ICompetitionAccess competitionAccess, IResultRecipients resultRecipients, IDispatchJobQueue dispatchJobQueue)
-    : IDispatchJobHandler
+    AppDbContext dbContext, ICompetitionAccess competitionAccess, IResultRecipients resultRecipients, IJobQueue dispatchJobQueue)
+    : IJobHandler
 {
-    public DispatchJobType Type => DispatchJobType.BundleZip;
+    public string Type => DispatchJobType.BundleZip;
 
-    public async Task HandleAsync(DispatchJob job, CancellationToken cancellationToken)
+    public async Task HandleAsync(Job job, CancellationToken cancellationToken)
     {
-        var competition = await competitionAccess.GetAsync(job.CompetitionId, cancellationToken)
-            ?? throw new InvalidOperationException($"Competition {job.CompetitionId} not found.");
+        var competition = await competitionAccess.GetAsync(job.GroupKey, cancellationToken)
+            ?? throw new InvalidOperationException($"Competition {job.GroupKey} not found.");
 
-        var entries = await resultRecipients.GetEntriesAsync(job.CompetitionId, cancellationToken);
+        var entries = await resultRecipients.GetEntriesAsync(job.GroupKey, cancellationToken);
         var entryIds = entries.Select(e => e.EntryId).ToList();
         var pdfByEntryId = await dbContext.GeneratedScoreSheets
             .Where(s => entryIds.Contains(s.BeerEntryId))
@@ -55,13 +55,13 @@ internal sealed class BundleZipHandler(
         var zipBytes = memoryStream.ToArray();
 
         var existingArchive = await dbContext.ResultsArchives
-            .FirstOrDefaultAsync(a => a.CompetitionId == job.CompetitionId, cancellationToken);
+            .FirstOrDefaultAsync(a => a.CompetitionId == job.GroupKey, cancellationToken);
 
         if (existingArchive is null)
         {
             dbContext.ResultsArchives.Add(new ResultsArchive
             {
-                CompetitionId = job.CompetitionId,
+                CompetitionId = job.GroupKey,
                 ZipBytes = zipBytes,
                 GeneratedAt = DateTimeOffset.UtcNow,
             });
@@ -74,17 +74,18 @@ internal sealed class BundleZipHandler(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var participantIds = (await resultRecipients.GetRecipientsAsync(job.CompetitionId, cancellationToken))
+        var participantIds = (await resultRecipients.GetRecipientsAsync(job.GroupKey, cancellationToken))
             .Select(r => r.ParticipantId)
             .ToList();
 
-        // IDispatchJobHandler is at-least-once (DispatchWorker may re-run this handler after a
+        // IJobHandler is at-least-once (DispatchWorker may re-run this handler after a
         // crash or a transient failure marking THIS job Completed, even though the fan-out below
         // already committed durably on a prior attempt) — without this guard a re-run would
         // silently double-enqueue a full second round of SendResultEmail jobs, sending every
         // participant their results twice.
         var alreadyQueuedPayloads = await dbContext.DispatchJobs
-            .Where(j => j.CompetitionId == job.CompetitionId && j.Type == DispatchJobType.SendResultEmail)
+            .OfDispatchType(DispatchJobType.SendResultEmail)
+            .Where(j => j.GroupKey == job.GroupKey)
             .Select(j => j.PayloadJson)
             .ToListAsync(cancellationToken);
         var alreadyQueuedParticipantIds = alreadyQueuedPayloads
@@ -94,7 +95,7 @@ internal sealed class BundleZipHandler(
         foreach (var participantId in participantIds.Where(id => !alreadyQueuedParticipantIds.Contains(id)))
         {
             await dispatchJobQueue.EnqueueAsync(
-                job.CompetitionId, DispatchJobType.SendResultEmail, new SendResultEmailPayload(participantId), cancellationToken);
+                job.GroupKey, DispatchJobType.SendResultEmail, new SendResultEmailPayload(participantId), cancellationToken);
         }
     }
 }

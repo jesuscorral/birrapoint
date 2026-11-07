@@ -1,10 +1,10 @@
 using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Judges.CommonComponents.Dtos;
+using BuildingBlocks.Jobs;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,7 +14,7 @@ namespace BirraPoint.Api.Modules.Organization.Features.Import.Features.Consolida
 internal sealed record ConsolidateJudgeImportCommand(Guid CompetitionId, Guid ImportId) : IRequest<ConsolidateJudgeImportResult?>;
 
 internal sealed class ConsolidateJudgeImportCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IDispatchJobQueue dispatchJobQueue)
+    AppDbContext dbContext, ICurrentUser currentUser, IJobQueue dispatchJobQueue)
     : IRequestHandler<ConsolidateJudgeImportCommand, ConsolidateJudgeImportResult?>
 {
     public async Task<ConsolidateJudgeImportResult?> Handle(ConsolidateJudgeImportCommand request, CancellationToken cancellationToken)
@@ -141,7 +141,7 @@ internal sealed class ConsolidateJudgeImportCommandHandler(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // Enqueued only after the SaveChangesAsync above commits (same convention as
-        // RegisterJudgesCommand.cs/IDispatchJobQueue elsewhere) — ProvisionJudgeAccount only, never
+        // RegisterJudgesCommand.cs/IJobQueue elsewhere) — ProvisionJudgeAccount only, never
         // SendInvitation (R-20/FR-057).
         foreach (var judge in judgesToProvision)
         {
