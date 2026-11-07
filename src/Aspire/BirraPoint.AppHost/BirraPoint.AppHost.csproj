@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project Sdk="Aspire.AppHost.Sdk/13.5.4">
+<Project Sdk="Aspire.AppHost.Sdk/13.6.4">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>$(BirraPointTargetFramework)</TargetFramework>
     <UserSecretsId>a2ebe169-3993-4c3f-a649-cd18842901bf</UserSecretsId>
+    <!-- DCP and dashboard come from the SDK NuGet packages, not the Aspire CLI bundle. -->
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.JavaScript" />

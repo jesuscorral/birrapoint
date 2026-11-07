@@ -4,6 +4,10 @@ description: Check whether the local Aspire stack (Postgres, Keycloak, Mailpit, 
 
 Report the local stack status without starting or stopping anything:
 
+0. If the **aspire** MCP is connected, call `mcp__aspire__list_resources`: one line per resource
+   (state, health, endpoints) answers the question. For a resource that isn't healthy, read its
+   last lines with `mcp__aspire__list_console_logs`. Never call `execute_resource_command` here.
+   If the MCP isn't connected or no AppHost is running, use the steps below.
 1. `docker info --format '{{.ServerVersion}}'` — if it fails, Docker Desktop is down; stop here.
 2. `docker ps --format '{{.Names}}\t{{.Status}}\t{{.Ports}}'` — look for `postgres-*`,
    `keycloak-*`, `mailpit-*`.

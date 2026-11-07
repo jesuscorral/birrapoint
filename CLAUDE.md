@@ -51,6 +51,7 @@ first, never silently into code.
   pushes on `main`; `post-edit.js` formats edited files; `stop-check.js` builds/lints/type-checks
   changed stacks.
 - MCP: `postgres-local` (read-only, `.claude/mcp/postgres-local.js`) needs the Aspire stack running.
+  `aspire` (`aspire agent mcp`, local backchannel only, ADR-0039): agents read resources/logs/traces; `execute_resource_command` prompts, main session only. Needs Aspire CLI ≥ 13.6.4.
 
 ## Commands
 
