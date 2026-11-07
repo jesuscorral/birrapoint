@@ -159,6 +159,54 @@ public sealed class ProblemDetailsMappingTests
     }
 
     [Fact]
+    public async Task MappingAfterTheFirstHandledExceptionThrows()
+    {
+        using var provider = Build(map => map.Map<InvalidOperationException>(_ => new ProblemMapping("urn:test:first", 409, "first")));
+        await RunAsync(provider, new InvalidOperationException());
+        var builder = provider.GetRequiredService<ProblemDetailsMappingBuilder>();
+
+        var map = Assert.Throws<InvalidOperationException>(() =>
+            builder.Map<NotSupportedException>(_ => new ProblemMapping("urn:test:late", 422, "late")));
+        var mapProblem = Assert.Throws<InvalidOperationException>(() =>
+            builder.MapProblem<NotSupportedException>(_ => new Microsoft.AspNetCore.Mvc.ProblemDetails()));
+
+        Assert.Contains("frozen", map.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("frozen", mapProblem.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ConcurrentHandlingIsSafe()
+    {
+        using var provider = Build(map => map.Map<InvalidOperationException>(_ => new ProblemMapping("urn:test:first", 409, "first")));
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 64).Select(_ => Task.Run(
+            async () => (await RunAsync(provider, new InvalidOperationException())).Context.Response.StatusCode,
+            TestContext.Current.CancellationToken)));
+
+        Assert.All(results, status => Assert.Equal(StatusCodes.Status409Conflict, status));
+    }
+
+    [Fact]
+    public async Task MapProblemFactoryReturningNullThrowsNamingTheExceptionType()
+    {
+        using var provider = Build(map => map.MapProblem<InvalidOperationException>(_ => null!));
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => RunAsync(provider, new InvalidOperationException()));
+
+        Assert.Contains(nameof(InvalidOperationException), thrown.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MapFactoryReturningNullThrowsNamingTheExceptionType()
+    {
+        using var provider = Build(map => map.Map<NotSupportedException>(_ => null!));
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => RunAsync(provider, new NotSupportedException()));
+
+        Assert.Contains(nameof(NotSupportedException), thrown.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RejectsNullArguments()
     {
         var services = new ServiceCollection();
