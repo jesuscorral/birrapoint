@@ -2,6 +2,7 @@ using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Contracts;
+using BuildingBlocks.Jobs;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,10 +35,11 @@ internal sealed class GetResultsArchiveQueryHandler(AppDbContext dbContext, ICur
         // No BundleZip job yet implies the pipeline hasn't reached that stage — report Pending
         // rather than leaking "no job found" as a distinct state the client would need to handle.
         var bundleJob = await dbContext.DispatchJobs
-            .Where(j => j.CompetitionId == request.CompetitionId && j.Type == DispatchJobType.BundleZip)
+            .OfDispatchType(DispatchJobType.BundleZip)
+            .Where(j => j.GroupKey == request.CompetitionId)
             .OrderByDescending(j => j.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
 
-        return new ResultsArchiveResult(null, (bundleJob?.Status ?? DispatchJobStatus.Pending).ToString());
+        return new ResultsArchiveResult(null, (bundleJob?.Status ?? JobStatus.Pending).ToString());
     }
 }

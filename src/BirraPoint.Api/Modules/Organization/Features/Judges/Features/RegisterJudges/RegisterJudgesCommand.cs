@@ -1,9 +1,9 @@
 using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Features.Judges.CommonComponents.Dtos;
+using BuildingBlocks.Jobs;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,7 +17,7 @@ internal sealed record RegisterJudgesResult(IReadOnlyList<CreatedJudgeDto> Creat
 internal sealed record RegisterJudgesCommand(Guid CompetitionId, IReadOnlyList<string> Emails) : IRequest<RegisterJudgesResult?>;
 
 internal sealed class RegisterJudgesCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IDispatchJobQueue dispatchJobQueue)
+    AppDbContext dbContext, ICurrentUser currentUser, IJobQueue dispatchJobQueue)
     : IRequestHandler<RegisterJudgesCommand, RegisterJudgesResult?>
 {
     public async Task<RegisterJudgesResult?> Handle(RegisterJudgesCommand request, CancellationToken cancellationToken)
@@ -56,7 +56,7 @@ internal sealed class RegisterJudgesCommandHandler(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // Enqueued only after the SaveChangesAsync above commits (same convention as every other
-        // IDispatchJobQueue/IEventPublisher call — see ChangeCompetitionStateCommand.cs). ProvisionJudgeAccount only
+        // IJobQueue/IEventPublisher call — see ChangeCompetitionStateCommand.cs). ProvisionJudgeAccount only
         // (Keycloak account creation, no email) — SendInvitation is now enqueued exclusively by
         // the explicit "Notify judges" action (R-20/Session 2026-08-02, FR-059).
         foreach (var judge in createdJudges)

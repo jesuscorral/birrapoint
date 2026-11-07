@@ -1,9 +1,9 @@
 using System.Text.Json;
-using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BuildingBlocks.Jobs;
 using BuildingBlocks.Keycloak.Admin;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,7 +19,7 @@ internal sealed record ProvisionJudgeAccountPayload(Guid JudgeId);
 /// (R-10's "no secrets" invariant) — the later SendInvitation job generates and emails its own
 /// fresh one via the same idempotent <c>EnsureUserWithTemporaryPasswordAsync</c> call. No
 /// try/catch: a thrown exception propagates to DispatchWorker's existing retry/backoff
-/// (DispatchRetryPolicy), same as every other IDispatchJobHandler.
+/// (the jobs block's retry policy), same as every other IJobHandler.
 /// </summary>
 /// <remarks>
 /// Skips provisioning once the judge's invitation has left <see cref="InvitationStatus.Pending"/>
@@ -29,11 +29,11 @@ internal sealed record ProvisionJudgeAccountPayload(Guid JudgeId);
 /// job for already-known judges; see research.md R-20).
 /// </remarks>
 internal sealed class ProvisionJudgeAccountHandler(AppDbContext dbContext, IKeycloakAdminClient keycloakAdminClient)
-    : IDispatchJobHandler
+    : IJobHandler
 {
-    public DispatchJobType Type => DispatchJobType.ProvisionJudgeAccount;
+    public string Type => DispatchJobType.ProvisionJudgeAccount;
 
-    public async Task HandleAsync(DispatchJob job, CancellationToken cancellationToken)
+    public async Task HandleAsync(Job job, CancellationToken cancellationToken)
     {
         var payload = JsonSerializer.Deserialize<ProvisionJudgeAccountPayload>(job.PayloadJson)
             ?? throw new InvalidOperationException($"DispatchJob {job.Id} has an empty ProvisionJudgeAccount payload.");

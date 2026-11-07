@@ -28,7 +28,8 @@ internal sealed class GetDispatchStatusQueryHandler(
 
         var jobs = await dbContext.DispatchJobs
             .AsNoTracking()
-            .Where(j => j.CompetitionId == request.CompetitionId && j.Type == DispatchJobType.SendResultEmail)
+            .OfDispatchType(DispatchJobType.SendResultEmail)
+            .Where(j => j.GroupKey == request.CompetitionId)
             .ToListAsync(cancellationToken);
 
         var participantEmails = (await resultRecipients.GetRecipientsAsync(request.CompetitionId, cancellationToken))

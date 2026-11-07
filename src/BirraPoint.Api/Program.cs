@@ -1,8 +1,6 @@
 using System.Text.Json.Serialization;
-using System.Threading.Channels;
 using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Errors;
-using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Common.RateLimiting;
@@ -16,6 +14,7 @@ using BirraPoint.ServiceDefaults;
 using BuildingBlocks.Audit;
 using BuildingBlocks.DaprSecrets;
 using BuildingBlocks.EmailSender;
+using BuildingBlocks.Jobs;
 using BuildingBlocks.Keycloak.Admin;
 using BuildingBlocks.Keycloak.Authentication;
 using BuildingBlocks.Validation.MediatR;
@@ -83,16 +82,11 @@ builder.Services.AddSignalR()
     .AddJsonProtocol(options => options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddSingleton<IEventPublisher, EventPublisher>();
 
-// DispatchJob queue + hosted worker (R-06): Channel<Guid> wakes the worker immediately on
-// enqueue; the worker's own periodic safety-net poll (Dispatch:SafetyNetPollInterval) covers any missed signal.
-builder.Services.AddSingleton(Channel.CreateUnbounded<Guid>());
-builder.Services.AddSingleton<IDispatchWakeUp, ChannelDispatchWakeUp>();
-builder.Services.AddSingleton<IValidateOptions<DispatchOptions>, DispatchOptionsValidator>();
-builder.Services.AddScoped<IDispatchJobQueue, DispatchJobQueue>();
-builder.Services.AddOptions<DispatchOptions>()
-    .BindConfiguration(DispatchOptions.SectionName)
-    .ValidateOnStart();
-builder.Services.AddHostedService<DispatchWorker>();
+// Job queue + hosted worker (R-06, BuildingBlocks.Jobs, ADR-0037): enqueues and retries wake the worker
+// immediately; its periodic safety-net poll (Dispatch:SafetyNetPollInterval) covers any missed signal.
+// DispatchProgressObserver relays each persisted state change to the organizers' SignalR group.
+builder.Services.AddJobs<AppDbContext>(builder.Configuration.GetSection("Dispatch"));
+builder.Services.AddScoped<IJobObserver, DispatchProgressObserver>();
 
 // Judge provisioning (R-10): Keycloak Admin REST API via a typed HttpClient (client-credentials
 // grant against Keycloak:AdminClientId/AdminClientSecret).

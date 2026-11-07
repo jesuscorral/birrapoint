@@ -1,10 +1,10 @@
 using System.Text.Json;
 using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
+using BuildingBlocks.Jobs;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,10 +16,10 @@ internal sealed record RetryDispatchCommand(Guid CompetitionId, IReadOnlyList<Gu
 /// <summary>Re-queues failed result emails (FR-041) by resetting the SendResultEmail job back to a
 /// fresh attempt. Only Failed jobs: a Completed one would resend the email, a Running one may still
 /// be executing under another worker's lease. After the commit the worker is woken
-/// through IDispatchWakeUp (same as DispatchJobQueue), because the production safety-net poll
+/// through IJobWakeUp (same as DispatchJobQueue), because the production safety-net poll
 /// (Dispatch:SafetyNetPollInterval) can be hours long.</summary>
 internal sealed class RetryDispatchCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IDispatchWakeUp wakeUp)
+    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IJobWakeUp wakeUp)
     : IRequestHandler<RetryDispatchCommand, bool>
 {
     public async Task<bool> Handle(RetryDispatchCommand request, CancellationToken cancellationToken)
@@ -30,9 +30,9 @@ internal sealed class RetryDispatchCommandHandler(
         }
 
         var jobs = await dbContext.DispatchJobs
-            .Where(j => j.CompetitionId == request.CompetitionId
-                && j.Type == DispatchJobType.SendResultEmail
-                && j.Status == DispatchJobStatus.Failed)
+            .OfDispatchType(DispatchJobType.SendResultEmail)
+            .Where(j => j.GroupKey == request.CompetitionId
+                && j.Status == JobStatus.Failed)
             .ToListAsync(cancellationToken);
 
         var participantIds = new HashSet<Guid>(request.ParticipantIds);
@@ -46,7 +46,7 @@ internal sealed class RetryDispatchCommandHandler(
                 continue;
             }
 
-            job.Status = DispatchJobStatus.Pending;
+            job.Status = JobStatus.Pending;
             job.Attempts = 0;
             job.NextAttemptAt = null;
             job.LastError = null;

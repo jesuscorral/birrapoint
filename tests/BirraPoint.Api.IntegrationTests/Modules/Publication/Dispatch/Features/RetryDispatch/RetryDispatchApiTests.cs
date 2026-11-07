@@ -4,6 +4,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
+using BuildingBlocks.Jobs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -24,14 +25,14 @@ public sealed class RetryDispatchApiTests(ApiFactory factory) : DispatchApiTestB
         var participantId = await SeedParticipantAsync(competitionId, "Brewer", email);
 
         await SeedDispatchJobAsync(
-            competitionId, DispatchJobType.SendResultEmail, DispatchJobStatus.Failed,
+            competitionId, DispatchJobType.SendResultEmail, JobStatus.Failed,
             new SendResultEmailPayload(participantId), attempts: 5, lastError: "simulated SMTP failure");
 
         var retryResponse = await RetryDispatchAsync(organizer, competitionId, participantId);
         Assert.Equal(HttpStatusCode.OK, retryResponse.StatusCode);
 
         // Reset itself is synchronous within the retry request — no polling needed for this part.
-        // The job is no longer Failed and its error is cleared; the DispatchWorker (woken by the retry or the poll)
+        // The job is no longer Failed and its error is cleared; the job worker (woken by the retry or the poll)
         // may already have picked it up, so Running (mid-handler) is as valid as Pending or
         // Completed here (asserting only Pending/Completed made this test flaky).
         var statusResponse = await GetDispatchStatusAsync(organizer, competitionId);
@@ -58,10 +59,10 @@ public sealed class RetryDispatchApiTests(ApiFactory factory) : DispatchApiTestB
             competitionId, "Busy", $"busy-{Guid.NewGuid():N}@brew.example");
 
         var completedJobId = await SeedDispatchJobAsync(
-            competitionId, DispatchJobType.SendResultEmail, DispatchJobStatus.Completed,
+            competitionId, DispatchJobType.SendResultEmail, JobStatus.Completed,
             new SendResultEmailPayload(completedParticipant), attempts: 1);
         var runningJobId = await SeedDispatchJobAsync(
-            competitionId, DispatchJobType.SendResultEmail, DispatchJobStatus.Running,
+            competitionId, DispatchJobType.SendResultEmail, JobStatus.Running,
             new SendResultEmailPayload(runningParticipant), attempts: 1);
         var leaseExpiresAt = DateTimeOffset.UtcNow.AddHours(1);
         await using (var scope = Factory.Services.CreateAsyncScope())
@@ -81,12 +82,12 @@ public sealed class RetryDispatchApiTests(ApiFactory factory) : DispatchApiTestB
         var verify = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
         var completed = await verify.DispatchJobs.AsNoTracking()
             .SingleAsync(j => j.Id == completedJobId, TestContext.Current.CancellationToken);
-        Assert.Equal(DispatchJobStatus.Completed, completed.Status);
+        Assert.Equal(JobStatus.Completed, completed.Status);
         Assert.Equal(1, completed.Attempts);
 
         var running = await verify.DispatchJobs.AsNoTracking()
             .SingleAsync(j => j.Id == runningJobId, TestContext.Current.CancellationToken);
-        Assert.Equal(DispatchJobStatus.Running, running.Status);
+        Assert.Equal(JobStatus.Running, running.Status);
         Assert.Equal(1, running.Attempts);
         Assert.Equal("other-revision-worker", running.LeaseOwner);
     }
