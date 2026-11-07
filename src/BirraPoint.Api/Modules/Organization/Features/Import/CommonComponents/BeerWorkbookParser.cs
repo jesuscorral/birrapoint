@@ -1,7 +1,5 @@
-using System.Globalization;
-using System.Text.RegularExpressions;
 using BirraPoint.Api.Modules.Organization.Errors;
-using ClosedXML.Excel;
+using BuildingBlocks.Spreadsheet;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 
@@ -27,8 +25,6 @@ internal static class BeerWorkbookParser
         "Grado alcohol: (%)",
     ];
 
-    internal static readonly Regex EmailPattern = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
-
     private const decimal MaxAbvPercent = 99.99m;
 
     public static IReadOnlyList<ParsedBeerImportRow> Parse(
@@ -37,85 +33,37 @@ internal static class BeerWorkbookParser
         IReadOnlyCollection<CategoryCatalogEntry> categories,
         IReadOnlyCollection<CategoryStyleCatalogEntry> allowedPairs)
     {
-        XLWorkbook workbook;
         try
         {
-            workbook = new XLWorkbook(fileStream);
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
-        {
-            throw new OrganizationException(OrganizationError.InvalidImportFile, "The uploaded file is not a readable .xlsx workbook.");
-        }
+            using var reader = SpreadsheetReader.Open(fileStream);
+            reader.RequireHeaders(RequiredHeaders);
 
-        using (workbook)
-        {
-            var worksheet = workbook.Worksheets.FirstOrDefault();
-            if (worksheet is null)
-            {
-                throw new OrganizationException(OrganizationError.InvalidImportFile, "The workbook has no worksheets.");
-            }
-
-            var columnIndex = ReadHeaderColumns(worksheet.Row(1));
-
-            var missingHeaders = RequiredHeaders.Where(header => !columnIndex.ContainsKey(header)).ToList();
-            if (missingHeaders.Count > 0)
-            {
-                throw new OrganizationException(
-                    OrganizationError.InvalidImportFile,
-                    $"Missing required column(s): {string.Join(", ", missingHeaders)}.");
-            }
-
-            var submittedAtCol = columnIndex["Marca temporal"];
-            var emailCol = columnIndex["Dirección de correo electrónico"];
-            var nameCol = columnIndex["Nombre y apellidos"];
-            var categoryCol = columnIndex["Categoria"];
-            var styleCol = columnIndex["Estilo"];
-            var abvCol = columnIndex["Grado alcohol: (%)"];
-
-            // "Número de botellas enviadas" is intentionally never looked up — ignored entirely,
-            // per import-file.md.
-            var acceMemberNumberCol = columnIndex.GetValueOrDefault("Numero socio ACCE");
-            var dateOfBirthCol = columnIndex.GetValueOrDefault("Fecha de nacimiento");
-            var phoneCol = columnIndex.GetValueOrDefault("Teléfono");
-            var brewDateCol = columnIndex.GetValueOrDefault("Fecha de elaboración");
-            var bottlingDateCol = columnIndex.GetValueOrDefault("Fecha de embotellado");
-            var maltsCol = columnIndex.GetValueOrDefault("Maltas utilizadas");
-            var hopsCol = columnIndex.GetValueOrDefault("Lupulos utilizados");
-            var yeastCol = columnIndex.GetValueOrDefault("Levadura utilizada");
-            var otherIngredientsCol = columnIndex.GetValueOrDefault("Otros ingredientes");
-            var entryInstructionsCol = columnIndex.GetValueOrDefault("Instrucciones de entrada");
-
-            var lastRowUsed = worksheet.LastRowUsed()?.RowNumber() ?? 1;
             var rows = new List<ParsedBeerImportRow>();
             var rowNumber = 0;
 
-            for (var excelRow = 2; excelRow <= lastRowUsed; excelRow++)
+            foreach (var row in reader.ReadRows())
             {
-                var row = worksheet.Row(excelRow);
-                if (row.IsEmpty())
-                {
-                    break;
-                }
-
                 rowNumber++;
+                // "Número de botellas enviadas" is intentionally never read — ignored entirely,
+                // per import-file.md.
                 rows.Add(ParseRow(
                     rowNumber,
-                    ReadText(row, nameCol),
-                    ReadText(row, emailCol),
-                    ReadNumericOrText(row, acceMemberNumberCol),
-                    ReadDate(row, dateOfBirthCol),
-                    ReadNumericOrText(row, phoneCol),
-                    ReadText(row, categoryCol),
-                    ReadText(row, styleCol),
-                    ReadDateTime(row, submittedAtCol),
-                    ReadNumber(row, abvCol),
-                    ReadDate(row, brewDateCol),
-                    ReadDate(row, bottlingDateCol),
-                    ReadText(row, maltsCol),
-                    ReadText(row, hopsCol),
-                    ReadText(row, yeastCol),
-                    ReadText(row, otherIngredientsCol),
-                    ReadText(row, entryInstructionsCol),
+                    row.ReadText("Nombre y apellidos"),
+                    row.ReadText("Dirección de correo electrónico"),
+                    row.ReadNumericOrText("Numero socio ACCE"),
+                    row.ReadDate("Fecha de nacimiento"),
+                    row.ReadNumericOrText("Teléfono"),
+                    row.ReadText("Categoria"),
+                    row.ReadText("Estilo"),
+                    row.ReadDateTime("Marca temporal"),
+                    row.ReadNumber("Grado alcohol: (%)"),
+                    row.ReadDate("Fecha de elaboración"),
+                    row.ReadDate("Fecha de embotellado"),
+                    row.ReadText("Maltas utilizadas"),
+                    row.ReadText("Lupulos utilizados"),
+                    row.ReadText("Levadura utilizada"),
+                    row.ReadText("Otros ingredientes"),
+                    row.ReadText("Instrucciones de entrada"),
                     styles,
                     categories,
                     allowedPairs));
@@ -128,154 +76,10 @@ internal static class BeerWorkbookParser
 
             return rows;
         }
-    }
-
-    private static Dictionary<string, int> ReadHeaderColumns(IXLRow headerRow)
-    {
-        var columnIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var lastHeaderColumn = headerRow.LastCellUsed()?.Address.ColumnNumber ?? 0;
-
-        for (var col = 1; col <= lastHeaderColumn; col++)
+        catch (SpreadsheetFormatException ex)
         {
-            var header = headerRow.Cell(col).GetString().Trim();
-            if (header.Length > 0 && !columnIndex.ContainsKey(header))
-            {
-                columnIndex[header] = col;
-            }
+            throw new OrganizationException(OrganizationError.InvalidImportFile, ex.Message);
         }
-
-        return columnIndex;
-    }
-
-    private static string? ReadText(IXLRow row, int columnIndex)
-    {
-        if (columnIndex <= 0)
-        {
-            return null;
-        }
-
-        var value = row.Cell(columnIndex).GetString().Trim();
-        return value.Length == 0 ? null : value;
-    }
-
-    /// <summary>Numero socio ACCE/Teléfono may be typed as a genuine Excel number or as free text;
-    /// either way this stores plain digits, never a decimal/scientific-notation artifact.</summary>
-    private static string? ReadNumericOrText(IXLRow row, int columnIndex)
-    {
-        if (columnIndex <= 0)
-        {
-            return null;
-        }
-
-        var cell = row.Cell(columnIndex);
-        if (cell.IsEmpty())
-        {
-            return null;
-        }
-
-        if (cell.DataType == XLDataType.Number)
-        {
-            var number = cell.GetDouble();
-            return double.IsInteger(number)
-                ? ((long)number).ToString(CultureInfo.InvariantCulture)
-                : number.ToString(CultureInfo.InvariantCulture);
-        }
-
-        var text = cell.GetString().Trim();
-        return text.Length == 0 ? null : text;
-    }
-
-    private readonly record struct DateCell(DateOnly? Value, bool IsPresent, bool IsError);
-
-    private static DateCell ReadDate(IXLRow row, int columnIndex)
-    {
-        if (columnIndex <= 0)
-        {
-            return new DateCell(null, false, false);
-        }
-
-        var cell = row.Cell(columnIndex);
-        if (cell.IsEmpty())
-        {
-            return new DateCell(null, false, false);
-        }
-
-        if (cell.DataType == XLDataType.DateTime)
-        {
-            return new DateCell(DateOnly.FromDateTime(cell.GetDateTime()), true, false);
-        }
-
-        var text = cell.GetString().Trim();
-        if (text.Length == 0)
-        {
-            return new DateCell(null, false, false);
-        }
-
-        return DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
-            ? new DateCell(DateOnly.FromDateTime(parsed), true, false)
-            : new DateCell(null, true, true);
-    }
-
-    private readonly record struct DateTimeCell(DateTime? Value, bool IsPresent, bool IsError);
-
-    private static DateTimeCell ReadDateTime(IXLRow row, int columnIndex)
-    {
-        if (columnIndex <= 0)
-        {
-            return new DateTimeCell(null, false, false);
-        }
-
-        var cell = row.Cell(columnIndex);
-        if (cell.IsEmpty())
-        {
-            return new DateTimeCell(null, false, false);
-        }
-
-        if (cell.DataType == XLDataType.DateTime)
-        {
-            return new DateTimeCell(cell.GetDateTime(), true, false);
-        }
-
-        var text = cell.GetString().Trim();
-        if (text.Length == 0)
-        {
-            return new DateTimeCell(null, false, false);
-        }
-
-        return DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
-            ? new DateTimeCell(parsed, true, false)
-            : new DateTimeCell(null, true, true);
-    }
-
-    private readonly record struct NumberCell(decimal? Value, bool IsPresent, bool IsError);
-
-    private static NumberCell ReadNumber(IXLRow row, int columnIndex)
-    {
-        if (columnIndex <= 0)
-        {
-            return new NumberCell(null, false, false);
-        }
-
-        var cell = row.Cell(columnIndex);
-        if (cell.IsEmpty())
-        {
-            return new NumberCell(null, false, false);
-        }
-
-        if (cell.DataType == XLDataType.Number)
-        {
-            return new NumberCell((decimal)cell.GetDouble(), true, false);
-        }
-
-        var text = cell.GetString().Trim();
-        if (text.Length == 0)
-        {
-            return new NumberCell(null, false, false);
-        }
-
-        return decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
-            ? new NumberCell(parsed, true, false)
-            : new NumberCell(null, true, true);
     }
 
     private static ParsedBeerImportRow ParseRow(
@@ -283,14 +87,14 @@ internal static class BeerWorkbookParser
         string? participantName,
         string? participantEmail,
         string? acceMemberNumber,
-        DateCell dateOfBirth,
+        CellValue<DateOnly> dateOfBirth,
         string? phone,
         string? categoryText,
         string? styleText,
-        DateTimeCell submittedAt,
-        NumberCell abv,
-        DateCell brewDate,
-        DateCell bottlingDate,
+        CellValue<DateTime> submittedAt,
+        CellValue<decimal> abv,
+        CellValue<DateOnly> brewDate,
+        CellValue<DateOnly> bottlingDate,
         string? malts,
         string? hops,
         string? yeast,
@@ -315,7 +119,7 @@ internal static class BeerWorkbookParser
         {
             errors.Add("Dirección de correo electrónico is required.");
         }
-        else if (participantEmail.Length > 320 || !EmailPattern.IsMatch(participantEmail))
+        else if (participantEmail.Length > ImportEmail.MaxLength || !ImportEmail.IsWellFormed(participantEmail))
         {
             errors.Add("Dirección de correo electrónico is not a valid email address.");
         }

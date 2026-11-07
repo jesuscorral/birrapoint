@@ -183,8 +183,8 @@ src/
 │   ├── BuildingBlocks.Keycloak.Admin/  #   admin client: users, temp passwords, realm roles
 │   ├── BuildingBlocks.ProblemDetails/  #   exception -> RFC 7807 mapping, catch-all 500
 │   ├── BuildingBlocks.Validation.MediatR/ # FluentValidation pipeline behavior + 400 mapping
-│   │                                   # planned, ADR-0037 (in delivery order):
 │   ├── BuildingBlocks.Spreadsheet/     #   ClosedXML reader by header, typed cells
+│   │                                   # planned, ADR-0037:
 │   └── BuildingBlocks.Jobs/            #   PostgreSQL job queue: lease claim, retry, wake-up
 └── BirraPoint.Api/                     # Single deployable modular monolith
     ├── Program.cs                      # Minimal API bootstrap, auth, SignalR, OpenAPI

@@ -19,6 +19,7 @@ COPY src/BuildingBlocks/BuildingBlocks.EmailSender/BuildingBlocks.EmailSender.cs
 COPY src/BuildingBlocks/BuildingBlocks.Keycloak.Admin/BuildingBlocks.Keycloak.Admin.csproj src/BuildingBlocks/BuildingBlocks.Keycloak.Admin/
 COPY src/BuildingBlocks/BuildingBlocks.Keycloak.Authentication/BuildingBlocks.Keycloak.Authentication.csproj src/BuildingBlocks/BuildingBlocks.Keycloak.Authentication/
 COPY src/BuildingBlocks/BuildingBlocks.ProblemDetails/BuildingBlocks.ProblemDetails.csproj src/BuildingBlocks/BuildingBlocks.ProblemDetails/
+COPY src/BuildingBlocks/BuildingBlocks.Spreadsheet/BuildingBlocks.Spreadsheet.csproj src/BuildingBlocks/BuildingBlocks.Spreadsheet/
 COPY src/BuildingBlocks/BuildingBlocks.Validation.MediatR/BuildingBlocks.Validation.MediatR.csproj src/BuildingBlocks/BuildingBlocks.Validation.MediatR/
 COPY src/BirraPoint.Api/BirraPoint.Api.csproj src/BirraPoint.Api/
 RUN dotnet restore src/BirraPoint.Api/BirraPoint.Api.csproj

@@ -62,6 +62,9 @@ jobs:
           dotnet test tests/BuildingBlocks/BuildingBlocks.ProblemDetails.Tests --configuration Release --no-build
           --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/building-blocks-problemdetails"
       - run: >-
+          dotnet test tests/BuildingBlocks/BuildingBlocks.Spreadsheet.Tests --configuration Release --no-build
+          --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/building-blocks-spreadsheet"
+      - run: >-
           dotnet test tests/BuildingBlocks/BuildingBlocks.Validation.MediatR.Tests --configuration Release --no-build
           --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/building-blocks-validation-mediatr"
       - name: Upload test results

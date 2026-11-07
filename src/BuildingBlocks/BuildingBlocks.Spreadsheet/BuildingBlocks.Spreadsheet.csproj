@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>BuildingBlocks.Spreadsheet</RootNamespace>
+    <Description>Reads .xlsx workbooks: header-name column lookup, required-header checks, row iteration up to the first empty row and typed cell readers that report presence and parse errors.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="BuildingBlocks.Spreadsheet.Tests" />
+  </ItemGroup>
+
+</Project>
