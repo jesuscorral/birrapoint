@@ -1,9 +1,8 @@
 using System.Text.Json;
-using BirraPoint.Api.Common.Errors;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace BirraPoint.Api.UnitTests.Common.Errors;
+namespace BuildingBlocks.ProblemDetails.Tests;
 
 public sealed class FallbackExceptionHandlerTests
 {

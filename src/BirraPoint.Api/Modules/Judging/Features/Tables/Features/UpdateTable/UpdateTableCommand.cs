@@ -1,8 +1,8 @@
 using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Domain;
+using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Organization.Contracts;
@@ -52,7 +52,7 @@ internal sealed class UpdateTableCommandHandler(
         // terminal regardless of competition state.
         if (table.State == TableState.Closed)
         {
-            throw new DomainException(DomainErrorType.TableClosed, "This table is closed and can no longer be edited.");
+            throw new JudgingException(JudgingError.TableClosed, "This table is closed and can no longer be edited.");
         }
 
         // InEvaluation: the only accepted edit is a pure judge removal (FR-039) — see LiveJudgeRemoval.
@@ -66,8 +66,8 @@ internal sealed class UpdateTableCommandHandler(
         // Otherwise the same state gate as CreateTable (data-model.md §Competition state gates).
         if (competition.State is not (CompetitionState.Draft or CompetitionState.Active))
         {
-            throw new DomainException(
-                DomainErrorType.InvalidStateTransition,
+            throw new JudgingException(
+                JudgingError.InvalidStateTransition,
                 "Tables can only be edited while the competition is in Draft or Active state.");
         }
 

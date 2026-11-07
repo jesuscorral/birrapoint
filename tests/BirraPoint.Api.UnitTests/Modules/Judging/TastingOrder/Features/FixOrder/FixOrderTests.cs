@@ -1,4 +1,4 @@
-using BirraPoint.Api.Common.Errors;
+using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Contracts;
 
@@ -66,10 +66,10 @@ public sealed class FixOrderTests
     [Fact]
     public void EnsureOrderCanBeFixedThrowsOrderAlreadyFixedWithTheFixerNameWhenAlreadySet()
     {
-        var exception = Assert.Throws<DomainException>(() =>
+        var exception = Assert.Throws<JudgingException>(() =>
             TastingOrderRules.EnsureOrderCanBeFixed(isAlreadyFixed: true, "Ana Gomez", CompetitionState.Active));
 
-        Assert.Equal(DomainErrorType.OrderAlreadyFixed, exception.ErrorType);
+        Assert.Equal(JudgingError.OrderAlreadyFixed, exception.ErrorType);
         Assert.Equal("Ana Gomez", exception.Extensions["fixedBy"]);
     }
 
@@ -81,10 +81,10 @@ public sealed class FixOrderTests
     public void EnsureOrderCanBeFixedThrowsInvalidStateTransitionOutsideActiveOrInEvaluation(
         CompetitionState state)
     {
-        var exception = Assert.Throws<DomainException>(() =>
+        var exception = Assert.Throws<JudgingException>(() =>
             TastingOrderRules.EnsureOrderCanBeFixed(isAlreadyFixed: false, fixedByDisplayName: null, state));
 
-        Assert.Equal(DomainErrorType.InvalidStateTransition, exception.ErrorType);
+        Assert.Equal(JudgingError.InvalidStateTransition, exception.ErrorType);
     }
 
     [Theory]

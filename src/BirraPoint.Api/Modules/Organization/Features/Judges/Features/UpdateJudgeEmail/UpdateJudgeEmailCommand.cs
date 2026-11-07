@@ -1,6 +1,6 @@
 using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Judges.CommonComponents.Dtos;
 using BuildingBlocks.Keycloak.Admin;
 using MediatR;
@@ -35,8 +35,8 @@ internal sealed class UpdateJudgeEmailCommandHandler(
 
         if (judge.KeycloakUserId is not null)
         {
-            throw new DomainException(
-                DomainErrorType.JudgeAlreadyActive,
+            throw new OrganizationException(
+                OrganizationError.JudgeAlreadyActive,
                 "This judge has already logged in; the email can no longer be corrected here.");
         }
 

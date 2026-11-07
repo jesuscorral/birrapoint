@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>BuildingBlocks.ProblemDetails</RootNamespace>
+    <Description>RFC 7807 error handling: maps exceptions to ProblemDetails responses through a registration-ordered mapping table, with a catch-all 500 that never leaks internals.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="BuildingBlocks.ProblemDetails.Tests" />
+  </ItemGroup>
+
+</Project>

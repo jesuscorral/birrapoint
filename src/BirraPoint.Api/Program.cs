@@ -1,7 +1,6 @@
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
 using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Common.Behaviors;
 using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Keycloak;
@@ -19,6 +18,7 @@ using BuildingBlocks.DaprSecrets;
 using BuildingBlocks.EmailSender;
 using BuildingBlocks.Keycloak.Admin;
 using BuildingBlocks.Keycloak.Authentication;
+using BuildingBlocks.Validation.MediatR;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;

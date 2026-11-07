@@ -1,6 +1,6 @@
-using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Domain;
+using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Contracts.Events;
 using MediatR;
@@ -31,8 +31,8 @@ internal static class TableAssignmentApplier
             table.CompetitionId, judgeIdSet, beerEntryIds, cancellationToken);
         if (conflicts.Count > 0)
         {
-            throw new DomainException(
-                DomainErrorType.ConflictOfInterest,
+            throw new JudgingException(
+                JudgingError.ConflictOfInterest,
                 "One or more judges have a conflict of interest with the beers assigned to this table.",
                 new Dictionary<string, object?>(StringComparer.Ordinal)
                 {

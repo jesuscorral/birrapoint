@@ -1,10 +1,10 @@
 using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Contracts.Events;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Realtime;
 using BuildingBlocks.Audit;
 using MediatR;
@@ -45,8 +45,8 @@ internal sealed class ChangeCompetitionStateCommandHandler(
 
         if (!CompetitionStateMachine.CanTransition(competition.State, request.Target))
         {
-            throw new DomainException(
-                DomainErrorType.InvalidStateTransition,
+            throw new OrganizationException(
+                OrganizationError.InvalidStateTransition,
                 $"Cannot transition from {competition.State} to {request.Target}.");
         }
 
@@ -56,8 +56,8 @@ internal sealed class ChangeCompetitionStateCommandHandler(
 
             if (openTableIds.Count > 0)
             {
-                throw new DomainException(
-                    DomainErrorType.TablesStillOpen,
+                throw new OrganizationException(
+                    OrganizationError.TablesStillOpen,
                     "Competition has tasting tables that are not closed.",
                     new Dictionary<string, object?>(StringComparer.Ordinal) { ["openTableIds"] = openTableIds });
             }

@@ -8,7 +8,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.Evaluations.Features.SubmitEva
 /// Score caps and comment-length rules only (FR-023/FR-025) — table membership/state/sequence are
 /// intentionally NOT validated here (same convention as FixOrderCommandValidator: failing
 /// validation for a non-member would leak this table's existence via a 400 instead of the
-/// handler's 404; the real precondition gating happens in the handler and throws DomainException).
+/// handler's 404; the real precondition gating happens in the handler and throws JudgingException).
 /// </summary>
 internal sealed class SubmitEvaluationCommandValidator : AbstractValidator<SubmitEvaluationCommand>
 {

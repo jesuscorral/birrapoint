@@ -1,4 +1,4 @@
-using BirraPoint.Api.Common.Errors;
+using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Import;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 using ClosedXML.Excel;
@@ -465,9 +465,9 @@ public sealed class BeerWorkbookParserTests
             headers: ["Marca temporal", "Dirección de correo electrónico", "Nombre y apellidos"],
             rows: [[new DateTime(2025, 9, 1, 0, 0, 0, DateTimeKind.Unspecified), "ana@brew.example", "Ana Gomez"]]);
 
-        var exception = Assert.Throws<DomainException>(() => Parse(xlsx));
+        var exception = Assert.Throws<OrganizationException>(() => Parse(xlsx));
 
-        Assert.Equal(DomainErrorType.InvalidImportFile, exception.ErrorType);
+        Assert.Equal(OrganizationError.InvalidImportFile, exception.ErrorType);
     }
 
     [Fact]
@@ -475,9 +475,9 @@ public sealed class BeerWorkbookParserTests
     {
         var xlsx = BuildWorkbook(StandardHeaders, rows: []);
 
-        var exception = Assert.Throws<DomainException>(() => Parse(xlsx));
+        var exception = Assert.Throws<OrganizationException>(() => Parse(xlsx));
 
-        Assert.Equal(DomainErrorType.InvalidImportFile, exception.ErrorType);
+        Assert.Equal(OrganizationError.InvalidImportFile, exception.ErrorType);
     }
 
     [Fact]
@@ -485,12 +485,12 @@ public sealed class BeerWorkbookParserTests
     {
         var corrupt = new byte[] { 0x00, 0x01, 0x02, 0x03 };
 
-        var exception = Assert.Throws<DomainException>(() =>
+        var exception = Assert.Throws<OrganizationException>(() =>
         {
             using var stream = new MemoryStream(corrupt);
             BeerWorkbookParser.Parse(stream, Styles, Categories, AllowedPairs);
         });
 
-        Assert.Equal(DomainErrorType.InvalidImportFile, exception.ErrorType);
+        Assert.Equal(OrganizationError.InvalidImportFile, exception.ErrorType);
     }
 }

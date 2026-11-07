@@ -1,9 +1,9 @@
 using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents.Dtos;
 using MediatR;
@@ -31,15 +31,15 @@ internal sealed class UploadBeerImportCommandHandler(AppDbContext dbContext, ICu
         // (data-model.md §Competition state gates); the same 409 the wizard PUT already uses.
         if (competition.State is not (CompetitionState.Draft or CompetitionState.Active))
         {
-            throw new DomainException(
-                DomainErrorType.InvalidStateTransition,
+            throw new OrganizationException(
+                OrganizationError.InvalidStateTransition,
                 "Entries can only be imported while the competition is in Draft or Active state.");
         }
 
         var extension = Path.GetExtension(request.File.FileName);
         if (!string.Equals(extension, ".xlsx", StringComparison.OrdinalIgnoreCase))
         {
-            throw new DomainException(DomainErrorType.InvalidImportFile, "The uploaded file must be a .xlsx spreadsheet.");
+            throw new OrganizationException(OrganizationError.InvalidImportFile, "The uploaded file must be a .xlsx spreadsheet.");
         }
 
         var styles = (await styleCatalog.ListAsync(cancellationToken))

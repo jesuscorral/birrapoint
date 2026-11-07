@@ -1,18 +1,21 @@
+using BuildingBlocks.ProblemDetails;
+using BuildingBlocks.Validation.MediatR;
+
 namespace BirraPoint.Api.Common.Errors;
 
 internal static class ErrorHandlingExtensions
 {
     /// <summary>
-    /// Registers ProblemDetails + the exception handler chain. Handlers run in
-    /// registration order until one returns true; <see cref="FallbackExceptionHandler"/> must
-    /// stay last so it only catches what the more specific handlers didn't.
+    /// Registers ProblemDetails + the cross-cutting validation mapping. Each module adds its own
+    /// exception mapping from <c>Add&lt;Module&gt;Module</c> (ADR-0033); the block appends them to the same
+    /// table and keeps its catch-all 500 last, so registration order between host and modules is irrelevant.
     /// </summary>
-    public static IServiceCollection AddProblemDetailsErrorHandling(this IServiceCollection services)
-    {
-        services.AddProblemDetails();
-        services.AddExceptionHandler<DomainExceptionHandler>();
-        services.AddExceptionHandler<ValidationExceptionHandler>();
-        services.AddExceptionHandler<FallbackExceptionHandler>();
-        return services;
-    }
+    public static IServiceCollection AddProblemDetailsErrorHandling(this IServiceCollection services) =>
+        services.AddProblemDetailsMapping(map =>
+            map.MapValidation(options =>
+            {
+                var (urn, _, title) = HostErrorCatalog.Entries[HostError.Validation];
+                options.Type = urn;
+                options.Title = title;
+            }));
 }

@@ -9,7 +9,7 @@ dispatch. Judge: offline-first evaluation, shared fixed tasting order, BJCP scor
 discrepancy consensus. Out of scope: Best of Show, tie-breaks (only `NotValidForBos` flag).
 
 Status: US1–US14 done. Pending work lives in `specs/001-birrapoint-mvp/tasks.md` (T092 usability
-study; Phase 16 deploy/ops: T099, T137, T139; BuildingBlocks phase 2: T161–T165, ADR-0037).
+study; Phase 16 deploy/ops: T099, T137, T139; BuildingBlocks phase 2: T164–T165, ADR-0037).
 Current system state: `Docs/arquitectura_viva.md`.
 `Docs/` product definition is Spanish and superseded by the English spec.
 
@@ -83,14 +83,14 @@ gh workflow run deploy-azure.yml -f version=X.Y.Z       # or deploy-aws.yml
 
 ```text
 src/Aspire/{BirraPoint.AppHost, BirraPoint.ServiceDefaults} | src/BirraPoint.Api/
-  Api/Domain/    shared kernel: Entity(+ITimestamped), DispatchJob     Api/Common/   AppDbContext, auth, persistence, errors, behaviors, job queue
+  Api/Domain/    shared kernel: Entity(+ITimestamped), DispatchJob     Api/Common/   AppDbContext, auth, persistence, host errors (validation, rate limit), job queue
   Api/Modules/   ADR-0033/0034: Catalog (Catalog), Organization (Competitions, Import, Judges), Judging
                  (Tables, TastingOrder, Evaluations, Monitoring), Publication (Dispatch); each module =
-                 Domain/ + Persistence/ + Contracts/ + Integration/ + <M>Module.cs + <M>ModuleEndpoints.cs +
+                 Domain/ + Errors/ (if it throws, ADR-0038) + Persistence/ + Contracts/ + Integration/ + <M>Module.cs + <M>ModuleEndpoints.cs +
                  Features/<Feature>/ (Base<X>Endpoints.cs + Features/<Slice>/ + CommonComponents/, ADR-0031).
                  Other modules only via Contracts/ (ModuleBoundaryTests)
   Api/Realtime/  CompetitionHub + emit-after-commit publisher
-src/BuildingBlocks/BuildingBlocks.<X>/   ADR-0035/0037: reusable cross-cutting blocks (Audit, DaprSecrets, EmailSender, Keycloak.Authentication, Keycloak.Admin), no BirraPoint
+src/BuildingBlocks/BuildingBlocks.<X>/   ADR-0035/0037: reusable cross-cutting blocks (Audit, DaprSecrets, EmailSender, Keycloak.Authentication, Keycloak.Admin, ProblemDetails, Validation.MediatR), no BirraPoint
                  reference, public API in BuildingBlocks.<X>; tests in tests/BuildingBlocks/
 tests/   UnitTests + IntegrationTests
 src/Birrapoint.Web/src/app/  FSD: core/ (auth, api, realtime, offline, layout), features/, shared/
@@ -106,7 +106,7 @@ infra/           azure/ and aws/, each: terraform/ (azure: ACA, Key Vault, Dapr,
 - Slice = request + handler + FluentValidation validator + endpoint under `Modules/<M>/Features/<X>/Features/<Slice>/`
   (shared types in `CommonComponents/`; namespaces = folders, ADR-0031).
   Cross-slice only via MediatR messages or shared contracts. **MediatR pinned 12.x** (licensing).
-- Errors: RFC 7807 with `urn:birrapoint:*` types from `rest-api.md` error catalog (closed list).
+- Errors: RFC 7807 with `urn:birrapoint:*` types from `rest-api.md` error catalog (closed list); each module declares its own errors in `Modules/<M>/Errors/`, the host only validation + rate limit (ADR-0038).
   `400` validation, `409` state conflict, `404` for out-of-scope resources (never reveal existence).
 - Moving/renaming C# files: `git mv`, then `node .claude/scripts/move-namespace.mjs` (fixes namespaces +
   usings, ~1 s; `--dry-run` to preview). Never write an ad hoc script for it. If namespaces were edited

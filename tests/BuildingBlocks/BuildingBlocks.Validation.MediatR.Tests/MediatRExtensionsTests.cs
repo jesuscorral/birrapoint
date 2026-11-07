@@ -1,10 +1,9 @@
 using System.Diagnostics.CodeAnalysis;
-using BirraPoint.Api.Common.Behaviors;
 using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace BirraPoint.Api.UnitTests.Common.Behaviors;
+namespace BuildingBlocks.Validation.MediatR.Tests;
 
 /// <summary>DI-wiring test: confirms AddOpenBehavior actually applies at runtime (a known MediatR
 /// open-generics gotcha) by sending a real request through a real container.</summary>

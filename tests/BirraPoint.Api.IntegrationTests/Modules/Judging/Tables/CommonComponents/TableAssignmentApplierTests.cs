@@ -1,7 +1,7 @@
-using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Judging.Domain;
+using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Integration;
 using BirraPoint.Api.Modules.Organization.Contracts.Events;
@@ -154,7 +154,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
 
     private static string Email(string prefix) => $"{prefix}-{Guid.NewGuid():N}@brew.example";
 
-    private static List<Dictionary<string, object?>> ConflictsOf(DomainException ex) =>
+    private static List<Dictionary<string, object?>> ConflictsOf(JudgingException ex) =>
         Assert.IsType<List<Dictionary<string, object?>>>(ex.Extensions["conflicts"]);
 
     private async Task AssertNothingPersistedAsync(Guid tableId, params Guid[] entryIds)
@@ -221,9 +221,9 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
         var entryId = await SeedEntryAsync(competitionId, email);
         var tableId = await SeedTableAsync(competitionId);
 
-        var ex = await Assert.ThrowsAsync<DomainException>(() => ApplyAsync(tableId, [judgeId], [entryId]));
+        var ex = await Assert.ThrowsAsync<JudgingException>(() => ApplyAsync(tableId, [judgeId], [entryId]));
 
-        Assert.Equal(DomainErrorType.ConflictOfInterest, ex.ErrorType);
+        Assert.Equal(JudgingError.ConflictOfInterest, ex.ErrorType);
         var conflict = Assert.Single(ConflictsOf(ex));
         Assert.Equal(judgeId, conflict["judgeId"]);
         Assert.Equal([entryId], Assert.IsAssignableFrom<IReadOnlyList<Guid>>(conflict["beerEntryIds"]));
@@ -239,9 +239,9 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
         var entryId = await SeedEntryAsync(competitionId, Email("owner"), collaboratorEmail);
         var tableId = await SeedTableAsync(competitionId);
 
-        var ex = await Assert.ThrowsAsync<DomainException>(() => ApplyAsync(tableId, [judgeId], [entryId]));
+        var ex = await Assert.ThrowsAsync<JudgingException>(() => ApplyAsync(tableId, [judgeId], [entryId]));
 
-        Assert.Equal(DomainErrorType.ConflictOfInterest, ex.ErrorType);
+        Assert.Equal(JudgingError.ConflictOfInterest, ex.ErrorType);
         var conflict = Assert.Single(ConflictsOf(ex));
         Assert.Equal(judgeId, conflict["judgeId"]);
         Assert.Equal([entryId], Assert.IsAssignableFrom<IReadOnlyList<Guid>>(conflict["beerEntryIds"]));
@@ -257,9 +257,9 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
         var entryId = await SeedEntryAsync(competitionId, $"owner-{suffix}@example.com");
         var tableId = await SeedTableAsync(competitionId);
 
-        var ex = await Assert.ThrowsAsync<DomainException>(() => ApplyAsync(tableId, [judgeId], [entryId]));
+        var ex = await Assert.ThrowsAsync<JudgingException>(() => ApplyAsync(tableId, [judgeId], [entryId]));
 
-        Assert.Equal(DomainErrorType.ConflictOfInterest, ex.ErrorType);
+        Assert.Equal(JudgingError.ConflictOfInterest, ex.ErrorType);
         Assert.Single(ConflictsOf(ex));
         await AssertNothingPersistedAsync(tableId, entryId);
     }
@@ -274,7 +274,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
         var otherEntryId = await SeedEntryAsync(competitionId, Email("someone-else"));
         var tableId = await SeedTableAsync(competitionId);
 
-        var ex = await Assert.ThrowsAsync<DomainException>(
+        var ex = await Assert.ThrowsAsync<JudgingException>(
             () => ApplyAsync(tableId, [judgeId], [ownedEntryId, otherEntryId]));
 
         var conflict = Assert.Single(ConflictsOf(ex));
@@ -295,7 +295,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
         var entryBId = await SeedEntryAsync(competitionId, emailB);
         var tableId = await SeedTableAsync(competitionId);
 
-        var ex = await Assert.ThrowsAsync<DomainException>(
+        var ex = await Assert.ThrowsAsync<JudgingException>(
             () => ApplyAsync(tableId, [judgeAId, judgeBId], [entryAId, entryBId]));
 
         var conflicts = ConflictsOf(ex);

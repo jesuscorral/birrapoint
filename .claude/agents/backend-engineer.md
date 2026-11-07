@@ -50,7 +50,7 @@ you; otherwise they belong to `qa-engineer`. Never touch `src/Birrapoint.Web/**`
 - Judge-facing DTOs/events carry no entrant fields (beer name, participant, brewery, origin); only
   the documented exceptions (`EntryInstructions`, `AbvPercent`).
 - Every endpoint has a role policy; out-of-scope resources return `404`.
-- Errors use the closed `DomainErrorType` catalog; validation lives in FluentValidation.
+- Domain errors use the owning module's `Errors/` catalog (`<M>Error`/`<M>Exception`, ADR-0038) and cross-cutting ones the host `HostError` catalog; the union is the closed list in `rest-api.md`; validation lives in FluentValidation.
 - No secrets or personal data in logs.
 
 ## Gates (run all, report results)
