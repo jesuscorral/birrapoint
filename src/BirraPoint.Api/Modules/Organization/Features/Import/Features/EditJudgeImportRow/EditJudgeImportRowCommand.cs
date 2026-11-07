@@ -61,7 +61,7 @@ internal sealed class EditJudgeImportRowCommandHandler(AppDbContext dbContext, I
         var isComplete =
             !string.IsNullOrWhiteSpace(row.Name)
             && !string.IsNullOrWhiteSpace(row.Email)
-            && JudgeWorkbookParser.EmailPattern.IsMatch(row.Email);
+            && ImportEmail.IsWellFormed(row.Email);
 
         if (isComplete)
         {

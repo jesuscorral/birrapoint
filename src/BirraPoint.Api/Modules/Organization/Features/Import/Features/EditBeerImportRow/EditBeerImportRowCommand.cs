@@ -94,7 +94,7 @@ internal sealed class EditBeerImportRowCommandHandler(AppDbContext dbContext, IC
 
         var isComplete =
             !string.IsNullOrWhiteSpace(row.ParticipantEmail)
-            && BeerWorkbookParser.EmailPattern.IsMatch(row.ParticipantEmail)
+            && ImportEmail.IsWellFormed(row.ParticipantEmail)
             && row.ResolvedCompetitionCategoryId is not null
             && !string.IsNullOrWhiteSpace(row.ResolvedStyleCode);
 

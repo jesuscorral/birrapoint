@@ -4,7 +4,6 @@
     <TargetFramework>$(BirraPointTargetFramework)</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="ClosedXML" />
     <PackageReference Include="MessagePack" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
@@ -31,6 +30,7 @@
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Keycloak.Admin\BuildingBlocks.Keycloak.Admin.csproj" />
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Keycloak.Authentication\BuildingBlocks.Keycloak.Authentication.csproj" />
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.ProblemDetails\BuildingBlocks.ProblemDetails.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Spreadsheet\BuildingBlocks.Spreadsheet.csproj" />
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Validation.MediatR\BuildingBlocks.Validation.MediatR.csproj" />
   </ItemGroup>
 </Project>

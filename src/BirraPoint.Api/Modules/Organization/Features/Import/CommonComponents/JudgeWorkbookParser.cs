@@ -1,6 +1,5 @@
-using System.Text.RegularExpressions;
 using BirraPoint.Api.Modules.Organization.Errors;
-using ClosedXML.Excel;
+using BuildingBlocks.Spreadsheet;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 
@@ -34,66 +33,27 @@ internal static class JudgeWorkbookParser
         "Correo electrónico",
     ];
 
-    internal static readonly Regex EmailPattern = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
-
     public static IReadOnlyList<ParsedJudgeImportRow> Parse(Stream fileStream)
     {
-        XLWorkbook workbook;
         try
         {
-            workbook = new XLWorkbook(fileStream);
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
-        {
-            throw new OrganizationException(OrganizationError.InvalidImportFile, "The uploaded file is not a readable .xlsx workbook.");
-        }
+            using var reader = SpreadsheetReader.Open(fileStream);
+            reader.RequireHeaders(RequiredHeaders);
 
-        using (workbook)
-        {
-            var worksheet = workbook.Worksheets.FirstOrDefault();
-            if (worksheet is null)
-            {
-                throw new OrganizationException(OrganizationError.InvalidImportFile, "The workbook has no worksheets.");
-            }
-
-            var columnIndex = ReadHeaderColumns(worksheet.Row(1));
-
-            var missingHeaders = RequiredHeaders.Where(header => !columnIndex.ContainsKey(header)).ToList();
-            if (missingHeaders.Count > 0)
-            {
-                throw new OrganizationException(
-                    OrganizationError.InvalidImportFile,
-                    $"Missing required column(s): {string.Join(", ", missingHeaders)}.");
-            }
-
-            var nameCol = columnIndex["Nombre y apellidos"];
-            var emailCol = columnIndex["Correo electrónico"];
-            var bjcpRankCol = columnIndex.GetValueOrDefault("Rango BJCP");
-            var bjcpIdCol = columnIndex.GetValueOrDefault("BJCP ID");
-            var preferredCategoryCol = columnIndex.GetValueOrDefault("Categoría preferida");
-            var preferencesCol = columnIndex.GetValueOrDefault("Preferencias");
-
-            var lastRowUsed = worksheet.LastRowUsed()?.RowNumber() ?? 1;
             var rows = new List<ParsedJudgeImportRow>();
             var rowNumber = 0;
 
-            for (var excelRow = 2; excelRow <= lastRowUsed; excelRow++)
+            foreach (var row in reader.ReadRows())
             {
-                var row = worksheet.Row(excelRow);
-                if (row.IsEmpty())
-                {
-                    break;
-                }
-
                 rowNumber++;
                 rows.Add(ParseRow(
                     rowNumber,
-                    ReadText(row, nameCol),
-                    ReadText(row, emailCol),
-                    ReadText(row, bjcpRankCol),
-                    ReadText(row, bjcpIdCol),
-                    ReadText(row, preferredCategoryCol),
-                    ReadText(row, preferencesCol)));
+                    row.ReadText("Nombre y apellidos"),
+                    row.ReadText("Correo electrónico"),
+                    row.ReadText("Rango BJCP"),
+                    row.ReadText("BJCP ID"),
+                    row.ReadText("Categoría preferida"),
+                    row.ReadText("Preferencias")));
             }
 
             if (rows.Count == 0)
@@ -103,34 +63,10 @@ internal static class JudgeWorkbookParser
 
             return rows;
         }
-    }
-
-    private static Dictionary<string, int> ReadHeaderColumns(IXLRow headerRow)
-    {
-        var columnIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var lastHeaderColumn = headerRow.LastCellUsed()?.Address.ColumnNumber ?? 0;
-
-        for (var col = 1; col <= lastHeaderColumn; col++)
+        catch (SpreadsheetFormatException ex)
         {
-            var header = headerRow.Cell(col).GetString().Trim();
-            if (header.Length > 0 && !columnIndex.ContainsKey(header))
-            {
-                columnIndex[header] = col;
-            }
+            throw new OrganizationException(OrganizationError.InvalidImportFile, ex.Message);
         }
-
-        return columnIndex;
-    }
-
-    private static string? ReadText(IXLRow row, int columnIndex)
-    {
-        if (columnIndex <= 0)
-        {
-            return null;
-        }
-
-        var value = row.Cell(columnIndex).GetString().Trim();
-        return value.Length == 0 ? null : value;
     }
 
     private static ParsedJudgeImportRow ParseRow(
@@ -151,7 +87,7 @@ internal static class JudgeWorkbookParser
         {
             errors.Add("Correo electrónico is required.");
         }
-        else if (email.Length > 320 || !EmailPattern.IsMatch(email))
+        else if (email.Length > ImportEmail.MaxLength || !ImportEmail.IsWellFormed(email))
         {
             errors.Add("Correo electrónico is not a valid email address.");
         }

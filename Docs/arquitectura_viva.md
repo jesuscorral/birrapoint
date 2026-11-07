@@ -4,7 +4,7 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-11-07 (ProblemDetails and Validation.MediatR extracted to BuildingBlocks, ADR-0037; per-module domain errors, ADR-0038)
+**Last updated:** 2026-11-07 (Spreadsheet block extracted, ADR-0037; ProblemDetails and Validation.MediatR extracted; per-module domain errors, ADR-0038)
 
 ## Status
 
@@ -117,7 +117,7 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
 (ADR-0035, ADR-0037; today `BuildingBlocks.Audit`, `BuildingBlocks.DaprSecrets`,
 `BuildingBlocks.EmailSender`, `BuildingBlocks.Keycloak.Authentication` and
 `BuildingBlocks.Keycloak.Admin`, `BuildingBlocks.ProblemDetails` and
-`BuildingBlocks.Validation.MediatR`, each tested by its own
+`BuildingBlocks.Validation.MediatR` and `BuildingBlocks.Spreadsheet`, each tested by its own
 `tests/BuildingBlocks/BuildingBlocks.<X>.Tests`). Package versions are centralized in
 `Directory.Packages.props` (including `$(BirraPointTargetFramework)`).
 
@@ -161,6 +161,13 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
   MediatR 12.5 and an internal `ValidationBehavior` that runs every FluentValidation validator before the
   handler. `MapValidation(o => { o.Type; o.Title; })` (both required) registers the `400` with camelCase
   field errors through the ProblemDetails block; BirraPoint passes `urn:birrapoint:validation`.
+- **Spreadsheet** (`BuildingBlocks.Spreadsheet`, ADR-0037): `SpreadsheetReader.Open` reads the first
+  worksheet of an `.xlsx`; `RequireHeaders` reports missing headers (case-insensitive, trimmed);
+  `ReadRows` yields `SpreadsheetRow` with typed readers (text, numeric-or-text, date, date-time, number)
+  returning `CellValue<T>` (value / present / error). Unreadable files throw `SpreadsheetFormatException`;
+  `BeerWorkbookParser` and `JudgeWorkbookParser` map it to `invalid-import-file` and keep column names and
+  row rules. The API no longer references ClosedXML directly. Email format is checked by one pattern,
+  `Modules/Organization/Features/Import/CommonComponents/ImportEmail.cs`.
 - **Audit** (`BuildingBlocks.Audit`, ADR-0035): `IAuditWriter.Record(...)` stages an `AuditLog` row
   (`{before, after}` jsonb) in the caller's transaction; actor = Keycloak `sub` via
   `Common/Auth/CurrentUserAuditActor`; registered with `AddAudit<AppDbContext, CurrentUserAuditActor>()`.
