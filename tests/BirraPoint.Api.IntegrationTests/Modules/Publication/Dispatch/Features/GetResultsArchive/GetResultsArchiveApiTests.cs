@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
+using BuildingBlocks.Jobs;
 
 namespace BirraPoint.Api.IntegrationTests.Modules.Publication.Dispatch.Features.GetResultsArchive;
 
@@ -13,10 +14,10 @@ public sealed class GetResultsArchiveApiTests(ApiFactory factory) : DispatchApiT
         using var organizer = OrganizerClient($"organizer-{Guid.NewGuid():N}");
         var competitionId = await CreateCompetitionAsync(organizer, "Pending");
 
-        // A BundleZip job stuck Running is never touched by DispatchWorker's periodic sweep
+        // A BundleZip job stuck Running is never touched by the job worker's periodic sweep
         // (only Pending jobs are dispatched, and only a startup resume-sweep touches Running ones)
         // — this keeps the "not ready yet" state deterministic for the lifetime of this test.
-        await SeedDispatchJobAsync(competitionId, DispatchJobType.BundleZip, DispatchJobStatus.Running, new { });
+        await SeedDispatchJobAsync(competitionId, DispatchJobType.BundleZip, JobStatus.Running, new { });
 
         var response = await GetResultsArchiveAsync(organizer, competitionId);
 

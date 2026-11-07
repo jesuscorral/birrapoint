@@ -5,6 +5,7 @@ using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Features.Import;
 using BirraPoint.Api.Modules.Publication.Domain;
 using BuildingBlocks.Audit;
+using BuildingBlocks.Jobs;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Common.Persistence;
@@ -49,7 +50,7 @@ internal class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(
 
     public DbSet<DiscrepancyAlert> DiscrepancyAlerts => Set<DiscrepancyAlert>();
 
-    public DbSet<DispatchJob> DispatchJobs => Set<DispatchJob>();
+    public DbSet<Job> DispatchJobs => Set<Job>();
 
     public DbSet<GeneratedScoreSheet> GeneratedScoreSheets => Set<GeneratedScoreSheet>();
 
@@ -63,6 +64,19 @@ internal class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(
 
         // Audit trail from the BuildingBlocks.Audit block (ADR-0035); DataJson is jsonb in PostgreSQL.
         modelBuilder.ApplyAuditLog(configure: audit => audit.Property(a => a.DataJson).HasColumnType("jsonb"));
+
+        // Background job queue from the BuildingBlocks.Jobs block (R-06, ADR-0037), kept on the original
+        // DispatchJobs table: GroupKey is the owning competition, deleted along with it.
+        modelBuilder.ApplyJobs(job =>
+        {
+            job.ToTable("DispatchJobs");
+            job.Property(j => j.GroupKey).HasColumnName("CompetitionId");
+            job.Property(j => j.Type).HasMaxLength(30);
+            job.HasOne<Competition>()
+                .WithMany()
+                .HasForeignKey(j => j.GroupKey)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
@@ -77,10 +91,25 @@ internal class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
-    /// <summary>CreatedAt/UpdatedAt are stamped centrally (data-model.md) — handlers never set them.</summary>
+    /// <summary>CreatedAt/UpdatedAt are stamped centrally (data-model.md) — handlers never set them.
+    /// <see cref="Job"/> belongs to the jobs block, which stamps its own writes; host edits to it (e.g. a
+    /// manual retry) are stamped here so UpdatedAt keeps moving.</summary>
     private void StampTimestamps()
     {
         var now = DateTimeOffset.UtcNow;
+        foreach (var entry in ChangeTracker.Entries<Job>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                entry.Entity.CreatedAt = now;
+                entry.Entity.UpdatedAt = now;
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                entry.Entity.UpdatedAt = now;
+            }
+        }
+
         foreach (var entry in ChangeTracker.Entries<ITimestamped>())
         {
             if (entry.State == EntityState.Added)

@@ -6,7 +6,7 @@ namespace BirraPoint.Api.IntegrationTests.TestHost;
 /// <summary>
 /// Test double — records sent emails in-memory instead of dispatching through MailKit/SMTP.
 /// Registered as a singleton (see <see cref="ApiFactory"/>) so tests can inspect deliveries even
-/// though the sender runs inside DispatchWorker's own background DI scope, not the request scope.
+/// though the sender runs inside the job worker's own background DI scope, not the request scope.
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
     Justification = "Instantiated by the DI container via AddSingleton<IEmailSender, FakeEmailSender>().")]

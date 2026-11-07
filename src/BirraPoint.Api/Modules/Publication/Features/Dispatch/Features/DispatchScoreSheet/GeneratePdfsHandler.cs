@@ -1,10 +1,10 @@
-using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Contracts;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Domain;
+using BuildingBlocks.Jobs;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
 
@@ -14,24 +14,24 @@ namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.Dispatch
 /// FR-036/FR-040: renders one <see cref="GeneratedScoreSheet"/> per <see cref="ResultEntry"/> in
 /// the competition (upsert by BeerEntryId so a retry never duplicates rows), then enqueues
 /// <see cref="DispatchJobType.BundleZip"/> for the same competition. Payload is empty — the job's
-/// own <see cref="DispatchJob.CompetitionId"/> is all that's needed.
+/// own <see cref="Job.GroupKey"/> is all that's needed.
 /// </summary>
 internal sealed class GeneratePdfsHandler(
     AppDbContext dbContext,
     ICompetitionAccess competitionAccess,
     IResultRecipients resultRecipients,
-    IDispatchJobQueue dispatchJobQueue,
+    IJobQueue dispatchJobQueue,
     IStyleCatalog styleCatalog,
-    IStoredEvaluations storedEvaluations) : IDispatchJobHandler
+    IStoredEvaluations storedEvaluations) : IJobHandler
 {
-    public DispatchJobType Type => DispatchJobType.GeneratePdfs;
+    public string Type => DispatchJobType.GeneratePdfs;
 
-    public async Task HandleAsync(DispatchJob job, CancellationToken cancellationToken)
+    public async Task HandleAsync(Job job, CancellationToken cancellationToken)
     {
-        var competition = await competitionAccess.GetAsync(job.CompetitionId, cancellationToken)
-            ?? throw new InvalidOperationException($"Competition {job.CompetitionId} not found.");
+        var competition = await competitionAccess.GetAsync(job.GroupKey, cancellationToken)
+            ?? throw new InvalidOperationException($"Competition {job.GroupKey} not found.");
 
-        var entries = await resultRecipients.GetEntriesAsync(job.CompetitionId, cancellationToken);
+        var entries = await resultRecipients.GetEntriesAsync(job.GroupKey, cancellationToken);
 
         var styleByCode = await styleCatalog.GetByCodesAsync(
             entries.Select(e => e.StyleCode).Distinct(StringComparer.Ordinal).ToList(), cancellationToken);
@@ -94,10 +94,11 @@ internal sealed class GeneratePdfsHandler(
         // attempt's BundleZip enqueue already committed durably — without this check, a re-run
         // would enqueue a second BundleZip job (and, transitively, a second round of emails).
         var bundleZipAlreadyQueued = await dbContext.DispatchJobs
-            .AnyAsync(j => j.CompetitionId == job.CompetitionId && j.Type == DispatchJobType.BundleZip, cancellationToken);
+            .OfDispatchType(DispatchJobType.BundleZip)
+            .AnyAsync(j => j.GroupKey == job.GroupKey, cancellationToken);
         if (!bundleZipAlreadyQueued)
         {
-            await dispatchJobQueue.EnqueueAsync(job.CompetitionId, DispatchJobType.BundleZip, new { }, cancellationToken);
+            await dispatchJobQueue.EnqueueAsync(job.GroupKey, DispatchJobType.BundleZip, new { }, cancellationToken);
         }
     }
 }

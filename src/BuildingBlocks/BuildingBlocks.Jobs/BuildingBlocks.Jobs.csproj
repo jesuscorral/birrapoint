@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>BuildingBlocks.Jobs</RootNamespace>
+    <Description>Database-backed background job queue for PostgreSQL: atomic lease-based claim (FOR UPDATE SKIP LOCKED), retry with backoff, expired-lease recovery and a hosted worker over the host EF Core DbContext.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="BuildingBlocks.Jobs.Tests" />
+  </ItemGroup>
+
+</Project>

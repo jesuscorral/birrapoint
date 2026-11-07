@@ -214,7 +214,7 @@ public sealed class StartupMigrationViaDbDirectApiTests(MigrateOnStartupViaDbDir
         // Accessing Server is what makes WebApplicationFactory actually build and start the host
         // (running Program.cs's startup-migration branch) — deliberately not issuing any HTTP
         // request here, since the request pipeline's own DbContext resolves ConnectionStrings:db,
-        // which this factory leaves unreachable on purpose. DispatchWorker (a hosted
+        // which this factory leaves unreachable on purpose. the job worker (a hosted
         // BackgroundService) will also try that same unreachable "db" in the background once the
         // host starts; RunGuardedAsync catches and logs that, so it must not fail host startup or
         // this assertion.

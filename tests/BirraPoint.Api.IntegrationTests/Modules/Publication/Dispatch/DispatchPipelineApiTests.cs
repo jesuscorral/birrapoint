@@ -6,6 +6,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.DispatchScoreSheet;
+using BuildingBlocks.Jobs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,7 +15,7 @@ namespace BirraPoint.Api.IntegrationTests.Modules.Publication.Dispatch;
 /// <summary>
 /// HTTP-level contract tests for the results dispatch pipeline (contracts/rest-api.md
 /// §Results &amp; dispatch, FR-036/FR-040/FR-041) — this drives the real GeneratePdfs -> BundleZip ->
-/// SendResultEmail pipeline end-to-end through the live DispatchWorker hosted service (same
+/// SendResultEmail pipeline end-to-end through the live job worker hosted service (same
 /// approach as the Judges feature tests' async invitation checks), plus backfills HTTP-level coverage for the
 /// pre-existing Finalize "tables-still-open" gate (Modules/Organization/Features/Competitions/Features/ChangeCompetitionState/ChangeCompetitionStateCommand.cs), which
 /// previously had zero unit/integration coverage.
@@ -95,7 +96,7 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
         await using var scope = Factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var hasGeneratePdfsJob = await db.DispatchJobs
-            .AnyAsync(j => j.CompetitionId == competitionId && j.Type == DispatchJobType.GeneratePdfs, cancellationToken: TestContext.Current.CancellationToken);
+            .AnyAsync(j => j.GroupKey == competitionId && j.Type == DispatchJobType.GeneratePdfs, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(hasGeneratePdfsJob);
     }
 
@@ -150,7 +151,7 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
         await using var scope = Factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var jobCount = await db.DispatchJobs.AsNoTracking().CountAsync(
-            j => j.CompetitionId == competitionId && j.Type == DispatchJobType.GeneratePdfs, TestContext.Current.CancellationToken);
+            j => j.GroupKey == competitionId && j.Type == DispatchJobType.GeneratePdfs, TestContext.Current.CancellationToken);
         Assert.Equal(1, jobCount);
 
         // Active + InEvaluation (setup) + exactly one Finalized.
@@ -219,7 +220,7 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
         }
     }
 
-    // ---- Regression: fan-out enqueues must be idempotent under DispatchWorker's at-least-once
+    // ---- Regression: fan-out enqueues must be idempotent under the job worker's at-least-once
     // handler contract ------------------------------------
 
     [Fact]
@@ -235,7 +236,7 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
         await PollForArchiveReadyAsync(organizer, competitionId);
         await PollForAllDispatchRowsCompletedAsync(organizer, competitionId, entries.Count);
 
-        // Simulates DispatchWorker's own crash-resume path (ResumeInterruptedJobsAsync / a failed
+        // Simulates the job worker's own crash-resume path (ResumeInterruptedJobsAsync / a failed
         // final "mark Completed" save both reset a job back to Pending) — the BundleZip handler's
         // fan-out loop already committed durably on the first, successful attempt, so a re-run
         // must recognize that and skip re-enqueueing rather than doubling every participant's
@@ -273,8 +274,8 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
         await using var scope = Factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var job = await db.DispatchJobs
-            .SingleAsync(j => j.CompetitionId == competitionId && j.Type == DispatchJobType.BundleZip);
-        job.Status = DispatchJobStatus.Pending;
+            .SingleAsync(j => j.GroupKey == competitionId && j.Type == DispatchJobType.BundleZip);
+        job.Status = JobStatus.Pending;
         job.NextAttemptAt = null;
         await db.SaveChangesAsync();
         return job.UpdatedAt;
@@ -289,9 +290,9 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var job = await db.DispatchJobs
                 .AsNoTracking()
-                .SingleAsync(j => j.CompetitionId == competitionId && j.Type == DispatchJobType.BundleZip);
+                .SingleAsync(j => j.GroupKey == competitionId && j.Type == DispatchJobType.BundleZip);
 
-            if (job.Status == DispatchJobStatus.Completed && job.UpdatedAt > resetAt)
+            if (job.Status == JobStatus.Completed && job.UpdatedAt > resetAt)
             {
                 return;
             }
@@ -302,11 +303,11 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
         Assert.Fail("Timed out waiting for the reset BundleZip job to be reprocessed.");
     }
 
-    private async Task<int> CountDispatchJobsAsync(Guid competitionId, DispatchJobType type)
+    private async Task<int> CountDispatchJobsAsync(Guid competitionId, string type)
     {
         await using var scope = Factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        return await db.DispatchJobs.CountAsync(j => j.CompetitionId == competitionId && j.Type == type);
+        return await db.DispatchJobs.CountAsync(j => j.GroupKey == competitionId && j.Type == type);
     }
 
 

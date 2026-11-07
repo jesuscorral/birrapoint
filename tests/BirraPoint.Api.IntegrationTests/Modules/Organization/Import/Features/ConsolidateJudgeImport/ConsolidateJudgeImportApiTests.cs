@@ -1,11 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BuildingBlocks.Jobs;
 using BuildingBlocks.Keycloak.Admin;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -201,7 +201,7 @@ public sealed class ConsolidateJudgeImportApiTests(ApiFactory factory) : ImportA
         // since-completed "Notify judges" send (research.md R-20).
         await using (var enqueueScope = Factory.Services.CreateAsyncScope())
         {
-            var dispatchJobQueue = enqueueScope.ServiceProvider.GetRequiredService<IDispatchJobQueue>();
+            var dispatchJobQueue = enqueueScope.ServiceProvider.GetRequiredService<IJobQueue>();
             await dispatchJobQueue.EnqueueAsync(competitionId, DispatchJobType.ProvisionJudgeAccount, new { JudgeId = judgeId }, TestContext.Current.CancellationToken);
         }
 

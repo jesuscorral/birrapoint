@@ -33,7 +33,7 @@ public class ModuleLayoutTests
     [Fact]
     public void SharedDomainNamespaceOnlyHoldsTheSharedKernel()
     {
-        string[] allowed = ["Entity", "DispatchJob", "DispatchJobStatus", "DispatchJobType", "ITimestamped"];
+        string[] allowed = ["Entity", "DispatchJobType", "ITimestamped"];
         var actual = ApiTypes()
             .Where(t => t.Namespace == "BirraPoint.Api.Domain")
             .Select(t => t.Name)

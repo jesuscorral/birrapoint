@@ -1,5 +1,4 @@
 using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Contracts.Events;
@@ -7,6 +6,7 @@ using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Realtime;
 using BuildingBlocks.Audit;
+using BuildingBlocks.Jobs;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,7 +20,7 @@ internal sealed record ChangeCompetitionStateCommand(Guid Id, CompetitionState T
 
 internal sealed class ChangeCompetitionStateCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter, IEventPublisher eventPublisher,
-    ICompetitionFinalizationGuard finalizationGuard, IPublisher publisher, IDispatchWakeUp dispatchWakeUp)
+    ICompetitionFinalizationGuard finalizationGuard, IPublisher publisher, IJobWakeUp dispatchWakeUp)
     : IRequestHandler<ChangeCompetitionStateCommand, ChangeCompetitionStateResult?>
 {
     public async Task<ChangeCompetitionStateResult?> Handle(
