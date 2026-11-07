@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
-using BirraPoint.Api.Common.Errors;
+using BirraPoint.Api.Modules.Organization.Errors;
 using ClosedXML.Excel;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
@@ -12,7 +12,7 @@ namespace BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 /// code, falling back to an exact code-or-name match against the whole cell. Category is matched
 /// by an exact (case-insensitive, trimmed) name against this competition's own CompetitionCategory
 /// rows. File-level problems (not `.xlsx`, no worksheet, missing required columns, zero data rows)
-/// throw <see cref="DomainException"/> with <see cref="DomainErrorType.InvalidImportFile"/> — the
+/// throw <see cref="OrganizationException"/> with <see cref="OrganizationError.InvalidImportFile"/> — the
 /// caller does not need to catch anything else.
 /// </summary>
 internal static class BeerWorkbookParser
@@ -44,7 +44,7 @@ internal static class BeerWorkbookParser
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            throw new DomainException(DomainErrorType.InvalidImportFile, "The uploaded file is not a readable .xlsx workbook.");
+            throw new OrganizationException(OrganizationError.InvalidImportFile, "The uploaded file is not a readable .xlsx workbook.");
         }
 
         using (workbook)
@@ -52,7 +52,7 @@ internal static class BeerWorkbookParser
             var worksheet = workbook.Worksheets.FirstOrDefault();
             if (worksheet is null)
             {
-                throw new DomainException(DomainErrorType.InvalidImportFile, "The workbook has no worksheets.");
+                throw new OrganizationException(OrganizationError.InvalidImportFile, "The workbook has no worksheets.");
             }
 
             var columnIndex = ReadHeaderColumns(worksheet.Row(1));
@@ -60,8 +60,8 @@ internal static class BeerWorkbookParser
             var missingHeaders = RequiredHeaders.Where(header => !columnIndex.ContainsKey(header)).ToList();
             if (missingHeaders.Count > 0)
             {
-                throw new DomainException(
-                    DomainErrorType.InvalidImportFile,
+                throw new OrganizationException(
+                    OrganizationError.InvalidImportFile,
                     $"Missing required column(s): {string.Join(", ", missingHeaders)}.");
             }
 
@@ -123,7 +123,7 @@ internal static class BeerWorkbookParser
 
             if (rows.Count == 0)
             {
-                throw new DomainException(DomainErrorType.InvalidImportFile, "The workbook has no data rows.");
+                throw new OrganizationException(OrganizationError.InvalidImportFile, "The workbook has no data rows.");
             }
 
             return rows;

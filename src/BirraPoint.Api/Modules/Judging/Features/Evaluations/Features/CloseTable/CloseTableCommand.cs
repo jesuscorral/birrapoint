@@ -1,6 +1,6 @@
-using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Domain;
+using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Contracts;
@@ -46,7 +46,7 @@ internal sealed class CloseTableCommandHandler(AppDbContext dbContext, IJudgeDir
 
         if (table.State == TableState.Closed)
         {
-            throw new DomainException(DomainErrorType.TableClosed, "This table is already closed.");
+            throw new JudgingException(JudgingError.TableClosed, "This table is already closed.");
         }
 
         var activeJudgeIds = await dbContext.TableJudges
@@ -78,8 +78,8 @@ internal sealed class CloseTableCommandHandler(AppDbContext dbContext, IJudgeDir
 
         if (missingBlindCodes.Count > 0)
         {
-            throw new DomainException(
-                DomainErrorType.EvaluationsIncomplete,
+            throw new JudgingException(
+                JudgingError.EvaluationsIncomplete,
                 "Not every active judge has submitted every sample at this table.",
                 new Dictionary<string, object?>(StringComparer.Ordinal) { ["missing"] = missingBlindCodes });
         }
@@ -92,8 +92,8 @@ internal sealed class CloseTableCommandHandler(AppDbContext dbContext, IJudgeDir
 
         if (openDiscrepancyEntryIds.Count > 0)
         {
-            throw new DomainException(
-                DomainErrorType.DiscrepancyOpen,
+            throw new JudgingException(
+                JudgingError.DiscrepancyOpen,
                 "This table has unresolved discrepancy alerts.",
                 new Dictionary<string, object?>(StringComparer.Ordinal)
                 {

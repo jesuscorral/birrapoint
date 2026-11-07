@@ -1,7 +1,7 @@
-using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Domain;
+using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents.Dtos;
@@ -52,7 +52,7 @@ internal static class LiveJudgeRemoval
 
             if (lockedTable.State == TableState.Closed)
             {
-                throw new DomainException(DomainErrorType.TableClosed, "This table is closed and can no longer be edited.");
+                throw new JudgingException(JudgingError.TableClosed, "This table is closed and can no longer be edited.");
             }
 
             var activeRows = await dbContext.TableJudges
@@ -144,8 +144,8 @@ internal static class LiveJudgeRemoval
         return TableMutationResult.From(dto, []);
     }
 
-    private static DomainException Forbidden() => new(
-        DomainErrorType.InvalidStateTransition,
+    private static JudgingException Forbidden() => new(
+        JudgingError.InvalidStateTransition,
         "While the competition is in InEvaluation state a table can only be edited to remove judges; name, samples and added judges cannot change.");
 
     private static async Task<(string Name, List<Guid> SampleIds, List<Guid> ActiveJudgeIds)> ReadStateAsync(

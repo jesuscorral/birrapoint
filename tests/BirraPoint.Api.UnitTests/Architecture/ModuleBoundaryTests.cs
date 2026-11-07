@@ -59,6 +59,25 @@ public class ModuleBoundaryTests
         Assert.True(offenders.Count == 0, "Kernel references modules outside the documented exceptions:\n" + string.Join('\n', offenders));
     }
 
+    /// <summary>
+    /// Each module owns its domain errors under <c>Modules/&lt;M&gt;/Errors</c> (ADR-0033/0037), so no
+    /// module may depend on the host's cross-cutting error namespace. Cross-module use of another
+    /// module's <c>Errors</c> namespace is already rejected by the contracts-only rule above.
+    /// </summary>
+    [Fact]
+    public void ModulesDoNotReferenceTheHostErrorsNamespace()
+    {
+        const string hostErrors = "BirraPoint.Api.Common.Errors";
+        var offenders = Directory.GetDirectories(Path.Combine(ApiRoot, "Modules"))
+            .SelectMany(dir => SourceFiles($"Modules/{Path.GetFileName(dir)}"))
+            .Where(f => f.Source.Contains(hostErrors, StringComparison.Ordinal))
+            .Select(f => f.Relative)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(offenders.Count == 0, $"Modules reference {hostErrors}:" + Environment.NewLine + string.Join(Environment.NewLine, offenders));
+    }
+
     private static string Describe(Violation v) => $"{v.File} -> {v.Module}: {string.Join("; ", v.Members.Order(StringComparer.Ordinal))}";
 
     private static string ApiRoot { get; } = FindApiRoot();

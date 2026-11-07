@@ -1,6 +1,6 @@
-using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
+using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Organization.Contracts;
@@ -62,8 +62,8 @@ internal sealed class FixOrderCommandHandler(
         var currentSampleIds = samples.Select(s => s.BeerEntryId).ToList();
         if (!TastingOrderRules.IsExactPermutation(request.OrderedBeerEntryIds, currentSampleIds))
         {
-            throw new DomainException(
-                DomainErrorType.InvalidStateTransition,
+            throw new JudgingException(
+                JudgingError.InvalidStateTransition,
                 "The table's samples changed while this order was being fixed; reload and try again.");
         }
 

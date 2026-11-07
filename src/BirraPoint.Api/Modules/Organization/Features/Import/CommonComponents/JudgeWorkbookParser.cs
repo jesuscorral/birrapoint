@@ -1,5 +1,5 @@
 using System.Text.RegularExpressions;
-using BirraPoint.Api.Common.Errors;
+using BirraPoint.Api.Modules.Organization.Errors;
 using ClosedXML.Excel;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
@@ -22,8 +22,8 @@ internal sealed record ParsedJudgeImportRow(
 /// Modules/Organization/Features/Import/CommonComponents/BeerWorkbookParser, no cell resolves against any catalog — BJCP rank, BJCP ID, and
 /// preferred category are all stored verbatim as free text; only Name/Email presence and
 /// well-formedness determine Valid/Invalid (FR-056). File-level problems (not `.xlsx`, no
-/// worksheet, missing required columns, zero data rows) throw <see cref="DomainException"/> with
-/// <see cref="DomainErrorType.InvalidImportFile"/> — the caller does not need to catch anything
+/// worksheet, missing required columns, zero data rows) throw <see cref="OrganizationException"/> with
+/// <see cref="OrganizationError.InvalidImportFile"/> — the caller does not need to catch anything
 /// else.
 /// </summary>
 internal static class JudgeWorkbookParser
@@ -45,7 +45,7 @@ internal static class JudgeWorkbookParser
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            throw new DomainException(DomainErrorType.InvalidImportFile, "The uploaded file is not a readable .xlsx workbook.");
+            throw new OrganizationException(OrganizationError.InvalidImportFile, "The uploaded file is not a readable .xlsx workbook.");
         }
 
         using (workbook)
@@ -53,7 +53,7 @@ internal static class JudgeWorkbookParser
             var worksheet = workbook.Worksheets.FirstOrDefault();
             if (worksheet is null)
             {
-                throw new DomainException(DomainErrorType.InvalidImportFile, "The workbook has no worksheets.");
+                throw new OrganizationException(OrganizationError.InvalidImportFile, "The workbook has no worksheets.");
             }
 
             var columnIndex = ReadHeaderColumns(worksheet.Row(1));
@@ -61,8 +61,8 @@ internal static class JudgeWorkbookParser
             var missingHeaders = RequiredHeaders.Where(header => !columnIndex.ContainsKey(header)).ToList();
             if (missingHeaders.Count > 0)
             {
-                throw new DomainException(
-                    DomainErrorType.InvalidImportFile,
+                throw new OrganizationException(
+                    OrganizationError.InvalidImportFile,
                     $"Missing required column(s): {string.Join(", ", missingHeaders)}.");
             }
 
@@ -98,7 +98,7 @@ internal static class JudgeWorkbookParser
 
             if (rows.Count == 0)
             {
-                throw new DomainException(DomainErrorType.InvalidImportFile, "The workbook has no data rows.");
+                throw new OrganizationException(OrganizationError.InvalidImportFile, "The workbook has no data rows.");
             }
 
             return rows;

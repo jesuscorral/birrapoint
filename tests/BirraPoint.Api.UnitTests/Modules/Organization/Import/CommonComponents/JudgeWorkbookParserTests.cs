@@ -1,4 +1,4 @@
-using BirraPoint.Api.Common.Errors;
+using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Import;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 using ClosedXML.Excel;
@@ -301,9 +301,9 @@ public sealed class JudgeWorkbookParserTests
             headers: ["Nombre y apellidos"],
             rows: [["Ana Gomez"]]);
 
-        var exception = Assert.Throws<DomainException>(() => Parse(xlsx));
+        var exception = Assert.Throws<OrganizationException>(() => Parse(xlsx));
 
-        Assert.Equal(DomainErrorType.InvalidImportFile, exception.ErrorType);
+        Assert.Equal(OrganizationError.InvalidImportFile, exception.ErrorType);
     }
 
     [Fact]
@@ -311,9 +311,9 @@ public sealed class JudgeWorkbookParserTests
     {
         var xlsx = BuildWorkbook(StandardHeaders, rows: []);
 
-        var exception = Assert.Throws<DomainException>(() => Parse(xlsx));
+        var exception = Assert.Throws<OrganizationException>(() => Parse(xlsx));
 
-        Assert.Equal(DomainErrorType.InvalidImportFile, exception.ErrorType);
+        Assert.Equal(OrganizationError.InvalidImportFile, exception.ErrorType);
     }
 
     [Fact]
@@ -321,12 +321,12 @@ public sealed class JudgeWorkbookParserTests
     {
         var corrupt = new byte[] { 0x00, 0x01, 0x02, 0x03 };
 
-        var exception = Assert.Throws<DomainException>(() =>
+        var exception = Assert.Throws<OrganizationException>(() =>
         {
             using var stream = new MemoryStream(corrupt);
             JudgeWorkbookParser.Parse(stream);
         });
 
-        Assert.Equal(DomainErrorType.InvalidImportFile, exception.ErrorType);
+        Assert.Equal(OrganizationError.InvalidImportFile, exception.ErrorType);
     }
 }

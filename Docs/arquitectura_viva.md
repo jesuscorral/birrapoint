@@ -4,7 +4,7 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-11-07 (ProblemDetails and Validation.MediatR extracted to BuildingBlocks, ADR-0037)
+**Last updated:** 2026-11-07 (ProblemDetails and Validation.MediatR extracted to BuildingBlocks, ADR-0037; per-module domain errors, ADR-0038)
 
 ## Status
 
@@ -145,9 +145,13 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
 - **Errors** (`BuildingBlocks.ProblemDetails`, ADR-0037): `AddProblemDetailsMapping(map => map.Map<T>(...) /
   MapProblem<T>(...))` is the single entry point. An internal handler applies the mappings in
   registration order; the catch-all `500` (no message or stack) is registered last, and repeated calls
-  append mappings without adding a second fallback. BirraPoint maps `DomainException` in
-  `Common/Errors/ErrorHandlingExtensions.cs` (15-entry `DomainErrorType` catalog via `DomainErrorCatalog`
-  → `urn:birrapoint:*`) and keeps the `429` writer.
+  append mappings without adding a second fallback. Each module owns its errors
+  (ADR-0038): `Modules/<M>/Errors/{<M>Error,<M>ErrorCatalog,<M>Exception}.cs`, mapped in `Add<M>Module()`
+  (Organization 5, Judging 9; Catalog and Publication none). The host keeps `Common/Errors/{HostError,
+  HostErrorCatalog}.cs` (Validation, RateLimited), `ErrorHandlingExtensions` and the `429` writer. The
+  union of the catalogs is the 15 rows of `contracts/rest-api.md` (`ErrorCatalogTests`);
+  `invalid-state-transition` is declared in both Organization and Judging with identical status and title;
+  `ModuleBoundaryTests` forbids modules from referencing the host errors namespace.
 - **Rate limiting** (`Common/RateLimiting/`, ADR-0029): policy `NotifyJudges` on `POST
   /competitions/{id}/judges/notify` only. Fixed window per JWT `sub`; config
   `RateLimiting:NotifyJudges:PermitLimit` (default 2, `AppHost` sets 1000 locally for shared-organizer

@@ -65,7 +65,7 @@ internal static class RateLimitingExtensions
 
     private static async ValueTask WriteRateLimitedProblemAsync(OnRejectedContext context, CancellationToken cancellationToken)
     {
-        var (urn, status, title) = DomainErrorCatalog.Entries[DomainErrorType.RateLimited];
+        var (urn, status, title) = HostErrorCatalog.Entries[HostError.RateLimited];
         var response = context.HttpContext.Response;
         response.StatusCode = status;
 

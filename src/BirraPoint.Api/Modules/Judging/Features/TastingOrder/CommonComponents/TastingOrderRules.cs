@@ -1,4 +1,4 @@
-using BirraPoint.Api.Common.Errors;
+using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Organization.Contracts;
 
 namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
@@ -33,25 +33,25 @@ internal static class TastingOrderRules
 
     /// <summary>
     /// Called by FixOrderCommandHandler under the table's row lock (one-shot guarantee, US6-4 /
-    /// Clarification Q1). Throws <see cref="DomainErrorType.OrderAlreadyFixed"/> — with the
+    /// Clarification Q1). Throws <see cref="JudgingError.OrderAlreadyFixed"/> — with the
     /// fixer's display name as the `fixedBy` extension (contracts/rest-api.md) — when the order
-    /// was already fixed, or <see cref="DomainErrorType.InvalidStateTransition"/> when the
+    /// was already fixed, or <see cref="JudgingError.InvalidStateTransition"/> when the
     /// competition isn't Active/InEvaluation.
     /// </summary>
     public static void EnsureOrderCanBeFixed(bool isAlreadyFixed, string? fixedByDisplayName, CompetitionState competitionState)
     {
         if (isAlreadyFixed)
         {
-            throw new DomainException(
-                DomainErrorType.OrderAlreadyFixed,
+            throw new JudgingException(
+                JudgingError.OrderAlreadyFixed,
                 "The tasting order for this table has already been fixed.",
                 new Dictionary<string, object?>(StringComparer.Ordinal) { ["fixedBy"] = fixedByDisplayName });
         }
 
         if (!CanFixOrderInState(competitionState))
         {
-            throw new DomainException(
-                DomainErrorType.InvalidStateTransition,
+            throw new JudgingException(
+                JudgingError.InvalidStateTransition,
                 "Tasting order can only be fixed while the competition is Active or InEvaluation.");
         }
     }

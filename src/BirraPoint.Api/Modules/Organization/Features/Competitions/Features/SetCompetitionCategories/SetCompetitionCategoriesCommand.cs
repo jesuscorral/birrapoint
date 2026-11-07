@@ -1,8 +1,8 @@
 using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Competitions.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Features.Competitions.CommonComponents.Dtos;
 using MediatR;
@@ -35,8 +35,8 @@ internal sealed class SetCompetitionCategoriesCommandHandler(AppDbContext dbCont
 
         if (competition.State is not (CompetitionState.Draft or CompetitionState.Active))
         {
-            throw new DomainException(
-                DomainErrorType.InvalidStateTransition,
+            throw new OrganizationException(
+                OrganizationError.InvalidStateTransition,
                 $"Categories cannot be edited while the competition is in state {competition.State}.");
         }
 

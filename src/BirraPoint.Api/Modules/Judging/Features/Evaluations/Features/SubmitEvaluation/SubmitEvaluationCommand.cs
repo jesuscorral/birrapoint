@@ -1,8 +1,8 @@
 using System.Text.Json.Serialization;
-using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 using BirraPoint.Api.Modules.Judging.Domain;
+using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
@@ -95,7 +95,7 @@ internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, IJu
         {
             return await ThrowUnlessReplayableAsync(
                 judgeId.Value, request.BeerEntryId, request.TableId,
-                DomainErrorType.InvalidStateTransition,
+                JudgingError.InvalidStateTransition,
                 "Evaluations can only be submitted while the competition is InEvaluation.",
                 cancellationToken);
         }
@@ -104,7 +104,7 @@ internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, IJu
         {
             return await ThrowUnlessReplayableAsync(
                 judgeId.Value, request.BeerEntryId, request.TableId,
-                DomainErrorType.OrderNotFixed,
+                JudgingError.OrderNotFixed,
                 "The tasting order for this table has not been fixed yet.",
                 cancellationToken);
         }
@@ -113,7 +113,7 @@ internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, IJu
         {
             return await ThrowUnlessReplayableAsync(
                 judgeId.Value, request.BeerEntryId, request.TableId,
-                DomainErrorType.TableClosed,
+                JudgingError.TableClosed,
                 "This table is closed; no further evaluations can be submitted.",
                 cancellationToken);
         }
@@ -145,8 +145,8 @@ internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, IJu
 
         if (!SubmitEvaluationRules.IsNextInSequence(orderedSampleIds, alreadySubmittedIds, request.BeerEntryId))
         {
-            throw new DomainException(
-                DomainErrorType.OutOfSequence,
+            throw new JudgingException(
+                JudgingError.OutOfSequence,
                 "This sample is not the next one in the fixed tasting order.");
         }
 
@@ -246,7 +246,7 @@ internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, IJu
 
     /// <summary>
     /// FR-029/R-07 gate guard: called right before the handler would otherwise throw a
-    /// state/order-fixed/table-closed <see cref="DomainException"/>. A genuinely concurrent
+    /// state/order-fixed/table-closed <see cref="JudgingException"/>. A genuinely concurrent
     /// submission for this same (judge, entry) pair can commit — and the competition/table can move
     /// on past it — in the gap between the handler's early replay check and any of these gate reads;
     /// when that happens, the *fact* that the evaluation is already stored must win over a gate that
@@ -255,7 +255,7 @@ internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, IJu
     /// <paramref name="errorType"/>/<paramref name="message"/> exactly as the caller would have.
     /// </summary>
     private async Task<SubmitEvaluationResult> ThrowUnlessReplayableAsync(
-        Guid judgeId, Guid beerEntryId, Guid tableId, DomainErrorType errorType, string message, CancellationToken cancellationToken)
+        Guid judgeId, Guid beerEntryId, Guid tableId, JudgingError errorType, string message, CancellationToken cancellationToken)
     {
         var stored = await dbContext.Evaluations
             .TagWith(SubmitEvaluationQueryTags.GateReplayRecheck)
@@ -266,7 +266,7 @@ internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, IJu
             return await BuildReplayResultAsync(stored, tableId, judgeId, cancellationToken);
         }
 
-        throw new DomainException(errorType, message);
+        throw new JudgingException(errorType, message);
     }
 
     /// <summary>

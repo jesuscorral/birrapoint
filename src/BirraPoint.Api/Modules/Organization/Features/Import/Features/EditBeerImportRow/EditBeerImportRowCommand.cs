@@ -1,6 +1,6 @@
 using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents.Dtos;
 using FluentValidation;
@@ -68,8 +68,8 @@ internal sealed class EditBeerImportRowCommandHandler(AppDbContext dbContext, IC
         {
             // Excluded is terminal for a row (import-file.md §Row validation outcomes) — editing
             // it back to Valid/Invalid here would silently un-exclude it.
-            throw new DomainException(
-                DomainErrorType.InvalidImportFile,
+            throw new OrganizationException(
+                OrganizationError.InvalidImportFile,
                 "An excluded row cannot be edited; re-upload the file to restore it.");
         }
 

@@ -83,10 +83,10 @@ gh workflow run deploy-azure.yml -f version=X.Y.Z       # or deploy-aws.yml
 
 ```text
 src/Aspire/{BirraPoint.AppHost, BirraPoint.ServiceDefaults} | src/BirraPoint.Api/
-  Api/Domain/    shared kernel: Entity(+ITimestamped), DispatchJob     Api/Common/   AppDbContext, auth, persistence, errors (catalog + mapping setup), job queue
+  Api/Domain/    shared kernel: Entity(+ITimestamped), DispatchJob     Api/Common/   AppDbContext, auth, persistence, host errors (validation, rate limit), job queue
   Api/Modules/   ADR-0033/0034: Catalog (Catalog), Organization (Competitions, Import, Judges), Judging
                  (Tables, TastingOrder, Evaluations, Monitoring), Publication (Dispatch); each module =
-                 Domain/ + Persistence/ + Contracts/ + Integration/ + <M>Module.cs + <M>ModuleEndpoints.cs +
+                 Domain/ + Errors/ (if it throws, ADR-0038) + Persistence/ + Contracts/ + Integration/ + <M>Module.cs + <M>ModuleEndpoints.cs +
                  Features/<Feature>/ (Base<X>Endpoints.cs + Features/<Slice>/ + CommonComponents/, ADR-0031).
                  Other modules only via Contracts/ (ModuleBoundaryTests)
   Api/Realtime/  CompetitionHub + emit-after-commit publisher
@@ -106,7 +106,7 @@ infra/           azure/ and aws/, each: terraform/ (azure: ACA, Key Vault, Dapr,
 - Slice = request + handler + FluentValidation validator + endpoint under `Modules/<M>/Features/<X>/Features/<Slice>/`
   (shared types in `CommonComponents/`; namespaces = folders, ADR-0031).
   Cross-slice only via MediatR messages or shared contracts. **MediatR pinned 12.x** (licensing).
-- Errors: RFC 7807 with `urn:birrapoint:*` types from `rest-api.md` error catalog (closed list).
+- Errors: RFC 7807 with `urn:birrapoint:*` types from `rest-api.md` error catalog (closed list); each module declares its own errors in `Modules/<M>/Errors/`, the host only validation + rate limit (ADR-0038).
   `400` validation, `409` state conflict, `404` for out-of-scope resources (never reveal existence).
 - Moving/renaming C# files: `git mv`, then `node .claude/scripts/move-namespace.mjs` (fixes namespaces +
   usings, ~1 s; `--dry-run` to preview). Never write an ad hoc script for it. If namespaces were edited

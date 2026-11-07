@@ -1,6 +1,6 @@
 using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents.Dtos;
 using MediatR;
@@ -45,8 +45,8 @@ internal sealed class EditJudgeImportRowCommandHandler(AppDbContext dbContext, I
         {
             // Excluded is terminal for a row (judge-import-file.md §Row validation outcomes) —
             // editing it back to Valid/Invalid here would silently un-exclude it.
-            throw new DomainException(
-                DomainErrorType.InvalidImportFile,
+            throw new OrganizationException(
+                OrganizationError.InvalidImportFile,
                 "An excluded row cannot be edited; re-upload the file to restore it.");
         }
 

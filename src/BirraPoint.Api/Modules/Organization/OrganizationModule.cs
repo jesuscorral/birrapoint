@@ -1,7 +1,9 @@
 using BirraPoint.Api.Common.Jobs;
 using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Judges;
 using BirraPoint.Api.Modules.Organization.Integration;
+using BuildingBlocks.ProblemDetails;
 
 namespace BirraPoint.Api.Modules.Organization;
 
@@ -10,6 +12,7 @@ internal static class OrganizationModule
     /// <summary>Registers the module's public contract implementations (scoped: they use the scoped DbContext).</summary>
     internal static IServiceCollection AddOrganizationModule(this IServiceCollection services)
     {
+        services.AddProblemDetailsMapping(map => map.Map<OrganizationException>(OrganizationException.ToProblem));
         services.AddScoped<IConflictOfInterestChecker, ConflictOfInterestChecker>();
         services.AddScoped<IJudgeDirectory, JudgeDirectory>();
         services.AddScoped<ICompetitionAccess, CompetitionAccess>();

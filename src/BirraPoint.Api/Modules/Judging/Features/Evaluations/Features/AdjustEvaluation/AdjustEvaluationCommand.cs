@@ -1,5 +1,5 @@
-using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
@@ -53,8 +53,8 @@ internal sealed class AdjustEvaluationCommandHandler(AppDbContext dbContext, IJu
 
         if (!currentlyInvolved.Contains(judgeId.Value))
         {
-            throw new DomainException(
-                DomainErrorType.EvaluationLocked,
+            throw new JudgingException(
+                JudgingError.EvaluationLocked,
                 "This evaluation can only be adjusted while an open discrepancy involves this judge.");
         }
 

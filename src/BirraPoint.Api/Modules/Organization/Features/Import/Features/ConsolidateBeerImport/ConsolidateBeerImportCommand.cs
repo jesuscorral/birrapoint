@@ -1,7 +1,7 @@
 using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Errors;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -38,8 +38,8 @@ internal sealed class ConsolidateBeerImportCommandHandler(AppDbContext dbContext
 
         if (batch.Status != BeerImportBatchStatus.Pending)
         {
-            throw new DomainException(
-                DomainErrorType.InvalidStateTransition,
+            throw new OrganizationException(
+                OrganizationError.InvalidStateTransition,
                 "This import has already been consolidated.");
         }
 
@@ -52,8 +52,8 @@ internal sealed class ConsolidateBeerImportCommandHandler(AppDbContext dbContext
 
         if (unresolvedRowNumbers.Count > 0)
         {
-            throw new DomainException(
-                DomainErrorType.UnresolvedImportRows,
+            throw new OrganizationException(
+                OrganizationError.UnresolvedImportRows,
                 "The import has unresolved rows that must be corrected or excluded before consolidation.",
                 new Dictionary<string, object?>(StringComparer.Ordinal) { ["rowNumbers"] = unresolvedRowNumbers });
         }
