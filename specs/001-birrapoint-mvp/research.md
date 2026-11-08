@@ -54,7 +54,7 @@ Alternatives considered.
   Dispatch slice; in-process `System.Threading.Channels` for wake-up signaling. Job types:
   `GeneratePdfs`, `BundleZip`, `SendResultEmail`, `SendInvitation`. Jobs are idempotent and
   resumed on startup (any `Pending`/`Running` job re-queues).
-  **Update T129 (ADR-0024)**: the single-consumer assumption is lifted — jobs are claimed with
+  **Update (ADR-0024)**: the single-consumer assumption is lifted — jobs are claimed with
   `FOR UPDATE SKIP LOCKED` plus a lease (`LeaseOwner`/`LeaseExpiresAt`); only `Running` jobs with an
   expired lease (or a stale null lease from a pre-lease revision) are recovered, so overlapping API revisions cannot double-process a job.
 - **Rationale**: FR-036 requires background PDF generation without blocking; the constitution
@@ -208,7 +208,7 @@ Alternatives considered.
   separate `*-release` Docker Hub repositories, version read from `version.txt`), and deploy
   (`deploy.yml`: approval-gated, runs `terraform init` + `apply` for a released version via
   Azure OIDC). `terraform apply` is the single deploy entry point, from a workstation or from CI
-  (ADR-0022, T143; the former `deploy.ps1` is removed). Since T144 (ADR-0023) the Azure stack
+  (ADR-0022; the former `deploy.ps1` is removed). Since ADR-0023 the Azure stack
   lives in `infra/azure/` and the deploy workflow is `deploy-azure.yml`.
 - **Superseded decision (v1.2.0, kept for audit trail)**: `azure.yaml` + `infra/bicep/`
   (generated/extended from the AppHost model) so that a single `azd up` built the multi-stage
@@ -343,7 +343,7 @@ Numbered R-21 because R-20 was already taken by the judge-roster decision.
   model and so apps never receive secrets as task settings); private subnets + NAT (rejected:
   cost).
 
-**Update 2026-10-04 (T145)** — implementation refinements, not a change of decision:
+**Update 2026-10-04 (AWS target, ADR-0023)** — implementation refinements, not a change of decision:
 
 - **Web→API discovery**: a Cloud Map private DNS namespace (`api.birrapoint-<env>.local`, ECS service discovery A records) replaces ECS Service Connect. The web nginx resolves `API_UPSTREAM` per request through `resolver`, which ignores `/etc/hosts`, where Service Connect publishes its names.
 - **HTTPS behind CloudFront**: CloudFront→ALB is HTTP and the ALB overwrites `X-Forwarded-Proto` with `http`. CloudFront therefore adds `Forwarded: proto=https` (the ALB leaves it untouched); Keycloak runs with `KC_PROXY_HEADERS=forwarded` and `KC_HOSTNAME` = the full https CloudFront URL. To verify on the first real apply. The API still sees forwarded proto `http`, so ASP.NET's `UseHsts` would skip the header: CloudFront adds `Strict-Transport-Security` through a response headers policy on both distributions (PR #62 review M1). Origin read timeout 60 s (CloudFront maximum without a quota increase).

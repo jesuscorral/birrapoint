@@ -65,4 +65,4 @@ If a tool is missing (terraform, pwsh, docker), say so and what you verified ins
 ## Report (keep it short)
 
 Files changed (one line each), gate results, security implications, and any manual step or
-validation still needed against a real account (T099/T137).
+validation still needed against a real account.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pull request hygiene: a Conventional Commits title (a task id in parentheses at the end is allowed)
+# Pull request hygiene: a Conventional Commits title (an issue ref like "(#42)" at the end is allowed)
 # and a filled "## What and why" section from .github/pull_request_template.md. Bots (Dependabot)
 # are skipped. Reads PR_TITLE, PR_BODY and PR_AUTHOR from the environment (never interpolate them
 # into the script: they are user-controlled). Run by pr.yml.

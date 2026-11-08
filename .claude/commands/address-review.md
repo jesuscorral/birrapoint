@@ -14,5 +14,5 @@ Address the review on PR $ARGUMENTS.
    say so instead of changing code.
 4. Delegate the fixes (test first when the finding is a bug: a test that fails without the fix).
 5. Run the gates of the stacks touched; if behavior or a decision changed, run `docs-keeper`.
-6. Commit `fix(<scope>): address PR #<n> review (<task-id>)`, push, and reply with a short
+6. Commit `fix(<scope>): address PR #<n> review`, push, and reply with a short
    finding → fix (or "not changed, because …") list. Don't re-request review or merge.

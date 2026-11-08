@@ -92,7 +92,7 @@ process.stdin.on('end', () => {
     [/^docker\s+(volume\s+(rm|prune)|system\s+prune)/i, 'Blocked: removing Docker volumes wipes local Postgres/Keycloak data. Ask the user first.'],
     [/^(pwsh|powershell)(\.exe)?\b.*\s-(e|ec|enc|encodedcommand)\b/i, 'Blocked: encoded PowerShell commands cannot be checked. Run the command in plain text.'],
     [readsSecret, 'Blocked: reading secrets (.env, tfstate, terraform.tfvars, secrets.json, production settings, cloud credentials). Ask the user if a value is really needed.'],
-    [s => /^git\s+commit\b/i.test(s) && onMain(), 'Blocked: committing on main. Create a feature/<task-id> (or chore/<topic>) branch first.'],
+    [s => /^git\s+commit\b/i.test(s) && onMain(), 'Blocked: committing on main. Create a feature/<issue>-<slug> (or chore/<topic>) branch first.'],
     [s => /^git\s+push\b/i.test(s) && onMain() && pushesCurrentBranch(s), 'Blocked: this push would update main. Push a feature branch and open a PR.']
   ];
 
