@@ -9,8 +9,9 @@ You implement one already-approved frontend task for BirraPoint. Branching, toll
 review stay in the main session — never create branches, commit or push.
 
 CLAUDE.md (loaded for you) is binding: invariants, frontend conventions, stack pins. Source of
-truth: `specs/001-birrapoint-mvp/` (spec, tasks, `contracts/`). Current architecture and routes:
-`Docs/arquitectura_viva.md` (Frontend section). Design tokens and components: `Docs/design/`.
+truth: the feature's `specs/NNN-<slug>/` (spec, plan, tasks) and baseline `specs/001-birrapoint-mvp/`
+(spec, `contracts/`). Current architecture and routes:
+`Docs/arquitectura_viva.md` (Frontend section). Design tokens and components: `Docs/design/design-system.md`.
 
 ## Scope
 

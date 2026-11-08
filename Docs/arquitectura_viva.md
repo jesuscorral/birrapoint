@@ -1,22 +1,23 @@
 # Living Architecture — BirraPoint
 
-> The **current** state of the system. Update it at the close of every task (CLAUDE.md, workflow
+> The **current** state of the system. Update it at the close of every feature (CLAUDE.md, workflow
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-11-08 (Identity block extracted, ADR-0037; Aspire 13.6.4 + Aspire MCP for agents, ADR-0039; Jobs block extracted, ADR-0037; Spreadsheet block extracted; ProblemDetails and Validation.MediatR extracted; per-module domain errors, ADR-0038)
+**Last updated:** 2026-11-08 (MVP closed; `tasks.md` retired; issue-driven workflow, ADR-0040; Identity block extracted, ADR-0037; Aspire 13.6.4 + Aspire MCP for agents, ADR-0039; Jobs block extracted, ADR-0037; Spreadsheet block extracted; ProblemDetails and Validation.MediatR extracted; per-module domain errors, ADR-0038)
 
 ## Status
 
 - **Functional scope complete**: user stories US1–US14 are implemented, each with unit,
   contract/integration and E2E coverage (`quickstart.md` scenarios).
-- **Open work** (`tasks.md`): T092 (SC-010 human usability study), T099 (first validated cloud deploy), T137 (CI/CD validation
-  against a real deployment), T139 (E2E + a11y job in CI).
+- **MVP complete**; new work is tracked as GitHub issues and specified per feature under
+  `specs/<issue-number>-<slug>/` (spec-driven from the issue). `specs/001-birrapoint-mvp/` stays as
+  the baseline spec.
 - **Two cloud targets, one per deployment** (ADR-0023): Azure Container Apps is implemented under
-  `infra/azure/`; AWS is implemented under `infra/aws/` (Terraform, `deploy-aws.yml`, `infra/aws/teardown.ps1`), deployable and tear-downable, but not yet applied to a real account (T099/T137; first-apply risks below).
+  `infra/azure/`; AWS is implemented under `infra/aws/` (Terraform, `deploy-aws.yml`, `infra/aws/teardown.ps1`), deployable and tear-downable, but not yet applied to a real account (first-apply risks below).
 - **Not yet deployed to a real Azure subscription.** The whole Azure path (Terraform,
   `deploy-azure.yml`, `infra/azure/teardown.ps1`) is implemented and unit-tested but unvalidated
-  end to end (T099/T137).
+  end to end.
 
 ## Topology
 
@@ -60,7 +61,7 @@ ADR-0021).
 
 | Resource | Implementation | Ingress | Notes |
 |---|---|---|---|
-| `-rg`, `-log`, `-cae` | resource group, Log Analytics (30 d), ACA environment | — | console logs → Log Analytics; OTLP export only if `OTEL_EXPORTER_OTLP_ENDPOINT` is set (none in cloud; validation in T099) |
+| `-rg`, `-log`, `-cae` | resource group, Log Analytics (30 d), ACA environment | — | console logs → Log Analytics; OTLP export only if `OTEL_EXPORTER_OTLP_ENDPOINT` is set (none in cloud; unvalidated) |
 | `-kv` | Key Vault (RBAC, soft-delete 7 d, purged on destroy) + Dapr component `secretstore` | public, RBAC-only | all app secrets; `Key Vault Secrets User` granted **per secret** to the app that uses it |
 | `-web` | `birrapoint-web`: Angular build → `nginx-unprivileged` | external | writes `/config.json` from env at start; reverse-proxies `/api/` and `/hubs/` (WebSocket) to the API (ADR-0017); security headers; hashed assets cached 1 year |
 | `-api` | `birrapoint-api`: `aspnet:10.0`, non-root | **internal** | exactly 1 replica (SignalR without backplane, single job consumer); Dapr sidecar loads `ConnectionStrings:db` (Neon pooled), `ConnectionStrings:dbDirect` (direct, migrations only), `Keycloak:AdminClientSecret`, `Smtp:Password` |
@@ -361,18 +362,21 @@ Shared primitives live in `shared/components/` (`bp-button`, `bp-input`, `bp-ale
 
 ## Known gaps and debt
 
-- **E2E suite not in CI** (T139) and fragile after the wizard/landing redesign; `/select-role` has
+- **SC-010 usability study** (judge scoring flow, human participants) was never run.
+- **E2E/axe suite not in CI** and fragile after the wizard/landing redesign; `/select-role` has
   no E2E/axe coverage.
 - **No integration tests** for `CompetitionHub` join authorization or for the host-level
   job worker loop (the block has its own Testcontainers tests).
-- **Health/telemetry**: `/alive` (no DB) and `/health` (incl. `db` check) are mapped anonymously in all environments (ADR-0028). ACA API probes use `/alive` (startup 250 s); AWS API has no probe. Cloud telemetry is platform-collected console logs; metrics/traces only if an OTLP endpoint is set (FR-048, spec clarification 2026-10-11); ACA/ECS visibility is unvalidated (T099). Keycloak ACA startup probe threshold 30 exceeds the ACA maximum of 10 (T099).
-- **Probes no longer reflect DB reachability** (Keycloak ACA probe, AWS ALB check use `/health/live`; ADR-0025). Keycloak runs one replica (`KC_CACHE=local`): AWS deploys stop-then-start (short Keycloak outage); Azure revisions overlap during a deploy, so an in-progress login or Admin-API password reset can hit the other node. Deploy outside live events. Neon billing behaviour and the probes are unverified on real accounts (T099/T137).
+- **Health/telemetry**: `/alive` (no DB) and `/health` (incl. `db` check) are mapped anonymously in all environments (ADR-0028). ACA API probes use `/alive` (startup 250 s); AWS API has no probe. Cloud telemetry is platform-collected console logs; metrics/traces only if an OTLP endpoint is set (FR-048, spec clarification 2026-10-11); ACA/ECS visibility is unvalidated. Keycloak ACA startup probe threshold 30 exceeds the ACA maximum of 10.
+- **Probes no longer reflect DB reachability** (Keycloak ACA probe, AWS ALB check use `/health/live`; ADR-0025). Keycloak runs one replica (`KC_CACHE=local`): AWS deploys stop-then-start (short Keycloak outage); Azure revisions overlap during a deploy, so an in-progress login or Admin-API password reset can hit the other node. Deploy outside live events. Neon billing behaviour and the probes are unverified on real accounts.
 - **Single API replica**: scaling out needs a SignalR backplane and a migration job (the job queue is already multi-worker safe, ADR-0024).
 - **Keycloak**: JDBC uses `sslmode=require` (API uses `VerifyFull`). The password policy is
   limited to length and username/email rules until the judge temp-password generator changes
   (ADR-0026).
 - **`UpdateJudgeEmail`** does not re-run COI/BOS checks against the new email (contract says it
-  should).
+  should); no `JudgeEmailChanged` event exists.
+- **Organizer correction after `Finalized`** leaves the generated PDFs/ZIP stale; no
+  `EvaluationCorrected` event regenerates them.
 - **Monitor "Order fixed by"** note comes only from the live event; no REST backfill.
 - **Outbox rows** rejected definitively before ever persisting keep retrying with no UI to discard
   them.

@@ -8,45 +8,50 @@ conflict-of-interest protection, real-time dashboard, immutable closing with PDF
 dispatch. Judge: offline-first evaluation, shared fixed tasting order, BJCP score caps,
 discrepancy consensus. Out of scope: Best of Show, tie-breaks (only `NotValidForBos` flag).
 
-Status: US1–US14 done. Pending work lives in `specs/001-birrapoint-mvp/tasks.md` (T092 usability
-study; Phase 16 deploy/ops: T099, T137, T139; BuildingBlocks phase 2 done, ADR-0037).
-Current system state: `Docs/arquitectura_viva.md`.
-`Docs/` product definition is Spanish and superseded by the English spec.
+Status: MVP complete (US1–US14). New work = GitHub issues on project board
+https://github.com/users/jesuscorral/projects/10, each specified in its own `specs/NNN-<slug>/`.
+Current system state and known debt: `Docs/arquitectura_viva.md`.
 
 ## Source of truth (priority order)
 
-1. `.specify/memory/constitution.md` (v1.5.1) — overrides everything; stack changes need an amendment.
-2. `specs/001-birrapoint-mvp/`: `spec.md` (US/FR/SC) → `plan.md` → `tasks.md`; supporting
-   `research.md` (R-01–R-21), `data-model.md`, `contracts/` (`rest-api.md`, `signalr-hub.md`,
-   `import-file.md`), `quickstart.md` (one validation scenario per story).
+1. `.specify/memory/constitution.md` (v1.6.0) — overrides everything; stack changes need an amendment.
+2. The feature's `specs/NNN-<slug>/` (`NNN` = issue number): `spec.md` → `plan.md` → `tasks.md`.
+3. Baseline `specs/001-birrapoint-mvp/`: `spec.md` (US1–US14, FR-001–FR-065, SC-001–SC-013),
+   `research.md` (R-01–R-21), `quickstart.md` (one validation scenario per story) and the
+   **living contracts** every feature amends in place: `data-model.md`, `contracts/`
+   (`rest-api.md`, `signalr-hub.md`, `import-file.md`, `judge-import-file.md`).
 
-No implementation without approved spec + plan + task. Requirement changes go into the spec
-first, never silently into code.
+No implementation without approved spec + plan + tasks. Requirement changes go into the spec
+first, never silently into code. New `FR-`/`SC-`/`US` ids continue the global sequence.
 
 ## Workflow
 
-- Spec Kit order: constitution → specify → clarify → plan → tasks → review → implement. Helper
-  scripts are PowerShell only (`.specify/scripts/powershell/`); `.specify/feature.json` points at
-  the active feature.
-- **Per task (`/deliver <task-id>` drives it; mandatory, in order):**
-  1. Branch `feature/<task-id>` off `main`.
-  2. Tollgate: list files to create/modify, approach, test strategy. **Stop** until the user
-     replies "Approved, proceed".
-  3. TDD: tests first, verified failing, then code; build + test both stacks locally.
-  4. Semantic commit, push, PR to `main` via `gh`: Conventional Commits title, body from
-     `.github/pull_request_template.md` (`pr.yml` checks both and labels the PR; ADR-0036).
-  5. `/review-pr <n>`: runs `senior-code-reviewer` and posts its findings as an informational PR
-     comment plus inline line comments (never approve/request changes — a human merges).
-     `/address-review <n>` fixes them.
-  6. Docs in the same change (`docs-keeper` agent): ADR in `Docs/adrs/NNNN-kebab-title.md` (per
+- **Per feature (`/deliver <issue>` drives it; mandatory, in order, ADR-0040):**
+  1. Issue exists (template `.github/ISSUE_TEMPLATE/feature.yml`: What and why, Done when, notes;
+     auto-added to the project board).
+  2. Branch `feature/<issue>-<slug>` off `main`.
+  3. Spec Kit in `specs/NNN-<slug>/`: specify (from the issue) → clarify → **Stop 1: user approves
+     the spec** → plan → tasks → analyze. Skills in `.claude/skills/speckit-*`; helper scripts
+     PowerShell only (`.specify/scripts/powershell/`); `.specify/feature.json` = active feature.
+  4. Tollgate: files to create/modify, approach, test strategy, owning agents. **Stop 2** until the
+     user replies "Approved, proceed".
+  5. TDD: tests first, verified failing, then code; build + test both stacks locally.
+  6. Semantic commit, push, PR to `main` via `gh`: title `<type>(<scope>): <subject> (#<issue>)`,
+     body from `.github/pull_request_template.md` with `Closes #<issue>` (`pr.yml` checks title +
+     "What and why" and labels the PR; ADR-0036).
+  7. `/review-pr <n>`: `senior-code-reviewer` findings as an informational PR comment plus inline
+     comments (never approve/request changes — a human merges). `/address-review <n>` fixes them.
+  8. Docs in the same change (`docs-keeper`): ADR in `Docs/adrs/NNNN-kebab-title.md` (per
      `template.md`) for significant decisions; update `Docs/arquitectura_viva.md`. All docs in
      English.
+- Small fixes/chores without new behaviour: `fix/<topic>` or `chore/<topic>` branch,
+  `/review-and-commit`, PR; no spec folder needed.
 - Delegate work to subagents (`.claude/agents/`: backend-, frontend-, qa-, infra-engineer,
   docs-keeper, senior-code-reviewer — each states its scope); orchestration (branch/tollgate/PR)
   stays in the main session. No agent ever applies to a cloud account.
-- Commands: `/deliver <task-id>`, `/review-pr <n>`, `/address-review <n>`, `/review-and-commit`,
+- Commands: `/deliver <issue>`, `/review-pr <n>`, `/address-review <n>`, `/review-and-commit`,
   `/fix-tests [backend|frontend]`, `/offline-audit`, `/stack-status`; skill `migration-safety` for
-  EF migrations. Hooks (`.claude/hooks/`): `session-start.js` prints branch + pending tasks,
+  EF migrations. Hooks (`.claude/hooks/`): `session-start.js` prints branch, active spec folder + open issues,
   `guard.js` blocks destructive/cloud/secret-reading commands, PR merges/approvals and commits or
   pushes on `main`; `post-edit.js` formats edited files; `stop-check.js` builds/lints/type-checks
   changed stacks.
@@ -173,10 +178,11 @@ can't run, say why and what was verified instead.
 
 ## Git
 
-`feature/<task-id>` branches, PRs to `main`, small commits, spec artifacts committed with their
+`feature/<issue>-<slug>` (or `fix/`/`chore/<topic>`) branches, PRs to `main`, small commits, spec artifacts committed with their
 implementation. Never force-push or `--no-verify`.
 
-Task ids (like `T` plus three digits) live in branch names, commit messages and PR titles only — never in code
+Issue numbers and task ids (like `T` plus three digits, from a feature's `tasks.md`) live in branch
+names, commit messages, PR titles and `specs/` only — never in code
 comments, test names or config under `src/` (PWA included), `tests/`, `infra/`, `.github/` (enforced by
 `.github/scripts/check-no-task-ids.sh`, run by CI and the stop hook). In code, cite the requirement
 (`FR-`/`SC-`/`US`/ADR) or state the reason.

@@ -89,7 +89,7 @@ is null for styles without an "Instrucciones para la inscripción" section):
 ```
 
 Sourced from the official BJCP 2021 Style Guidelines (Spanish translation); seeded from
-`Modules/Catalog/Features/Catalog/Data/bjcp-2021.json` (T010). Covers categories 1–34 plus the BJCP Appendix B
+`Modules/Catalog/Features/Catalog/Data/bjcp-2021.json` (FR-049). Covers categories 1–34 plus the BJCP Appendix B
 local styles (X1–X5, e.g. `Italian Grape Ale`, `Catharina Sour`, `New Zealand Pilsner`).
 
 ### CompetitionCategory *(organizer-defined, FR-052, wizard step 3)*
@@ -426,10 +426,10 @@ schema below stays exactly as is (no migration); `CompetitionId` is the group ke
 | Attempts | int | retry with backoff; `Failed` after max attempts, retryable via API (FR-041) |
 | LastError | string? | truncated to 2000 chars |
 | NextAttemptAt | DateTimeOffset? | null until a failed attempt schedules a backoff-delayed retry (ADR-0008); a `Pending` job is dispatch-eligible only once this has passed or is null; indexed together with `Status` |
-| LeaseOwner | string? | worker-process id holding the job (T129); set atomically on claim (`FOR UPDATE SKIP LOCKED`), cleared on completion/failure; outcome writes require `LeaseOwner = me` |
+| LeaseOwner | string? | worker-process id holding the job (ADR-0024); set atomically on claim (`FOR UPDATE SKIP LOCKED`), cleared on completion/failure; outcome writes require `LeaseOwner = me` |
 | LeaseExpiresAt | DateTimeOffset? | claim validity, renewed while the handler runs (`Dispatch:LeaseDuration`, default 2 min); a `Running` job with an expired lease, or a null lease and `UpdatedAt` older than `LeaseDuration` (legacy pre-lease claim, ADR-0024), is recovered through the retry path by any worker; indexed together with `Status` |
 
-### GeneratedScoreSheet / ResultsArchive *(T074/T075, US10 — added during implementation)*
+### GeneratedScoreSheet / ResultsArchive *(US10 — added during implementation)*
 
 Neither entity was in the original design pass; added when implementing US10 revealed no blob/file
 storage was ever decided anywhere in this stack (`plan.md`'s Storage section is Postgres +
@@ -481,7 +481,7 @@ serialized payloads contain none of the entrant fields, while still surfacing En
 | Store | Key | Contents |
 |-------|-----|----------|
 | `drafts` | `beerEntryId` | in-progress sheet fields; written ≤300 ms after each change (SC-003); deleted on successful submit |
-| `outbox` | `idempotencyKey` | submitted-but-unsynced evaluation payloads + attempt metadata; replayed per R-08. Secondary index on `tastingTableId` (T020) — T087 looks up "outbox items for this table" when a judge is removed |
+| `outbox` | `idempotencyKey` | submitted-but-unsynced evaluation payloads + attempt metadata; replayed per R-08. Secondary index on `tastingTableId` — the judge-removal flow looks up "outbox items for this table" when a judge is removed |
 
 Client stores are caches, never sources of truth; a device wipe loses only unsynced work, which
 the UI surfaces via the offline badge (FR-027).

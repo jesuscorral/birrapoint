@@ -13,7 +13,8 @@ human decides.
 
 - PR number given: `gh pr view <n> --json title,body,files` and `gh pr diff <n>`.
 - Otherwise: `git diff main...HEAD` (plus `git diff` for uncommitted work).
-- Read the linked task in `specs/001-birrapoint-mvp/tasks.md` to know what the PR must deliver.
+- Read the linked issue (`Closes #n` in the PR body: `gh issue view <n>`) and its
+  `specs/NNN-<slug>/spec.md` + `tasks.md` to know what the PR must deliver.
 
 Use `codegraph_explore` on changed symbols to see callers and blast radius instead of reading whole
 files. Review what changed and what it breaks — don't audit untouched code.

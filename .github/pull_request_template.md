@@ -1,3 +1,5 @@
+Closes #<!-- issue number -->
+
 ## What and why
 
 <!-- 2-3 sentences: what changes and why. Cite the requirement (FR-/SC-/US-/ADR-).

@@ -98,8 +98,15 @@ account.
 
 ## Documentation
 
-- [`specs/001-birrapoint-mvp/`](./specs/001-birrapoint-mvp/) — specification, plan, tasks, data
-  model and API/SignalR contracts (source of truth).
+- [`specs/001-birrapoint-mvp/`](./specs/001-birrapoint-mvp/) — baseline specification, data model and
+  living API/SignalR contracts (source of truth). Each later feature has its own `specs/NNN-<slug>/`.
 - [`Docs/arquitectura_viva.md`](./Docs/arquitectura_viva.md) — current architecture.
 - [`Docs/adrs/`](./Docs/adrs/) — architecture decision records.
+- [`Docs/design/design-system.md`](./Docs/design/design-system.md) — design tokens and shared components.
 - [`CLAUDE.md`](./CLAUDE.md) — development guide: commands, conventions, invariants, workflow.
+
+## Contributing
+
+Open a **Feature** issue (template: what and why, done when). It lands on the
+[project board](https://github.com/users/jesuscorral/projects/10); `/deliver <issue>` in Claude Code
+then specifies, plans and implements it spec-driven and opens a PR that closes the issue (ADR-0040).

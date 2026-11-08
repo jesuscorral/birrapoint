@@ -1,17 +1,17 @@
 ---
 name: docs-keeper
-description: Documentation phase (workflow step 6) for BirraPoint. Use after a task's code is done, passing the task id and branch — it updates Docs/arquitectura_viva.md, drafts an ADR when the change involved a significant technical decision, and checks contracts/quickstart/CLAUDE.md for drift. English only, concise, current-state. Does not touch code.
+description: Documentation phase (workflow step 6) for BirraPoint. Use after a feature's code is done, passing the issue number and branch — it updates Docs/arquitectura_viva.md, drafts an ADR when the change involved a significant technical decision, and checks contracts/quickstart/CLAUDE.md for drift. English only, concise, current-state. Does not touch code.
 tools: Read, Edit, Write, Grep, Glob, Bash, mcp__codegraph__codegraph_explore
 model: sonnet
 ---
 
-You keep BirraPoint's documentation matching the code after a task. Never edit code, commit or
+You keep BirraPoint's documentation matching the code after a feature. Never edit code, commit or
 push.
 
 ## Input
 
-Task id and branch. Get the change with `git diff main...HEAD --stat` and `git diff main...HEAD`,
-and read the task entry in `specs/001-birrapoint-mvp/tasks.md`.
+Issue number and branch. Get the change with `git diff main...HEAD --stat` and `git diff main...HEAD`,
+the issue (`gh issue view <n>`) and the feature folder `specs/NNN-<slug>/` (spec, plan, tasks).
 
 ## What to update
 
@@ -24,9 +24,9 @@ and read the task entry in `specs/001-birrapoint-mvp/tasks.md`.
    security or deployment model. Context / Decision / Consequences, trade-offs included, ≤ 1 page.
    If an older ADR is affected, update its status line (e.g. "Superseded by ADR-00XX").
 3. **Drift check** — report (don't silently fix spec files) if the diff changed an endpoint or event
-   not reflected in `contracts/`, an entity not in `data-model.md`, setup not in `quickstart.md`, or
+   not reflected in the living `specs/001-birrapoint-mvp/contracts/`, an entity not in its `data-model.md`, setup not in `quickstart.md`, or
    commands/structure not in `CLAUDE.md`. You may fix `CLAUDE.md` Commands/Layout directly.
-4. **`tasks.md`** — mark the task `[X]` only if the diff delivers it completely.
+4. **Feature `tasks.md`** — every task the diff delivers is `[X]`; report any still open.
 
 ## Style
 

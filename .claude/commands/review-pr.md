@@ -5,8 +5,8 @@ argument-hint: <PR number>
 
 Review PR #$ARGUMENTS (workflow step 5).
 
-1. Launch the `senior-code-reviewer` agent with: "Review PR #$ARGUMENTS in this repo." plus the task
-   id and a one-line summary of what the PR delivers (from `gh pr view $ARGUMENTS`).
+1. Launch the `senior-code-reviewer` agent with: "Review PR #$ARGUMENTS in this repo." plus the linked
+   issue number and a one-line summary of what the PR delivers (from `gh pr view $ARGUMENTS`).
 2. Post the agent's output (without its `### Inline` block) unchanged as a PR comment:
    `gh pr comment $ARGUMENTS --body-file <tmp file>` (write the body to a temp file in the
    scratchpad; never approve or request changes).

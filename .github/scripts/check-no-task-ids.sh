@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Fails when a tasks.md id (T001, T125b, ...) appears in backend (src, tests, root
+# Fails when a spec-kit task id (T001, T125b, ... from specs/*/tasks.md) appears in backend (src, tests, root
 # build files), frontend (src/Birrapoint.Web), infra or .github files.
-# Task ids belong in branch names, commit messages and PR titles; in code they point at a tracker
+# Task ids belong in specs/*/tasks.md and commit messages; in code they point at a tracker
 # that outlives neither the code nor the reader. Cite the requirement (FR-/SC-/US/ADR-) or state
 # the reason instead.
 # Usage (repo root by default): bash .github/scripts/check-no-task-ids.sh [repo-dir]

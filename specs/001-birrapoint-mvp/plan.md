@@ -47,14 +47,14 @@ including offline simulation and `axe-core` accessibility checks). BuildingBlock
 test project per block (Testcontainers PostgreSQL/Mailpit, and `Testcontainers.Keycloak` for the
 Keycloak admin client, research R-22e). Deployment tooling: Pester 5+
 (PowerShell's de facto test framework, preinstalled on GitHub runners; test-only) for
-`infra/azure/Teardown.psm1` (and `infra/aws/Teardown.psm1`, T146), and `terraform test` (mocked
-providers) for the Terraform variables (T143, ADR-0022).
+`infra/azure/Teardown.psm1` (and `infra/aws/Teardown.psm1`), and `terraform test` (mocked
+providers) for the Terraform variables (ADR-0022).
 
 **Target Platform**: Backend: Linux containers — orchestrated locally by .NET Aspire, deployed to
 Azure Container Apps **or** AWS ECS Fargate, one per deployment (constitution v1.5.0, ADR-0023,
 R-21; images on Docker Hub + Terraform; Keycloak runs as a container beside the API and web,
 per Clarifications 2026-07-07; PostgreSQL is hosted externally on Neon, constitution v1.3.0).
-The AWS target is implemented (T145, T146).
+The AWS target is implemented (ADR-0023).
 Frontend: multi-stage Node→Nginx image;
 evergreen mobile/desktop browsers as an installable PWA; judge flow designed for mid-range
 Android/iOS devices on flaky venue networks.
@@ -81,7 +81,7 @@ start and cloud provision/deploy (FR-044/FR-045); health checks + telemetry on e
 
 | # | Principle | Status | Notes |
 |---|-----------|--------|-------|
-| I | Spec-Driven Development | ✅ PASS | Approved spec + 5 recorded clarifications precede this plan; tasks follow via `/speckit-tasks`. |
+| I | Spec-Driven Development | ✅ PASS | Approved spec + 5 recorded clarifications precede this plan; implementation was tracked as tasks, now retired in favour of per-issue specs (ADR-0040). |
 | II | Modular Monolith / Vertical Slices | ✅ PASS | Single deployable API; one slice per feature under `Features/`; cross-slice interaction via MediatR only; small shared kernel (`Domain/`, `Common/`). Frontend mirrors with FSD. |
 | III | Test-First Development | ✅ PASS | Contract tests per endpoint, handler unit tests per slice, E2E per user story; test tasks precede implementation tasks (enforced by tasks template). |
 | IV | Simplicity & Design Discipline | ✅ PASS | No CQRS event sourcing, no microservices, no message broker; in-process job queue persisted in PostgreSQL is the simplest design that survives restarts. |
@@ -97,7 +97,7 @@ Complexity Tracking entries required.
 
 **Post-amendment re-check (2026-07-07, constitution v1.2.0)**: ✅ PASS — Aspire local
 orchestration, containerization, and ACA/Bicep deployment constraints incorporated
-(FR-043–FR-048, research R-16–R-19, tasks Phase 16); still no Complexity Tracking entries.
+(FR-043–FR-048, research R-16–R-19); still no Complexity Tracking entries.
 
 **Post-addition re-check (2026-07-21, User Story 13 / FR-050)**: ✅ PASS, trivially — reuses the
 already-implemented `GET /competitions` endpoint and the existing `Competition`/`CompetitionState`
@@ -107,7 +107,7 @@ shape it already returns (was previously just prose). See Project Structure belo
 frontend work lands.
 
 **Post-addition re-check (2026-07-22, Acceptance Scenario 5 / FR-051)**: ✅ PASS, trivially —
-reuses the already-implemented `POST /competitions/{id}/state` endpoint (T028) verbatim; no new
+reuses the already-implemented `POST /competitions/{id}/state` endpoint verbatim; no new
 dependency, entity, or contract. `CompetitionsApiService` also relocates from
 `features/competition-wizard/` to `core/api/` in the same change (PR #21 review follow-up — it's
 now consumed by two features, the FSD threshold this repo uses for promoting a client to `core/`).
@@ -126,12 +126,12 @@ gains a `Judge Roster Import` section and two new `Judges` endpoints, no new err
 (reuses `invalid-import-file`/`unresolved-import-rows`, Principle VI). No BR-01/FR-019 concerns —
 judge roster data is organizer-only, structurally unrelated to the anonymity boundary.
 
-**Post-amendment re-check (2026-09-23, constitution v1.3.0)**: ✅ PASS — Phase 16 deployment
+**Post-amendment re-check (2026-09-23, constitution v1.3.0)**: ✅ PASS — deployment
 tooling swapped from Bicep/`azd up` to Terraform, and production PostgreSQL from an
 in-environment ACA container to Neon (managed Postgres-as-a-service); see research.md R-17/R-18
 (superseded decisions kept for audit trail) and R-19 (Keycloak's database moves to Neon). No
-change to any other principle or slice; Phase 16 (T095–T099) not yet started, so no code exists
-that needs migrating — only spec/plan/research/tasks artifacts, updated in this same change.
+change to any other principle or slice; no code existed yet that needed migrating — only
+spec/plan/research artifacts, updated in this same change.
 
 **Post-addition re-check (2026-11-06, BuildingBlocks phase 2, ADR-0037)**: ✅ PASS — pure refactor:
 no requirement, contract (Principle VI), schema or behaviour change; DaprSecrets, Keycloak
@@ -159,9 +159,6 @@ specs/001-birrapoint-mvp/
 │   ├── rest-api.md
 │   ├── signalr-hub.md
 │   └── import-file.md
-├── checklists/
-│   └── requirements.md
-└── tasks.md             # Phase 2 output (/speckit-tasks command - NOT created by /speckit-plan)
 ```
 
 ### Source Code (repository root)
@@ -222,11 +219,8 @@ src/Birrapoint.Web/                     # Angular PWA, own npm project (package.
 │       │   ├── judge-tables/           # Judge: my tables, blind sample list, order fixing
 │       │   ├── evaluation-sheet/       # Judge: scored sections, offline drafts, submit
 │       │   ├── discrepancy/            # Judge: alert & adjustment UI
-│       │   ├── dashboard/              # Organizer: competition list/selection (US13, buildable
-│       │   │                           #   now — GET /competitions already exists) growing into
-│       │   │                           #   live progress, audit drill-down, removal (US9, later,
-│       │   │                           #   needs evaluations flowing) — same landing screen/route,
-│       │   │                           #   same incremental-fill pattern as judge-tables/'s T024→T053
+│       │   ├── dashboard/              # Organizer: competition list/selection (US13), live progress,
+│       │   │                           #   audit drill-down, removal (US9) — same landing screen/route
 │       │   └── results-dispatch/       # Organizer: ZIP download, email statuses, retries
 │       └── shared/                     # UI primitives, pipes, a11y helpers
 └── tests/                              # Jest unit; e2e/ Playwright suites
@@ -240,7 +234,7 @@ infra/
 │                                       #   provider; images from Docker Hub; state in HCP
 │                                       #   Terraform; deploy is `terraform apply` (ADR-0022);
 │                                       #   tests/ = `terraform test`
-├── aws/                                # AWS target (T145/T146, ADR-0023): same shape
+├── aws/                                # AWS target (ADR-0023): same shape
 │   ├── teardown.ps1 + Teardown.psm1    #   as azure/ (own tests/, own state, own workflow)
 │   └── terraform/                      #   VPC, ALB, 2 CloudFront distributions, ECS Fargate +
 │                                       #   Dapr, Secrets Manager, IAM, Neon

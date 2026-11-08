@@ -102,7 +102,7 @@ code --uninstall-extension wayou.vscode-todo-highlight         # ErrorLens + bui
 
 Keep `ms-azuretools.vscode-azureresourcegroups` / `vscode-azurecontainerapps` only if you browse the
 Azure deployment from VS Code; the repo is cloud-agnostic (Azure or AWS). Add
-`amazonwebservices.aws-toolkit-vscode` when T146 (AWS deploy) starts.
+`amazonwebservices.aws-toolkit-vscode` when you start deploying to AWS.
 
 ## Sync with GitHub
 

@@ -1,6 +1,17 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 1.5.1 → 1.6.0 (MINOR — post-MVP workflow: features start from a GitHub issue)
+Modified principles: I (Spec-Driven Development) — each feature originates in a GitHub issue and
+  gets its own `specs/NNN-<slug>/` folder; `specs/001-birrapoint-mvp/` is the baseline product spec
+  and living contracts. III — wording (`tasks.md` is per feature).
+Modified sections: Technology & Architecture Constraints (stack now defined here; the retired
+  `Docs/01-Definicion-Tecnologica.md` is no longer referenced), Development Workflow & Quality Gates.
+Templates: spec/plan/tasks templates ✅ compatible; CLAUDE.md, `/deliver`, docs-keeper,
+  senior-code-reviewer, session-start hook, PR + issue templates ✅ updated (ADR-0040).
+Follow-up TODOs: none
+
+Previous report (v1.5.1):
 Version change: 1.5.0 → 1.5.1 (PATCH — wording aligned with the T145 implementation; no rule change)
 Modified sections:
   - Technology & Architecture Constraints / Deployment / AWS: the API is reached through a private
@@ -116,12 +127,16 @@ tasks-template test tasks made mandatory per Principle III.
 
 ### I. Spec-Driven Development (NON-NEGOTIABLE)
 
-No implementation without an approved specification, plan, and task list. Every feature MUST
-progress through the Spec Kit pipeline — `spec.md` → `plan.md` → `tasks.md` — and each artifact
+No implementation without an approved specification, plan, and task list. Every feature starts as
+a GitHub issue and MUST progress through the Spec Kit pipeline in its own `specs/NNN-<slug>/`
+folder (`NNN` = issue number) — `spec.md` → `plan.md` → `tasks.md` — and each artifact
 MUST be reviewed and approved before the next stage begins. Code changes that introduce new
 functionality without a corresponding approved task are rejected. Requirements changes discovered
 mid-implementation MUST flow back into the spec first; the spec is never silently overridden by
 code.
+
+`specs/001-birrapoint-mvp/` is the baseline product specification; its `contracts/` and
+`data-model.md` are the living API and data contracts every later feature amends in place.
 
 **Rationale**: The specs under `specs/**` are the single source of truth. Deciding behavior in
 code review or ad hoc during implementation destroys traceability and makes AI-assisted
@@ -144,8 +159,8 @@ preserves the option to extract modules later without a rewrite.
 
 TDD is mandatory: tests are written first, verified to fail, then implementation makes them pass
 (red → green → refactor). Every slice MUST have handler-level unit tests covering validation and
-business rules; every API endpoint MUST have a contract/integration test. Test tasks in `tasks.md`
-are never optional and always precede their implementation tasks. Work is not complete until unit
+business rules; every API endpoint MUST have a contract/integration test. Test tasks in a feature's
+`tasks.md` are never optional and always precede their implementation tasks. Work is not complete until unit
 tests, applicable integration tests, lint/type checks, and the build all pass.
 
 **Rationale**: Tests written after the fact validate what was built, not what was specified.
@@ -237,7 +252,7 @@ on — for humans and AI agents alike.
 
 ## Technology & Architecture Constraints
 
-The approved stack is defined in `Docs/01-Definicion-Tecnologica.md` and is binding for the MVP:
+The approved stack is binding:
 
 - **Frontend**: Angular 17+ (standalone components, Signals), Feature-Sliced Design, PWA via
   `@angular/pwa`, Dexie.js (IndexedDB) for offline-first storage, Tailwind CSS (mobile-first).
@@ -282,8 +297,9 @@ function without connectivity and sync silently on reconnection.
 
 ## Development Workflow & Quality Gates
 
-- Feature flow: `/speckit-specify` → `/speckit-clarify` → `/speckit-plan` → `/speckit-tasks` →
-  task review → `/speckit-implement`. The plan's Constitution Check gate MUST pass before design
+- Feature flow: GitHub issue (template `.github/ISSUE_TEMPLATE/feature.yml`, project board) →
+  `/speckit-specify` → `/speckit-clarify` → spec approval → `/speckit-plan` → `/speckit-tasks` →
+  tollgate approval → implementation → PR that closes the issue (orchestrated by `/deliver`). The plan's Constitution Check gate MUST pass before design
   and be re-checked after it.
 - Work happens on feature branches with small, reviewable commits; spec artifacts are committed
   with the implementation.
@@ -307,4 +323,4 @@ be updated.
   Definition of Done above. Runtime development guidance for agents lives in `CLAUDE.md` and must
   stay consistent with this document.
 
-**Version**: 1.5.1 | **Ratified**: 2026-07-06 | **Last Amended**: 2026-10-04
+**Version**: 1.6.0 | **Ratified**: 2026-07-06 | **Last Amended**: 2026-11-08

@@ -1,32 +1,40 @@
 ---
-description: Deliver one tasks.md task end to end — branch, tollgate, TDD via agents, PR, review, docs
-argument-hint: <task-id, e.g. T139>
+description: Deliver one GitHub issue end to end — spec-driven (specify, clarify, plan, tasks), TDD via agents, PR, review, docs
+argument-hint: <issue number, e.g. 42>
 ---
 
-Deliver task $ARGUMENTS following CLAUDE.md §Workflow. The main session orchestrates; the code is
-written by the owning agents.
+Deliver issue #$ARGUMENTS following CLAUDE.md §Workflow. The main session orchestrates; code is
+written by the owning agents. `NNN` = the issue number zero-padded to 3 digits.
 
-1. **Read**: `git fetch`, then the task entry in `origin/main:specs/001-birrapoint-mvp/tasks.md`
-   plus the spec/contract/quickstart sections it cites. If it's already `[X]`, or it needs a product
-   decision the spec doesn't make, stop and say so (requirement changes go to the spec first).
-2. **Branch**: `git switch -c feature/$ARGUMENTS origin/main` (reuse it if it exists).
-3. **Tollgate**: files to create/modify, approach, test strategy, which agent owns each part
-   (backend-, frontend-, qa-, infra-engineer). **Stop** until the user replies "Approved, proceed".
-4. **Implement**: brief each agent with the task id, its files, the contract/quickstart refs and
-   "tests first, verified failing". The task id goes in the branch, commits and PR only — tell
-   agents not to write it in code, comments or test names (cite FR-/US/ADR or the reason). Run independent agents in parallel; qa-engineer writes the
-   contract/E2E tests the task assigns before feature code lands. Read each report; re-brief on
-   gaps instead of patching their code yourself.
-5. **Gates**: run the gates of every stack touched (CLAUDE.md §Commands; infra gates in the
-   infra-engineer agent). If one can't run, record why.
-6. **Docs**: launch `docs-keeper` with the task id and branch (living doc, ADR if a significant
-   decision, drift check, mark the task `[X]` only if fully delivered).
-7. **PR**: semantic commit(s), push, then `gh pr create --base main --title "<type>(<scope>):
-   <subject> (<task id>)" --body-file <file>`. Build the body from
-   `.github/pull_request_template.md`: fill every section with real data (requirements, reading
-   order, invariants touched, gate results, anything not verified, risks), delete the areas and
-   the screenshots block the change doesn't use, keep no `<!-- -->` hints. When most files are
-   moves or generated, say so under "How to review" and how to list the rest. pr.yml rejects a
-   non-Conventional title or an empty "What and why". Then run `/review-pr <n>`.
-8. **Reply**: PR link, review verdict with its Blocker/Major findings, and what still needs a human.
-   Fix findings only when asked (`/address-review <n>`).
+1. **Read**: `git fetch`, `gh issue view $ARGUMENTS --json number,title,body,state,labels`. Stop if
+   it is closed, or "What and why" / "Done when" are empty (ask the user to complete the issue).
+2. **Branch**: pick a 2-4 word kebab `<slug>`; `git switch -c feature/$ARGUMENTS-<slug> origin/main`
+   (reuse it if it exists).
+3. **Specify**: read and follow `.claude/skills/speckit-specify/SKILL.md` with the issue title +
+   body as the feature description and `SPECIFY_FEATURE_DIRECTORY=specs/NNN-<slug>`. Requirement
+   ids continue the global sequence (next free `FR-`/`SC-`/`US` across `specs/*/spec.md`) so code
+   citations stay unique. Then follow `.claude/skills/speckit-clarify/SKILL.md`, asking the user.
+   **Stop 1**: show the spec summary (stories, requirements, assumptions); wait for the user to
+   approve it or ask for changes.
+4. **Plan + tasks**: follow `speckit-plan`, then `speckit-tasks` (same folder), then run
+   `speckit-analyze` and fix its critical findings. New or changed endpoints/events/entities are
+   written into the living contracts — `specs/001-birrapoint-mvp/contracts/` and `data-model.md`
+   — before code; the feature plan links them instead of copying.
+5. **Tollgate (Stop 2)**: files to create/modify, approach, test strategy, which agent owns each
+   part (backend-, frontend-, qa-, infra-engineer). **Stop** until the user replies "Approved,
+   proceed".
+6. **Implement**: brief each agent with its tasks from `specs/NNN-<slug>/tasks.md`, the files, the
+   contract/quickstart refs and "tests first, verified failing". Task ids (T001…) and the issue
+   number go in commits/PR only — never in code, comments or test names (cite FR-/SC-/US/ADR or the
+   reason). Run independent agents in parallel; qa-engineer writes the contract/E2E tests before
+   feature code lands. Read each report; re-brief on gaps instead of patching their code. Mark
+   finished tasks `[X]`.
+7. **Gates**: every stack touched (CLAUDE.md §Commands; infra gates in the infra-engineer agent).
+   If one can't run, record why.
+8. **Docs**: `docs-keeper` with the issue number and branch.
+9. **PR**: semantic commit(s), push, `gh pr create --base main --title "<type>(<scope>): <subject>
+   (#$ARGUMENTS)" --body-file <file>`. Body from `.github/pull_request_template.md` with
+   `Closes #$ARGUMENTS`, every section filled with real data, unused areas and hints removed. When
+   most files are moves or generated, say so under "How to review". Then `/review-pr <pr>`.
+10. **Reply**: PR link, review verdict with its Blocker/Major findings, what still needs a human.
+    Fix findings only when asked (`/address-review <pr>`).

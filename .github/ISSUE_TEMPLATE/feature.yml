@@ -1,0 +1,28 @@
+name: Feature
+description: A new capability or a behaviour change. It becomes the input of /deliver (spec-driven).
+labels: ["enhancement"]
+projects: ["jesuscorral/10"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What and why
+      description: The problem or need, who has it (organizer, judge, participant) and why it matters.
+      placeholder: As an organizer I need to ... because ...
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: Observable outcomes that prove it works, one per line.
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Out of scope / notes
+      description: Optional. Limits, open questions, links, screenshots.
