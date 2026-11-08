@@ -5,6 +5,7 @@ using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Common.RateLimiting;
 using BirraPoint.Api.Common.Secrets;
+using BirraPoint.Api.Composition;
 using BirraPoint.Api.Modules.Catalog;
 using BirraPoint.Api.Modules.Judging;
 using BirraPoint.Api.Modules.Organization;

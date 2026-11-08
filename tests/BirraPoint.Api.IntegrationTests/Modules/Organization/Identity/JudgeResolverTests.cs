@@ -1,10 +1,10 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.IntegrationTests.Persistence;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Identity;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.IntegrationTests.Auth;
+namespace BirraPoint.Api.IntegrationTests.Modules.Organization.Identity;
 
 /// <summary>
 /// JudgeResolver backfills Judge.KeycloakUserId (and DisplayName, when a `name` claim is

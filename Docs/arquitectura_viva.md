@@ -4,7 +4,7 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-11-07 (Aspire 13.6.4 + Aspire MCP for agents, ADR-0039; Jobs block extracted, ADR-0037; Spreadsheet block extracted; ProblemDetails and Validation.MediatR extracted; per-module domain errors, ADR-0038)
+**Last updated:** 2026-11-08 (Identity block extracted, ADR-0037; Aspire 13.6.4 + Aspire MCP for agents, ADR-0039; Jobs block extracted, ADR-0037; Spreadsheet block extracted; ProblemDetails and Validation.MediatR extracted; per-module domain errors, ADR-0038)
 
 ## Status
 
@@ -121,11 +121,11 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
 (ADR-0035, ADR-0037; today `BuildingBlocks.Audit`, `BuildingBlocks.DaprSecrets`,
 `BuildingBlocks.EmailSender`, `BuildingBlocks.Keycloak.Authentication` and
 `BuildingBlocks.Keycloak.Admin`, `BuildingBlocks.ProblemDetails` and
-`BuildingBlocks.Validation.MediatR`, `BuildingBlocks.Spreadsheet` and `BuildingBlocks.Jobs`, each tested by its own
+`BuildingBlocks.Validation.MediatR`, `BuildingBlocks.Spreadsheet`, `BuildingBlocks.Jobs` and `BuildingBlocks.Identity`, each tested by its own
 `tests/BuildingBlocks/BuildingBlocks.<X>.Tests`). Package versions are centralized in
 `Directory.Packages.props` (including `$(BirraPointTargetFramework)`).
 
-### Pipeline and cross-cutting (`Common/`)
+### Pipeline and cross-cutting (`Common/`, `Composition/`)
 
 - **Startup**: `AddDaprSecrets(BirraPointSecrets.Configure)` first (`BuildingBlocks.DaprSecrets`,
   ADR-0037; only when `Dapr:SecretStore` is set). `Common/Secrets/BirraPointSecrets.cs` lists the
@@ -137,14 +137,17 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
   Development: `UseForwardedHeaders`, no HTTPS redirection (TLS ends at ACA), HSTS on.
 - **Middleware order**: exception handler → CORS (Development only, `localhost:4200`) →
   authentication → authorization → rate limiter → endpoints. Production is same-origin, no CORS.
-- **Auth** (`Common/Auth/AuthenticationExtensions.cs`): JWT bearer against Keycloak through
+- **Auth** (`Common/Auth/AuthenticationExtensions.cs`, the only file left in `Common/Auth/`): JWT bearer against Keycloak through
   `AddKeycloakJwtBearer` (`BuildingBlocks.Keycloak.Authentication`, ADR-0037): audience `birrapoint-api`
   validated (ADR-0009), an internal claims transformation maps `realm_access.roles` to role claims,
   startup fails when `Keycloak:Authority` or `ApiAudience` is blank; BirraPoint keeps
   deny-by-default fallback policy + `ORGANIZER`/`JUDGE` policies. The hub reads the token from
-  `?access_token=` on `/hubs/competition` only (ADR-0006). `ICurrentUser` exposes
-  sub/email/name/roles; `OrganizerResolver` creates the `Organizer` row lazily on first write;
-  `JudgeResolver` backfills `Judge.KeycloakUserId` on every competition row sharing the email.
+  `?access_token=` on `/hubs/competition` only (ADR-0006). `AddCurrentUser()` (`BuildingBlocks.Identity`,
+  ADR-0037) registers the claims-only `ICurrentUser` (sub, email, name, given/family name, roles). The
+  resolvers are internal to Organization (`Modules/Organization/Identity/`): `OrganizerResolver` creates
+  the `Organizer` row lazily on first write; `JudgeResolver` backfills `Judge.KeycloakUserId` on every
+  competition row sharing the email. They take the caller's claims; `CreateCompetitionCommand` and
+  `Integration/JudgeDirectory` call them, other modules go through `IJudgeDirectory`/`ICompetitionAccess`.
   Ownership checks use `Competition.CreatedByUserId == sub`; misses return `404`.
 - **Errors** (`BuildingBlocks.ProblemDetails`, ADR-0037): `AddProblemDetailsMapping(map => map.Map<T>(...) /
   MapProblem<T>(...))` is the single entry point. An internal handler applies the mappings in
@@ -174,7 +177,7 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
   `Modules/Organization/Features/Import/CommonComponents/ImportEmail.cs`.
 - **Audit** (`BuildingBlocks.Audit`, ADR-0035): `IAuditWriter.Record(...)` stages an `AuditLog` row
   (`{before, after}` jsonb) in the caller's transaction; actor = Keycloak `sub` via
-  `Common/Auth/CurrentUserAuditActor`; registered with `AddAudit<AppDbContext, CurrentUserAuditActor>()`.
+  `Composition/CurrentUserAuditActor` (host wiring between the Identity and Audit blocks); registered with `AddAudit<AppDbContext, CurrentUserAuditActor>()`.
 - **Persistence** (`Common/Persistence/`): `AppDbContext`, one configuration per entity, central
   `CreatedAt`/`UpdatedAt` stamping, enums stored as strings (ADR-0004). Key constraints: unique
   `(JudgeId, BeerEntryId)` on `Evaluation`; `Evaluation.Total` is a stored computed column; unique
@@ -254,7 +257,7 @@ or any evaluation), all in the same unit of work.
 
 Boundary rule: `UnitTests/Architecture/ModuleBoundaryTests.cs` forbids using another module outside its
 `Contracts` namespace or touching its `DbSet`s, with no module-to-module exception. `Persistence/` FK
-configurations are exempt. Permanent kernel exceptions: `Common/Auth` resolvers, `Realtime/` hub,
+configurations are exempt. Permanent kernel exceptions: `Realtime/` hub,
 `Common/Persistence/` (incl. the `DispatchJobs` -> `Competition` FK).
 
 ### Domain

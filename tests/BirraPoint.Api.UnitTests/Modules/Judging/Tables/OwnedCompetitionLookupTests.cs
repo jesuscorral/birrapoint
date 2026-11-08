@@ -1,7 +1,6 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Contracts;
-using BirraPoint.Api.Modules.Organization.Domain;
+using BuildingBlocks.Identity;
 
 namespace BirraPoint.Api.UnitTests.Modules.Judging.Tables;
 
@@ -52,9 +51,5 @@ public class OwnedCompetitionLookupTests
         public string? FamilyName => null;
 
         public IReadOnlyList<string> Roles => [];
-
-        public Task<IReadOnlyList<Judge>> GetJudgeRecordsAsync(CancellationToken ct = default) => throw new NotSupportedException();
-
-        public Task<Organizer> GetOrganizerAsync(CancellationToken ct = default) => throw new NotSupportedException();
     }
 }

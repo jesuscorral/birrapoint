@@ -32,7 +32,7 @@ Provider-owned contracts cover downstream-needs-upstream data. When an upstream 
 
 **Finalization is atomic.** `ChangeCompetitionStateCommand` publishes the in-process MediatR notification `CompetitionFinalized` before `SaveChanges`. Publication's handler stages `GeneratePdfs` with `IDispatchJobQueue.Stage` in the same transaction; the worker wake-up signal is sent after commit. This closes the enqueue-after-commit gap. Every state transition runs in a transaction that loads the competition with `SELECT … FOR UPDATE`, so concurrent requests serialize: one wins, the rest get `409 invalid-state-transition`, and at most one `GeneratePdfs` job is staged.
 
-**Enforcement.** `UnitTests/Architecture/ModuleBoundaryTests.cs` scans sources: a module may use another module only through its `Contracts` namespace and may not touch its `DbSet`s. Phase 3 (ADR-0033) emptied the module allow-list (29 entries after phase 2) and removed the mechanism: any module-to-module reference outside `Contracts` fails the build. Allowed without listing: `Modules/<M>/Persistence/` FK configurations (shared `AppDbContext`). Permanent kernel exceptions: `Common/Auth` resolvers (Keycloak subject -> organizer/judge), `Realtime/` hub authorization, `Common/Persistence/` (model composition, including the `DispatchJob` -> `Competition` FK).
+**Enforcement.** `UnitTests/Architecture/ModuleBoundaryTests.cs` scans sources: a module may use another module only through its `Contracts` namespace and may not touch its `DbSet`s. Phase 3 (ADR-0033) emptied the module allow-list (29 entries after phase 2) and removed the mechanism: any module-to-module reference outside `Contracts` fails the build. Allowed without listing: `Modules/<M>/Persistence/` FK configurations (shared `AppDbContext`). Permanent kernel exceptions: `Realtime/` hub authorization, `Common/Persistence/` (model composition, including the `DispatchJob` -> `Competition` FK).
 
 ## Consequences
 - Cross-module data needs go through a typed, reviewable surface; the blind-anonymity boundary stays in Judging.
@@ -41,3 +41,4 @@ Provider-owned contracts cover downstream-needs-upstream data. When an upstream 
 - COI co-owner lookup is now case-insensitive.
 - ADR-0033 phase 3 removed the remaining allow-list entries with synchronous contracts (one Organization table per step) and one in-process event for the BOS flag.
 - Builds on ADR-0033 and ADR-0031; no constitution amendment.
+- Amendment: the `Common/Auth` exception is gone. `ICurrentUser` moved to `BuildingBlocks.Identity` (claims only) and the organizer/judge resolvers moved into Organization (`Modules/Organization/Identity/`, ADR-0037), so `KernelReferencesModulesOnlyThroughDocumentedExceptions` now guards that area.

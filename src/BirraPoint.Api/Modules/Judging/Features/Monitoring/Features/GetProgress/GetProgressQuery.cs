@@ -1,6 +1,6 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
+using BuildingBlocks.Identity;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 

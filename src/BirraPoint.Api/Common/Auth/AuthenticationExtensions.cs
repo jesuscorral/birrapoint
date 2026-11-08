@@ -1,3 +1,4 @@
+using BuildingBlocks.Identity;
 using BuildingBlocks.Keycloak.Authentication;
 using Microsoft.AspNetCore.Authorization;
 
@@ -13,10 +14,7 @@ internal static class AuthenticationExtensions
     public static IServiceCollection AddKeycloakAuthentication(
         this IServiceCollection services, IConfiguration configuration, bool isDevelopment)
     {
-        services.AddHttpContextAccessor();
-        services.AddScoped<IJudgeResolver, JudgeResolver>();
-        services.AddScoped<IOrganizerResolver, OrganizerResolver>();
-        services.AddScoped<ICurrentUser, CurrentUser>();
+        services.AddCurrentUser();
 
         // CompetitionHub's browser WebSocket handshakes can't set an Authorization header, so the
         // hub path alone accepts ?access_token= (contracts/signalr-hub.md); every other endpoint

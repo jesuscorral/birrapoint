@@ -30,12 +30,11 @@ public class ModuleBoundaryTests
 {
     private const string ModulesNamespace = "BirraPoint.Api.Modules";
 
-    private static readonly string[] KernelFolders = ["Common", "Domain", "Realtime"];
+    private static readonly string[] KernelFolders = ["Common", "Composition", "Domain", "Realtime"];
 
     /// <summary>Permanent kernel → module exceptions (ADR-0034), by path prefix relative to the API project.</summary>
     private static readonly (string PathPrefix, string Reason)[] KernelExceptions =
     [
-        ("Common/Auth/", "Identity resolvers and CurrentUser map Keycloak subjects to Organization organizers/judges."),
         ("Realtime/", "Hub group authorization checks competition ownership and judge table membership."),
         ("Common/Persistence/", "AppDbContext, entity configurations and migrations compose every module's model."),
     ];

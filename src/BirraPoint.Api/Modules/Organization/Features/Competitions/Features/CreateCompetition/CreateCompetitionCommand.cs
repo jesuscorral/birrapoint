@@ -1,7 +1,8 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Features.Competitions.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Identity;
+using BuildingBlocks.Identity;
 using MediatR;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Competitions.Features.CreateCompetition;
@@ -17,7 +18,7 @@ internal sealed record CreateCompetitionCommand(
     DateOnly? RegistrationStart,
     DateOnly? RegistrationEnd) : IRequest<CompetitionDetailDto>;
 
-internal sealed class CreateCompetitionCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class CreateCompetitionCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IOrganizerResolver organizerResolver)
     : IRequestHandler<CreateCompetitionCommand, CompetitionDetailDto>
 {
     public async Task<CompetitionDetailDto> Handle(CreateCompetitionCommand request, CancellationToken cancellationToken)
@@ -25,7 +26,8 @@ internal sealed class CreateCompetitionCommandHandler(AppDbContext dbContext, IC
         // Resolve-or-create the caller's Organizer row (self-registration means it may not exist
         // yet on this, its first authenticated write). CreatedByUserId below stays the source of
         // truth for every existing ownership check; OrganizerId is additive (see Competition.cs).
-        var organizer = await currentUser.GetOrganizerAsync(cancellationToken);
+        var organizer = await organizerResolver.ResolveOrCreateAsync(
+            currentUser.Sub, currentUser.Email, currentUser.GivenName, currentUser.FamilyName, cancellationToken);
 
         var competition = new Competition
         {

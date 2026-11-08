@@ -1,4 +1,3 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using FluentValidation;

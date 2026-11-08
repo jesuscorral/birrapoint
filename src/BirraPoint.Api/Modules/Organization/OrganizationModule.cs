@@ -1,6 +1,7 @@
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Judges;
+using BirraPoint.Api.Modules.Organization.Identity;
 using BirraPoint.Api.Modules.Organization.Integration;
 using BuildingBlocks.Jobs;
 using BuildingBlocks.ProblemDetails;
@@ -13,6 +14,8 @@ internal static class OrganizationModule
     internal static IServiceCollection AddOrganizationModule(this IServiceCollection services)
     {
         services.AddProblemDetailsMapping(map => map.Map<OrganizationException>(OrganizationException.ToProblem));
+        services.AddScoped<IJudgeResolver, JudgeResolver>();
+        services.AddScoped<IOrganizerResolver, OrganizerResolver>();
         services.AddScoped<IConflictOfInterestChecker, ConflictOfInterestChecker>();
         services.AddScoped<IJudgeDirectory, JudgeDirectory>();
         services.AddScoped<ICompetitionAccess, CompetitionAccess>();

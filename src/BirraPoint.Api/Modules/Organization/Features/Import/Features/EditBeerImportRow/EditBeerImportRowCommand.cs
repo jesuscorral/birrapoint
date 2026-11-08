@@ -1,8 +1,8 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents.Dtos;
+using BuildingBlocks.Identity;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;

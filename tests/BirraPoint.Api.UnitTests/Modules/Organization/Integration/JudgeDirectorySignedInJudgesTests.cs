@@ -1,8 +1,9 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Identity;
 using BirraPoint.Api.Modules.Organization.Integration;
+using BuildingBlocks.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.UnitTests.Modules.Organization.Integration;
@@ -26,7 +27,7 @@ public class JudgeDirectorySignedInJudgesTests
         };
         var second = new Judge { CompetitionId = Guid.NewGuid(), Email = "ana@judges.example", DisplayName = "Ana R." };
         await using var dbContext = UnusedDbContext();
-        var directory = new JudgeDirectory(dbContext, new FakeUser([first, second]));
+        var directory = new JudgeDirectory(dbContext, new FakeUser(), new FakeResolver([first, second]));
 
         var judges = await directory.GetSignedInJudgesAsync(TestContext.Current.CancellationToken);
 
@@ -42,12 +43,12 @@ public class JudgeDirectorySignedInJudgesTests
     public async Task ReturnsEmptyWhenTheCallerIsNotAJudge()
     {
         await using var dbContext = UnusedDbContext();
-        var directory = new JudgeDirectory(dbContext, new FakeUser([]));
+        var directory = new JudgeDirectory(dbContext, new FakeUser(), new FakeResolver([]));
 
         Assert.Empty(await directory.GetSignedInJudgesAsync(TestContext.Current.CancellationToken));
     }
 
-    private sealed class FakeUser(IReadOnlyList<Judge> judges) : ICurrentUser
+    private sealed class FakeUser : ICurrentUser
     {
         public string Sub => "judge-sub";
 
@@ -60,9 +61,11 @@ public class JudgeDirectorySignedInJudgesTests
         public string? FamilyName => null;
 
         public IReadOnlyList<string> Roles => ["JUDGE"];
+    }
 
-        public Task<IReadOnlyList<Judge>> GetJudgeRecordsAsync(CancellationToken ct = default) => Task.FromResult(judges);
-
-        public Task<Organizer> GetOrganizerAsync(CancellationToken ct = default) => throw new NotSupportedException();
+    private sealed class FakeResolver(IReadOnlyList<Judge> judges) : IJudgeResolver
+    {
+        public Task<IReadOnlyList<Judge>> ResolveAndBackfillAsync(
+            string sub, string? email, string? name, CancellationToken ct = default) => Task.FromResult(judges);
     }
 }

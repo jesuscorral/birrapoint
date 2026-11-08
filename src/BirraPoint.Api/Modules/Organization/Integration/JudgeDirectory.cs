@@ -1,15 +1,17 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Api.Modules.Organization.Identity;
+using BuildingBlocks.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Organization.Integration;
 
-internal sealed class JudgeDirectory(AppDbContext dbContext, ICurrentUser currentUser) : IJudgeDirectory
+internal sealed class JudgeDirectory(AppDbContext dbContext, ICurrentUser currentUser, IJudgeResolver judgeResolver) : IJudgeDirectory
 {
     public async Task<IReadOnlyList<JudgeSummary>> GetSignedInJudgesAsync(CancellationToken cancellationToken = default)
     {
-        var judges = await currentUser.GetJudgeRecordsAsync(cancellationToken);
+        var judges = await judgeResolver.ResolveAndBackfillAsync(
+            currentUser.Sub, currentUser.Email, currentUser.Name, cancellationToken);
         return judges
             .Select(j => new JudgeSummary(j.Id, j.CompetitionId, j.Email, j.DisplayName, j.BjcpRank))
             .ToList();

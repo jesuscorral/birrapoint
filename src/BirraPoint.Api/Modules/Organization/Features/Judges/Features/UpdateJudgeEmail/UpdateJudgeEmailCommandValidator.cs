@@ -1,5 +1,5 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
+using BuildingBlocks.Identity;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 

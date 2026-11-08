@@ -1,4 +1,3 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 using BirraPoint.Api.Modules.Judging.Domain;
@@ -6,6 +5,7 @@ using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BuildingBlocks.Audit;
+using BuildingBlocks.Identity;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
