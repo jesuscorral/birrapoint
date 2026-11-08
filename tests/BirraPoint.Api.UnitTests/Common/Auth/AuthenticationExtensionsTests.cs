@@ -1,5 +1,5 @@
 using System.Security.Claims;
-using BirraPoint.Api.Common.Auth;
+using BirraPoint.Api.Extensions;
 using BirraPoint.Api.Modules.Organization.Identity;
 using BuildingBlocks.Identity;
 using Microsoft.AspNetCore.Authentication;
