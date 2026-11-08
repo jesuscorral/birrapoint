@@ -9,7 +9,7 @@ written by the owning agents. `NNN` = the issue number zero-padded to 3 digits.
 1. **Read**: `git fetch`, `gh issue view $ARGUMENTS --json number,title,body,state,labels`. Stop if
    it is closed, or "What and why" / "Done when" are empty (ask the user to complete the issue).
 2. **Branch**: pick a 2-4 word kebab `<slug>`; `git switch -c feature/$ARGUMENTS-<slug> origin/main`
-   (reuse it if it exists).
+   (reuse it if it exists). `bash .claude/scripts/board-status.sh $ARGUMENTS "In progress"`.
 3. **Specify**: read and follow `.claude/skills/speckit-specify/SKILL.md` with the issue title +
    body as the feature description and `SPECIFY_FEATURE_DIRECTORY=specs/NNN-<slug>`. Requirement
    ids continue the global sequence (next free `FR-`/`SC-`/`US` across `specs/*/spec.md`) so code
@@ -35,6 +35,7 @@ written by the owning agents. `NNN` = the issue number zero-padded to 3 digits.
 9. **PR**: semantic commit(s), push, `gh pr create --base main --title "<type>(<scope>): <subject>
    (#$ARGUMENTS)" --body-file <file>`. Body from `.github/pull_request_template.md` with
    `Closes #$ARGUMENTS`, every section filled with real data, unused areas and hints removed. When
-   most files are moves or generated, say so under "How to review". Then `/review-pr <pr>`.
+   most files are moves or generated, say so under "How to review". Then
+   `bash .claude/scripts/board-status.sh $ARGUMENTS "In review"` and `/review-pr <pr>`.
 10. **Reply**: PR link, review verdict with its Blocker/Major findings, what still needs a human.
     Fix findings only when asked (`/address-review <pr>`).
