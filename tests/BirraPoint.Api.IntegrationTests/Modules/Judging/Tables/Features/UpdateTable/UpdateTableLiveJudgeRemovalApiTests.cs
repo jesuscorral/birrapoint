@@ -37,7 +37,7 @@ public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IC
     }
 
     /// <summary>Same email convention as SubmitEvaluationApiTests/CloseTableApiTests —
-    /// GetJudgeRecordsAsync resolves Judge rows by email, not `sub`.</summary>
+    /// JudgeResolver.ResolveAndBackfillAsync resolves Judge rows by email, not `sub`.</summary>
     private HttpClient JudgeClient(string sub)
     {
         var client = factory.CreateClient();

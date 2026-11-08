@@ -51,6 +51,9 @@ jobs:
       - run: >-
           dotnet test tests/BuildingBlocks/BuildingBlocks.EmailSender.Tests --configuration Release --no-build
           --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/building-blocks-emailsender"
+      - run: >-
+          dotnet test tests/BuildingBlocks/BuildingBlocks.Identity.Tests --configuration Release --no-build
+          --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/building-blocks-identity"
       # Testcontainers PostgreSQL (SKIP LOCKED claim) through the runner's Docker daemon.
       - run: >-
           dotnet test tests/BuildingBlocks/BuildingBlocks.Jobs.Tests --configuration Release --no-build

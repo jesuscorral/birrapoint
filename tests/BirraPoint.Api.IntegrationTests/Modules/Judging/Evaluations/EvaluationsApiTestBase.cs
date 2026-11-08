@@ -31,7 +31,7 @@ public abstract class EvaluationsApiTestBase(ApiFactory factory)
         return client;
     }
 
-    /// <summary>Same email convention as TastingOrderApiTestBase — GetJudgeRecordsAsync resolves Judge rows
+    /// <summary>Same email convention as TastingOrderApiTestBase — JudgeResolver.ResolveAndBackfillAsync resolves Judge rows
     /// by email, not `sub`.</summary>
     private protected HttpClient JudgeClient(string sub)
     {

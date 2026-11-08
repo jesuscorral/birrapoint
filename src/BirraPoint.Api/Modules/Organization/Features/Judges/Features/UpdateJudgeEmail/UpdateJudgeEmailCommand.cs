@@ -1,7 +1,7 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Judges.CommonComponents.Dtos;
+using BuildingBlocks.Identity;
 using BuildingBlocks.Keycloak.Admin;
 using MediatR;
 using Microsoft.EntityFrameworkCore;

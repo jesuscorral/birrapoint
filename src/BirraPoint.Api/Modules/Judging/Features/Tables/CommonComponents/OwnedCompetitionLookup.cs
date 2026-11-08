@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Modules.Organization.Contracts;
+using BuildingBlocks.Identity;
 
 namespace BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 

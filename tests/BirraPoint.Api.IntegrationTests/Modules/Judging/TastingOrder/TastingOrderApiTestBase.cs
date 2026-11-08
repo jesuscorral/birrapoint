@@ -27,7 +27,7 @@ public abstract class TastingOrderApiTestBase(ApiFactory factory)
     }
 
     /// <summary>
-    /// ICurrentUser.GetJudgeRecordsAsync (JudgeResolver.ResolveAndBackfillAsync) resolves Judge
+    /// JudgeResolver.ResolveAndBackfillAsync (via IJudgeDirectory) resolves Judge
     /// rows by email, not by `sub` — KeycloakUserId is only ever used to backfill, never as a
     /// lookup key (see Common/Auth/JudgeResolver.cs). So the test JWT must carry the same email
     /// the Judge row was seeded with; every SeedJudgeAsync call below uses the deterministic

@@ -1,7 +1,6 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Features.Judges.Features.UpdateJudgeEmail;
+using BuildingBlocks.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.UnitTests.Modules.Organization.Judges.Features.UpdateJudgeEmail;
@@ -30,10 +29,6 @@ public sealed class UpdateJudgeEmailCommandValidatorTests
         public string? GivenName => throw new InvalidOperationException("Not expected to be called.");
         public string? FamilyName => throw new InvalidOperationException("Not expected to be called.");
         public IReadOnlyList<string> Roles => throw new InvalidOperationException("Not expected to be called.");
-        public Task<IReadOnlyList<Judge>> GetJudgeRecordsAsync(CancellationToken ct = default) =>
-            throw new InvalidOperationException("Not expected to be called.");
-        public Task<Organizer> GetOrganizerAsync(CancellationToken ct = default) =>
-            throw new InvalidOperationException("Not expected to be called.");
     }
 
     [Theory]

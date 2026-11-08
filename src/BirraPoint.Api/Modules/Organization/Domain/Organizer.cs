@@ -4,7 +4,7 @@ namespace BirraPoint.Api.Modules.Organization.Domain;
 
 /// <summary>
 /// Account-level profile for a competition organizer; identity lives in Keycloak (Principle VII).
-/// Lazily resolved/created on first authenticated action via <see cref="Auth.IOrganizerResolver"/>
+/// Lazily resolved/created on first authenticated action via <see cref="Identity.IOrganizerResolver"/>
 /// — unlike <see cref="Judge"/>, no row can pre-exist before that first login, since organizers are
 /// self-registered rather than invited. One Organizer owns many <see cref="Competition"/> rows.
 /// </summary>

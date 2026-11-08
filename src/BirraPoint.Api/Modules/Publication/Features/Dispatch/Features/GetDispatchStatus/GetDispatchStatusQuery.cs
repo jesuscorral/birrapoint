@@ -1,9 +1,9 @@
 using System.Text.Json;
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
+using BuildingBlocks.Identity;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 

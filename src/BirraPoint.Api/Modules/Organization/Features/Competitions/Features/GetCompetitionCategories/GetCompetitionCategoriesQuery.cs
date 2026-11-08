@@ -1,7 +1,7 @@
-using BirraPoint.Api.Common.Auth;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Features.Competitions.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Features.Competitions.CommonComponents.Dtos;
+using BuildingBlocks.Identity;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 

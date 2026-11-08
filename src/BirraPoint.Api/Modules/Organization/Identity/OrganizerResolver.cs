@@ -2,16 +2,14 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Domain;
 using Microsoft.EntityFrameworkCore;
 
-namespace BirraPoint.Api.Common.Auth;
+namespace BirraPoint.Api.Modules.Organization.Identity;
 
 /// <summary>
 /// Resolves the <see cref="Organizer"/> row for the current caller, creating it lazily on first
 /// use. Unlike <see cref="IJudgeResolver"/> — which only ever backfills a pre-existing invited
 /// row — no Organizer row can exist before an organizer's first authenticated action, since
 /// organizers self-register in Keycloak (registrationAllowed) rather than being provisioned ahead
-/// of time. Takes primitives rather than <see cref="ICurrentUser"/> for the same reason
-/// <see cref="JudgeResolver"/> does: <see cref="CurrentUser"/> would otherwise need to depend on
-/// this, creating a DI cycle.
+/// of time. Takes the caller's claims as primitives, like <see cref="JudgeResolver"/>.
 /// </summary>
 internal interface IOrganizerResolver
 {

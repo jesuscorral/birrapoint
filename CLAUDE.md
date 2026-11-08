@@ -84,14 +84,15 @@ gh workflow run deploy-azure.yml -f version=X.Y.Z       # or deploy-aws.yml
 
 ```text
 src/Aspire/{BirraPoint.AppHost, BirraPoint.ServiceDefaults} | src/BirraPoint.Api/
-  Api/Domain/    shared kernel: Entity(+ITimestamped), DispatchJobType names     Api/Common/   AppDbContext, auth, persistence, host errors (validation, rate limit)
+  Api/Domain/    shared kernel: Entity(+ITimestamped), DispatchJobType names     Api/Common/   AppDbContext, auth policies, persistence, host errors (validation, rate limit)
+  Api/Composition/ host wiring between blocks (audit actor)
   Api/Modules/   ADR-0033/0034: Catalog (Catalog), Organization (Competitions, Import, Judges), Judging
                  (Tables, TastingOrder, Evaluations, Monitoring), Publication (Dispatch); each module =
                  Domain/ + Errors/ (if it throws, ADR-0038) + Persistence/ + Contracts/ + Integration/ + <M>Module.cs + <M>ModuleEndpoints.cs +
                  Features/<Feature>/ (Base<X>Endpoints.cs + Features/<Slice>/ + CommonComponents/, ADR-0031).
                  Other modules only via Contracts/ (ModuleBoundaryTests)
   Api/Realtime/  CompetitionHub + emit-after-commit publisher
-src/BuildingBlocks/BuildingBlocks.<X>/   ADR-0035/0037: reusable cross-cutting blocks (Audit, DaprSecrets, EmailSender, Keycloak.Authentication, Keycloak.Admin, ProblemDetails, Validation.MediatR, Spreadsheet, Jobs), no BirraPoint
+src/BuildingBlocks/BuildingBlocks.<X>/   ADR-0035/0037: reusable cross-cutting blocks (Audit, DaprSecrets, EmailSender, Identity, Keycloak.Authentication, Keycloak.Admin, ProblemDetails, Validation.MediatR, Spreadsheet, Jobs), no BirraPoint
                  reference, public API in BuildingBlocks.<X>; tests in tests/BuildingBlocks/
 tests/   UnitTests + IntegrationTests
 src/Birrapoint.Web/src/app/  FSD: core/ (auth, api, realtime, offline, layout), features/, shared/

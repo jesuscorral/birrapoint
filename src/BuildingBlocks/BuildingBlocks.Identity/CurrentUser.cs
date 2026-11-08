@@ -1,11 +1,9 @@
 using System.Security.Claims;
-using BirraPoint.Api.Modules.Organization.Domain;
+using Microsoft.AspNetCore.Http;
 
-namespace BirraPoint.Api.Common.Auth;
+namespace BuildingBlocks.Identity;
 
-internal sealed class CurrentUser(
-    IHttpContextAccessor httpContextAccessor, IJudgeResolver judgeResolver, IOrganizerResolver organizerResolver)
-    : ICurrentUser
+internal sealed class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICurrentUser
 {
     private ClaimsPrincipal Principal =>
         httpContextAccessor.HttpContext?.User
@@ -25,10 +23,4 @@ internal sealed class CurrentUser(
 
     public IReadOnlyList<string> Roles =>
         [.. Principal.FindAll(ClaimTypes.Role).Select(claim => claim.Value)];
-
-    public Task<IReadOnlyList<Judge>> GetJudgeRecordsAsync(CancellationToken ct = default) =>
-        judgeResolver.ResolveAndBackfillAsync(Sub, Email, Name, ct);
-
-    public Task<Organizer> GetOrganizerAsync(CancellationToken ct = default) =>
-        organizerResolver.ResolveOrCreateAsync(Sub, Email, GivenName, FamilyName, ct);
 }
