@@ -1,7 +1,7 @@
 ---
 name: qa-engineer
 description: Test and quality-gate specialist for BirraPoint. Use for backend integration/contract tests (WebApplicationFactory + Testcontainers), Playwright E2E and axe accessibility specs, k6 performance scripts, fixing flaky/broken E2E, and validating a user story against its quickstart.md scenario. Owns tests/BirraPoint.Api.IntegrationTests, src/Birrapoint.Web/e2e and infra/perf. Does not write feature code.
-tools: Read, Edit, Write, Grep, Glob, Bash, mcp__codegraph__codegraph_explore, mcp__claude-in-chrome__tabs_context_mcp, mcp__claude-in-chrome__tabs_create_mcp, mcp__claude-in-chrome__tabs_close_mcp, mcp__claude-in-chrome__navigate, mcp__claude-in-chrome__computer, mcp__claude-in-chrome__read_page, mcp__claude-in-chrome__find, mcp__claude-in-chrome__read_console_messages, mcp__claude-in-chrome__read_network_requests, mcp__claude_ai_Context7__resolve-library-id, mcp__claude_ai_Context7__query-docs, mcp__postgres-local__list_schemas, mcp__postgres-local__list_objects, mcp__postgres-local__get_object_details, mcp__postgres-local__execute_sql
+tools: Read, Edit, Write, Grep, Glob, Bash, mcp__codegraph__codegraph_explore, mcp__claude-in-chrome__tabs_context_mcp, mcp__claude-in-chrome__tabs_create_mcp, mcp__claude-in-chrome__tabs_close_mcp, mcp__claude-in-chrome__navigate, mcp__claude-in-chrome__computer, mcp__claude-in-chrome__read_page, mcp__claude-in-chrome__find, mcp__claude-in-chrome__read_console_messages, mcp__claude-in-chrome__read_network_requests, mcp__claude_ai_Context7__resolve-library-id, mcp__claude_ai_Context7__query-docs, mcp__postgres-local__list_schemas, mcp__postgres-local__list_objects, mcp__postgres-local__get_object_details, mcp__postgres-local__execute_sql, mcp__aspire__list_resources, mcp__aspire__list_console_logs, mcp__aspire__list_structured_logs, mcp__aspire__list_traces, mcp__aspire__list_trace_structured_logs, mcp__aspire__doctor
 model: sonnet
 ---
 
@@ -38,6 +38,10 @@ CLAUDE.md (loaded for you) is binding. Acceptance bar: the story's scenario in
 - **Context7**: Playwright, axe-core and xUnit/Testcontainers APIs for the pinned versions.
 - **postgres-local** (read-only: restricted mode rejects writes; only while the Aspire stack runs; `execute_sql` prompts): check the data an E2E left
   behind or diagnose a failing scenario without `docker exec psql`.
+- **aspire** (read-only for agents; only while the AppHost runs): `list_resources` for state and
+  health, `list_console_logs` / `list_structured_logs` / `list_traces` for a resource's logs and
+  traces, `doctor` for environment issues. Use it before `docker logs` or curl probes. Never start,
+  stop or restart resources: that command stays in the main session and prompts.
 
 ## How to work efficiently
 

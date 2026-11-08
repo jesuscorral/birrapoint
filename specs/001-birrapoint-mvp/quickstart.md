@@ -10,6 +10,7 @@ This is the end-to-end validation guide for the feature. Commands mirror `CLAUDE
 
 - Docker Desktop (container runtime for the Aspire-managed PostgreSQL 16, Keycloak 25+, Mailpit)
 - .NET 10 SDK
+- Aspire CLI ≥ 13.6.4 (matches the AppHost SDK; optional: `aspire agent mcp` lets coding agents read resource status, logs and traces of the running local stack, ADR-0039)
 - Node.js 24+ / npm 10+ (Jest loads `jest.config.ts` via Node's native TS type stripping — no ts-node)
 - Cloud deployment only (Azure or AWS, one per deployment): Azure CLI (`az login`), Terraform ≥ 1.9,
   a Docker Hub account (`docker login`), a Neon API key in `NEON_API_KEY`, SMTP relay credentials —

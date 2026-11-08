@@ -63,7 +63,20 @@
       "mcp__postgres-local__list_schemas",
       "mcp__postgres-local__list_objects",
       "mcp__postgres-local__get_object_details",
-      "mcp__postgres-local__explain_query"
+      "mcp__postgres-local__explain_query",
+      "mcp__aspire__list_resources",
+      "mcp__aspire__list_console_logs",
+      "mcp__aspire__list_structured_logs",
+      "mcp__aspire__list_traces",
+      "mcp__aspire__list_trace_structured_logs",
+      "mcp__aspire__list_apphosts",
+      "mcp__aspire__select_apphost",
+      "mcp__aspire__doctor",
+      "mcp__aspire__refresh_tools",
+      "mcp__aspire__list_integrations",
+      "mcp__aspire__list_docs",
+      "mcp__aspire__search_docs",
+      "mcp__aspire__get_doc"
     ],
     "ask": [
       "Bash(git restore:*)",
@@ -83,7 +96,8 @@
       "Bash(terraform -chdir=infra/azure/terraform import:*)",
       "Bash(terraform -chdir=infra/aws/terraform import:*)",
       "Bash(terraform -chdir=infra/azure/terraform force-unlock:*)",
-      "Bash(terraform -chdir=infra/aws/terraform force-unlock:*)"
+      "Bash(terraform -chdir=infra/aws/terraform force-unlock:*)",
+      "mcp__aspire__execute_resource_command"
     ],
     "deny": [
       "Bash(git push --force:*)",
@@ -101,7 +115,7 @@
       "Read(~/.azure/**)"
     ]
   },
-  "enabledMcpjsonServers": ["microsoft-learn", "terraform", "postgres-local"],
+  "enabledMcpjsonServers": ["microsoft-learn", "terraform", "postgres-local", "aspire"],
   "hooks": {
     "SessionStart": [
       {

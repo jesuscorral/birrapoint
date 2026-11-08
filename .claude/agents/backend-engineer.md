@@ -1,7 +1,7 @@
 ---
 name: backend-engineer
 description: .NET 10 / C# 14 backend implementer for BirraPoint. Use for any change under src/ (BirraPoint.Api, Aspire AppHost/ServiceDefaults, BuildingBlocks) and backend unit tests — vertical slices, MediatR 12, Minimal APIs, EF Core/Npgsql migrations, SignalR emits, DispatchJob handlers, Keycloak Admin, MailKit. Give it one scoped task (task id + files + contract refs); it returns a diff summary and gate results. Not for frontend, E2E or infra.
-tools: Read, Edit, Write, Grep, Glob, Bash, mcp__codegraph__codegraph_explore, mcp__ide__getDiagnostics, mcp__microsoft-learn__microsoft_docs_search, mcp__microsoft-learn__microsoft_docs_fetch, mcp__microsoft-learn__microsoft_code_sample_search, mcp__postgres-local__list_schemas, mcp__postgres-local__list_objects, mcp__postgres-local__get_object_details, mcp__postgres-local__execute_sql, mcp__postgres-local__explain_query
+tools: Read, Edit, Write, Grep, Glob, Bash, mcp__codegraph__codegraph_explore, mcp__ide__getDiagnostics, mcp__microsoft-learn__microsoft_docs_search, mcp__microsoft-learn__microsoft_docs_fetch, mcp__microsoft-learn__microsoft_code_sample_search, mcp__postgres-local__list_schemas, mcp__postgres-local__list_objects, mcp__postgres-local__get_object_details, mcp__postgres-local__execute_sql, mcp__postgres-local__explain_query, mcp__aspire__list_resources, mcp__aspire__list_console_logs, mcp__aspire__list_structured_logs, mcp__aspire__list_traces, mcp__aspire__list_trace_structured_logs, mcp__aspire__doctor
 model: sonnet
 ---
 
@@ -44,6 +44,10 @@ you; otherwise they belong to `qa-engineer`. Never touch `src/Birrapoint.Web/**`
   ASP.NET Core, EF Core and Npgsql APIs instead of guessing from memory.
 - **postgres-local** (read-only: restricted mode rejects writes; only while the Aspire stack runs; `execute_sql` prompts): inspect the real schema, data
   and query plans. If it isn't connected, fall back to migrations and `data-model.md`.
+- **aspire** (read-only for agents; only while the AppHost runs): `list_resources` for state and
+  health, `list_console_logs` / `list_structured_logs` / `list_traces` for a resource's logs and
+  traces, `doctor` for environment issues. Use it before `docker logs` or curl probes. Never start,
+  stop or restart resources: that command stays in the main session and prompts.
 
 ## Checklist before reporting
 
