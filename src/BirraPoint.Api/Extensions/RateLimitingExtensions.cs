@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 
-namespace BirraPoint.Api.Common.RateLimiting;
+namespace BirraPoint.Api.Extensions;
 
 /// <summary>Bound from <c>RateLimiting:NotifyJudges</c> (FR-065).</summary>
 internal sealed class NotifyJudgesRateLimitOptions

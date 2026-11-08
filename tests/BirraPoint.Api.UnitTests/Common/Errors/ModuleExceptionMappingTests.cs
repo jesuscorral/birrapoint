@@ -1,5 +1,5 @@
 using System.Text.Json;
-using BirraPoint.Api.Common.Errors;
+using BirraPoint.Api.Extensions;
 using BirraPoint.Api.Modules.Judging;
 using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Organization;

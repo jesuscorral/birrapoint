@@ -1,4 +1,4 @@
-using BirraPoint.Api.Common.Secrets;
+using BirraPoint.Api.Extensions;
 using BuildingBlocks.DaprSecrets;
 
 namespace BirraPoint.Api.UnitTests.Common.Secrets;

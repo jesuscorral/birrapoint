@@ -1,7 +1,8 @@
+using BirraPoint.Api.Common.Errors;
 using BuildingBlocks.ProblemDetails;
 using BuildingBlocks.Validation.MediatR;
 
-namespace BirraPoint.Api.Common.Errors;
+namespace BirraPoint.Api.Extensions;
 
 internal static class ErrorHandlingExtensions
 {

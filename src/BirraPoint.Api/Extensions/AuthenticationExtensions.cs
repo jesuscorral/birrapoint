@@ -2,7 +2,7 @@ using BuildingBlocks.Identity;
 using BuildingBlocks.Keycloak.Authentication;
 using Microsoft.AspNetCore.Authorization;
 
-namespace BirraPoint.Api.Common.Auth;
+namespace BirraPoint.Api.Extensions;
 
 internal static class AuthenticationExtensions
 {

@@ -1,4 +1,4 @@
-using BirraPoint.Api.Common.RateLimiting;
+using BirraPoint.Api.Extensions;
 using MediatR;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Judges.Features.NotifyJudges;

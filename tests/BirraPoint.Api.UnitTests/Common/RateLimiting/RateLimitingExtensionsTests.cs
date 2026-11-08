@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
-using BirraPoint.Api.Common.RateLimiting;
+using BirraPoint.Api.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;

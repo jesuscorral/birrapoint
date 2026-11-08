@@ -1,11 +1,8 @@
 using System.Text.Json.Serialization;
-using BirraPoint.Api.Common.Auth;
-using BirraPoint.Api.Common.Errors;
 using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Common.RateLimiting;
-using BirraPoint.Api.Common.Secrets;
 using BirraPoint.Api.Composition;
+using BirraPoint.Api.Extensions;
 using BirraPoint.Api.Modules.Catalog;
 using BirraPoint.Api.Modules.Judging;
 using BirraPoint.Api.Modules.Organization;
@@ -17,11 +14,9 @@ using BuildingBlocks.DaprSecrets;
 using BuildingBlocks.EmailSender;
 using BuildingBlocks.Jobs;
 using BuildingBlocks.Keycloak.Admin;
-using BuildingBlocks.Keycloak.Authentication;
 using BuildingBlocks.Validation.MediatR;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 // Community license — required before the first document generation or QuestPDF throws.
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
@@ -29,7 +24,6 @@ QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 var builder = WebApplication.CreateBuilder(args);
 
 // Secrets from Key Vault / Secrets Manager through the Dapr secret store when Dapr:SecretStore is
-// set (ADR-0021, ADR-0023, ADR-0037); first, so every registration below already sees them.
 // Locally: plain settings.
 builder.Configuration.AddDaprSecrets(BirraPointSecrets.Configure);
 

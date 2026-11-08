@@ -1,6 +1,6 @@
 using BuildingBlocks.DaprSecrets;
 
-namespace BirraPoint.Api.Common.Secrets;
+namespace BirraPoint.Api.Extensions;
 
 /// <summary>
 /// ADR-0021/ADR-0023: in the cloud the API's secrets live in Key Vault (Azure) or Secrets Manager
