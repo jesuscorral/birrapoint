@@ -66,6 +66,7 @@ Prereqs: Docker Desktop, .NET 10 SDK, Node 24+.
 dotnet run --project src/Aspire/BirraPoint.AppHost   # full local stack: Postgres 16, Keycloak 26,
   # Mailpit, API, PWA. Aspire https://localhost:17202 · API :5121/:7075 · PWA :4200 ·
   # Keycloak :8081 (realm birrapoint) · Mailpit port via Aspire dashboard
+# Reset local DB (drops only `birrapoint`, Keycloak kept; ADR-0041): Aspire dashboard -> `db` -> Reset database
 dotnet build BirraPoint.sln
 dotnet test tests/BirraPoint.Api.UnitTests
 dotnet test tests/BirraPoint.Api.IntegrationTests   # Testcontainers, needs Docker

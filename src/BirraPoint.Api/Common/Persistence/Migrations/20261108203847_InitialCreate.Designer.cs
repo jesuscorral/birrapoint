@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BirraPoint.Api.Common.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261104184627_DropAuditLogTimestamps")]
-    partial class DropAuditLogTimestamps
+    [Migration("20261108203847_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,63 +24,6 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("BirraPoint.Api.Domain.DispatchJob", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Attempts")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("CompetitionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LastError")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LeaseOwner")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTimeOffset?>("NextAttemptAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PayloadJson")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CompetitionId");
-
-                    b.HasIndex("Status", "LeaseExpiresAt");
-
-                    b.HasIndex("Status", "NextAttemptAt");
-
-                    b.ToTable("DispatchJobs");
-                });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Catalog.Domain.BjcpStyle", b =>
                 {
@@ -145,7 +88,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
 
                     b.HasKey("Code");
 
-                    b.ToTable("BjcpStyles");
+                    b.ToTable("BjcpStyles", "catalog");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.DiscrepancyAlert", b =>
@@ -182,7 +125,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("\"Status\" = 'Open'");
 
-                    b.ToTable("DiscrepancyAlerts");
+                    b.ToTable("DiscrepancyAlerts", "judging");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.Evaluation", b =>
@@ -275,7 +218,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.HasIndex("JudgeId", "BeerEntryId")
                         .IsUnique();
 
-                    b.ToTable("Evaluations");
+                    b.ToTable("Evaluations", "judging");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TableJudge", b =>
@@ -299,7 +242,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
 
                     b.HasIndex("JudgeId");
 
-                    b.ToTable("TableJudges");
+                    b.ToTable("TableJudges", "judging");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TableSample", b =>
@@ -327,7 +270,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.HasIndex("TastingTableId", "SequenceOrder")
                         .IsUnique();
 
-                    b.ToTable("TableSamples");
+                    b.ToTable("TableSamples", "judging");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.TastingTable", b =>
@@ -371,7 +314,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.HasIndex("CompetitionId", "Name")
                         .IsUnique();
 
-                    b.ToTable("TastingTables");
+                    b.ToTable("TastingTables", "judging");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", b =>
@@ -455,7 +398,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.HasIndex("CompetitionId", "BlindCode")
                         .IsUnique();
 
-                    b.ToTable("BeerEntries");
+                    b.ToTable("BeerEntries", "organization");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.Competition", b =>
@@ -520,7 +463,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
 
                     b.HasIndex("OrganizerId");
 
-                    b.ToTable("Competitions", t =>
+                    b.ToTable("Competitions", "organization", t =>
                         {
                             t.HasCheckConstraint("CK_Competitions_EndDate", "\"EndDate\" >= \"StartDate\"");
 
@@ -558,7 +501,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.HasIndex("CompetitionId", "Name")
                         .IsUnique();
 
-                    b.ToTable("CompetitionCategories");
+                    b.ToTable("CompetitionCategories", "organization");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.CompetitionCategoryStyle", b =>
@@ -586,7 +529,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.HasIndex("CompetitionId", "StyleCode")
                         .IsUnique();
 
-                    b.ToTable("CompetitionCategoryStyles");
+                    b.ToTable("CompetitionCategoryStyles", "organization");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.EntryCollaborator", b =>
@@ -606,7 +549,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
 
                     b.HasKey("BeerEntryId", "Email");
 
-                    b.ToTable("EntryCollaborators");
+                    b.ToTable("EntryCollaborators", "organization");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.Invitation", b =>
@@ -643,7 +586,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
 
                     b.HasIndex("JudgeId");
 
-                    b.ToTable("Invitations");
+                    b.ToTable("Invitations", "organization");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.Judge", b =>
@@ -696,7 +639,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.HasIndex("CompetitionId", "Email")
                         .IsUnique();
 
-                    b.ToTable("Judges");
+                    b.ToTable("Judges", "organization");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.Organizer", b =>
@@ -739,7 +682,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.HasIndex("KeycloakUserId")
                         .IsUnique();
 
-                    b.ToTable("Organizers");
+                    b.ToTable("Organizers", "organization");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Domain.Participant", b =>
@@ -783,7 +726,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.HasIndex("CompetitionId", "Email")
                         .IsUnique();
 
-                    b.ToTable("Participants");
+                    b.ToTable("Participants", "organization");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.BeerImportBatch", b =>
@@ -812,7 +755,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("\"Status\" = 'Pending'");
 
-                    b.ToTable("ImportBatches", (string)null);
+                    b.ToTable("ImportBatches", "organization");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.BeerImportRow", b =>
@@ -918,7 +861,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.HasIndex("BeerImportBatchId", "RowNumber")
                         .IsUnique();
 
-                    b.ToTable("ImportRows", (string)null);
+                    b.ToTable("ImportRows", "organization");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.JudgeImportBatch", b =>
@@ -947,7 +890,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("\"Status\" = 'Pending'");
 
-                    b.ToTable("JudgeImportBatches");
+                    b.ToTable("JudgeImportBatches", "organization");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Organization.Features.Import.JudgeImportRow", b =>
@@ -1006,7 +949,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.HasIndex("JudgeImportBatchId", "RowNumber")
                         .IsUnique();
 
-                    b.ToTable("JudgeImportRows");
+                    b.ToTable("JudgeImportRows", "organization");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Publication.Domain.GeneratedScoreSheet", b =>
@@ -1036,7 +979,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.HasIndex("BeerEntryId")
                         .IsUnique();
 
-                    b.ToTable("GeneratedScoreSheets");
+                    b.ToTable("GeneratedScoreSheets", "publication");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Publication.Domain.ResultsArchive", b =>
@@ -1066,7 +1009,7 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.HasIndex("CompetitionId")
                         .IsUnique();
 
-                    b.ToTable("ResultsArchives");
+                    b.ToTable("ResultsArchives", "publication");
                 });
 
             modelBuilder.Entity("BuildingBlocks.Audit.AuditLog", b =>
@@ -1104,16 +1047,65 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AuditLogs", (string)null);
+                    b.ToTable("AuditLogs", "audit");
                 });
 
-            modelBuilder.Entity("BirraPoint.Api.Domain.DispatchJob", b =>
+            modelBuilder.Entity("BuildingBlocks.Jobs.Job", b =>
                 {
-                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
-                        .WithMany()
-                        .HasForeignKey("CompetitionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("GroupKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("CompetitionId");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LeaseOwner")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GroupKey");
+
+                    b.HasIndex("Status", "LeaseExpiresAt");
+
+                    b.HasIndex("Status", "NextAttemptAt");
+
+                    b.ToTable("DispatchJobs", "jobs");
                 });
 
             modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.DiscrepancyAlert", b =>
@@ -1345,6 +1337,15 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
                         .WithMany()
                         .HasForeignKey("CompetitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BuildingBlocks.Jobs.Job", b =>
+                {
+                    b.HasOne("BirraPoint.Api.Modules.Organization.Domain.Competition", null)
+                        .WithMany()
+                        .HasForeignKey("GroupKey")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

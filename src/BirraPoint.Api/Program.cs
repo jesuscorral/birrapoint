@@ -196,6 +196,7 @@ if (StartupMigrations.ShouldMigrate(app.Environment.IsDevelopment(), app.Configu
     using var scope = app.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     context.Database.SetConnectionString(StartupMigrations.ResolveMigrationConnectionString(app.Configuration));
+    await LegacyDatabaseGuard.EnsureCompatibleAsync(context);
     await context.Database.MigrateAsync();
 }
 

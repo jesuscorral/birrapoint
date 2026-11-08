@@ -21,8 +21,8 @@ This is the end-to-end validation guide for the feature. Commands mirror `CLAUDE
 ```bash
 # Full local topology with one command (FR-044): .NET Aspire AppHost starts PostgreSQL,
 # Keycloak (birrapoint realm auto-imported: roles ORGANIZER/JUDGE, seeded organizer),
-# Mailpit (SMTP sink), the backend API (EF migrations incl. BJCP 2021 seed applied on
-# startup in Development) and the Angular frontend.
+# Mailpit (SMTP sink), the backend API (the baseline EF migration incl. BJCP 2021 seed applied
+# on startup in Development) and the Angular frontend.
 dotnet run --project src/Aspire/BirraPoint.AppHost
 # Aspire dashboard (resources, logs, traces, health): https://localhost:17202, login URL
 # printed on startup
@@ -32,6 +32,17 @@ dotnet run --project src/Aspire/BirraPoint.AppHost
 # Frontend-only iteration (optional, API already running):
 cd src/Birrapoint.Web && npm ci && npm start
 ```
+
+### Reset the local database (ADR-0041)
+
+Tables live in one schema per module and the history in `migrations`. A volume built before that
+(history in `public.__EFMigrationsHistory`) is refused: the `api` resource stops at startup with a
+log line that names the **Reset database** command. Postgres, Keycloak and Mailpit stay up.
+
+In the Aspire dashboard open the `db` resource → **Reset database** (or the Aspire MCP
+`execute_resource_command` on `db`, main session only). It drops and recreates only the
+`birrapoint` database, then restarts `api`, which rebuilds it from the baseline. Competition data is
+lost; Keycloak accounts are kept. Never remove the Docker volume for this: it also wipes Keycloak.
 
 Configuration is environment-variable driven (no secrets in the repo or in any image):
 `ConnectionStrings__db` (+ `ConnectionStrings__dbDirect` for migrations in the cloud),

@@ -5,6 +5,24 @@
 Server of record: PostgreSQL via EF Core code-first. Client-side stores (Dexie) at the end.
 All PKs are `Guid` (v7/sequential). All entities carry `CreatedAt`/`UpdatedAt` (UTC), except the insert-only `AuditLog`, whose only timestamp is `OccurredAt`.
 
+## Schemas (ADR-0041)
+
+Each table lives in the schema of the module that owns it. Table names carry no schema prefix in the
+sections below. The whole schema is built by one baseline migration, `InitialCreate` (no
+incremental history); EF's history table is `migrations.__EFMigrationsHistory`. `public` has no table.
+
+| Schema | Owner | Tables |
+|---|---|---|
+| `catalog` | Catalog module | `BjcpStyles` |
+| `organization` | Organization module | `Competitions`, `Organizers`, `CompetitionCategories`, `CompetitionCategoryStyles`, `Participants`, `BeerEntries`, `EntryCollaborators`, `ImportBatches`, `ImportRows`, `Judges`, `Invitations`, `JudgeImportBatches`, `JudgeImportRows` |
+| `judging` | Judging module | `TastingTables`, `TableJudges`, `TableSamples`, `Evaluations`, `DiscrepancyAlerts` |
+| `publication` | Publication module | `GeneratedScoreSheets`, `ResultsArchives` |
+| `jobs` | `BuildingBlocks.Jobs` (set by the host) | `DispatchJobs` |
+| `audit` | `BuildingBlocks.Audit` (set by the host) | `AuditLogs` |
+| `migrations` | EF Core | `__EFMigrationsHistory` |
+
+Cross-schema foreign keys are kept (for example `judging.TableSamples -> organization.BeerEntries`).
+
 ## Entity Catalog
 
 ### Competition
@@ -89,7 +107,7 @@ is null for styles without an "Instrucciones para la inscripción" section):
 ```
 
 Sourced from the official BJCP 2021 Style Guidelines (Spanish translation); seeded from
-`Modules/Catalog/Features/Catalog/Data/bjcp-2021.json` (FR-049). Covers categories 1–34 plus the BJCP Appendix B
+`Modules/Catalog/Features/Catalog/Data/bjcp-2021.json` (FR-049) by the baseline `InitialCreate` migration (ADR-0005, ADR-0041). Covers categories 1–34 plus the BJCP Appendix B
 local styles (X1–X5, e.g. `Italian Grape Ale`, `Catharina Sour`, `New Zealand Pilsner`).
 
 ### CompetitionCategory *(organizer-defined, FR-052, wizard step 3)*

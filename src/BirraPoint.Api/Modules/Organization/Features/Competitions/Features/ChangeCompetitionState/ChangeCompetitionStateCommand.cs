@@ -35,7 +35,7 @@ internal sealed class ChangeCompetitionStateCommandHandler(
         var sub = currentUser.Sub;
         var competition = await dbContext.Competitions
             .FromSqlInterpolated(
-                $"SELECT * FROM \"Competitions\" WHERE \"Id\" = {request.Id} AND \"CreatedByUserId\" = {sub} FOR UPDATE")
+                $"SELECT * FROM organization.\"Competitions\" WHERE \"Id\" = {request.Id} AND \"CreatedByUserId\" = {sub} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken);
 
         if (competition is null)
