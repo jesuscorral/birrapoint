@@ -54,6 +54,7 @@
       "Bash(bash infra/keycloak/dapr-secrets/DaprSecretsEnv.test.sh)",
       "Bash(bash infra/keycloak/dapr-secrets/ApiAdminSecretGuard.test.sh)",
       "Bash(bash infra/keycloak/RealmProd.test.sh)",
+      "Bash(bash .claude/scripts/board-status.sh:*)",
 
       "Bash(docker info:*)",
       "Bash(docker ps:*)",
