@@ -30,7 +30,7 @@ public class ModuleBoundaryTests
 {
     private const string ModulesNamespace = "BirraPoint.Api.Modules";
 
-    private static readonly string[] KernelFolders = ["Common", "Domain", "Realtime"];
+    private static readonly string[] KernelFolders = ["Common", "Composition", "Domain", "Realtime"];
 
     /// <summary>Permanent kernel → module exceptions (ADR-0034), by path prefix relative to the API project.</summary>
     private static readonly (string PathPrefix, string Reason)[] KernelExceptions =

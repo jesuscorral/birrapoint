@@ -423,7 +423,7 @@ test.describe('US6 — blind table dynamics: shared fixed order', () => {
       // response, not dependent on the hub round-trip). Note: judgeADisplayName (the email
       // local-part, used above for the organizer's pre-login table assignment) no longer applies
       // here -- JudgeResolver backfills Judge.DisplayName from the Keycloak token's `name` claim
-      // on first login (Common/Auth/JudgeResolver.cs), so once a judge has actually authenticated
+      // on first login (Modules/Organization/Identity/JudgeResolver.cs), so once a judge has actually authenticated
       // their "fixed by" label is their real Keycloak name ("Test Judge" for both judges
       // provisioned by createJudgeUser, since it hardcodes that firstName/lastName). Rather than
       // pin that incidental test-data value, assert the format and then assert judge B's session

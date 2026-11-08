@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using BirraPoint.Api.Common.Auth;
+using BirraPoint.Api.Modules.Organization.Identity;
 using BuildingBlocks.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -83,5 +84,15 @@ public sealed class AuthenticationExtensionsTests
 
         Assert.NotNull(provider.GetRequiredService<IHttpContextAccessor>());
         Assert.NotNull(provider.GetRequiredService<ICurrentUser>());
+    }
+
+    [Fact]
+    public void DoesNotRegisterTheOrganizationResolvers()
+    {
+        using var provider = BuildProvider();
+
+        // Judge/organizer resolution belongs to AddOrganizationModule, not to the Keycloak authentication wiring.
+        Assert.Null(provider.GetService<IJudgeResolver>());
+        Assert.Null(provider.GetService<IOrganizerResolver>());
     }
 }
