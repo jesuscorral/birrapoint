@@ -120,6 +120,66 @@ public sealed class EvaluationCorrectedFlowTests(ApiFactory factory) : Integrati
     }
 
     [Fact]
+    public async Task TheRefreshWaitsForAnUnfinishedZipBuildSoTheFinalArchiveHoldsTheCorrection()
+    {
+        await using var host = NewHost();
+        using var organizer = OrganizerClient(host, NewOrganizerSub());
+        var closed = await SeedClosedCompetitionAsync(host, organizer, "RefreshWaits");
+        var entry = closed.Entries[0];
+        Assert.Equal(HttpStatusCode.OK, (await TransitionAsync(organizer, closed.CompetitionId, "Finalized")).StatusCode);
+        await AwaitDispatchCompletedAsync(organizer, closed.CompetitionId, expectedRows: 1);
+        var sheetBefore = await ReadSheetAsync(entry.EntryId);
+
+        // A second ZIP build that is still pending when the correction arrives; it would write the archive from
+        // the sheets as they were, overwriting a refresh that ran first.
+        var bundleId = Guid.CreateVersion7();
+        await MessagingDb.ExecuteAsync(
+            ConnectionString,
+            "INSERT INTO jobs.\"DispatchJobs\" (\"Id\", \"CompetitionId\", \"Type\", \"PayloadJson\", \"Status\", \"Attempts\", " +
+            "\"NextAttemptAt\", \"CreatedAt\", \"UpdatedAt\") VALUES (@id, @group, @type, '{}', 'Pending', 0, now() + interval '6 seconds', now(), now())",
+            ("id", bundleId), ("group", closed.CompetitionId), ("type", DispatchJobType.BundleZip));
+
+        Assert.Equal(HttpStatusCode.OK, (await CorrectEvaluationAsync(organizer, closed.CompetitionId, entry.EvaluationId)).StatusCode);
+        await EventualAssert.TrueAsync(
+            async () => await MessagingDb.JobCountAsync(ConnectionString, closed.CompetitionId, RefreshResults) == 1,
+            "RefreshResults job staged");
+
+        await Task.Delay(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
+        Assert.Equal("Pending", await JobStatusAsync(bundleId));
+        Assert.NotEqual("Completed", await RefreshStatusAsync(closed.CompetitionId));
+        Assert.Equal(
+            sheetBefore.GeneratedAt,
+            (await ReadSheetAsync(entry.EntryId)).GeneratedAt);
+
+        await AwaitRefreshCompletedAsync(closed.CompetitionId);
+
+        Assert.Equal("Completed", await JobStatusAsync(bundleId));
+        var refreshAttempts = (int)(await MessagingDb.ScalarAsync(
+            ConnectionString,
+            "SELECT \"Attempts\" FROM jobs.\"DispatchJobs\" WHERE \"CompetitionId\" = @group AND \"Type\" = @type",
+            ("group", closed.CompetitionId), ("type", RefreshResults)))!;
+        Assert.Equal(0, refreshAttempts);
+        var sheetAfter = await ReadSheetAsync(entry.EntryId);
+        Assert.True(sheetAfter.GeneratedAt > sheetBefore.GeneratedAt);
+        var archive = await ReadArchiveAsync(closed.CompetitionId);
+        using var zip = new ZipArchive(new MemoryStream(archive.Bytes), ZipArchiveMode.Read);
+        var found = false;
+        foreach (var zipEntry in zip.Entries)
+        {
+            using var stream = await zipEntry.OpenAsync(TestContext.Current.CancellationToken);
+            using var copy = new MemoryStream();
+            await stream.CopyToAsync(copy, TestContext.Current.CancellationToken);
+            found |= copy.ToArray().AsSpan().SequenceEqual(sheetAfter.Bytes);
+        }
+
+        Assert.True(found, "The final ZIP does not contain the corrected score sheet.");
+    }
+
+    private async Task<string?> JobStatusAsync(Guid jobId) =>
+        (string?)await MessagingDb.ScalarAsync(
+            ConnectionString, "SELECT \"Status\" FROM jobs.\"DispatchJobs\" WHERE \"Id\" = @id", ("id", jobId));
+
+    [Fact]
     public async Task CorrectingBeforeFinalizingPublishesNoEventAndStagesNoJob()
     {
         await using var host = NewHost();

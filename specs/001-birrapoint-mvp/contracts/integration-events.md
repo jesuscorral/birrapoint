@@ -38,7 +38,7 @@ Rules:
 - Each delivery is retried with exponential backoff (1 s, doubling, max 60 s) up to 5 attempts by
   default. After the last failure the event is marked `Dead`. An error is logged with type, id and
   failing subscribers, and never the payload. Settings come from the `Messaging` section.
-- An unknown `type`/`version` goes to `Dead` straight away.
-- Retention (FR-090): delivered events purged after 7 d, dead after 30 d, inbox records after 14 d (defaults). The inbox retention always outlasts any redelivery, so de-duplication holds.
+- An unknown `type`/`version` stays `Pending` and is retried every `MaxBackoff` without counting attempts, with a warning log, so a rollback to an older build loses no event.
+- Retention (FR-090): delivered events purged after 7 d, dead after 30 d, inbox records after 30 d (defaults). The inbox retention always outlasts any redelivery and the dead retention, so de-duplication holds.
 - Expected delay from commit to reaction: ≤ 1 s (FR-089). The dispatcher is woken after commit,
   and a safety-net poll (default 30 s) covers missed signals and restarts.

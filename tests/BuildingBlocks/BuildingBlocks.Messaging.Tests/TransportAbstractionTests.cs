@@ -10,10 +10,10 @@ public sealed class TransportAbstractionTests(PostgresFixture fixture) : IClassF
     {
         public System.Collections.Concurrent.ConcurrentQueue<IntegrationEventEnvelope> Sent { get; } = new();
 
-        public Task SendAsync(IntegrationEventEnvelope envelope, CancellationToken cancellationToken)
+        public Task<DeliveryOutcome> SendAsync(IntegrationEventEnvelope envelope, CancellationToken cancellationToken)
         {
             Sent.Enqueue(envelope);
-            return Task.CompletedTask;
+            return Task.FromResult(DeliveryOutcome.Delivered);
         }
     }
 

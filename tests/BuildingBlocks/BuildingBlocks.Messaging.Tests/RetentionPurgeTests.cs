@@ -43,9 +43,9 @@ public sealed class RetentionPurgeTests(PostgresFixture fixture) : IClassFixture
         var delivering = await fixture.SeedOutboxAsync("Orders", status: OutboxStatus.Delivering, occurredAt: old, leaseOwner: "x", leaseExpiresAt: Start);
         var oldEvent = Guid.NewGuid();
         var youngEvent = Guid.NewGuid();
-        await fixture.SeedInboxAsync("Shipping", oldEvent, "FirstHandler", Start - TimeSpan.FromDays(15));
-        await fixture.SeedInboxAsync("Orders", oldEvent, "SecondHandler", Start - TimeSpan.FromDays(15));
-        await fixture.SeedInboxAsync("Shipping", youngEvent, "FirstHandler", Start - TimeSpan.FromDays(13));
+        await fixture.SeedInboxAsync("Shipping", oldEvent, "FirstHandler", Start - TimeSpan.FromDays(31));
+        await fixture.SeedInboxAsync("Orders", oldEvent, "SecondHandler", Start - TimeSpan.FromDays(31));
+        await fixture.SeedInboxAsync("Shipping", youngEvent, "FirstHandler", Start - TimeSpan.FromDays(29));
 
         Assert.True(await PurgeAsync(host));
 
@@ -68,7 +68,7 @@ public sealed class RetentionPurgeTests(PostgresFixture fixture) : IClassFixture
         for (var i = 0; i < 5; i++)
         {
             await fixture.SeedOutboxAsync("Orders", status: OutboxStatus.Delivered, occurredAt: Start - TimeSpan.FromDays(10));
-            await fixture.SeedInboxAsync("Shipping", Guid.NewGuid(), "FirstHandler", Start - TimeSpan.FromDays(20));
+            await fixture.SeedInboxAsync("Shipping", Guid.NewGuid(), "FirstHandler", Start - TimeSpan.FromDays(31));
         }
 
         await PurgeAsync(host);
@@ -85,7 +85,7 @@ public sealed class RetentionPurgeTests(PostgresFixture fixture) : IClassFixture
         using var logScope = logs;
         await fixture.SeedOutboxAsync("Orders", status: OutboxStatus.Delivered, occurredAt: Start - TimeSpan.FromDays(10));
         await fixture.SeedOutboxAsync("Orders", status: OutboxStatus.Delivered, occurredAt: Start - TimeSpan.FromDays(10));
-        await fixture.SeedInboxAsync("Shipping", Guid.NewGuid(), "FirstHandler", Start - TimeSpan.FromDays(20));
+        await fixture.SeedInboxAsync("Shipping", Guid.NewGuid(), "FirstHandler", Start - TimeSpan.FromDays(31));
 
         await PurgeAsync(host);
 

@@ -94,8 +94,10 @@ of due rows (`Pending` with `NextAttemptAt <= now`, or `Delivering` with an expi
 `LocalTransport`: it runs every subscriber of that type (see R-106-6) and succeeds only if all
 succeed. Outcome: `Delivered`; or a retry with backoff (`Attempts`, `NextAttemptAt`, `LastError`);
 or `Dead` after `MaxAttempts`, logged at error level with type, event id and the failing subscribers
-(no payload, FR-080). Dead rows are never claimed again, so they block nothing. Unknown types go
-straight to `Dead`. Defaults follow the Jobs block: lease 2 min, 5 attempts, backoff 1 s doubling
+(no payload, FR-080). Dead rows are never claimed again, so they block nothing. Unknown types or versions
+are `Deferred` (transport returns `DeliveryOutcome` `Delivered`/`Deferred`): the row stays `Pending`, is
+retried every `MaxBackoff` without using attempts, and logs a warning. *Amended after PR review
+(was: straight to `Dead`).* Defaults follow the Jobs block: lease 2 min, 5 attempts, backoff 1 s doubling
 up to 60 s. Settings come from the `Messaging` section.
 
 **Rationale**: FR-078/FR-080/FR-086. For #108 a Dapr transport publishes to a topic and is
@@ -173,9 +175,10 @@ If the results pipeline has not produced the sheet or the archive yet, the pendi
 **Rationale**: No email is re-sent (clarification). A job, not inline work, because PDF rendering is
 slow and the job queue already retries.
 
-**Risk**: A `GeneratePdfs` run still in progress when the correction commits could write an
-old-score PDF after `RefreshResults` ran. This needs a correction during the seconds-long first
-generation; it is accepted and recorded as known debt.
+**Race handling** (*amended after PR review; was accepted as known debt*): `RefreshResults` throws
+`JobDeferredException` (generic deferral in `BuildingBlocks.Jobs`: back to `Pending` after a delay, no
+attempt used) while the competition has a `Pending`/`Running` `GeneratePdfs` or `BundleZip` job, so it
+never runs before the first generation ends.
 
 ## R-106-10 — Realtime after commit (FR-084)
 
@@ -205,7 +208,7 @@ data-wiping reset.
 
 ## R-106-13 — Retention purge (FR-090)
 
-**Decision**: The dispatcher runs a purge pass at most once per `PurgeInterval` (default 1 h), piggybacked on its sweep so it adds no extra wake-ups (Neon scale-to-zero). Per registered outbox: delete `Delivered` rows with `OccurredAt` older than `OutboxRetention` (default 7 d) and `Dead` rows older than `DeadRetention` (default 30 d, kept longer for diagnosis). Per registered inbox: delete rows with `ProcessedAt` older than `InboxRetention` (default 14 d). Deletes go in batches of `PurgeBatchSize` (default 1000; `DELETE … WHERE "Id" IN (SELECT … LIMIT n)`) until a batch removes fewer than `n` rows. Each pass logs the counts per table (information level). `MessagingOptions.Validate` requires `InboxRetention > OutboxRetention` and `InboxRetention > MaxBackoff × MaxAttempts + LeaseDuration`, so an event can never be redelivered after its inbox row is gone. `Pending`/`Delivering` rows are never touched.
+**Decision**: The dispatcher runs a purge pass at most once per `PurgeInterval` (default 1 h), piggybacked on its sweep so it adds no extra wake-ups (Neon scale-to-zero). Per registered outbox: delete `Delivered` rows with `OccurredAt` older than `OutboxRetention` (default 7 d) and `Dead` rows older than `DeadRetention` (default 30 d, kept longer for diagnosis). Per registered inbox: delete rows with `ProcessedAt` older than `InboxRetention` (default 30 d; *amended after PR review, was 14 d*). Deletes go in batches of `PurgeBatchSize` (default 1000; `DELETE … WHERE "Id" IN (SELECT … LIMIT n)`) until a batch removes fewer than `n` rows. Each pass logs the counts per table (information level). `MessagingOptions.Validate` requires `InboxRetention > OutboxRetention`, `InboxRetention >= DeadRetention` and `InboxRetention > MaxBackoff × MaxAttempts + LeaseDuration`, so an event can never be redelivered after its inbox row is gone. `Pending`/`Delivering` rows are never touched.
 
 **Rationale**: Bounded growth with no new hosted service and no new dependency. Batching keeps locks short, and the purge never competes with the claim query (different rows, `SKIP LOCKED` on the claim side).
 

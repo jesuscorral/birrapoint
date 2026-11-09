@@ -13,11 +13,12 @@ public sealed class DispatcherTests(PostgresFixture fixture) : IClassFixture<Pos
 
         public ConcurrentDictionary<Guid, int> Sends { get; } = new();
 
-        public async Task SendAsync(IntegrationEventEnvelope envelope, CancellationToken cancellationToken)
+        public async Task<DeliveryOutcome> SendAsync(IntegrationEventEnvelope envelope, CancellationToken cancellationToken)
         {
             Order.Enqueue(envelope.Id);
             Sends.AddOrUpdate(envelope.Id, 1, (_, n) => n + 1);
             await Task.Delay(delay, cancellationToken);
+            return DeliveryOutcome.Delivered;
         }
     }
 

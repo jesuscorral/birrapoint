@@ -62,7 +62,7 @@ Covered by an integration test: a finalize whose transaction fails leaves no out
 
 ## §7 Retention purge (FR-090, SC-024)
 
-Covered by a block test with a fake clock and retentions of seconds. Seed rows: `Delivered` and `Dead` outbox rows past retention, a `Pending` and a `Delivering` row, inbox rows on both sides of the retention. After one purge pass: only the old delivered/dead/inbox rows are gone, and the log reports the counts. A batch size of 2 with 5 old rows still removes all 5. Startup fails when `InboxRetention <= OutboxRetention`.
+Covered by a block test with a fake clock and retentions of seconds. Seed rows: `Delivered` and `Dead` outbox rows past retention, a `Pending` and a `Delivering` row, inbox rows on both sides of the retention. After one purge pass: only the old delivered/dead/inbox rows are gone, and the log reports the counts. A batch size of 2 with 5 old rows still removes all 5. Startup fails when `InboxRetention <= OutboxRetention` or `InboxRetention < DeadRetention`.
 
 ## §8 Database ahead of the build (FR-091)
 

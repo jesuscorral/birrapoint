@@ -15,7 +15,7 @@ public sealed class MessagingOptionsTests
         Assert.Equal(TimeSpan.FromSeconds(60), options.MaxBackoff);
         Assert.Equal(TimeSpan.FromDays(7), options.OutboxRetention);
         Assert.Equal(TimeSpan.FromDays(30), options.DeadRetention);
-        Assert.Equal(TimeSpan.FromDays(14), options.InboxRetention);
+        Assert.Equal(TimeSpan.FromDays(30), options.InboxRetention);
         Assert.Equal(TimeSpan.FromHours(1), options.PurgeInterval);
         Assert.Equal(1000, options.PurgeBatchSize);
         Assert.Null(options.Validate());
@@ -74,11 +74,22 @@ public sealed class MessagingOptionsTests
         var options = new MessagingOptions
         {
             OutboxRetention = TimeSpan.FromMinutes(1),
+            DeadRetention = TimeSpan.FromMinutes(1),
             InboxRetention = TimeSpan.FromMinutes(7),
         };
 
         Assert.Contains("InboxRetention", options.Validate(), StringComparison.Ordinal);
         options.InboxRetention = TimeSpan.FromMinutes(7) + TimeSpan.FromSeconds(1);
+        Assert.Null(options.Validate());
+    }
+
+    [Fact]
+    public void InboxRetentionShorterThanDeadRetentionIsRejected()
+    {
+        var options = new MessagingOptions { DeadRetention = TimeSpan.FromDays(30), InboxRetention = TimeSpan.FromDays(29) };
+
+        Assert.Contains("InboxRetention", options.Validate(), StringComparison.Ordinal);
+        options.InboxRetention = TimeSpan.FromDays(30);
         Assert.Null(options.Validate());
     }
 

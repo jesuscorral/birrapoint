@@ -24,7 +24,7 @@ five tables and their indexes; `Down` drops them.
 Pending ──claim──▶ Delivering ──all subscribers ok──▶ Delivered
    ▲                   │
    └──retry (backoff)──┤ failure, attempts < max
-                       └──failure, attempts = max, or unknown type──▶ Dead
+                       └──failure, attempts = max──▶ Dead
 Delivering with expired lease ──recovered by any dispatcher──▶ Delivering (re-claimed)
 ```
 

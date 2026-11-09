@@ -512,7 +512,7 @@ Indexes: `(Status, NextAttemptAt)`, `(Status, LeaseExpiresAt)`. Primary keys and
 | Handler | string(200) | PK part; the subscriber handler name |
 | ProcessedAt | DateTimeOffset | indexed (retention purge) |
 
-The row commits in the same transaction as the handler's effect (FR-079). Purged after a retention period by the dispatcher (FR-090): `Delivered` outbox rows after 7 d, `Dead` after 30 d, inbox rows after 14 d (defaults, `Messaging` section); `Pending`/`Delivering` are never purged.
+The row commits in the same transaction as the handler's effect (FR-079). Purged after a retention period by the dispatcher (FR-090): `Delivered` outbox rows after 7 d, `Dead` after 30 d, inbox rows after 30 d (defaults, `Messaging` section); `Pending`/`Delivering` are never purged.
 
 ## Anonymity boundary (BR-01 / FR-019 — structural enforcement)
 

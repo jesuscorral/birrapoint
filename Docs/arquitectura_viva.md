@@ -196,10 +196,13 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
   outbox row per publishing module (in its schema) in the caller's `SaveChanges`. `OutboxDispatcher` wakes after commit
   (plus a safety-net poll), claims rows with a lease, hands them to `IIntegrationEventTransport` (`LocalTransport`,
   in-process; Dapr in #108), and `InboxRunner` runs each `IIntegrationEventHandler<T>` once per `(EventId, Handler)`
-  in the handler's own transaction. Retry with backoff up to `Messaging:MaxAttempts`, then `Dead`. `RetentionPurger`
+  in the handler's own transaction. Retry with backoff up to `Messaging:MaxAttempts`, then `Dead`. The transport returns a `DeliveryOutcome` (`Delivered`/`Deferred`): an unknown
+  event type or version is `Deferred`, so the row stays `Pending`, is retried every `MaxBackoff` without using attempts
+  and logs a warning. `RetentionPurger`
   deletes old rows in batches. Config (`appsettings.json`, `Messaging`): `DispatcherEnabled`, `LeaseDuration`,
   `SafetyNetPollInterval`, `MaxAttempts`, `MaxBackoff`, `OutboxRetention` 7 d, `DeadRetention` 30 d,
-  `InboxRetention` 14 d, `PurgeInterval`, `PurgeBatchSize`; startup fails if `InboxRetention <= OutboxRetention`.
+  `InboxRetention` 30 d, `PurgeInterval`, `PurgeBatchSize`; startup fails if `InboxRetention <= OutboxRetention` or
+  `InboxRetention < DeadRetention`.
   Contract: `specs/001-birrapoint-mvp/contracts/integration-events.md`.
 - **Background jobs** (`BuildingBlocks.Jobs`, ADR-0037, R-06; PostgreSQL only): `IJobQueue` inserts a `Pending` `Job` row and wakes
   the generic `JobWorker` through a channel (plus a safety-net poll, `Dispatch:SafetyNetPollInterval`, default 30 s, floor 1 s; cloud deployments set 1 h, ADR-0025). The worker claims one eligible
@@ -212,7 +215,9 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
   never touched (ADR-0024). The claim/recovery SQL reads table and column names from the EF model. Dispatch is by the string `Type` to an `IJobHandler`, with
   capped exponential backoff enforced by `NextAttemptAt` (ADR-0008, max 5 attempts) and
   `IJobObserver` callbacks (BirraPoint's `Realtime/DispatchProgressObserver` publishes `DispatchProgress`). `RetryDispatch` resets only `Failed` `SendResultEmail` jobs (FR-041) and wakes the worker right after the reset. Each sweep (startup included) schedules one wake at the earliest lease expiry or `NextAttemptAt` (+1 s, capped at the poll interval), so with a long poll only `Pending` jobs written by another revision and legacy NULL-lease `Running` rows wait for the next sweep. A failed sweep schedules a retry wake after 5 s * 2^n (capped at the poll interval). BirraPoint maps the block with `AppDbContext.ApplyJobs` onto the `DispatchJobs` table (`GroupKey` = `CompetitionId`, FK to `Competition`); config section `Dispatch`; type names are constants in `Domain/DispatchJobType.cs`. Handlers: `ProvisionJudgeAccount`, `SendInvitation`,
-  `GeneratePdfs`, `BundleZip`, `SendResultEmail`.
+  `GeneratePdfs`, `BundleZip`, `SendResultEmail`, `RefreshResults`. A handler may throw `JobDeferredException`: the job
+  returns to `Pending` after the given delay and no attempt is used. `RefreshResults` defers while the competition has a
+  `Pending`/`Running` `GeneratePdfs` or `BundleZip` job, so a correction never races the first generation.
 - **Keycloak Admin** (`BuildingBlocks.Keycloak.Admin`, ADR-0037; registered with `AddKeycloakAdmin`
   from `Common/Keycloak/BirraPointKeycloak.cs`, which supplies the `JUDGE` role and the dev
   placeholder): client-credentials as `birrapoint-api-admin`.
@@ -392,8 +397,6 @@ Shared primitives live in `shared/components/` (`bp-button`, `bp-input`, `bp-ale
 - **Keycloak**: JDBC uses `sslmode=require` (API uses `VerifyFull`). The password policy is
   limited to length and username/email rules until the judge temp-password generator changes
   (ADR-0026).
-- **Refresh race**: a `GeneratePdfs` run still in progress when an organizer correction lands can write an
-  old-score PDF after `RefreshResults` ran; only a correction during the first generation triggers it.
 - **Messaging**: `Dead` outbox rows have no UI or alert and go only by retention (`DeadRetention`, 30 d); retention
   values are not tuned for the cloud targets.
 - **Monitor "Order fixed by"** note comes only from the live event; no REST backfill.

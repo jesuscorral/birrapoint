@@ -231,10 +231,14 @@ internal sealed class OutboxDispatcher<TContext>(
 
         try
         {
-            await transport.SendAsync(envelope, stoppingToken).ConfigureAwait(false);
+            var outcome = await transport.SendAsync(envelope, stoppingToken).ConfigureAwait(false);
             await StopRenewalAsync(renewalCts, renewal).ConfigureAwait(false);
 
-            if (await TryMarkDeliveredAsync(outbox, message).ConfigureAwait(false))
+            if (outcome == DeliveryOutcome.Deferred)
+            {
+                await DeferAsync(outbox, message).ConfigureAwait(false);
+            }
+            else if (await TryMarkDeliveredAsync(outbox, message).ConfigureAwait(false))
             {
                 MessagingLog.Delivered(logger, message.Type, message.Id);
             }
@@ -322,11 +326,40 @@ internal sealed class OutboxDispatcher<TContext>(
         return rows > 0;
     }
 
+    /// <summary>The build does not know the event: back to Pending, due again after <c>MaxBackoff</c>, attempts
+    /// untouched, so a later build that knows it delivers it. Never purged while Pending.</summary>
+    private async Task DeferAsync(string outbox, OutboxMessage message)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TContext>();
+        var sql = SqlFor(db, outbox);
+        var next = time.GetUtcNow() + options.Value.MaxBackoff;
+
+        var rows = await db.Database.ExecuteSqlAsync(
+            SqlText.Sql(
+                $$"""
+                UPDATE {{sql.Table}}
+                SET {{sql.Status}} = {0}, {{sql.NextAttemptAt}} = {1}, {{sql.LeaseOwner}} = NULL, {{sql.LeaseExpiresAt}} = NULL
+                WHERE {{sql.Id}} = {2} AND {{sql.LeaseOwner}} = {3}
+                """,
+                nameof(OutboxStatus.Pending), next, message.Id, _workerId),
+            CancellationToken.None).ConfigureAwait(false);
+
+        if (rows > 0)
+        {
+            MessagingLog.EventDeferred(logger, message.Type, message.Id, message.Version, next);
+        }
+        else
+        {
+            MessagingLog.OutcomeDiscarded(logger, message.Type, message.Id);
+        }
+    }
+
     private async Task RecordFailureAsync(string outbox, OutboxMessage message, Exception exception)
     {
         var delivery = exception as IntegrationEventDeliveryException;
         var attempts = message.Attempts + 1;
-        var retry = delivery is not { Permanent: true } && RetryPolicy.ShouldRetry(attempts, options.Value.MaxAttempts);
+        var retry = RetryPolicy.ShouldRetry(attempts, options.Value.MaxAttempts);
         var error = exception.Message.Length > OutboxMessage.LastErrorMaxLength
             ? exception.Message[..OutboxMessage.LastErrorMaxLength]
             : exception.Message;

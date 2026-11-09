@@ -13,7 +13,7 @@ Modules reacted to each other through in-process MediatR notifications that wrot
 - **At-least-once delivery, inbox de-duplication** on `(EventId, Handler)`, committed in the same transaction as the handler's effect.
 - **Order-insensitive handlers**: payloads carry identifiers only; handlers recompute from current state and do nothing when the target is gone.
 - Events live in `Modules/<M>/Contracts/IntegrationEvents/`; other modules reference only that namespace. In-module requests stay on MediatR.
-- Retention purge of `Delivered` (7 d) and `Dead` (30 d) outbox rows and inbox rows (14 d), in batches. `Pending`/`Delivering` are never purged. Config in the `Messaging` section.
+- Retention purge of `Delivered` (7 d) and `Dead` (30 d) outbox rows and inbox rows (30 d, at least `DeadRetention`), in batches. `Pending`/`Delivering` are never purged. Config in the `Messaging` section.
 - Realtime pushes from subscribers go out only after the delivery commits.
 
 ## Consequences

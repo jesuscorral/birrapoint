@@ -62,7 +62,7 @@ internal sealed class AlertOrganizersOnJudgeConflict(
         {
             foreach (var alert in alerts)
             {
-                await eventPublisher.PublishToOrganizersAsync(competitionId, "JudgeConflictDetected", alert, CancellationToken.None);
+                await eventPublisher.PublishToOrganizersAsync(competitionId, CompetitionEvents.JudgeConflictDetected, alert, CancellationToken.None);
             }
         });
     }

@@ -53,7 +53,7 @@ contracts are in the living files listed in [data-model.md](./data-model.md).
 | VII. Security | No new endpoint; no secrets; logs never include payloads | ✅ |
 | VIII. Accessibility | Banner uses `role="alert"` and is keyboard-dismissable; organizer screen (desktop-first) | ✅ |
 | IX. Performance / offline | ≤ 1 s reaction; judge offline flows untouched | ✅ |
-| X. Docs as part of done | ADR-0042 (outbox vs broker, transport abstraction), living doc (debt items closed, new debt: refresh race), CLAUDE.md layout (new block) | ✅ |
+| X. Docs as part of done | ADR-0042 (outbox vs broker, transport abstraction), living doc (debt items closed; refresh race closed after PR review by job deferral), CLAUDE.md layout (new block) | ✅ |
 | Stack | No new dependency; MassTransit/Wolverine/CAP rejected (R-106-1) | ✅ |
 
 Post-design re-check: still all ✅. No complexity-tracking entries. The extra block is the issue's

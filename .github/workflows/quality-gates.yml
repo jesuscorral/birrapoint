@@ -65,6 +65,10 @@ jobs:
       - run: >-
           dotnet test tests/BuildingBlocks/BuildingBlocks.Keycloak.Admin.Tests --configuration Release --no-build
           --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/building-blocks-keycloak-admin"
+      # Testcontainers PostgreSQL (transactional outbox) through the runner's Docker daemon.
+      - run: >-
+          dotnet test tests/BuildingBlocks/BuildingBlocks.Messaging.Tests --configuration Release --no-build
+          --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/building-blocks-messaging"
       - run: >-
           dotnet test tests/BuildingBlocks/BuildingBlocks.ProblemDetails.Tests --configuration Release --no-build
           --report-xunit-trx --results-directory "$RUNNER_TEMP/test-results/building-blocks-problemdetails"

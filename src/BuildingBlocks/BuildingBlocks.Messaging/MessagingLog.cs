@@ -46,4 +46,8 @@ internal static partial class MessagingLog
 
     [LoggerMessage(EventId = 12, Level = LogLevel.Information, Message = "Purged {Count} inbox message(s) from {Table}.")]
     public static partial void InboxPurged(ILogger logger, int count, string table);
+
+    [LoggerMessage(EventId = 13, Level = LogLevel.Warning,
+        Message = "Integration event {Type} {EventId} version {Version} is unknown to this build; it stays pending and is offered again at {NextAttemptAt}.")]
+    public static partial void EventDeferred(ILogger logger, string type, Guid eventId, int version, DateTimeOffset nextAttemptAt);
 }

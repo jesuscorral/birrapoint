@@ -33,8 +33,8 @@ public sealed class MessagingOptions
     /// <summary>Dead outbox rows are kept longer, for diagnosis.</summary>
     public TimeSpan DeadRetention { get; set; } = TimeSpan.FromDays(30);
 
-    /// <summary>Inbox rows older than this (by ProcessedAt) are purged. Must outlast any redelivery.</summary>
-    public TimeSpan InboxRetention { get; set; } = TimeSpan.FromDays(14);
+    /// <summary>Inbox rows older than this (by ProcessedAt) are purged. Must outlast any redelivery and the dead retention (a dead row requeued by hand must still be de-duplicated).</summary>
+    public TimeSpan InboxRetention { get; set; } = TimeSpan.FromDays(30);
 
     /// <summary>At most one purge pass per interval, run from the dispatcher sweep.</summary>
     public TimeSpan PurgeInterval { get; set; } = TimeSpan.FromHours(1);
@@ -83,6 +83,11 @@ public sealed class MessagingOptions
         if (InboxRetention <= OutboxRetention)
         {
             return $"{nameof(InboxRetention)} must be longer than {nameof(OutboxRetention)}.";
+        }
+
+        if (InboxRetention < DeadRetention)
+        {
+            return $"{nameof(InboxRetention)} must be at least {nameof(DeadRetention)}.";
         }
 
         // An event can be redelivered until its last attempt ends; the inbox row must still exist then.

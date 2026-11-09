@@ -79,39 +79,64 @@ public sealed class DeadLetterTests(PostgresFixture fixture) : IClassFixture<Pos
     }
 
     [Fact]
-    public async Task AnUnknownTypeGoesStraightToDead()
+    public async Task AnUnknownTypeStaysPendingDeferredByMaxBackoffWithoutUsingAttempts()
     {
         await fixture.ResetAsync();
         using var logs = new CapturingLoggerProvider();
-        await using var host = await fixture.StartAsync(logs: logs);
+        var maxBackoff = TimeSpan.FromSeconds(30);
+        await using var host = await fixture.StartAsync(logs: logs, maxBackoff: maxBackoff);
+        var before = DateTimeOffset.UtcNow;
         var unknown = await fixture.SeedOutboxAsync("Orders", type: "test.never-registered");
 
         await Wait.UntilAsync(
-            async () => (await fixture.OutboxAsync("Orders", unknown.Id)).Status == OutboxStatus.Dead,
-            "unknown type is dead at once");
+            async () => (await fixture.OutboxAsync("Orders", unknown.Id)).NextAttemptAt is not null,
+            "unknown type is deferred");
 
         var row = await fixture.OutboxAsync("Orders", unknown.Id);
-        Assert.Equal(1, row.Attempts);
-        Assert.Contains("test.never-registered", row.LastError, StringComparison.Ordinal);
-        Assert.Single(logs.Entries, e => e.Level == LogLevel.Error && e.Message.Contains(unknown.Id.ToString(), StringComparison.Ordinal));
+        Assert.Equal(OutboxStatus.Pending, row.Status);
+        Assert.Equal(0, row.Attempts);
+        Assert.Null(row.LeaseOwner);
+        Assert.Null(row.LeaseExpiresAt);
+        Assert.InRange(row.NextAttemptAt!.Value, before + maxBackoff, DateTimeOffset.UtcNow + maxBackoff);
+        var warning = logs.Entries.First(e => e.Level == LogLevel.Warning && e.Message.Contains(unknown.Id.ToString(), StringComparison.Ordinal));
+        Assert.Contains("test.never-registered", warning.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(logs.Entries, e => e.Level == LogLevel.Error);
     }
 
     [Fact]
-    public async Task EventsPublishedAfterADeadOneAreStillDelivered()
+    public async Task AnUnknownTypeIsDeliveredOnceABuildThatKnowsItRuns()
+    {
+        await fixture.ResetAsync();
+        var unknown = await fixture.SeedOutboxAsync("Orders", type: "test.thing-happened");
+        var oldBuild = await fixture.StartAsync(m => m.Publishes<OtherHappened>("Orders"));
+        await Wait.UntilAsync(
+            async () => (await fixture.OutboxAsync("Orders", unknown.Id)).NextAttemptAt is not null,
+            "the old build does not know the type and defers it");
+        await oldBuild.DisposeAsync();
+        Assert.Equal(OutboxStatus.Pending, (await fixture.OutboxAsync("Orders", unknown.Id)).Status);
+
+        await using var newBuild = await fixture.StartAsync(PostgresFixture.Standard, probe: new Probe());
+
+        await Wait.UntilDeliveredAsync(fixture, "Orders", unknown.Id);
+        Assert.Equal(0, (await fixture.OutboxAsync("Orders", unknown.Id)).Attempts);
+    }
+
+    [Fact]
+    public async Task EventsPublishedAfterAnUnknownOneAreStillDelivered()
     {
         await fixture.ResetAsync();
         var probe = new Probe();
         await using var host = await fixture.StartAsync(probe: probe);
         var dead = await fixture.SeedOutboxAsync("Orders", type: "test.never-registered");
         await Wait.UntilAsync(
-            async () => (await fixture.OutboxAsync("Orders", dead.Id)).Status == OutboxStatus.Dead,
-            "dead event parked");
+            async () => (await fixture.OutboxAsync("Orders", dead.Id)).NextAttemptAt is not null,
+            "unknown event parked");
 
         var thingId = Guid.NewGuid();
         var id = await host.PublishAsync(new ThingHappened(thingId));
 
         await Wait.UntilDeliveredAsync(fixture, "Orders", id);
-        Assert.Equal(OutboxStatus.Dead, (await fixture.OutboxAsync("Orders", dead.Id)).Status);
+        Assert.Equal(OutboxStatus.Pending, (await fixture.OutboxAsync("Orders", dead.Id)).Status);
         Assert.Equal(1, probe.CallsOf("FirstHandler"));
     }
 }

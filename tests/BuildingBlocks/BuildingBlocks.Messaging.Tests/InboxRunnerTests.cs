@@ -9,7 +9,7 @@ public sealed class InboxRunnerTests(PostgresFixture fixture) : IClassFixture<Po
     private static IntegrationEventEnvelope Envelope(Guid thingId, Guid? id = null) =>
         EventSerializer.ToEnvelope(EventDescriptor.For<ThingHappened>(), new ThingHappened(thingId), id ?? Guid.CreateVersion7(), DateTimeOffset.UtcNow);
 
-    private static Task SendAsync(MessagingHost host, IntegrationEventEnvelope envelope) =>
+    private static Task<DeliveryOutcome> SendAsync(MessagingHost host, IntegrationEventEnvelope envelope) =>
         host.Services.GetRequiredService<IIntegrationEventTransport>().SendAsync(envelope, TestContext.Current.CancellationToken);
 
     [Fact]
