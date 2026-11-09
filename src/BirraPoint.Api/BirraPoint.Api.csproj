@@ -31,6 +31,7 @@
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Jobs\BuildingBlocks.Jobs.csproj" />
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Keycloak.Admin\BuildingBlocks.Keycloak.Admin.csproj" />
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Keycloak.Authentication\BuildingBlocks.Keycloak.Authentication.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Messaging\BuildingBlocks.Messaging.csproj" />
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.ProblemDetails\BuildingBlocks.ProblemDetails.csproj" />
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Spreadsheet\BuildingBlocks.Spreadsheet.csproj" />
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Validation.MediatR\BuildingBlocks.Validation.MediatR.csproj" />

@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.IntegrationTests.IntegrationEvents;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
@@ -181,4 +182,14 @@ public abstract class TablesApiTestBase(ApiFactory factory)
         var entry = await db.BeerEntries.AsNoTracking().SingleAsync(e => e.Id == beerEntryId);
         return entry.NotValidForBos;
     }
+
+    /// <summary>The flag is recomputed by Organization when it receives the table event (SC-023): wait for
+    /// the persisted value. The response's <c>bosFlaggedEntryIds</c> stays an immediate assertion.</summary>
+    private protected Task AssertNotValidForBosEventuallyAsync(Guid beerEntryId, bool expected) =>
+        EventualAssert.EqualAsync(
+            expected, () => GetNotValidForBosAsync(beerEntryId), $"NotValidForBos of {beerEntryId} becomes {expected}");
+
+    /// <summary>For "the flag stays set" assertions: lets every pending table event be processed first, so the
+    /// check cannot pass before the reaction ran.</summary>
+    private protected Task AwaitBosEventsProcessedAsync() => EventualAssert.OutboxDrainedAsync(Factory.ConnectionString);
 }

@@ -18,6 +18,7 @@ COPY src/BuildingBlocks/BuildingBlocks.DaprSecrets/BuildingBlocks.DaprSecrets.cs
 COPY src/BuildingBlocks/BuildingBlocks.EmailSender/BuildingBlocks.EmailSender.csproj src/BuildingBlocks/BuildingBlocks.EmailSender/
 COPY src/BuildingBlocks/BuildingBlocks.Identity/BuildingBlocks.Identity.csproj src/BuildingBlocks/BuildingBlocks.Identity/
 COPY src/BuildingBlocks/BuildingBlocks.Jobs/BuildingBlocks.Jobs.csproj src/BuildingBlocks/BuildingBlocks.Jobs/
+COPY src/BuildingBlocks/BuildingBlocks.Messaging/BuildingBlocks.Messaging.csproj src/BuildingBlocks/BuildingBlocks.Messaging/
 COPY src/BuildingBlocks/BuildingBlocks.Keycloak.Admin/BuildingBlocks.Keycloak.Admin.csproj src/BuildingBlocks/BuildingBlocks.Keycloak.Admin/
 COPY src/BuildingBlocks/BuildingBlocks.Keycloak.Authentication/BuildingBlocks.Keycloak.Authentication.csproj src/BuildingBlocks/BuildingBlocks.Keycloak.Authentication/
 COPY src/BuildingBlocks/BuildingBlocks.ProblemDetails/BuildingBlocks.ProblemDetails.csproj src/BuildingBlocks/BuildingBlocks.ProblemDetails/

@@ -1,11 +1,13 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
+using BirraPoint.Api.Modules.Judging.Contracts.IntegrationEvents;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BuildingBlocks.Audit;
 using BuildingBlocks.Identity;
+using BuildingBlocks.Messaging;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,12 +26,14 @@ internal sealed record CorrectEvaluationCommand(
 internal sealed record CorrectEvaluationResult(Guid EvaluationId, int Total, decimal ConsolidatedMean);
 
 
-internal sealed class CorrectEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IAuditWriter auditWriter)
+internal sealed class CorrectEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IAuditWriter auditWriter,
+    IIntegrationEventPublisher integrationEvents)
     : IRequestHandler<CorrectEvaluationCommand, CorrectEvaluationResult?>
 {
     public async Task<CorrectEvaluationResult?> Handle(CorrectEvaluationCommand request, CancellationToken cancellationToken)
     {
-        if (await competitionAccess.GetOwnedAsync(request.CompetitionId, currentUser.Sub, cancellationToken) is null)
+        var competition = await competitionAccess.GetOwnedAsync(request.CompetitionId, currentUser.Sub, cancellationToken);
+        if (competition is null)
         {
             return null;
         }
@@ -108,6 +112,13 @@ internal sealed class CorrectEvaluationCommandHandler(AppDbContext dbContext, IC
         // Audit stages via the change tracker (does not call SaveChanges) — must run before our own
         // SaveChangesAsync so both commit in the same transaction (mirrors ChangeCompetitionStateCommand.cs/FR-035).
         auditWriter.Record("EvaluationCorrected", nameof(Evaluation), evaluation.Id.ToString(), before, after);
+
+        // Once results were generated for a finalized competition they would go stale: the event, stored with the
+        // correction, makes Publication refresh them (FR-083).
+        if (competition.State == CompetitionState.Finalized)
+        {
+            integrationEvents.Publish(new EvaluationCorrected(request.CompetitionId, evaluation.BeerEntryId, evaluation.Id));
+        }
 
         await dbContext.SaveChangesAsync(cancellationToken);
 

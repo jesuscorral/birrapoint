@@ -5,11 +5,11 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Modules.Judging.Integration;
 
 /// <summary>Judging's implementation of <see cref="IJudgeEngagement"/>: reads persisted seats and
-/// evaluations only, so pending changes to the excluded table never count.</summary>
+/// evaluations only.</summary>
 internal sealed class JudgeEngagement(AppDbContext dbContext) : IJudgeEngagement
 {
-    public async Task<IReadOnlySet<Guid>> GetJudgesEngagedOutsideTableAsync(
-        Guid excludedTableId, IReadOnlyCollection<Guid> judgeIds, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlySet<Guid>> GetEngagedJudgesAsync(
+        Guid competitionId, IReadOnlyCollection<Guid> judgeIds, CancellationToken cancellationToken = default)
     {
         if (judgeIds.Count == 0)
         {
@@ -17,13 +17,13 @@ internal sealed class JudgeEngagement(AppDbContext dbContext) : IJudgeEngagement
         }
 
         var ids = judgeIds.Distinct().ToList();
-        var seatedElsewhere = dbContext.TableJudges
-            .Where(tj => ids.Contains(tj.JudgeId) && tj.TastingTableId != excludedTableId && tj.RemovedAt == null)
-            .Select(tj => tj.JudgeId);
+        var seated = dbContext.TableJudges
+            .Where(tj => ids.Contains(tj.JudgeId) && tj.RemovedAt == null)
+            .Join(dbContext.TastingTables.Where(t => t.CompetitionId == competitionId), tj => tj.TastingTableId, t => t.Id, (tj, _) => tj.JudgeId);
         var evaluated = dbContext.Evaluations
             .Where(e => ids.Contains(e.JudgeId))
             .Select(e => e.JudgeId);
 
-        return (await seatedElsewhere.Union(evaluated).ToListAsync(cancellationToken)).ToHashSet();
+        return (await seated.Union(evaluated).ToListAsync(cancellationToken)).ToHashSet();
     }
 }

@@ -1,8 +1,12 @@
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Api.Modules.Organization.Contracts.IntegrationEvents;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Judges.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Integration;
 using BuildingBlocks.Identity;
 using BuildingBlocks.Keycloak.Admin;
+using BuildingBlocks.Messaging;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,7 +16,8 @@ namespace BirraPoint.Api.Modules.Organization.Features.Judges.Features.UpdateJud
 internal sealed record UpdateJudgeEmailCommand(Guid CompetitionId, Guid JudgeId, string Email) : IRequest<JudgeProfileDto?>;
 
 internal sealed class UpdateJudgeEmailCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IKeycloakAdminClient keycloakAdminClient)
+    AppDbContext dbContext, ICurrentUser currentUser, IKeycloakAdminClient keycloakAdminClient,
+    IConflictOfInterestChecker conflictChecker, BosFlagRecalculator bosFlagRecalculator, IIntegrationEventPublisher integrationEvents)
     : IRequestHandler<UpdateJudgeEmailCommand, JudgeProfileDto?>
 {
     public async Task<JudgeProfileDto?> Handle(UpdateJudgeEmailCommand request, CancellationToken cancellationToken)
@@ -40,13 +45,24 @@ internal sealed class UpdateJudgeEmailCommandHandler(
                 "This judge has already logged in; the email can no longer be corrected here.");
         }
 
-        // Scope cut (approved): COI/BOS re-check against BeerEntry/Participant/EntryCollaborator
-        // emails (FR-017/FR-018) is deferred until Modules/Judging/Features/Tables exists (Phase 7) — the contract
-        // calls for it, but there is nothing to re-run it against yet.
+        // FR-082: the new address may own entries the old one did not (and the reverse), which changes the
+        // Best of Show flags (FR-018). They are recomputed here, in the same transaction as the email change,
+        // from the entries owned before and after; the event lets Judging alert the organizers afterwards.
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var ownedBefore = await conflictChecker.GetEntriesOwnedByJudgesAsync(competition.Id, [judge.Id], cancellationToken);
+
         var oldEmail = judge.Email;
         judge.Email = request.Email;
-
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        var ownedAfter = await conflictChecker.GetEntriesOwnedByJudgesAsync(competition.Id, [judge.Id], cancellationToken);
+        var affectedEntryIds = ownedBefore.Values.Concat(ownedAfter.Values).SelectMany(entries => entries).ToHashSet();
+        await bosFlagRecalculator.RecalculateAsync(competition.Id, affectedEntryIds, cancellationToken);
+
+        integrationEvents.Publish(new JudgeEmailChanged(competition.Id, judge.Id));
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         // Side effect after the transaction above commits (same convention as
         // IJobQueue/IEventPublisher calls elsewhere — see ChangeCompetitionStateCommand.cs). No-op if the

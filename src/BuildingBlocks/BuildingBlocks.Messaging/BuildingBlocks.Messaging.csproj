@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>BuildingBlocks.Messaging</RootNamespace>
+    <Description>Transactional outbox and inbox for integration events between modules on PostgreSQL: events staged in the caller's transaction, a hosted dispatcher with lease-based claim (FOR UPDATE SKIP LOCKED), retry with backoff and dead-lettering, idempotent subscribers, a transport abstraction and retention purge, over the host EF Core DbContext.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="BuildingBlocks.Messaging.Tests" />
+  </ItemGroup>
+
+</Project>

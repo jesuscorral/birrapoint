@@ -4,7 +4,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 
-namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.DispatchScoreSheet;
+namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
 
 /// <summary>One judge's submitted scores/comments for a sample, rendered by <see cref="ScoreSheetDocument"/>.
 /// Descriptors/Feedback (Session 2026-09-21) are the structured tasting-sheet data alongside the

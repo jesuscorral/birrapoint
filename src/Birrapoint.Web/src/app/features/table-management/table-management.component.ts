@@ -1,8 +1,14 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import type { OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
+import type { Subscription } from 'rxjs';
 
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
 import type { CompetitionState } from '../../core/api/competitions-api.service';
+import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
+import type { JudgeConflictDetectedEvent } from '../../core/realtime/competition-hub.events';
+import { JudgeConflictBannerComponent } from '../../shared/components';
+import type { JudgeConflictBannerItem } from '../../shared/components';
 import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-shell.component';
 import { TableBoardComponent } from './table-board.component';
 
@@ -22,20 +28,36 @@ const READ_ONLY_STATES: ReadonlySet<CompetitionState> = new Set(['InEvaluation',
 @Component({
   selector: 'app-table-management',
   standalone: true,
-  imports: [BpPageShellComponent, TableBoardComponent],
+  imports: [BpPageShellComponent, TableBoardComponent, JudgeConflictBannerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <bp-page-shell>
+      <bp-judge-conflict-banner
+        [conflicts]="conflictBanners()"
+        (dismissed)="onDismissConflict($event)"
+      />
       <app-table-board [competitionId]="competitionId" [readOnly]="readOnly()" />
     </bp-page-shell>
   `,
 })
-export class TableManagementComponent {
+export class TableManagementComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly competitionsApi = inject(CompetitionsApiService);
+  private readonly hub = inject(CompetitionHubService);
+  private conflictSubscription: Subscription | null = null;
 
   protected readonly competitionId = this.route.snapshot.paramMap.get('id')!;
   protected readonly readOnly = signal(false);
+  // Keyed by table: a repeat JudgeConflictDetected for the same table replaces its banner. The
+  // board owns the table list, so the name is unknown here and the banner says "una mesa".
+  private readonly judgeConflicts = signal<Map<string, JudgeConflictDetectedEvent>>(new Map());
+  protected readonly conflictBanners = computed<JudgeConflictBannerItem[]>(() =>
+    [...this.judgeConflicts().values()].map((event) => ({
+      tableId: event.tableId,
+      judgeDisplayName: event.judgeDisplayName,
+      tableName: null,
+    })),
+  );
 
   constructor() {
     this.competitionsApi.getById(this.competitionId).subscribe({
@@ -46,5 +68,38 @@ export class TableManagementComponent {
         this.readOnly.set(false);
       },
     });
+  }
+
+  ngOnInit(): void {
+    void this.connectToHub();
+  }
+
+  ngOnDestroy(): void {
+    this.conflictSubscription?.unsubscribe();
+    void this.hub.leaveCompetition(this.competitionId).catch(() => {
+      // Best-effort: leaving on navigation-away is a courtesy, not a functional requirement.
+    });
+  }
+
+  protected onDismissConflict(tableId: string): void {
+    this.judgeConflicts.update((conflicts) => {
+      const next = new Map(conflicts);
+      next.delete(tableId);
+      return next;
+    });
+  }
+
+  private async connectToHub(): Promise<void> {
+    try {
+      await this.hub.start();
+      await this.hub.joinCompetitionAsOrganizer(this.competitionId);
+      this.conflictSubscription = this.hub
+        .on('JudgeConflictDetected')
+        .subscribe((event) =>
+          this.judgeConflicts.update((conflicts) => new Map(conflicts).set(event.tableId, event)),
+        );
+    } catch {
+      // Realtime is best-effort (contracts/signalr-hub.md): the screen works over REST without it.
+    }
   }
 }
