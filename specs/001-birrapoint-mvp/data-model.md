@@ -14,9 +14,9 @@ incremental history); EF's history table is `migrations.__EFMigrationsHistory`. 
 | Schema | Owner | Tables |
 |---|---|---|
 | `catalog` | Catalog module | `BjcpStyles` |
-| `organization` | Organization module | `Competitions`, `Organizers`, `CompetitionCategories`, `CompetitionCategoryStyles`, `Participants`, `BeerEntries`, `EntryCollaborators`, `ImportBatches`, `ImportRows`, `Judges`, `Invitations`, `JudgeImportBatches`, `JudgeImportRows` |
-| `judging` | Judging module | `TastingTables`, `TableJudges`, `TableSamples`, `Evaluations`, `DiscrepancyAlerts` |
-| `publication` | Publication module | `GeneratedScoreSheets`, `ResultsArchives` |
+| `organization` | Organization module | `Competitions`, `Organizers`, `CompetitionCategories`, `CompetitionCategoryStyles`, `Participants`, `BeerEntries`, `EntryCollaborators`, `ImportBatches`, `ImportRows`, `Judges`, `Invitations`, `JudgeImportBatches`, `JudgeImportRows`, `OutboxMessages`, `InboxMessages` |
+| `judging` | Judging module | `TastingTables`, `TableJudges`, `TableSamples`, `Evaluations`, `DiscrepancyAlerts`, `OutboxMessages`, `InboxMessages` |
+| `publication` | Publication module | `GeneratedScoreSheets`, `ResultsArchives`, `InboxMessages` |
 | `jobs` | `BuildingBlocks.Jobs` (set by the host) | `DispatchJobs` |
 | `audit` | `BuildingBlocks.Audit` (set by the host) | `AuditLogs` |
 | `migrations` | EF Core | `__EFMigrationsHistory` |
@@ -438,7 +438,7 @@ schema below stays exactly as is (no migration); `CompetitionId` is the group ke
 |-------|------|-------------|
 | Id | Guid | PK |
 | CompetitionId | Guid | FK |
-| Type | enum | `GeneratePdfs` \| `BundleZip` \| `SendResultEmail` \| `SendInvitation` \| `ProvisionJudgeAccount` *(added R-20)* |
+| Type | enum | `GeneratePdfs` \| `BundleZip` \| `SendResultEmail` \| `SendInvitation` \| `ProvisionJudgeAccount` *(added R-20)* \| `RefreshResults` *(added FR-083: payload `{ beerEntryId }`; regenerates that PDF and the ZIP when they exist, never emails)* |
 | PayloadJson | jsonb | e.g. `{ "participantId": … }` |
 | Status | enum | `Pending` \| `Running` \| `Completed` \| `Failed` |
 | Attempts | int | retry with backoff; `Failed` after max attempts, retryable via API (FR-041) |
@@ -479,6 +479,40 @@ Provided by the `BuildingBlocks.Audit` block (ADR-0035) and mapped into `AppDbCo
 | EntityType / EntityId | string(100) / string(50) | target reference |
 | DataJson | jsonb | before/after payload (FR-035, FR-039) — MUST NOT log evaluation comment bodies beyond diffs; never logs credentials |
 | OccurredAt | DateTimeOffset | |
+
+### OutboxMessage / InboxMessage *(integration events, FR-076–FR-080, ADR-0042)*
+
+Provided by the `BuildingBlocks.Messaging` block as shared-type entities: one `OutboxMessages` table per
+publishing module schema (`organization`, `judging`) and one `InboxMessages` table per subscribing module
+schema (`organization`, `judging`, `publication`). Event types and payloads:
+[contracts/integration-events.md](./contracts/integration-events.md).
+
+`OutboxMessages`:
+
+| Field | Type | Constraints |
+|-------|------|-------------|
+| Id | Guid (v7) | PK; the event id |
+| Type | string(200) | e.g. `organization.competition-finalized` |
+| Version | int | ≥ 1 |
+| OccurredAt | DateTimeOffset | |
+| PayloadJson | jsonb | identifiers only |
+| Status | string(20) | `Pending` → `Delivering` → `Delivered` | `Dead` (retry returns to `Pending`) |
+| Attempts | int | default 0 |
+| NextAttemptAt | DateTimeOffset? | backoff; due when null or past |
+| LeaseOwner / LeaseExpiresAt | string(200)? / DateTimeOffset? | set while `Delivering` |
+| LastError | string(2000)? | failing subscriber names + exception type/message; never the payload |
+
+Indexes: `(Status, NextAttemptAt)`, `(Status, LeaseExpiresAt)`.
+
+`InboxMessages`:
+
+| Field | Type | Constraints |
+|-------|------|-------------|
+| EventId | Guid | PK part |
+| Handler | string(200) | PK part; the subscriber handler name |
+| ProcessedAt | DateTimeOffset | |
+
+The row commits in the same transaction as the handler's effect (FR-079). Purged after a retention period by the dispatcher (FR-090): `Delivered` outbox rows after 7 d, `Dead` after 30 d, inbox rows after 14 d (defaults, `Messaging` section); `Pending`/`Delivering` are never purged.
 
 ## Anonymity boundary (BR-01 / FR-019 — structural enforcement)
 
