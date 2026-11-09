@@ -135,7 +135,7 @@ public sealed class UpdateTableApiTests(ApiFactory factory) : TablesApiTestBase(
         var createResponse = await CreateTableAsync(
             organizer, competitionId, tableName, [flaggedJudgeId, bystanderJudgeId], [tableEntryId]);
         var tableId = (await createResponse.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("id").GetGuid();
-        Assert.True(await GetNotValidForBosAsync(elsewhereEntryId));
+        await AssertNotValidForBosEventuallyAsync(elsewhereEntryId, expected: true);
 
         // Remove the flagged judge from their only table (bystanderJudgeId stays, so the
         // request body is never an empty judges array — avoids relying on whether the API
@@ -143,7 +143,7 @@ public sealed class UpdateTableApiTests(ApiFactory factory) : TablesApiTestBase(
         var response = await UpdateTableAsync(organizer, competitionId, tableId, tableName, [bystanderJudgeId], [tableEntryId]);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.False(await GetNotValidForBosAsync(elsewhereEntryId));
+        await AssertNotValidForBosEventuallyAsync(elsewhereEntryId, expected: false);
     }
 
     [Fact]
@@ -178,13 +178,14 @@ public sealed class UpdateTableApiTests(ApiFactory factory) : TablesApiTestBase(
         var table2Name = $"Table2 {Guid.NewGuid():N}";
         await CreateTableAsync(organizer, competitionId, table2Name, [collaboratorJudgeId], [table2EntryId]);
 
-        Assert.True(await GetNotValidForBosAsync(sharedEntryId));
+        await AssertNotValidForBosEventuallyAsync(sharedEntryId, expected: true);
 
         // Remove the owner-judge from Table 1 — the collaborator-judge is still seated at
         // Table 2, so the shared entry must stay flagged.
         var response = await UpdateTableAsync(organizer, competitionId, table1Id, table1Name, [bystanderJudgeId], [table1EntryId]);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await AwaitBosEventsProcessedAsync();
         Assert.True(await GetNotValidForBosAsync(sharedEntryId));
     }
 }

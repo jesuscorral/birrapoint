@@ -1,14 +1,17 @@
+using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.IntegrationTests.IntegrationEvents;
 using BirraPoint.Api.IntegrationTests.TestHost;
+using BirraPoint.Api.Modules.Judging.Contracts.IntegrationEvents;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
-using BirraPoint.Api.Modules.Judging.Integration;
-using BirraPoint.Api.Modules.Organization.Contracts.Events;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Integration;
-using MediatR;
+using BuildingBlocks.Messaging;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace BirraPoint.Api.IntegrationTests.Modules.Judging.Tables.CommonComponents;
 
@@ -20,8 +23,30 @@ namespace BirraPoint.Api.IntegrationTests.Modules.Judging.Tables.CommonComponent
 /// (routed here to the real handler on the same DbContext). Each test seeds its own competition, so tests
 /// are independent.
 /// </summary>
-public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixture<ApiFactory>
+public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixture<ApiFactory>, IAsyncLifetime
 {
+    // The flag is recomputed when Organization receives the table event (SC-023). The applier writes through plain
+    // contexts, so the host only has to run the dispatcher; a one-second poll covers the missing commit wake-up.
+    private readonly WebApplicationFactory<Program> _host = factory.WithWebHostBuilder(builder =>
+        builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(
+            new Dictionary<string, string?> { ["Messaging:SafetyNetPollInterval"] = "00:00:01" })));
+
+    public ValueTask InitializeAsync()
+    {
+        _ = _host.Services; // starts the host and its dispatcher
+        return ValueTask.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _host.DisposeAsync();
+        GC.SuppressFinalize(this);
+    }
+
+    private Task AssertFlagEventuallyAsync(Guid entryId, bool expected) =>
+        EventualAssert.EqualAsync(
+            expected, () => IsNotValidForBosAsync(entryId), $"NotValidForBos of {entryId} becomes {expected}");
+
     private const string StyleCode = "21A";
     private const string LongComment = "This comment is long enough to satisfy the minimum length rule.";
 
@@ -141,7 +166,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
             .Include(t => t.Judges)
             .Include(t => t.Samples)
             .SingleAsync(t => t.Id == tableId);
-        var flaggedEntryIds = await TableAssignmentApplier.ApplyAsync(db, new ConflictOfInterestChecker(db), new InProcessPublisher(db), table, judgeIds, beerEntryIds, CancellationToken.None);
+        var flaggedEntryIds = await TableAssignmentApplier.ApplyAsync(db, new ConflictOfInterestChecker(db), new OutboxStagingPublisher(db), table, judgeIds, beerEntryIds, CancellationToken.None);
         await db.SaveChangesAsync();
         return flaggedEntryIds;
     }
@@ -187,7 +212,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
                 .SingleAsync(t => t.Id == tableId, TestContext.Current.CancellationToken);
 
             // Judge owns ownedEntryId (unassigned), so adding them would flag it for BOS.
-            await TableAssignmentApplier.ApplyAsync(db, new ConflictOfInterestChecker(db), new InProcessPublisher(db), table, [judgeId], [], TestContext.Current.CancellationToken);
+            await TableAssignmentApplier.ApplyAsync(db, new ConflictOfInterestChecker(db), new OutboxStagingPublisher(db), table, [judgeId], [], TestContext.Current.CancellationToken);
 
             Assert.True(db.ChangeTracker.HasChanges());
         }
@@ -337,9 +362,9 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
         Assert.Contains(ownedUnassignedEntryId, flagged);
         Assert.Contains(ownedAsCollaboratorEntryId, flagged);
         Assert.Contains(otherOwnedEntryId, flagged);
-        Assert.True(await IsNotValidForBosAsync(ownedUnassignedEntryId));
-        Assert.True(await IsNotValidForBosAsync(ownedAsCollaboratorEntryId));
-        Assert.True(await IsNotValidForBosAsync(otherOwnedEntryId));
+        await AssertFlagEventuallyAsync(ownedUnassignedEntryId, expected: true);
+        await AssertFlagEventuallyAsync(ownedAsCollaboratorEntryId, expected: true);
+        await AssertFlagEventuallyAsync(otherOwnedEntryId, expected: true);
         Assert.False(await IsNotValidForBosAsync(sampleEntryId));
         Assert.False(await IsNotValidForBosAsync(otherTableEntryId));
     }
@@ -375,6 +400,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
         var flagged = await ApplyAsync(tableId, [judgeId], [entryId]);
 
         Assert.Empty(flagged);
+        await EventualAssert.OutboxDrainedAsync(factory.ConnectionString);
         Assert.False(await IsNotValidForBosAsync(entryId));
     }
 
@@ -393,7 +419,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
 
         var flagged = await ApplyAsync(tableId, [judgeId], [sampleEntryId]);
         Assert.Equal([ownedEntryId], flagged);
-        Assert.True(await IsNotValidForBosAsync(ownedEntryId));
+        await AssertFlagEventuallyAsync(ownedEntryId, expected: true);
 
         return (competitionId, judgeId, ownedEntryId, sampleEntryId, tableId);
     }
@@ -406,7 +432,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
         var flagged = await ApplyAsync(s.TableId, [], [s.SampleEntryId]);
 
         Assert.Empty(flagged);
-        Assert.False(await IsNotValidForBosAsync(s.OwnedEntryId));
+        await AssertFlagEventuallyAsync(s.OwnedEntryId, expected: false);
     }
 
     [Fact]
@@ -418,6 +444,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
 
         await ApplyAsync(s.TableId, [], [s.SampleEntryId]);
 
+        await EventualAssert.OutboxDrainedAsync(factory.ConnectionString);
         Assert.True(await IsNotValidForBosAsync(s.OwnedEntryId));
     }
 
@@ -433,6 +460,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
 
         await ApplyAsync(s.TableId, [], [s.SampleEntryId]);
 
+        await EventualAssert.OutboxDrainedAsync(factory.ConnectionString);
         Assert.True(await IsNotValidForBosAsync(s.OwnedEntryId));
     }
 
@@ -446,21 +474,34 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
 
         await ApplyAsync(s.TableId, [], [s.SampleEntryId]);
 
+        await EventualAssert.OutboxDrainedAsync(factory.ConnectionString);
         Assert.True(await IsNotValidForBosAsync(s.OwnedEntryId));
     }
 
     /// <summary>Routes TableJudgesChanged to Organization's real handler on the applier's DbContext, as
     /// MediatR does in the app (same scope, same unit of work).</summary>
-    private sealed class InProcessPublisher(AppDbContext db) : IPublisher
+    /// <summary>Stands in for the host publisher on a hand-built context: stages the event in Judging's outbox on
+    /// that context, exactly as the host publisher does, so the real dispatcher delivers it once the caller saves.</summary>
+    private sealed class OutboxStagingPublisher(AppDbContext db) : IIntegrationEventPublisher
     {
-        public Task Publish(object notification, CancellationToken cancellationToken = default) =>
-            Publish((INotification)notification, cancellationToken);
+        private static readonly JsonSerializerOptions PayloadOptions = new(JsonSerializerDefaults.Web);
 
-        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
-            where TNotification : INotification =>
-            notification is TableJudgesChanged changed
-                ? new UpdateBosFlagsOnTableJudgesChanged(db, new ConflictOfInterestChecker(db), new JudgeEngagement(db))
-                    .Handle(changed, cancellationToken)
-                : throw new InvalidOperationException($"Unexpected notification {notification.GetType().Name}.");
+        public Guid Publish<TEvent>(TEvent integrationEvent)
+            where TEvent : class
+        {
+            if (integrationEvent is not TableJudgesChanged)
+            {
+                throw new InvalidOperationException($"Unexpected event {typeof(TEvent).Name}.");
+            }
+
+            var message = new OutboxMessage
+            {
+                Type = "judging.table-judges-changed",
+                OccurredAt = DateTimeOffset.UtcNow,
+                PayloadJson = JsonSerializer.Serialize(integrationEvent, PayloadOptions),
+            };
+            db.Set<OutboxMessage>("Outbox:Judging").Add(message);
+            return message.Id;
+        }
     }
 }

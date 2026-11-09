@@ -502,7 +502,7 @@ schema (`organization`, `judging`, `publication`). Event types and payloads:
 | LeaseOwner / LeaseExpiresAt | string(200)? / DateTimeOffset? | set while `Delivering` |
 | LastError | string(2000)? | failing subscriber names + exception type/message; never the payload |
 
-Indexes: `(Status, NextAttemptAt)`, `(Status, LeaseExpiresAt)`.
+Indexes: `(Status, NextAttemptAt)`, `(Status, LeaseExpiresAt)`. Primary keys and indexes are named with the schema (`PK_organization_OutboxMessages`, `IX_organization_OutboxMessages_Status_NextAttemptAt`), so the same shape exists once per module.
 
 `InboxMessages`:
 
@@ -510,7 +510,7 @@ Indexes: `(Status, NextAttemptAt)`, `(Status, LeaseExpiresAt)`.
 |-------|------|-------------|
 | EventId | Guid | PK part |
 | Handler | string(200) | PK part; the subscriber handler name |
-| ProcessedAt | DateTimeOffset | |
+| ProcessedAt | DateTimeOffset | indexed (retention purge) |
 
 The row commits in the same transaction as the handler's effect (FR-079). Purged after a retention period by the dispatcher (FR-090): `Delivered` outbox rows after 7 d, `Dead` after 30 d, inbox rows after 14 d (defaults, `Messaging` section); `Pending`/`Delivering` are never purged.
 

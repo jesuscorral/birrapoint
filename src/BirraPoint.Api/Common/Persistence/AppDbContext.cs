@@ -6,6 +6,7 @@ using BirraPoint.Api.Modules.Organization.Features.Import;
 using BirraPoint.Api.Modules.Publication.Domain;
 using BuildingBlocks.Audit;
 using BuildingBlocks.Jobs;
+using BuildingBlocks.Messaging;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Common.Persistence;
@@ -82,6 +83,14 @@ internal class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(
                 .HasForeignKey(j => j.GroupKey)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        // Integration events from the BuildingBlocks.Messaging block (FR-076-FR-080): the module that publishes
+        // owns an outbox in its schema, the module that subscribes owns an inbox in its schema.
+        modelBuilder.ApplyOutbox("Organization", DbSchemas.Organization);
+        modelBuilder.ApplyInbox("Organization", DbSchemas.Organization);
+        modelBuilder.ApplyOutbox("Judging", DbSchemas.Judging);
+        modelBuilder.ApplyInbox("Judging", DbSchemas.Judging);
+        modelBuilder.ApplyInbox("Publication", DbSchemas.Publication);
     }
 
     /// <summary>The migration history sits in its own schema, outside every module (FR-073). Added here so every

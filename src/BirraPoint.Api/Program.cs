@@ -14,6 +14,7 @@ using BuildingBlocks.DaprSecrets;
 using BuildingBlocks.EmailSender;
 using BuildingBlocks.Jobs;
 using BuildingBlocks.Keycloak.Admin;
+using BuildingBlocks.Messaging;
 using BuildingBlocks.Validation.MediatR;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
@@ -31,8 +32,9 @@ builder.Configuration.AddDaprSecrets(BirraPointSecrets.Configure);
 builder.AddServiceDefaults();
 
 // PostgreSQL via the "db" connection string the AppHost injects (quickstart env contract).
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("db")));
+// The messaging interceptors wake the integration-event dispatcher right after a commit that staged events.
+builder.Services.AddDbContext<AppDbContext>((sp, options) =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("db")).AddMessagingInterceptors(sp));
 
 // Readiness: /health runs this, /alive does not (Neon scale-to-zero, ADR-0025).
 builder.Services.AddHealthChecks()
@@ -82,6 +84,10 @@ builder.Services.AddSingleton<IEventPublisher, EventPublisher>();
 // DispatchProgressObserver relays each persisted state change to the organizers' SignalR group.
 builder.Services.AddJobs<AppDbContext>(builder.Configuration.GetSection("Dispatch"));
 builder.Services.AddScoped<IJobObserver, DispatchProgressObserver>();
+
+// Integration events between modules (BuildingBlocks.Messaging, transactional outbox/inbox): each module
+// declares its own publishes/subscriptions with ConfigureMessaging next to its other registrations.
+builder.Services.AddMessaging<AppDbContext>(builder.Configuration.GetSection("Messaging"), _ => { });
 
 // Judge provisioning (R-10): Keycloak Admin REST API via a typed HttpClient (client-credentials
 // grant against Keycloak:AdminClientId/AdminClientSecret).

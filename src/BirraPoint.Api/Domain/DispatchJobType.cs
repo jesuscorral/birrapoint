@@ -10,6 +10,10 @@ internal static class DispatchJobType
 
     public const string SendResultEmail = nameof(SendResultEmail);
 
+    /// <summary>Regenerates one entry's score sheet and rebuilds the results ZIP after a correction on a
+    /// finalized competition (FR-083); sends no emails.</summary>
+    public const string RefreshResults = nameof(RefreshResults);
+
     public const string SendInvitation = nameof(SendInvitation);
 
     /// <summary>Creates the judge's Keycloak account without sending an email — split out of the

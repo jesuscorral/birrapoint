@@ -28,10 +28,13 @@ import type { TableJudge, TableSummary } from '../../core/api/tables-api.service
 import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
 import type {
   EvaluationCompletedEvent,
+  JudgeConflictDetectedEvent,
   JudgeRemovedEvent,
   TableClosedEvent,
   TableOrderFixedEvent,
 } from '../../core/realtime/competition-hub.events';
+import { JudgeConflictBannerComponent } from '../../shared/components';
+import type { JudgeConflictBannerItem } from '../../shared/components';
 import { BpPageShellComponent } from '../../core/layout/bp-page-shell/bp-page-shell.component';
 
 function toGenericApiError(error: unknown): ApiError {
@@ -55,11 +58,16 @@ function errorMessage(error: ApiError): string {
 // consolidatedScores payload — simpler, and correctness only depends on one round trip per click.
 @Component({
   selector: 'app-competition-monitor',
-  imports: [RouterLink, CdkTrapFocus, BpPageShellComponent],
+  imports: [RouterLink, CdkTrapFocus, BpPageShellComponent, JudgeConflictBannerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <bp-page-shell>
       <p><a routerLink="/organizer/dashboard">&larr; Competitions</a></p>
+
+      <bp-judge-conflict-banner
+        [conflicts]="conflictBanners()"
+        (dismissed)="onDismissConflict($event)"
+      />
 
       @if (loadError(); as message) {
         <p role="alert">{{ message }}</p>
@@ -331,6 +339,7 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
   private tableClosedSubscription: Subscription | null = null;
   private tableOrderFixedSubscription: Subscription | null = null;
   private judgeRemovedSubscription: Subscription | null = null;
+  private judgeConflictSubscription: Subscription | null = null;
 
   protected readonly competition = signal<CompetitionDetail | null>(null);
   protected readonly tableRows = signal<TableProgressSummary[]>([]);
@@ -338,6 +347,15 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
   protected readonly tables = signal<TableSummary[]>([]);
   protected readonly loadError = signal<string | null>(null);
   protected readonly orderFixedNotes = signal<Map<string, string>>(new Map());
+  // Keyed by table: a repeat JudgeConflictDetected for the same table replaces its banner.
+  private readonly judgeConflicts = signal<Map<string, JudgeConflictDetectedEvent>>(new Map());
+  protected readonly conflictBanners = computed<JudgeConflictBannerItem[]>(() =>
+    [...this.judgeConflicts().values()].map((event) => ({
+      tableId: event.tableId,
+      judgeDisplayName: event.judgeDisplayName,
+      tableName: this.tableRows().find((row) => row.tableId === event.tableId)?.name ?? null,
+    })),
+  );
 
   protected readonly confirmingRemoveJudge = signal<{
     tableId: string;
@@ -402,6 +420,7 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
     this.tableClosedSubscription?.unsubscribe();
     this.tableOrderFixedSubscription?.unsubscribe();
     this.judgeRemovedSubscription?.unsubscribe();
+    this.judgeConflictSubscription?.unsubscribe();
     void this.hub.leaveCompetition(this.competitionId).catch(() => {
       // Best-effort: leaving on navigation-away is a courtesy, not a functional requirement.
     });
@@ -413,6 +432,14 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
 
   protected orderFixedNote(tableId: string): string | null {
     return this.orderFixedNotes().get(tableId) ?? null;
+  }
+
+  protected onDismissConflict(tableId: string): void {
+    this.judgeConflicts.update((conflicts) => {
+      const next = new Map(conflicts);
+      next.delete(tableId);
+      return next;
+    });
   }
 
   protected onSelectSample(entry: EntryListItem): void {
@@ -530,6 +557,11 @@ export class CompetitionMonitorComponent implements OnInit, OnDestroy {
       this.judgeRemovedSubscription = this.hub
         .on('JudgeRemoved')
         .subscribe((event) => this.applyJudgeRemoved(event));
+      this.judgeConflictSubscription = this.hub
+        .on('JudgeConflictDetected')
+        .subscribe((event) =>
+          this.judgeConflicts.update((c) => new Map(c).set(event.tableId, event)),
+        );
     } catch {
       // Realtime is a best-effort notification channel (contracts/signalr-hub.md): the dashboard
       // stays fully functional over REST without it — an organizer just won't see live progress

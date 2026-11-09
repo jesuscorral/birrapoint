@@ -4,7 +4,7 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-11-08 (schema per module, single baseline migration and DB reset command, ADR-0041; MVP closed; `tasks.md` retired; issue-driven workflow, ADR-0040; Identity block extracted, ADR-0037; Aspire 13.6.4 + Aspire MCP for agents, ADR-0039; Jobs block extracted, ADR-0037; Spreadsheet block extracted; ProblemDetails and Validation.MediatR extracted; per-module domain errors, ADR-0038)
+**Last updated:** 2026-11-09 (integration events with transactional outbox/inbox, ADR-0042; schema per module, single baseline migration and DB reset command, ADR-0041; MVP closed; `tasks.md` retired; issue-driven workflow, ADR-0040; Identity block extracted, ADR-0037; Aspire 13.6.4 + Aspire MCP for agents, ADR-0039; Jobs block extracted, ADR-0037; Spreadsheet block extracted; ProblemDetails and Validation.MediatR extracted; per-module domain errors, ADR-0038)
 
 ## Status
 
@@ -122,7 +122,7 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
 (ADR-0035, ADR-0037; today `BuildingBlocks.Audit`, `BuildingBlocks.DaprSecrets`,
 `BuildingBlocks.EmailSender`, `BuildingBlocks.Keycloak.Authentication` and
 `BuildingBlocks.Keycloak.Admin`, `BuildingBlocks.ProblemDetails` and
-`BuildingBlocks.Validation.MediatR`, `BuildingBlocks.Spreadsheet`, `BuildingBlocks.Jobs` and `BuildingBlocks.Identity`, each tested by its own
+`BuildingBlocks.Validation.MediatR`, `BuildingBlocks.Spreadsheet`, `BuildingBlocks.Jobs`, `BuildingBlocks.Messaging` and `BuildingBlocks.Identity`, each tested by its own
 `tests/BuildingBlocks/BuildingBlocks.<X>.Tests`). Package versions are centralized in
 `Directory.Packages.props` (including `$(BirraPointTargetFramework)`).
 
@@ -192,6 +192,15 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
   `InitialCreate` (incl. the seed) is the whole migration history. `LegacyDatabaseGuard` stops
   startup, naming the reset command, on a database built from the old chain. Local reset: Aspire
   `db` -> Reset database (drops only `birrapoint`; Keycloak untouched). Cross-schema FKs remain.
+- **Integration events** (`BuildingBlocks.Messaging`, ADR-0042; PostgreSQL only): `IIntegrationEventPublisher` stages an
+  outbox row per publishing module (in its schema) in the caller's `SaveChanges`. `OutboxDispatcher` wakes after commit
+  (plus a safety-net poll), claims rows with a lease, hands them to `IIntegrationEventTransport` (`LocalTransport`,
+  in-process; Dapr in #108), and `InboxRunner` runs each `IIntegrationEventHandler<T>` once per `(EventId, Handler)`
+  in the handler's own transaction. Retry with backoff up to `Messaging:MaxAttempts`, then `Dead`. `RetentionPurger`
+  deletes old rows in batches. Config (`appsettings.json`, `Messaging`): `DispatcherEnabled`, `LeaseDuration`,
+  `SafetyNetPollInterval`, `MaxAttempts`, `MaxBackoff`, `OutboxRetention` 7 d, `DeadRetention` 30 d,
+  `InboxRetention` 14 d, `PurgeInterval`, `PurgeBatchSize`; startup fails if `InboxRetention <= OutboxRetention`.
+  Contract: `specs/001-birrapoint-mvp/contracts/integration-events.md`.
 - **Background jobs** (`BuildingBlocks.Jobs`, ADR-0037, R-06; PostgreSQL only): `IJobQueue` inserts a `Pending` `Job` row and wakes
   the generic `JobWorker` through a channel (plus a safety-net poll, `Dispatch:SafetyNetPollInterval`, default 30 s, floor 1 s; cloud deployments set 1 h, ADR-0025). The worker claims one eligible
   `Pending` job per transaction (`FOR UPDATE SKIP LOCKED`), marks it `Running` with
@@ -249,18 +258,22 @@ registered by `Add<M>Module` (ADR-0034).
 | `IResultRecipients` (`ResultEntry`, `ResultRecipient`; results delivery only) | Organization | Organization |
 | `IStoredEvaluations` | Judging | Judging |
 | `ICompetitionFinalizationGuard`, `IEntryTableAssignments`, `IJudgeEngagement` (consumer-owned ports, avoid a cycle) | Organization | Judging |
-| `CompetitionFinalized` (MediatR notification) | Organization | handled by Publication |
-| `TableJudgesChanged` (MediatR notification) | Organization | published by Judging, handled by Organization |
+| `IntegrationEvents/CompetitionFinalized`, `JudgeEmailChanged` | Organization | published by Organization; handled by Publication / Judging |
+| `IntegrationEvents/TableJudgesChanged`, `EvaluationCorrected` | Judging | published by Judging; handled by Organization / Publication |
 
-Finalize flow: `ChangeCompetitionStateCommand` checks `ICompetitionFinalizationGuard`, publishes
-`CompetitionFinalized` before `SaveChanges`; Publication stages `GeneratePdfs` via `IJobQueue.Stage`
-in the same transaction and the worker is woken after commit.
+Event flows (outbox/inbox, ADR-0042; payloads and subscribers in `contracts/integration-events.md`):
 
-BOS flag flow (FR-018): table create/update in Judging stages its judge diff and publishes `TableJudgesChanged`
-(table's new judge set, added and removed judges, and the entries those judges own from `IConflictOfInterestChecker`, looked up once) before `SaveChanges`. Organization's
-`UpdateBosFlagsOnTableJudgesChanged` flags entries owned by added judges and unflags entries of removed judges
-whose co-owner judges are neither at this table nor engaged elsewhere (`IJudgeEngagement`: another active seat
-or any evaluation), all in the same unit of work.
+- **Finalize**: `ChangeCompetitionStateCommand` publishes `CompetitionFinalized`; Publication stages `GeneratePdfs`
+  via `IJobQueue.Stage` and wakes the worker after commit.
+- **BOS flags (FR-018)**: table create/update in Judging publishes `TableJudgesChanged`; Organization's
+  `UpdateBosFlagsOnTableJudgesChanged` (rules in `BosFlagRules`, applied by `BosFlagRecalculator`) flags and unflags
+  from current state, using `IJudgeEngagement.GetEngagedJudgesAsync`. Handlers are order-insensitive.
+- **Judge email change (FR-082)**: `UpdateJudgeEmail` recomputes BOS flags in its own transaction and publishes
+  `JudgeEmailChanged`; Judging's `AlertOrganizersOnJudgeConflict` sends `JudgeConflictDetected` after commit when the
+  judge sits at a table with an entry they now own. Nobody is unseated.
+- **Correction after `Finalized` (FR-083)**: `CorrectEvaluationCommand` publishes `EvaluationCorrected`; Publication
+  stages `RefreshResults` (regenerates that entry's PDF if a sheet exists, rebuilds the ZIP if an archive exists, no
+  emails; ZIP built by `CommonComponents/ResultsArchiveBuilder`).
 
 Boundary rule: `UnitTests/Architecture/ModuleBoundaryTests.cs` forbids using another module outside its
 `Contracts` namespace or touching its `DbSet`s, with no module-to-module exception. `Persistence/` FK
@@ -298,7 +311,7 @@ Namespaces equal folders (IDE0130). Integration tests mirror it.
 ### SignalR events
 
 `CompetitionStateChanged`, `EvaluationCompleted`, `TableOrderFixed`, `TableClosed`,
-`DiscrepancyRaised`, `DiscrepancyResolved`, `JudgeRemoved`, `DispatchProgress` — payloads per
+`DiscrepancyRaised`, `DiscrepancyResolved`, `JudgeRemoved`, `JudgeConflictDetected`, `DispatchProgress` — payloads per
 audience in `contracts/signalr-hub.md`.
 
 ## Frontend (`src/Birrapoint.Web/`, Angular 20)
@@ -379,10 +392,10 @@ Shared primitives live in `shared/components/` (`bp-button`, `bp-input`, `bp-ale
 - **Keycloak**: JDBC uses `sslmode=require` (API uses `VerifyFull`). The password policy is
   limited to length and username/email rules until the judge temp-password generator changes
   (ADR-0026).
-- **`UpdateJudgeEmail`** does not re-run COI/BOS checks against the new email (contract says it
-  should); no `JudgeEmailChanged` event exists.
-- **Organizer correction after `Finalized`** leaves the generated PDFs/ZIP stale; no
-  `EvaluationCorrected` event regenerates them.
+- **Refresh race**: a `GeneratePdfs` run still in progress when an organizer correction lands can write an
+  old-score PDF after `RefreshResults` ran; only a correction during the first generation triggers it.
+- **Messaging**: `Dead` outbox rows have no UI or alert and go only by retention (`DeadRetention`, 30 d); retention
+  values are not tuned for the cloud targets.
 - **Monitor "Order fixed by"** note comes only from the live event; no REST backfill.
 - **Outbox rows** rejected definitively before ever persisting keep retrying with no UI to discard
   them.

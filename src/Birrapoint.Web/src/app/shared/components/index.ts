@@ -6,3 +6,5 @@ export { BpCheckboxComponent } from './bp-checkbox/bp-checkbox.component';
 export { BpTopbarComponent } from './bp-topbar/bp-topbar.component';
 export { BpFileDropzoneComponent } from './bp-file-dropzone/bp-file-dropzone.component';
 export { BpStepActionsComponent } from './bp-step-actions/bp-step-actions.component';
+export { JudgeConflictBannerComponent } from './judge-conflict-banner/judge-conflict-banner.component';
+export type { JudgeConflictBannerItem } from './judge-conflict-banner/judge-conflict-banner.component';

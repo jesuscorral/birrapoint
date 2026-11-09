@@ -7,6 +7,8 @@ import { of, throwError, Subject } from 'rxjs';
 import type { CompetitionDetail, CompetitionState } from '../../core/api/competitions-api.service';
 import { CompetitionsApiService } from '../../core/api/competitions-api.service';
 import { EntriesApiService } from '../../core/api/entries-api.service';
+import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
+import type { JudgeConflictDetectedEvent } from '../../core/realtime/competition-hub.events';
 import { TableBoardComponent } from './table-board.component';
 import { TableManagementApiService } from './table-management-api.service';
 import { TableManagementComponent } from './table-management.component';
@@ -29,8 +31,10 @@ function competitionFixture(state: CompetitionState): CompetitionDetail {
 
 describe('TableManagementComponent', () => {
   let fakeCompetitionsApi: { getById: jest.Mock };
+  let conflictSubject: Subject<JudgeConflictDetectedEvent>;
 
   beforeEach(() => {
+    conflictSubject = new Subject<JudgeConflictDetectedEvent>();
     fakeCompetitionsApi = { getById: jest.fn().mockReturnValue(of(competitionFixture('Active'))) };
   });
 
@@ -52,6 +56,15 @@ describe('TableManagementComponent', () => {
         },
         { provide: EntriesApiService, useValue: { getEntries: jest.fn().mockReturnValue(of([])) } },
         { provide: CompetitionsApiService, useValue: fakeCompetitionsApi },
+        {
+          provide: CompetitionHubService,
+          useValue: {
+            start: jest.fn().mockResolvedValue(undefined),
+            joinCompetitionAsOrganizer: jest.fn().mockResolvedValue(undefined),
+            leaveCompetition: jest.fn().mockResolvedValue(undefined),
+            on: jest.fn(() => conflictSubject.asObservable()),
+          },
+        },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: convertToParamMap({ id }) } },
@@ -125,5 +138,38 @@ describe('TableManagementComponent', () => {
 
     const boardDebugEl = fixture.debugElement.query(By.directive(TableBoardComponent));
     expect(boardDebugEl.componentInstance.readOnly()).toBe(false);
+  });
+
+  it('shows one dismissible conflict banner per table on JudgeConflictDetected', async () => {
+    const fixture = createComponent('c1');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    conflictSubject.next({
+      tableId: 't1',
+      judgeId: 'j1',
+      judgeDisplayName: 'Ana Pérez',
+      beerEntryIds: ['e1'],
+    });
+    conflictSubject.next({
+      tableId: 't1',
+      judgeId: 'j2',
+      judgeDisplayName: 'Luis Gómez',
+      beerEntryIds: ['e2'],
+    });
+    fixture.detectChanges();
+
+    const alerts = fixture.nativeElement.querySelectorAll(
+      'bp-judge-conflict-banner [role="alert"]',
+    );
+    expect(alerts.length).toBe(1);
+    expect(alerts[0].textContent).toContain('Luis Gómez');
+
+    alerts[0].querySelector('button').click();
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelectorAll('bp-judge-conflict-banner [role="alert"]').length,
+    ).toBe(0);
   });
 });

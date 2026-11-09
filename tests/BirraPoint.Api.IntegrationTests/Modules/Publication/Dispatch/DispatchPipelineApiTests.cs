@@ -4,8 +4,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
+using BirraPoint.Api.IntegrationTests.IntegrationEvents;
 using BirraPoint.Api.IntegrationTests.TestHost;
-using BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.DispatchScoreSheet;
+using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
 using BuildingBlocks.Jobs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -93,11 +94,14 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var hasGeneratePdfsJob = await db.DispatchJobs
-            .AnyAsync(j => j.GroupKey == competitionId && j.Type == DispatchJobType.GeneratePdfs, cancellationToken: TestContext.Current.CancellationToken);
-        Assert.True(hasGeneratePdfsJob);
+        // Publication stages the job when it receives the competition-finalized event (SC-023): wait for it.
+        await EventualAssert.TrueAsync(async () =>
+        {
+            await using var scope = Factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            return await db.DispatchJobs
+                .AnyAsync(j => j.GroupKey == competitionId && j.Type == DispatchJobType.GeneratePdfs, cancellationToken: TestContext.Current.CancellationToken);
+        }, "GeneratePdfs job staged");
     }
 
     // ---- Concurrency: the state change must be serialized, not just sequentially rejected --------
@@ -148,11 +152,17 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
 
         await AssertExactlyOneWinnerAsync(responses);
 
-        await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var jobCount = await db.DispatchJobs.AsNoTracking().CountAsync(
-            j => j.GroupKey == competitionId && j.Type == DispatchJobType.GeneratePdfs, TestContext.Current.CancellationToken);
-        Assert.Equal(1, jobCount);
+        async Task<int> CountJobsAsync()
+        {
+            await using var scope = Factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            return await db.DispatchJobs.AsNoTracking().CountAsync(
+                j => j.GroupKey == competitionId && j.Type == DispatchJobType.GeneratePdfs, TestContext.Current.CancellationToken);
+        }
+
+        await EventualAssert.EqualAsync(1, CountJobsAsync, "one GeneratePdfs job staged (SC-023)");
+        await EventualAssert.OutboxDrainedAsync(Factory.ConnectionString);
+        Assert.Equal(1, await CountJobsAsync());
 
         // Active + InEvaluation (setup) + exactly one Finalized.
         Assert.Equal(3, await CountStateChangeAuditRowsAsync(competitionId));

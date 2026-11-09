@@ -68,6 +68,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 // SendInvitationHandler requires this to build the invitation email body;
                 // only real AppHost env injection sets it outside this test host.
                 ["Frontend:BaseUrl"] = "http://localhost:4200",
+                // Integration events: short lease, poll and backoff so a retry or a recovered lease shows up
+                // within a test; the commit wake-up still delivers first-time events at once.
+                ["Messaging:LeaseDuration"] = "00:00:30",
+                ["Messaging:SafetyNetPollInterval"] = "00:00:05",
+                ["Messaging:MaxBackoff"] = "00:00:02",
             });
         });
 

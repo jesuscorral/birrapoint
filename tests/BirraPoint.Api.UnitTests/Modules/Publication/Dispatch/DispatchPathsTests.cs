@@ -1,4 +1,4 @@
-using BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.DispatchScoreSheet;
+using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
 
 namespace BirraPoint.Api.UnitTests.Modules.Publication.Dispatch;
 
