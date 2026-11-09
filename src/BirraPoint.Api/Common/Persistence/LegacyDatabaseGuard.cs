@@ -7,6 +7,11 @@ namespace BirraPoint.Api.Common.Persistence;
 /// Stops startup when the database was built from the pre-baseline migrations (FR-070). Without it the new
 /// history in <c>migrations</c> is empty, so EF would create fresh tables in the module schemas next to the
 /// old ones in <c>public</c>: a silent mix. The developer resets the BirraPoint database instead (FR-071).
+/// <para>
+/// An applied migration this build does not know is refused only when it sorts before the earliest known one:
+/// that is the old baseline. A newer unknown id means the database is ahead of the build (rollback to an
+/// older image, checkout of an older branch), which is not a legacy database and must keep starting (FR-091).
+/// </para>
 /// </summary>
 internal static class LegacyDatabaseGuard
 {
@@ -19,7 +24,10 @@ internal static class LegacyDatabaseGuard
         ArgumentNullException.ThrowIfNull(known);
 
         var knownSet = known.ToHashSet(StringComparer.Ordinal);
-        var unknown = applied.FirstOrDefault(id => !knownSet.Contains(id));
+        var earliestKnown = knownSet.Count == 0 ? null : knownSet.Min(StringComparer.Ordinal);
+        var unknown = applied.FirstOrDefault(id =>
+            !knownSet.Contains(id)
+            && (earliestKnown is null || string.CompareOrdinal(id, earliestKnown) < 0));
 
         if (!legacyHistoryExists && unknown is null)
         {
