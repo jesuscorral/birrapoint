@@ -1,3 +1,7 @@
+using Aspire.Hosting.ApplicationModel;
+using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 // PostgreSQL 16 (constitution stack; production runs PostgreSQL 16 on Neon, FR-047/R-18).
@@ -6,6 +10,39 @@ var postgres = builder.AddPostgres("postgres")
     .WithDataVolume()
     .WithLifetime(ContainerLifetime.Persistent);
 var db = postgres.AddDatabase("db", "birrapoint");
+
+// "Reset database": drops and recreates ONLY the birrapoint database, then restarts the API so startup
+// migrates the baseline (FR-071). The keycloak database on the same server is never named, so every
+// Keycloak account survives. WITH (FORCE) closes the API's open connections, so a reset while the stack
+// runs cannot leave a half-dropped database. Runs against the server's maintenance database.
+db.WithCommand(
+    name: "reset-database",
+    displayName: "Reset database",
+    executeCommand: async context =>
+    {
+        var connectionString = await postgres.Resource.GetConnectionStringAsync(context.CancellationToken)
+            ?? throw new InvalidOperationException("The postgres connection string is not available yet.");
+        await using (var connection = new NpgsqlConnection(connectionString))
+        {
+            await connection.OpenAsync(context.CancellationToken);
+            await using var drop = new NpgsqlCommand("DROP DATABASE IF EXISTS \"birrapoint\" WITH (FORCE)", connection);
+            await drop.ExecuteNonQueryAsync(context.CancellationToken);
+            await using var create = new NpgsqlCommand("CREATE DATABASE \"birrapoint\"", connection);
+            await create.ExecuteNonQueryAsync(context.CancellationToken);
+        }
+
+        var commands = context.Services.GetRequiredService<ResourceCommandService>();
+        var restart = await commands.ExecuteCommandAsync("api", KnownResourceCommands.RestartCommand, context.CancellationToken);
+        return restart.Success
+            ? CommandResults.Success()
+            : CommandResults.Failure($"Database recreated, but restarting the API failed: {restart.Message}");
+    },
+    commandOptions: new CommandOptions
+    {
+        IconName = "DatabaseArrowDown",
+        IsHighlighted = false,
+        ConfirmationMessage = "Drops and recreates the birrapoint database (Keycloak accounts are kept). Continue?",
+    });
 // Keycloak's own store (below) — a second logical database on the same Postgres server/volume.
 // This is where every registered organizer/judge account and its password credential lives, so it
 // survives `dotnet run` restarts and container recreation; only destroying the Postgres volume or

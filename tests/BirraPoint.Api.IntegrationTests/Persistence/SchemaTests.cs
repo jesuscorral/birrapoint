@@ -59,6 +59,80 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
         await db.AuditLogs.CountAsync(cancellationToken: TestContext.Current.CancellationToken);
     }
 
+    // FR-068, FR-073, SC-015
+    [Fact]
+    public async Task EveryTableLivesInItsOwnersSchemaAndPublicHoldsNone()
+    {
+        var expected = new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["catalog"] = ["BjcpStyles"],
+            ["organization"] =
+            [
+                "Competitions", "Organizers", "CompetitionCategories", "CompetitionCategoryStyles", "Participants",
+                "BeerEntries", "EntryCollaborators", "ImportBatches", "ImportRows", "Judges", "Invitations",
+                "JudgeImportBatches", "JudgeImportRows",
+            ],
+            ["judging"] = ["TastingTables", "TableJudges", "TableSamples", "Evaluations", "DiscrepancyAlerts"],
+            ["publication"] = ["GeneratedScoreSheets", "ResultsArchives"],
+            ["jobs"] = ["DispatchJobs"],
+            ["audit"] = ["AuditLogs"],
+            ["migrations"] = ["__EFMigrationsHistory"],
+        };
+
+        await using var db = NewContext();
+        var connection = (NpgsqlConnection)db.Database.GetDbConnection();
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var command = new NpgsqlCommand(
+            "SELECT table_schema, table_name FROM information_schema.tables " +
+            "WHERE table_schema NOT IN ('pg_catalog', 'information_schema') AND table_type = 'BASE TABLE'", connection);
+        var actual = new List<string>();
+        await using (var reader = await command.ExecuteReaderAsync(TestContext.Current.CancellationToken))
+        {
+            while (await reader.ReadAsync(TestContext.Current.CancellationToken))
+            {
+                actual.Add($"{reader.GetString(0)}.{reader.GetString(1)}");
+            }
+        }
+
+        var expectedQualified = expected
+            .SelectMany(kv => kv.Value.Select(table => $"{kv.Key}.{table}"))
+            .Order(StringComparer.Ordinal);
+
+        Assert.Equal(expectedQualified, actual.Order(StringComparer.Ordinal));
+        Assert.DoesNotContain(actual, t => t.StartsWith("public.", StringComparison.Ordinal));
+    }
+
+    // FR-066, FR-049
+    [Fact]
+    public async Task BaselineIsASingleInitialCreateMigrationWithTheFullBjcpSeed()
+    {
+        await using var db = NewContext();
+
+        var applied = (await db.Database.GetAppliedMigrationsAsync(TestContext.Current.CancellationToken)).ToList();
+        var only = Assert.Single(applied);
+        Assert.EndsWith("_InitialCreate", only, StringComparison.Ordinal);
+
+        var assembly = typeof(Program).Assembly;
+        var resource = assembly.GetManifestResourceNames()
+            .Single(name => name.EndsWith("bjcp-2021.json", StringComparison.Ordinal));
+        await using var stream = assembly.GetManifestResourceStream(resource)!;
+        using var document = await System.Text.Json.JsonDocument.ParseAsync(
+            stream, cancellationToken: TestContext.Current.CancellationToken);
+        var expectedCodes = document.RootElement.EnumerateArray()
+            .Select(style => style.GetProperty("code").GetString()!)
+            .ToArray();
+
+        var connection = (NpgsqlConnection)db.Database.GetDbConnection();
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var command = new NpgsqlCommand(
+            "SELECT count(*) FROM catalog.\"BjcpStyles\" WHERE \"Code\" = ANY(@codes)", connection);
+        command.Parameters.AddWithValue("codes", expectedCodes);
+        var seeded = (long)(await command.ExecuteScalarAsync(TestContext.Current.CancellationToken))!;
+
+        // Other tests in this class insert extra styles into the shared database, so only the seeded codes are counted.
+        Assert.Equal(expectedCodes.Length, seeded);
+    }
+
     [Fact]
     public async Task AuditLogsKeepsOnlyTheAuditBlockColumnsWithJsonbData()
     {

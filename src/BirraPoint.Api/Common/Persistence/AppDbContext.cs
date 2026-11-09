@@ -61,15 +61,20 @@ internal class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+        MapModuleEntitiesToSchemas(modelBuilder);
 
         // Audit trail from the BuildingBlocks.Audit block (ADR-0035); DataJson is jsonb in PostgreSQL.
-        modelBuilder.ApplyAuditLog(configure: audit => audit.Property(a => a.DataJson).HasColumnType("jsonb"));
+        modelBuilder.ApplyAuditLog(configure: audit =>
+        {
+            audit.ToTable("AuditLogs", DbSchemas.Audit);
+            audit.Property(a => a.DataJson).HasColumnType("jsonb");
+        });
 
         // Background job queue from the BuildingBlocks.Jobs block (R-06, ADR-0037), kept on the original
         // DispatchJobs table: GroupKey is the owning competition, deleted along with it.
         modelBuilder.ApplyJobs(job =>
         {
-            job.ToTable("DispatchJobs");
+            job.ToTable("DispatchJobs", DbSchemas.Jobs);
             job.Property(j => j.GroupKey).HasColumnName("CompetitionId");
             job.Property(j => j.Type).HasMaxLength(30);
             job.HasOne<Competition>()
@@ -77,6 +82,34 @@ internal class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(
                 .HasForeignKey(j => j.GroupKey)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+    }
+
+    /// <summary>The migration history sits in its own schema, outside every module (FR-073). Added here so every
+    /// construction site (host, design-time factory, test fixtures) gets it.</summary>
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) =>
+        optionsBuilder.UseNpgsql(npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", DbSchemas.Migrations));
+
+    /// <summary>Each module entity goes to its owner's schema by namespace (FR-068); a new entity cannot be
+    /// forgotten, and one outside the known modules fails the model build.</summary>
+    private static void MapModuleEntitiesToSchemas(ModelBuilder modelBuilder)
+    {
+        const string prefix = "BirraPoint.Api.Modules.";
+        foreach (var entity in modelBuilder.Model.GetEntityTypes().Where(e => !e.IsOwned()))
+        {
+            var ns = entity.ClrType.Namespace;
+            if (ns is null || !ns.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var module = ns[prefix.Length..].Split('.')[0];
+            if (!DbSchemas.ByModule.TryGetValue(module, out var schema))
+            {
+                throw new InvalidOperationException($"Entity {entity.ClrType} is in unknown module '{module}'; add its schema to {nameof(DbSchemas)}.");
+            }
+
+            entity.SetSchema(schema);
+        }
     }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)

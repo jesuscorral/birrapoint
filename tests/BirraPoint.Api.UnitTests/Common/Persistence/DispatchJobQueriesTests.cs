@@ -18,7 +18,7 @@ public sealed class DispatchJobQueriesTests
 
         var sql = db.DispatchJobs.OfDispatchType(DispatchJobType.SendResultEmail).ToQueryString();
 
-        Assert.Contains("FROM \"DispatchJobs\"", sql, StringComparison.Ordinal);
+        Assert.Contains("FROM jobs.\"DispatchJobs\"", sql, StringComparison.Ordinal);
         Assert.Contains(".\"Type\" = @type", sql, StringComparison.Ordinal);
     }
 

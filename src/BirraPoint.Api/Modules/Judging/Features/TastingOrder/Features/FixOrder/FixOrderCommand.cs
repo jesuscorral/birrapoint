@@ -37,7 +37,7 @@ internal sealed class FixOrderCommandHandler(
         // Row lock to serialize concurrent fixers — the one-shot guarantee (US6-4 / Clarification
         // Q1) must hold even when two judges race POST .../order at the same instant.
         var table = await dbContext.TastingTables
-            .FromSqlInterpolated($"SELECT * FROM \"TastingTables\" WHERE \"Id\" = {request.TableId} FOR UPDATE")
+            .FromSqlInterpolated($"SELECT * FROM judging.\"TastingTables\" WHERE \"Id\" = {request.TableId} FOR UPDATE")
             .SingleAsync(cancellationToken);
 
         var competitionState = (await competitionAccess.GetAsync(table.CompetitionId, cancellationToken)

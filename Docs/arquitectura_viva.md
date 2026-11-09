@@ -4,7 +4,7 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-11-08 (MVP closed; `tasks.md` retired; issue-driven workflow, ADR-0040; Identity block extracted, ADR-0037; Aspire 13.6.4 + Aspire MCP for agents, ADR-0039; Jobs block extracted, ADR-0037; Spreadsheet block extracted; ProblemDetails and Validation.MediatR extracted; per-module domain errors, ADR-0038)
+**Last updated:** 2026-11-08 (schema per module, single baseline migration and DB reset command, ADR-0041; MVP closed; `tasks.md` retired; issue-driven workflow, ADR-0040; Identity block extracted, ADR-0037; Aspire 13.6.4 + Aspire MCP for agents, ADR-0039; Jobs block extracted, ADR-0037; Spreadsheet block extracted; ProblemDetails and Validation.MediatR extracted; per-module domain errors, ADR-0038)
 
 ## Status
 
@@ -186,6 +186,12 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
   open `DiscrepancyAlert`s; date-window check constraints on `Competition`. The BJCP 2021 catalog
   (125 styles, full guide text) is seeded by migration from the embedded
   `Modules/Catalog/Features/Catalog/Data/bjcp-2021.json`, with its SHA-256 pinned by a unit test (ADR-0005).
+  **Schemas (ADR-0041)**: one per module by entity namespace (`catalog`, `organization`, `judging`,
+  `publication`), plus `jobs` and `audit` set by the host for the building blocks; EF history in
+  `migrations`; `public` empty. Map: `specs/001-birrapoint-mvp/data-model.md`. A single baseline
+  `InitialCreate` (incl. the seed) is the whole migration history. `LegacyDatabaseGuard` stops
+  startup, naming the reset command, on a database built from the old chain. Local reset: Aspire
+  `db` -> Reset database (drops only `birrapoint`; Keycloak untouched). Cross-schema FKs remain.
 - **Background jobs** (`BuildingBlocks.Jobs`, ADR-0037, R-06; PostgreSQL only): `IJobQueue` inserts a `Pending` `Job` row and wakes
   the generic `JobWorker` through a channel (plus a safety-net poll, `Dispatch:SafetyNetPollInterval`, default 30 s, floor 1 s; cloud deployments set 1 h, ADR-0025). The worker claims one eligible
   `Pending` job per transaction (`FOR UPDATE SKIP LOCKED`), marks it `Running` with
@@ -218,7 +224,7 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
 ### Modules (ADR-0033)
 
 Code lives in `src/BirraPoint.Api/Modules/<Module>/` (`Domain/`, `Persistence/` EF configurations,
-`Contracts/`, `Integration/`, `Features/<Feature>/`, `<Module>Module.cs`, `<Module>ModuleEndpoints.cs`). One `AppDbContext` and one schema; no per-module DB.
+`Contracts/`, `Integration/`, `Features/<Feature>/`, `<Module>Module.cs`, `<Module>ModuleEndpoints.cs`). One `AppDbContext`, one PostgreSQL schema per module (ADR-0041); no per-module DB.
 `Api/Domain/` is the shared kernel (`Entity` + `ITimestamped`, `DispatchJobType` names). `UnitTests/Architecture/ModuleLayoutTests.cs` checks the layout.
 
 | Module | Features | Entities |

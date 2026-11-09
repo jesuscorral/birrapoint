@@ -47,7 +47,7 @@ internal static class LiveJudgeRemoval
             // Serializes concurrent PUTs on this table (two racing removals must not both read the
             // judge as active and double-write audit/events). Same pattern as CloseTable.
             var lockedTable = await dbContext.TastingTables
-                .FromSqlInterpolated($"SELECT * FROM \"TastingTables\" WHERE \"Id\" = {tableId} FOR UPDATE")
+                .FromSqlInterpolated($"SELECT * FROM judging.\"TastingTables\" WHERE \"Id\" = {tableId} FOR UPDATE")
                 .SingleAsync(cancellationToken);
 
             if (lockedTable.State == TableState.Closed)

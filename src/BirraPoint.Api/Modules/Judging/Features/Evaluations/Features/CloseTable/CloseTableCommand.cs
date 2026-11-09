@@ -41,7 +41,7 @@ internal sealed class CloseTableCommandHandler(AppDbContext dbContext, IJudgeDir
         // Modules/Judging/Features/TastingOrder/Features/FixOrder/FixOrderCommand.cs's one-shot table-state flip. The active TableJudge row
         // found above references an existing TastingTable (FK), so this is always found.
         var table = await dbContext.TastingTables
-            .FromSqlInterpolated($"SELECT * FROM \"TastingTables\" WHERE \"Id\" = {request.TableId} FOR UPDATE")
+            .FromSqlInterpolated($"SELECT * FROM judging.\"TastingTables\" WHERE \"Id\" = {request.TableId} FOR UPDATE")
             .SingleAsync(cancellationToken);
 
         if (table.State == TableState.Closed)

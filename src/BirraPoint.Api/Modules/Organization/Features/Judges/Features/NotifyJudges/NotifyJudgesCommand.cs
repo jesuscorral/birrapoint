@@ -44,7 +44,7 @@ internal sealed class NotifyJudgesCommandHandler(
         // + duplicate email). Row lock on the competition serializes concurrent notifies so the
         // in-flight check below is race-free; the loser sees the winner's committed jobs.
         _ = await dbContext.Competitions
-            .FromSqlInterpolated($"SELECT * FROM \"Competitions\" WHERE \"Id\" = {request.CompetitionId} FOR UPDATE")
+            .FromSqlInterpolated($"SELECT * FROM organization.\"Competitions\" WHERE \"Id\" = {request.CompetitionId} FOR UPDATE")
             .SingleAsync(cancellationToken);
 
         var pendingJudges = await dbContext.Judges
