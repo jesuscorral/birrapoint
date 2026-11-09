@@ -44,6 +44,10 @@ first, never silently into code. New `FR-`/`SC-`/`US` ids continue the global se
   8. Docs in the same change (`docs-keeper`): ADR in `Docs/adrs/NNNN-kebab-title.md` (per
      `template.md`) for significant decisions; update `Docs/arquitectura_viva.md`. All docs in
      English.
+- Board status (project 10) follows the flow, set with `bash .claude/scripts/board-status.sh <issue>
+  "<status>"`: **Backlog** on creation (automatic) → **Ready** once the spec is approved (Stop 1) →
+  **In progress** when implementation starts (after Stop 2) → **In review** when the PR is opened →
+  **Done** when the PR is merged (automatic, board workflow).
 - Small fixes/chores without new behaviour: `fix/<topic>` or `chore/<topic>` branch,
   `/review-and-commit`, PR; no spec folder needed.
 - Delegate work to subagents (`.claude/agents/`: backend-, frontend-, qa-, infra-engineer,
