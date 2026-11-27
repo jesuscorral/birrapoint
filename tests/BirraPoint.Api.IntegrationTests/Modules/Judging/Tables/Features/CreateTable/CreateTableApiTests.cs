@@ -115,7 +115,7 @@ public sealed class CreateTableApiTests(ApiFactory factory) : TablesApiTestBase(
         Assert.Contains(elsewhereEntryId, bosFlagged);
         Assert.DoesNotContain(tableEntryId, bosFlagged); // no direct collision, so it wasn't rejected
 
-        Assert.True(await GetNotValidForBosAsync(elsewhereEntryId));
+        await AssertNotValidForBosEventuallyAsync(elsewhereEntryId, expected: true);
     }
 
     [Fact]

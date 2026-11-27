@@ -70,10 +70,14 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
             [
                 "Competitions", "Organizers", "CompetitionCategories", "CompetitionCategoryStyles", "Participants",
                 "BeerEntries", "EntryCollaborators", "ImportBatches", "ImportRows", "Judges", "Invitations",
-                "JudgeImportBatches", "JudgeImportRows",
+                "JudgeImportBatches", "JudgeImportRows", "OutboxMessages", "InboxMessages",
             ],
-            ["judging"] = ["TastingTables", "TableJudges", "TableSamples", "Evaluations", "DiscrepancyAlerts"],
-            ["publication"] = ["GeneratedScoreSheets", "ResultsArchives"],
+            ["judging"] =
+            [
+                "TastingTables", "TableJudges", "TableSamples", "Evaluations", "DiscrepancyAlerts",
+                "OutboxMessages", "InboxMessages",
+            ],
+            ["publication"] = ["GeneratedScoreSheets", "ResultsArchives", "InboxMessages"],
             ["jobs"] = ["DispatchJobs"],
             ["audit"] = ["AuditLogs"],
             ["migrations"] = ["__EFMigrationsHistory"],
@@ -108,9 +112,10 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
     {
         await using var db = NewContext();
 
+        // The baseline stays a single InitialCreate; later features add their own migrations on top of it.
         var applied = (await db.Database.GetAppliedMigrationsAsync(TestContext.Current.CancellationToken)).ToList();
-        var only = Assert.Single(applied);
-        Assert.EndsWith("_InitialCreate", only, StringComparison.Ordinal);
+        Assert.Single(applied, id => id.EndsWith("_InitialCreate", StringComparison.Ordinal));
+        Assert.EndsWith("_InitialCreate", applied[0], StringComparison.Ordinal);
 
         var assembly = typeof(Program).Assembly;
         var resource = assembly.GetManifestResourceNames()

@@ -1,6 +1,7 @@
 using BirraPoint.Api.Common.Persistence;
 using BuildingBlocks.Audit;
 using BuildingBlocks.Jobs;
+using BuildingBlocks.Messaging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -28,6 +29,14 @@ public sealed class SchemaMappingTests
         if (entity.ClrType == typeof(AuditLog))
         {
             return "audit";
+        }
+
+        // Outbox/inbox of the messaging block are shared-type entities named "<Outbox|Inbox>:<Module>"; each lives
+        // in the schema of the module that publishes or subscribes.
+        if (entity.ClrType == typeof(OutboxMessage) || entity.ClrType == typeof(InboxMessage))
+        {
+            var owner = entity.Name[(entity.Name.IndexOf(':', StringComparison.Ordinal) + 1)..];
+            return Modules.Single(m => m.Module == owner).Schema;
         }
 
         var ns = entity.ClrType.Namespace ?? string.Empty;

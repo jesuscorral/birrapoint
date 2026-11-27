@@ -277,6 +277,17 @@ internal sealed class JobWorker<TContext>(
                 await NotifyObserversSafelyAsync(job, detail: null).ConfigureAwait(false);
             }
         }
+        catch (JobDeferredException deferred)
+        {
+            await StopRenewalAsync(renewalCts, renewal).ConfigureAwait(false);
+            var nextAttemptAt = DateTimeOffset.UtcNow + deferred.Delay;
+
+            // Attempts and LastError stay as they were: waiting is not a failure.
+            if (await TryFinishAsync(job, JobStatus.Pending, job.Attempts, job.LastError, nextAttemptAt).ConfigureAwait(false))
+            {
+                JobWorkerLog.JobDeferred(logger, job.Id, job.Type, nextAttemptAt);
+            }
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             await StopRenewalAsync(renewalCts, renewal).ConfigureAwait(false);

@@ -8,6 +8,7 @@ using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Realtime;
 using BuildingBlocks.Audit;
 using BuildingBlocks.Identity;
+using BuildingBlocks.Messaging;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,7 +23,7 @@ internal sealed record UpdateTableCommand(
 internal sealed class UpdateTableCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IAuditWriter auditWriter, IEventPublisher eventPublisher,
     IConflictOfInterestChecker conflictChecker, IStyleCatalog styleCatalog, IJudgeDirectory judgeDirectory,
-    IEntryDirectory entryDirectory, IPublisher publisher)
+    IEntryDirectory entryDirectory, IIntegrationEventPublisher integrationEvents)
     : IRequestHandler<UpdateTableCommand, TableMutationResult?>
 {
     public async Task<TableMutationResult?> Handle(UpdateTableCommand request, CancellationToken cancellationToken)
@@ -74,7 +75,7 @@ internal sealed class UpdateTableCommandHandler(
         table.Name = request.Name;
 
         var bosFlaggedEntryIds = await TableAssignmentApplier.ApplyAsync(
-            dbContext, conflictChecker, publisher, table, request.JudgeIds, request.BeerEntryIds, cancellationToken);
+            dbContext, conflictChecker, integrationEvents, table, request.JudgeIds, request.BeerEntryIds, cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 

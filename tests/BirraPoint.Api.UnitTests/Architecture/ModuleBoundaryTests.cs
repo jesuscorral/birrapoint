@@ -77,6 +77,66 @@ public class ModuleBoundaryTests
         Assert.True(offenders.Count == 0, $"Modules reference {hostErrors}:" + Environment.NewLine + string.Join(Environment.NewLine, offenders));
     }
 
+    /// <summary>
+    /// Modules talk to each other with integration events (FR-081): an event class lives in its publisher's
+    /// <c>Contracts.IntegrationEvents</c> namespace, and its stable type name starts with the module name, so the
+    /// publisher is clear from the name alone.
+    /// </summary>
+    [Fact]
+    public void IntegrationEventsLiveOnlyInTheirPublishersContractsFolder()
+    {
+        const string prefix = ModulesNamespace + ".";
+        var offenders = typeof(Entity).Assembly.GetTypes()
+            .Select(t => (Type: t, Attribute: t.GetCustomAttribute<BuildingBlocks.Messaging.IntegrationEventAttribute>(inherit: false)))
+            .Where(x => x.Attribute is not null)
+            .Where(x =>
+            {
+                var ns = x.Type.Namespace ?? string.Empty;
+                if (!ns.StartsWith(prefix, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+
+                var parts = ns[prefix.Length..].Split('.');
+                var module = parts[0];
+                var inFolder = parts.Length == 3 && parts[1] == "Contracts" && parts[2] == "IntegrationEvents";
+                var namedAfterModule = x.Attribute!.Type.StartsWith(module + ".", StringComparison.OrdinalIgnoreCase);
+                return !inFolder || !namedAfterModule;
+            })
+            .Select(x => $"{x.Type.FullName} ({x.Attribute!.Type})")
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(
+            offenders.Count == 0,
+            "Integration events must be in Modules/<M>/Contracts/IntegrationEvents and named '<module>.<name>':" + Environment.NewLine + string.Join(Environment.NewLine, offenders));
+    }
+
+    /// <summary>
+    /// Cross-module effects go through the outbox, not through in-process MediatR notifications published before the
+    /// save (FR-081): no module contract exposes an <c>INotification</c>, and the old <c>Contracts/Events</c> folder is
+    /// gone.
+    /// </summary>
+    [Fact]
+    public void NoModuleContractExposesAMediatRNotification()
+    {
+        var notifications = typeof(Entity).Assembly.GetTypes()
+            .Where(t => typeof(MediatR.INotification).IsAssignableFrom(t) && !t.IsInterface)
+            .Where(t => (t.Namespace ?? string.Empty).StartsWith(ModulesNamespace, StringComparison.Ordinal)
+                && (t.Namespace ?? string.Empty).Contains(".Contracts", StringComparison.Ordinal))
+            .Select(t => t.FullName!)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+        var legacyFolders = Directory.GetDirectories(Path.Combine(ApiRoot, "Modules"))
+            .Select(dir => Path.Combine(dir, "Contracts", "Events"))
+            .Where(Directory.Exists)
+            .Select(dir => Path.GetRelativePath(ApiRoot, dir).Replace('\\', '/'))
+            .ToList();
+
+        Assert.True(notifications.Count == 0, "Module contracts expose MediatR notifications:" + Environment.NewLine + string.Join(Environment.NewLine, notifications));
+        Assert.True(legacyFolders.Count == 0, "Contracts/Events folders must not exist:" + Environment.NewLine + string.Join(Environment.NewLine, legacyFolders));
+    }
+
     private static string Describe(Violation v) => $"{v.File} -> {v.Module}: {string.Join("; ", v.Members.Order(StringComparer.Ordinal))}";
 
     private static string ApiRoot { get; } = FindApiRoot();

@@ -102,7 +102,7 @@ src/Aspire/{BirraPoint.AppHost, BirraPoint.ServiceDefaults} | src/BirraPoint.Api
                  Features/<Feature>/ (Base<X>Endpoints.cs + Features/<Slice>/ + CommonComponents/, ADR-0031).
                  Other modules only via Contracts/ (ModuleBoundaryTests)
   Api/Realtime/  CompetitionHub + emit-after-commit publisher
-src/BuildingBlocks/BuildingBlocks.<X>/   ADR-0035/0037: reusable cross-cutting blocks (Audit, DaprSecrets, EmailSender, Identity, Keycloak.Authentication, Keycloak.Admin, ProblemDetails, Validation.MediatR, Spreadsheet, Jobs), no BirraPoint
+src/BuildingBlocks/BuildingBlocks.<X>/   ADR-0035/0037: reusable cross-cutting blocks (Audit, DaprSecrets, EmailSender, Identity, Keycloak.Authentication, Keycloak.Admin, ProblemDetails, Validation.MediatR, Spreadsheet, Jobs, Messaging), no BirraPoint
                  reference, public API in BuildingBlocks.<X>; tests in tests/BuildingBlocks/
 tests/   UnitTests + IntegrationTests
 src/Birrapoint.Web/src/app/  FSD: core/ (auth, api, realtime, offline, layout), features/, shared/
@@ -117,7 +117,7 @@ infra/           azure/ and aws/, each: terraform/ (azure: ACA, Key Vault, Dapr,
 
 - Slice = request + handler + FluentValidation validator + endpoint under `Modules/<M>/Features/<X>/Features/<Slice>/`
   (shared types in `CommonComponents/`; namespaces = folders, ADR-0031).
-  Cross-slice only via MediatR messages or shared contracts. **MediatR pinned 12.x** (licensing).
+  In-module requests use MediatR; cross-module writes only via integration events (`Contracts/IntegrationEvents/`, `BuildingBlocks.Messaging` outbox/inbox, ADR-0042; at-least-once, handlers idempotent and order-insensitive) or `Contracts/` interfaces. **MediatR pinned 12.x** (licensing).
 - Errors: RFC 7807 with `urn:birrapoint:*` types from `rest-api.md` error catalog (closed list); each module declares its own errors in `Modules/<M>/Errors/`, the host only validation + rate limit (ADR-0038).
   `400` validation, `409` state conflict, `404` for out-of-scope resources (never reveal existence).
 - Moving/renaming C# files: `git mv`, then `node .claude/scripts/move-namespace.mjs` (fixes namespaces +

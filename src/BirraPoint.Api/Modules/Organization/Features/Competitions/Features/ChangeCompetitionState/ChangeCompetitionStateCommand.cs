@@ -1,12 +1,12 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
-using BirraPoint.Api.Modules.Organization.Contracts.Events;
+using BirraPoint.Api.Modules.Organization.Contracts.IntegrationEvents;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Realtime;
 using BuildingBlocks.Audit;
 using BuildingBlocks.Identity;
-using BuildingBlocks.Jobs;
+using BuildingBlocks.Messaging;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,7 +20,7 @@ internal sealed record ChangeCompetitionStateCommand(Guid Id, CompetitionState T
 
 internal sealed class ChangeCompetitionStateCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter, IEventPublisher eventPublisher,
-    ICompetitionFinalizationGuard finalizationGuard, IPublisher publisher, IJobWakeUp dispatchWakeUp)
+    ICompetitionFinalizationGuard finalizationGuard, IIntegrationEventPublisher integrationEvents)
     : IRequestHandler<ChangeCompetitionStateCommand, ChangeCompetitionStateResult?>
 {
     public async Task<ChangeCompetitionStateResult?> Handle(
@@ -75,23 +75,15 @@ internal sealed class ChangeCompetitionStateCommandHandler(
             before: new { State = previousState },
             after: new { State = competition.State });
 
-        // Subscribers (Publication stages the GeneratePdfs job) add their work to the same change
-        // tracker, so state change, audit and job commit in one SaveChanges; a throwing subscriber
-        // aborts before anything is saved.
+        // The event is stored in Organization's outbox with the state change and audit in one SaveChanges
+        // (FR-077); Publication reacts after delivery (FR-036), never inside this transaction.
         if (request.Target == CompetitionState.Finalized)
         {
-            await publisher.Publish(new CompetitionFinalized(competition.Id), cancellationToken);
+            integrationEvents.Publish(new CompetitionFinalized(competition.Id));
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-
-        // Everything below runs after the commit, so it must not observe the request token: an
-        // aborted request would otherwise leave a Finalized competition with no worker wake-up.
-        if (request.Target == CompetitionState.Finalized)
-        {
-            dispatchWakeUp.Signal();
-        }
 
         // Emitted only after the transaction above commits (contracts/signalr-hub.md §Delivery
         // semantics) — never before, to avoid phantom events from a rolled-back change.

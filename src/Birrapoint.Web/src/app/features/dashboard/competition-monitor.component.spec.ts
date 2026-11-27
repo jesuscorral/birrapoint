@@ -21,6 +21,7 @@ import type { TableSummary } from '../../core/api/tables-api.service';
 import { CompetitionHubService } from '../../core/realtime/competition-hub.service';
 import type {
   EvaluationCompletedEvent,
+  JudgeConflictDetectedEvent,
   JudgeRemovedEvent,
   TableClosedEvent,
   TableOrderFixedEvent,
@@ -171,12 +172,14 @@ describe('CompetitionMonitorComponent', () => {
   let tableClosedSubject: Subject<TableClosedEvent>;
   let tableOrderFixedSubject: Subject<TableOrderFixedEvent>;
   let judgeRemovedSubject: Subject<JudgeRemovedEvent>;
+  let judgeConflictSubject: Subject<JudgeConflictDetectedEvent>;
 
   beforeEach(() => {
     evaluationCompletedSubject = new Subject<EvaluationCompletedEvent>();
     tableClosedSubject = new Subject<TableClosedEvent>();
     tableOrderFixedSubject = new Subject<TableOrderFixedEvent>();
     judgeRemovedSubject = new Subject<JudgeRemovedEvent>();
+    judgeConflictSubject = new Subject<JudgeConflictDetectedEvent>();
 
     fakeCompetitionsApi = { getById: jest.fn().mockReturnValue(of(competitionFixture())) };
     fakeMonitoringApi = {
@@ -198,6 +201,9 @@ describe('CompetitionMonitorComponent', () => {
         }
         if (event === 'TableOrderFixed') {
           return tableOrderFixedSubject.asObservable();
+        }
+        if (event === 'JudgeConflictDetected') {
+          return judgeConflictSubject.asObservable();
         }
         if (event === 'JudgeRemoved') {
           return judgeRemovedSubject.asObservable();
@@ -644,6 +650,39 @@ describe('CompetitionMonitorComponent', () => {
       expect(alert.textContent).toContain('This table changed in the meantime');
       expect(fixture.nativeElement.textContent).toContain('Fresh Judge');
       expect(fixture.nativeElement.textContent).not.toContain('Grace Hopper');
+    });
+
+    it('shows one conflict banner with the table name, replaced by a repeat event', async () => {
+      const fixture = createComponent();
+      await flush();
+      fixture.detectChanges();
+
+      judgeConflictSubject.next({
+        tableId: 't1',
+        judgeId: 'j1',
+        judgeDisplayName: 'Ana Pérez',
+        beerEntryIds: ['e1'],
+      });
+      judgeConflictSubject.next({
+        tableId: 't1',
+        judgeId: 'j2',
+        judgeDisplayName: 'Luis Gómez',
+        beerEntryIds: ['e2'],
+      });
+      fixture.detectChanges();
+
+      const banners = fixture.nativeElement.querySelectorAll(
+        'bp-judge-conflict-banner [role="alert"]',
+      );
+      expect(banners.length).toBe(1);
+      expect(banners[0].textContent).toContain('Luis Gómez');
+      expect(banners[0].textContent).toContain('Mesa 1');
+
+      banners[0].querySelector('button').click();
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelectorAll('bp-judge-conflict-banner [role="alert"]').length,
+      ).toBe(0);
     });
 
     it('drops the judge from the table when a JudgeRemoved hub event arrives', async () => {

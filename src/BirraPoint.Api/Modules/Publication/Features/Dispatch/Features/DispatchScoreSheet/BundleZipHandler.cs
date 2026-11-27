@@ -1,9 +1,7 @@
-using System.IO.Compression;
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Contracts;
-using BirraPoint.Api.Modules.Publication.Domain;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
 using BuildingBlocks.Jobs;
 using Microsoft.EntityFrameworkCore;
@@ -11,68 +9,20 @@ using Microsoft.EntityFrameworkCore;
 namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.DispatchScoreSheet;
 
 /// <summary>
-/// FR-040: bundles every <see cref="GeneratedScoreSheet"/> for the competition into a single
-/// in-memory ZIP at <see cref="DispatchPaths.ZipEntryPath"/>, upserts the <see
-/// cref="ResultsArchive"/> row (by CompetitionId, so a retry never duplicates it), then enqueues one
+/// FR-040: bundles the competition's score sheets into the results ZIP with <see cref="ResultsArchiveBuilder"/>, then enqueues one
 /// <see cref="DispatchJobType.SendResultEmail"/> job per participant (FR-041) — each recipient's
 /// delivery status/attempts/lastError live entirely on that job's own row, the same way
 /// <see cref="Invitation"/> tracks judge invites, except here there's no separate status entity.
 /// </summary>
 internal sealed class BundleZipHandler(
-    AppDbContext dbContext, ICompetitionAccess competitionAccess, IResultRecipients resultRecipients, IJobQueue dispatchJobQueue)
+    AppDbContext dbContext, ResultsArchiveBuilder archiveBuilder, IResultRecipients resultRecipients, IJobQueue dispatchJobQueue)
     : IJobHandler
 {
     public string Type => DispatchJobType.BundleZip;
 
     public async Task HandleAsync(Job job, CancellationToken cancellationToken)
     {
-        var competition = await competitionAccess.GetAsync(job.GroupKey, cancellationToken)
-            ?? throw new InvalidOperationException($"Competition {job.GroupKey} not found.");
-
-        var entries = await resultRecipients.GetEntriesAsync(job.GroupKey, cancellationToken);
-        var entryIds = entries.Select(e => e.EntryId).ToList();
-        var pdfByEntryId = await dbContext.GeneratedScoreSheets
-            .Where(s => entryIds.Contains(s.BeerEntryId))
-            .Select(s => new { s.BeerEntryId, s.PdfBytes })
-            .ToDictionaryAsync(s => s.BeerEntryId, s => s.PdfBytes, cancellationToken);
-        var sheets = entries
-            .Where(e => pdfByEntryId.ContainsKey(e.EntryId))
-            .Select(e => new { e.ParticipantId, e.StyleCode, e.BlindCode, PdfBytes = pdfByEntryId[e.EntryId] })
-            .ToList();
-
-        using var memoryStream = new MemoryStream();
-        using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true))
-        {
-            foreach (var sheet in sheets)
-            {
-                var entryPath = DispatchPaths.ZipEntryPath(competition.Name, sheet.ParticipantId, sheet.StyleCode, sheet.BlindCode);
-                var zipEntry = archive.CreateEntry(entryPath, CompressionLevel.Optimal);
-                await using var entryStream = await zipEntry.OpenAsync(cancellationToken);
-                await entryStream.WriteAsync(sheet.PdfBytes, cancellationToken);
-            }
-        }
-
-        var zipBytes = memoryStream.ToArray();
-
-        var existingArchive = await dbContext.ResultsArchives
-            .FirstOrDefaultAsync(a => a.CompetitionId == job.GroupKey, cancellationToken);
-
-        if (existingArchive is null)
-        {
-            dbContext.ResultsArchives.Add(new ResultsArchive
-            {
-                CompetitionId = job.GroupKey,
-                ZipBytes = zipBytes,
-                GeneratedAt = DateTimeOffset.UtcNow,
-            });
-        }
-        else
-        {
-            existingArchive.ZipBytes = zipBytes;
-            existingArchive.GeneratedAt = DateTimeOffset.UtcNow;
-        }
-
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await archiveBuilder.BuildAsync(job.GroupKey, cancellationToken);
 
         var participantIds = (await resultRecipients.GetRecipientsAsync(job.GroupKey, cancellationToken))
             .Select(r => r.ParticipantId)

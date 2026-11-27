@@ -22,4 +22,6 @@ internal static class CompetitionEvents
     public const string JudgeRemoved = nameof(JudgeRemoved);
 
     public const string DispatchProgress = nameof(DispatchProgress);
+
+    public const string JudgeConflictDetected = nameof(JudgeConflictDetected);
 }

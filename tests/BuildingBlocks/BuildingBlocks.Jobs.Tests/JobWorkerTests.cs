@@ -202,6 +202,39 @@ public sealed class JobWorkerTests(PostgresFixture fixture) : IClassFixture<Post
     }
 
     [Fact]
+    public async Task DeferredJobGoesBackToPendingAfterTheDelayWithoutUsingAttempts()
+    {
+        await fixture.ResetAsync();
+        var calls = new List<DateTimeOffset>();
+        var job = await fixture.SeedAsync(Type);
+        var handler = new DelegateHandler(Type, (_, _) =>
+        {
+            lock (calls)
+            {
+                calls.Add(DateTimeOffset.UtcNow);
+                if (calls.Count <= 3)
+                {
+                    throw new JobDeferredException(TimeSpan.FromSeconds(1));
+                }
+            }
+
+            return Task.CompletedTask;
+        });
+
+        await using var worker = await fixture.StartWorkerAsync(s => s.AddSingleton<IJobHandler>(handler), maxAttempts: 2);
+
+        await Wait.UntilAsync(
+            async () => (await fixture.LoadAsync(job.Id)).Status == JobStatus.Completed, "deferred job completed on the 4th run");
+
+        var after = await fixture.LoadAsync(job.Id);
+        Assert.Equal(4, calls.Count);
+        Assert.Equal(0, after.Attempts);
+        Assert.Null(after.LastError);
+        Assert.Null(after.LeaseOwner);
+        Assert.True(calls[1] - calls[0] >= TimeSpan.FromSeconds(0.9), $"deferral was {calls[1] - calls[0]}");
+    }
+
+    [Fact]
     public async Task LastErrorIsTruncatedToTheColumnLength()
     {
         await fixture.ResetAsync();

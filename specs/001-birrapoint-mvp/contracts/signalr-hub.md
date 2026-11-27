@@ -44,6 +44,7 @@ and assert the absence of `beerName`/participant fields.
 | `JudgeRemoved` | `{ tableId, judgeId, judgeDisplayName }` | confirmation echo for the dashboard |
 | `CompetitionStateChanged` | `{ competitionId, state }` | FR-006 transitions |
 | `DispatchProgress` | `{ jobType, status, detail? }` | dispatch pipeline milestones (FR-036/FR-041) |
+| `JudgeConflictDetected` | `{ tableId, judgeId, judgeDisplayName, beerEntryIds: [Guid] }` | *(added FR-082)* a judge's email correction makes them the owner of entries at a table where they are seated; the PWA shows a banner on the competition monitor and the tables screen so the organizer fixes the table. Sent by Judging after its own commit, when handling `organization.judge-email-changed` ([integration-events.md](./integration-events.md)) |
 
 ## Delivery semantics
 

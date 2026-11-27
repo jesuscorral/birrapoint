@@ -6,6 +6,7 @@ using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BuildingBlocks.Identity;
+using BuildingBlocks.Messaging;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +17,7 @@ internal sealed record CreateTableCommand(Guid CompetitionId, string Name, IRead
 
 internal sealed class CreateTableCommandHandler(
     AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IConflictOfInterestChecker conflictChecker, IStyleCatalog styleCatalog,
-    IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory, IPublisher publisher)
+    IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory, IIntegrationEventPublisher integrationEvents)
     : IRequestHandler<CreateTableCommand, TableMutationResult?>
 {
     /// <summary>Returns null when the competition is not found or not owned by the caller — the
@@ -34,7 +35,7 @@ internal sealed class CreateTableCommandHandler(
         var table = AddTable(competition, request.Name);
 
         var bosFlaggedEntryIds = await TableAssignmentApplier.ApplyAsync(
-            dbContext, conflictChecker, publisher, table, request.JudgeIds, request.BeerEntryIds, cancellationToken);
+            dbContext, conflictChecker, integrationEvents, table, request.JudgeIds, request.BeerEntryIds, cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 

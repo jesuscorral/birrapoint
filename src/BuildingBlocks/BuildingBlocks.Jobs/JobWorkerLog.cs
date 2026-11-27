@@ -39,4 +39,8 @@ internal static partial class JobWorkerLog
 
     [LoggerMessage(EventId = 10, Level = LogLevel.Warning, Message = "A job observer failed for job {JobId}.")]
     public static partial void ObserverFailed(ILogger logger, Exception exception, Guid jobId);
+
+    [LoggerMessage(EventId = 11, Level = LogLevel.Information,
+        Message = "Job {JobId} ({Type}) deferred without using an attempt; next run at {NextAttemptAt}.")]
+    public static partial void JobDeferred(ILogger logger, Guid jobId, string type, DateTimeOffset nextAttemptAt);
 }

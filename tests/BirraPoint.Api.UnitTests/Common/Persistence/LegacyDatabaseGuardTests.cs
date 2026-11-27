@@ -28,6 +28,24 @@ public sealed class LegacyDatabaseGuardTests
     }
 
     [Fact]
+    public void UnknownMigrationNewerThanTheBaselineProceeds() =>
+        Assert.Null(LegacyDatabaseGuard.Evaluate(
+            legacyHistoryExists: false,
+            applied: [.. Known, "20261109120000_AddSomethingLater"],
+            known: Known));
+
+    [Fact]
+    public void UnknownMigrationOlderThanTheBaselineIsRefusedEvenNextToKnownOnes()
+    {
+        var problem = LegacyDatabaseGuard.Evaluate(
+            legacyHistoryExists: false,
+            applied: [.. Known, "20260708211914_InitialCreate"],
+            known: Known);
+
+        Assert.NotNull(problem);
+    }
+
+    [Fact]
     public void EmptyDatabaseProceeds() =>
         Assert.Null(LegacyDatabaseGuard.Evaluate(legacyHistoryExists: false, applied: [], known: Known));
 

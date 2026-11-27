@@ -1,23 +1,23 @@
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Judging.Contracts.IntegrationEvents;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Organization.Contracts;
-using BirraPoint.Api.Modules.Organization.Contracts.Events;
-using MediatR;
+using BuildingBlocks.Messaging;
 
 namespace BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 
 internal static class TableAssignmentApplier
 {
     /// <summary>Validates COI, stages the table's judge/sample diff on <paramref name="dbContext"/> and
-    /// publishes <see cref="TableJudgesChanged"/> so Organization stages the competition-wide BOS flag
-    /// changes too. Does not save: the calling handler owns the unit of work and calls SaveChangesAsync.
+    /// stages <see cref="TableJudgesChanged"/> in Judging's outbox so Organization recomputes the competition-wide
+    /// BOS flags after delivery (FR-018). Does not save: the calling handler owns the unit of work and calls SaveChangesAsync.
     /// Throws ConflictOfInterest before staging anything. Returns the entries owned by added judges
     /// (now not valid for BOS).</summary>
     public static async Task<IReadOnlyList<Guid>> ApplyAsync(
         AppDbContext dbContext,
         IConflictOfInterestChecker conflictChecker,
-        IPublisher publisher,
+        IIntegrationEventPublisher integrationEvents,
         TastingTable table,
         IReadOnlyList<Guid> judgeIds,
         IReadOnlyList<Guid> beerEntryIds,
@@ -71,16 +71,16 @@ internal static class TableAssignmentApplier
             dbContext.TableSamples.Remove(row);
         }
 
-        // --- BOS flag/unflag, competition-wide (FR-018): Organization owns the flag and updates it in
-        // this same unit of work; the response only needs the entries the added judges own. ---
+        // --- BOS flag/unflag, competition-wide (FR-018): Organization owns the flag and recomputes it when it
+        // receives the event; the response only needs the entries the added judges own. ---
         var removedJudgeIds = judgeRowsToRemove.Select(row => row.JudgeId).ToList();
         var ownedEntriesByJudgeId = await conflictChecker.GetEntriesOwnedByJudgesAsync(
             table.CompetitionId, judgesToAdd.Union(removedJudgeIds).ToList(), cancellationToken);
 
-        await publisher.Publish(
-            new TableJudgesChanged(
-                table.CompetitionId, table.Id, judgeIdSet, judgesToAdd, removedJudgeIds, ownedEntriesByJudgeId),
-            cancellationToken);
+        if (judgesToAdd.Count > 0 || removedJudgeIds.Count > 0)
+        {
+            integrationEvents.Publish(new TableJudgesChanged(table.CompetitionId, table.Id, judgesToAdd, removedJudgeIds));
+        }
 
         return EntriesOwnedByJudges(judgesToAdd, ownedEntriesByJudgeId).ToList();
     }

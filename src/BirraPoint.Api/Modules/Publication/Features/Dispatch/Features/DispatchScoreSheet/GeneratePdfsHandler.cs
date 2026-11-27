@@ -4,9 +4,9 @@ using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Contracts;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Domain;
+using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
 using BuildingBlocks.Jobs;
 using Microsoft.EntityFrameworkCore;
-using QuestPDF.Fluent;
 
 namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.DispatchScoreSheet;
 
@@ -43,30 +43,7 @@ internal sealed class GeneratePdfsHandler(
             var style = styleByCode[entry.StyleCode];
             var evaluations = evaluationsByEntry[entry.EntryId];
 
-            var judgeEntries = evaluations
-                .Select(x => new ScoreSheetJudgeEntry(
-                    x.JudgeDisplayName,
-                    x.AromaScore, x.AromaComment,
-                    x.AppearanceScore, x.AppearanceComment,
-                    x.FlavorScore, x.FlavorComment,
-                    x.MouthfeelScore, x.MouthfeelComment,
-                    x.OverallScore, x.OverallComment,
-                    x.Total,
-                    x.Descriptors,
-                    x.Feedback))
-                .ToList();
-
-            // Null (not 0) when nobody has evaluated this entry — 0 would read as a real score of
-            // zero rather than "not evaluated". Mirrors
-            // CloseTableRules.ComputeMean's rounding convention without importing across feature
-            // folders (same deliberate duplication already used by GetEntryEvaluationsQueryHandler).
-            decimal? consolidatedMean = evaluations.Count == 0
-                ? null
-                : Math.Round(evaluations.Average(x => (decimal)x.Total), 2, MidpointRounding.AwayFromZero);
-
-            var document = new ScoreSheetDocument(
-                competition.Name, entry.BlindCode, entry.StyleCode, style.Name, judgeEntries, consolidatedMean);
-            var pdfBytes = document.GeneratePdf();
+            var pdfBytes = ScoreSheetRenderer.Render(competition.Name, entry, style, evaluations);
 
             var existingSheet = await dbContext.GeneratedScoreSheets
                 .FirstOrDefaultAsync(s => s.BeerEntryId == entry.EntryId, cancellationToken);

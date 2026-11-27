@@ -1105,6 +1105,177 @@ namespace BirraPoint.Api.Common.Persistence.Migrations
                     b.ToTable("DispatchJobs", "jobs");
                 });
 
+            modelBuilder.Entity("Inbox:Judging", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Handler")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("EventId", "Handler")
+                        .HasName("PK_judging_InboxMessages");
+
+                    b.HasIndex("ProcessedAt")
+                        .HasDatabaseName("IX_judging_InboxMessages_ProcessedAt");
+
+                    b.ToTable("InboxMessages", "judging");
+                });
+
+            modelBuilder.Entity("Inbox:Organization", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Handler")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("EventId", "Handler")
+                        .HasName("PK_organization_InboxMessages");
+
+                    b.HasIndex("ProcessedAt")
+                        .HasDatabaseName("IX_organization_InboxMessages_ProcessedAt");
+
+                    b.ToTable("InboxMessages", "organization");
+                });
+
+            modelBuilder.Entity("Inbox:Publication", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Handler")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("EventId", "Handler")
+                        .HasName("PK_publication_InboxMessages");
+
+                    b.HasIndex("ProcessedAt")
+                        .HasDatabaseName("IX_publication_InboxMessages_ProcessedAt");
+
+                    b.ToTable("InboxMessages", "publication");
+                });
+
+            modelBuilder.Entity("Outbox:Judging", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LeaseOwner")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id")
+                        .HasName("PK_judging_OutboxMessages");
+
+                    b.HasIndex("Status", "LeaseExpiresAt")
+                        .HasDatabaseName("IX_judging_OutboxMessages_Status_LeaseExpiresAt");
+
+                    b.HasIndex("Status", "NextAttemptAt")
+                        .HasDatabaseName("IX_judging_OutboxMessages_Status_NextAttemptAt");
+
+                    b.ToTable("OutboxMessages", "judging");
+                });
+
+            modelBuilder.Entity("Outbox:Organization", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LeaseOwner")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id")
+                        .HasName("PK_organization_OutboxMessages");
+
+                    b.HasIndex("Status", "LeaseExpiresAt")
+                        .HasDatabaseName("IX_organization_OutboxMessages_Status_LeaseExpiresAt");
+
+                    b.HasIndex("Status", "NextAttemptAt")
+                        .HasDatabaseName("IX_organization_OutboxMessages_Status_NextAttemptAt");
+
+                    b.ToTable("OutboxMessages", "organization");
+                });
+
             modelBuilder.Entity("BirraPoint.Api.Modules.Judging.Domain.DiscrepancyAlert", b =>
                 {
                     b.HasOne("BirraPoint.Api.Modules.Organization.Domain.BeerEntry", null)

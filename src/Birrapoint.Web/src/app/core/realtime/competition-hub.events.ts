@@ -40,6 +40,13 @@ export interface EvaluationCompletedEvent {
   tableProgress: { completed: number; expected: number; percent: number };
 }
 
+export interface JudgeConflictDetectedEvent {
+  tableId: string;
+  judgeId: string;
+  judgeDisplayName: string;
+  beerEntryIds: string[];
+}
+
 export interface CompetitionStateChangedEvent {
   competitionId: string;
   state: string;
@@ -58,6 +65,7 @@ export interface CompetitionHubServerEvents {
   TableClosed: TableClosedEvent;
   JudgeRemoved: JudgeRemovedEvent;
   EvaluationCompleted: EvaluationCompletedEvent;
+  JudgeConflictDetected: JudgeConflictDetectedEvent;
   CompetitionStateChanged: CompetitionStateChangedEvent;
   DispatchProgress: DispatchProgressEvent;
 }
