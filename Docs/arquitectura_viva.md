@@ -37,7 +37,7 @@ rows keyed by the old one (`Organizers.KeycloakUserId`, `Competitions.CreatedByU
 `Judges.KeycloakUserId`) must be re-pointed by hand. Dropping the `keycloak` database forces a
 realm re-import and deletes every user created since the seed.
 
-**Versions.** AppHost SDK `Aspire.AppHost.Sdk` 13.6.4; `Aspire.Hosting.JavaScript`/`PostgreSQL` 13.6.4; `CommunityToolkit.Aspire.Hosting.MailPit` 13.6.1. `ASPIRE010` is suppressed in the AppHost csproj: DCP and dashboard come from the SDK NuGet packages, not the Aspire CLI bundle.
+**Versions.** AppHost SDK `Aspire.AppHost.Sdk` 13.6.5; `Aspire.Hosting.JavaScript`/`PostgreSQL` 13.6.5; `CommunityToolkit.Aspire.Hosting.MailPit` 13.6.1. `ASPIRE010` is suppressed in the AppHost csproj: DCP and dashboard come from the SDK NuGet packages, not the Aspire CLI bundle.
 
 **Agent diagnostics (ADR-0039).** `.mcp.json` server `aspire` runs `aspire agent mcp` (stdio, local backchannel only; reaches AppHosts on this machine, never a cloud environment). Read tools (`list_resources`, console/structured logs, traces, `doctor`, docs) are allowed; `execute_resource_command` (start/stop/restart) is in `ask` and used from the main session only. `backend-`, `frontend-` and `qa-engineer` get the read-only diagnostic tools; `/stack-status` calls `list_resources` first and falls back to docker/curl.
 
