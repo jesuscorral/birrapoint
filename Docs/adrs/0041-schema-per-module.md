@@ -1,6 +1,6 @@
 # 0041 - One PostgreSQL schema per module and a single baseline migration
 
-**Status:** Accepted
+**Status:** Accepted (transitional convention superseded by ADR-0043)
 **Date:** 2026-11-08
 
 ## Context

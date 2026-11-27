@@ -3,6 +3,7 @@ using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Realtime;
 using MediatR;
@@ -21,7 +22,7 @@ internal sealed record AdjustEvaluationCommand(
 
 internal sealed record AdjustEvaluationResult(Guid EvaluationId, string Status, int Total, DiscrepancyView? Discrepancy);
 
-internal sealed class AdjustEvaluationCommandHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory, IEventPublisher eventPublisher)
+internal sealed class AdjustEvaluationCommandHandler(JudgingDbContext dbContext, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory, IEventPublisher eventPublisher)
     : IRequestHandler<AdjustEvaluationCommand, AdjustEvaluationResult?>
 {
     public async Task<AdjustEvaluationResult?> Handle(AdjustEvaluationCommand request, CancellationToken cancellationToken)

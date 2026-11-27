@@ -2,9 +2,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingBlocks.Messaging;
 
-internal sealed class IntegrationEventPublisher<TContext>(TContext db, MessagingRegistry registry, TimeProvider time)
+internal sealed class IntegrationEventPublisher(IServiceProvider services, MessagingRegistry registry, TimeProvider time)
     : IIntegrationEventPublisher
-    where TContext : DbContext
 {
     public Guid Publish<TEvent>(TEvent integrationEvent)
         where TEvent : class
@@ -15,6 +14,7 @@ internal sealed class IntegrationEventPublisher<TContext>(TContext db, Messaging
             ?? throw new InvalidOperationException(
                 $"{typeof(TEvent).FullName} is not registered for publishing; call Publishes<{typeof(TEvent).Name}>(outbox) in AddMessaging.");
         var descriptor = registry.DescriptorFor(typeof(TEvent))!;
+        var db = registry.GetOutboxContext(services, outbox);
 
         var envelope = EventSerializer.ToEnvelope(descriptor, integrationEvent, Guid.CreateVersion7(), time.GetUtcNow());
         db.Set<OutboxMessage>(MessagingNames.Outbox(outbox)).Add(new OutboxMessage

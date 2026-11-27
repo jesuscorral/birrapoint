@@ -3,6 +3,7 @@ using BirraPoint.Api.Modules.Judging.Contracts;
 using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BuildingBlocks.Identity;
 using MediatR;
@@ -27,7 +28,7 @@ internal sealed record EvaluationAuditItemDto(
 internal sealed record EntryEvaluationsResult(string BlindCode, IReadOnlyList<EvaluationAuditItemDto> Evaluations, decimal? ConsolidatedMean);
 
 internal sealed class GetEntryEvaluationsQueryHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IStoredEvaluations storedEvaluations,
+    JudgingDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IStoredEvaluations storedEvaluations,
     IEntryDirectory entryDirectory)
     : IRequestHandler<GetEntryEvaluationsQuery, EntryEvaluationsResult?>
 {

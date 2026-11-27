@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Domain;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,7 +19,7 @@ internal static class JudgeTableAccess
     /// table, or null when none of the caller's resolved Judge rows are an active member —
     /// callers map that to a plain 404 (never reveal whether the table exists).</summary>
     public static async Task<Guid?> FindActiveMembershipAsync(
-        AppDbContext dbContext, IReadOnlyList<JudgeSummary> callerJudges, Guid tableId, CancellationToken cancellationToken)
+        JudgingDbContext dbContext, IReadOnlyList<JudgeSummary> callerJudges, Guid tableId, CancellationToken cancellationToken)
     {
         if (callerJudges.Count == 0)
         {

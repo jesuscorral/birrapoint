@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Catalog.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -42,7 +43,7 @@ internal sealed record StyleDetailDto(
 /// no BjcpStyle matches — the endpoint maps that to a plain 404.</summary>
 internal sealed record GetStyleDetailQuery(string Code) : IRequest<StyleDetailDto?>;
 
-internal sealed class GetStyleDetailQueryHandler(AppDbContext dbContext) : IRequestHandler<GetStyleDetailQuery, StyleDetailDto?>
+internal sealed class GetStyleDetailQueryHandler(CatalogDbContext dbContext) : IRequestHandler<GetStyleDetailQuery, StyleDetailDto?>
 {
     // Mirrors BjcpStyleCatalogLoader's PropertyNameCaseInsensitive convention for parsing the
     // catalog's JSON shape.

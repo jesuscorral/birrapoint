@@ -1,10 +1,11 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Organization.Integration;
 
-internal sealed class ResultRecipients(AppDbContext dbContext) : IResultRecipients
+internal sealed class ResultRecipients(OrganizationDbContext dbContext) : IResultRecipients
 {
     public async Task<IReadOnlyList<ResultEntry>> GetEntriesAsync(Guid competitionId, CancellationToken cancellationToken = default) =>
         await dbContext.BeerEntries

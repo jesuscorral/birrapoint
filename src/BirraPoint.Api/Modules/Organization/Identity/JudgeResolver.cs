@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Organization.Identity;
@@ -17,7 +18,7 @@ internal interface IJudgeResolver
         string sub, string? email, string? name, CancellationToken ct = default);
 }
 
-internal sealed class JudgeResolver(AppDbContext db) : IJudgeResolver
+internal sealed class JudgeResolver(OrganizationDbContext db) : IJudgeResolver
 {
     public async Task<IReadOnlyList<Judge>> ResolveAndBackfillAsync(
         string sub, string? email, string? name, CancellationToken ct = default)

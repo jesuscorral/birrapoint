@@ -6,10 +6,12 @@ namespace BirraPoint.Api.Common.Persistence;
 /// <summary>
 /// Used only by `dotnet ef migrations …` at design time; no connection is opened when
 /// generating migrations, so the connection string is loaded from environment variables.
+/// One thin subclass per context supplies its construction (ADR-0043).
 /// </summary>
-internal sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
+internal abstract class DesignTimeDbContextFactory<TContext> : IDesignTimeDbContextFactory<TContext>
+    where TContext : BirraPointDbContext
 {
-    public AppDbContext CreateDbContext(string[] args)
+    public TContext CreateDbContext(string[] args)
     {
         var connectionString = Environment.GetEnvironmentVariable("BIRRAPOINT_CONNECTION_STRING");
 
@@ -23,10 +25,12 @@ internal sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<A
             connectionString = $"Host={host};Database={database};Username={username};Password={password}";
         }
 
-        var options = new DbContextOptionsBuilder<AppDbContext>()
+        var options = new DbContextOptionsBuilder<TContext>()
             .UseNpgsql(connectionString)
             .Options;
 
-        return new AppDbContext(options);
+        return Create(options);
     }
+
+    protected abstract TContext Create(DbContextOptions<TContext> options);
 }

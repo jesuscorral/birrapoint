@@ -12,13 +12,12 @@ namespace BuildingBlocks.Messaging;
 /// Deletes go in batches so locks stay short. The dispatcher calls <see cref="RunIfDueAsync"/> from its sweep, so
 /// the purge adds no wake-up of its own.
 /// </summary>
-internal sealed class RetentionPurger<TContext>(
+internal sealed class RetentionPurger(
     IServiceScopeFactory scopeFactory,
     MessagingRegistry registry,
     IOptions<MessagingOptions> options,
     TimeProvider time,
-    ILogger<RetentionPurger<TContext>> logger)
-    where TContext : DbContext
+    ILogger<RetentionPurger> logger)
 {
     private DateTimeOffset? _lastRun;
 
@@ -34,10 +33,9 @@ internal sealed class RetentionPurger<TContext>(
         }
 
         using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TContext>();
-
         foreach (var outbox in registry.GetOutboxNames())
         {
+            var db = registry.GetOutboxContext(scope.ServiceProvider, outbox);
             var sql = OutboxSql.From(db, outbox);
             var delivered = await DeleteOutboxAsync(db, sql, OutboxStatus.Delivered, now - settings.OutboxRetention, settings.PurgeBatchSize, cancellationToken).ConfigureAwait(false);
             var dead = await DeleteOutboxAsync(db, sql, OutboxStatus.Dead, now - settings.DeadRetention, settings.PurgeBatchSize, cancellationToken).ConfigureAwait(false);
@@ -46,6 +44,7 @@ internal sealed class RetentionPurger<TContext>(
 
         foreach (var inbox in registry.GetInboxNames())
         {
+            var db = registry.GetInboxContext(scope.ServiceProvider, inbox);
             var sql = InboxSql.From(db, inbox);
             var count = await DeleteInboxAsync(db, sql, now - settings.InboxRetention, settings.PurgeBatchSize, cancellationToken).ConfigureAwait(false);
             MessagingLog.InboxPurged(logger, count, sql.Display);

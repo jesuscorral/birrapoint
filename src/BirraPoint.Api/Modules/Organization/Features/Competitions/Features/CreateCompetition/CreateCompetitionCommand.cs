@@ -2,6 +2,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Features.Competitions.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Organization.Identity;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using MediatR;
 
@@ -18,7 +19,7 @@ internal sealed record CreateCompetitionCommand(
     DateOnly? RegistrationStart,
     DateOnly? RegistrationEnd) : IRequest<CompetitionDetailDto>;
 
-internal sealed class CreateCompetitionCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IOrganizerResolver organizerResolver)
+internal sealed class CreateCompetitionCommandHandler(OrganizationDbContext dbContext, ICurrentUser currentUser, IOrganizerResolver organizerResolver)
     : IRequestHandler<CreateCompetitionCommand, CompetitionDetailDto>
 {
     public async Task<CompetitionDetailDto> Handle(CreateCompetitionCommand request, CancellationToken cancellationToken)

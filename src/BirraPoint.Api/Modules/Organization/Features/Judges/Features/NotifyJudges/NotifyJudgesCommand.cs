@@ -1,7 +1,9 @@
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Common.Persistence.Jobs;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using BuildingBlocks.Jobs;
 using MediatR;
@@ -24,7 +26,7 @@ internal sealed record NotifyJudgesCommand(Guid CompetitionId) : IRequest<Notify
 /// a Pending/Running SendInvitation job are skipped, so repeated notifies never duplicate emails.
 /// </summary>
 internal sealed class NotifyJudgesCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IJobWakeUp dispatchWakeUp)
+    OrganizationDbContext dbContext, JobsDbContext jobsDb, ICurrentUser currentUser, IJobWakeUp dispatchWakeUp)
     : IRequestHandler<NotifyJudgesCommand, NotifyJudgesResult?>
 {
     public async Task<NotifyJudgesResult?> Handle(NotifyJudgesCommand request, CancellationToken cancellationToken)
@@ -56,7 +58,7 @@ internal sealed class NotifyJudgesCommandHandler(
                 (judge, invitation) => judge)
             .ToListAsync(cancellationToken);
 
-        var inFlightPayloads = await dbContext.DispatchJobs
+        var inFlightPayloads = await jobsDb.DispatchJobs
             .OfDispatchType(DispatchJobType.SendInvitation)
             .Where(j => j.GroupKey == request.CompetitionId
                 && (j.Status == JobStatus.Pending || j.Status == JobStatus.Running))
@@ -68,7 +70,7 @@ internal sealed class NotifyJudgesCommandHandler(
 
         foreach (var judge in toQueue)
         {
-            dbContext.DispatchJobs.Add(new Job
+            jobsDb.DispatchJobs.Add(new Job
             {
                 GroupKey = request.CompetitionId,
                 Type = DispatchJobType.SendInvitation,
@@ -76,7 +78,7 @@ internal sealed class NotifyJudgesCommandHandler(
             });
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await jobsDb.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         // Wake the worker only after commit; the safety-net poll covers a missed signal.

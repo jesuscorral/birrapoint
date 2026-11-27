@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +12,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder.Features.GetTable
 /// plain 404 (never reveals whether the table exists), same convention as GetTableSamples.</summary>
 internal sealed record GetTableJudgesQuery(Guid TableId) : IRequest<IReadOnlyList<JudgeTableMemberDto>?>;
 
-internal sealed class GetTableJudgesQueryHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory)
+internal sealed class GetTableJudgesQueryHandler(JudgingDbContext dbContext, IJudgeDirectory judgeDirectory)
     : IRequestHandler<GetTableJudgesQuery, IReadOnlyList<JudgeTableMemberDto>?>
 {
     public async Task<IReadOnlyList<JudgeTableMemberDto>?> Handle(GetTableJudgesQuery request, CancellationToken cancellationToken)

@@ -67,7 +67,7 @@ public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IC
     private async Task<Guid> SeedParticipantAsync(Guid competitionId, string name, string email)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var participant = new Participant { CompetitionId = competitionId, Name = name, Email = email };
         db.Participants.Add(participant);
         await db.SaveChangesAsync();
@@ -78,7 +78,7 @@ public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IC
         Guid competitionId, Guid participantId, string beerName, string styleCode = StyleCodeApa)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var entry = new BeerEntry
         {
             CompetitionId = competitionId,
@@ -95,7 +95,7 @@ public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IC
     private async Task<Guid> SeedJudgeAsync(Guid competitionId, string email, string keycloakUserId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var judge = new Judge
         {
             CompetitionId = competitionId,
@@ -111,7 +111,7 @@ public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IC
     private async Task<Guid> SeedTableAsync(Guid competitionId, string name)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var table = new TastingTable { CompetitionId = competitionId, Name = name };
         db.TastingTables.Add(table);
         await db.SaveChangesAsync();
@@ -121,7 +121,7 @@ public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IC
     private async Task SeedTableJudgeAsync(Guid tableId, Guid judgeId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         db.TableJudges.Add(new TableJudge { TastingTableId = tableId, JudgeId = judgeId });
         await db.SaveChangesAsync();
     }
@@ -129,7 +129,7 @@ public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IC
     private async Task SeedTableSampleAsync(Guid tableId, Guid beerEntryId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         db.TableSamples.Add(new TableSample { TastingTableId = tableId, BeerEntryId = beerEntryId });
         await db.SaveChangesAsync();
     }
@@ -139,7 +139,7 @@ public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IC
     private async Task FixOrderDirectlyAsync(Guid tableId, Guid judgeId, List<Guid> orderedEntryIds)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
 
         var table = await db.TastingTables.SingleAsync(t => t.Id == tableId);
         table.OrderFixedByJudgeId = judgeId;
@@ -157,7 +157,7 @@ public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IC
     private async Task<AuditLog> GetAuditLogAsync(string entityId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         return await db.AuditLogs.AsNoTracking().SingleAsync(a => a.EntityId == entityId);
     }
 
@@ -196,7 +196,7 @@ public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IC
         HttpClient client, Guid competitionId, Guid tableId, params Guid[] removedJudgeIds)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var name = await db.TastingTables.AsNoTracking().Where(t => t.Id == tableId).Select(t => t.Name).SingleAsync();
         var activeJudges = await db.TableJudges.AsNoTracking()
             .Where(tj => tj.TastingTableId == tableId && tj.RemovedAt == null).Select(tj => tj.JudgeId).ToListAsync();
@@ -211,7 +211,7 @@ public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IC
     private async Task<(string Name, List<Guid> ActiveJudges, List<Guid> Samples, int RemovedCount)> SnapshotAsync(Guid tableId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var name = await db.TastingTables.AsNoTracking().Where(t => t.Id == tableId).Select(t => t.Name).SingleAsync();
         var rows = await db.TableJudges.AsNoTracking().Where(tj => tj.TastingTableId == tableId).ToListAsync();
         var samples = await db.TableSamples.AsNoTracking().Where(ts => ts.TastingTableId == tableId).Select(ts => ts.BeerEntryId).ToListAsync();
@@ -221,7 +221,7 @@ public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IC
     private async Task<int> CountAuditRowsAsync(Guid tableId, Guid judgeId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var entityId = RemoveJudgeRules.ComputeAuditEntityId(tableId, judgeId);
         return await db.AuditLogs.AsNoTracking().CountAsync(a => a.EntityId == entityId);
     }
@@ -250,7 +250,7 @@ public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IC
     private async Task<int> CountOpenAlertsAsync(Guid tableId, Guid beerEntryId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         return await db.DiscrepancyAlerts.CountAsync(
             a => a.TastingTableId == tableId && a.BeerEntryId == beerEntryId && a.Status == DiscrepancyStatus.Open);
     }
@@ -258,7 +258,7 @@ public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IC
     private async Task<List<EvaluationStatus>> GetEvaluationStatusesAsync(Guid tableId, Guid beerEntryId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         return await db.Evaluations
             .Where(e => e.TastingTableId == tableId && e.BeerEntryId == beerEntryId)
             .Select(e => e.Status)
@@ -703,7 +703,7 @@ public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IC
         var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var db = scope.ServiceProvider.GetTestDb();
             var table = await db.TastingTables.SingleAsync(t => t.Id == fixture.TableId, TestContext.Current.CancellationToken);
             table.State = TableState.Closed;
             table.ClosedAt = DateTimeOffset.UtcNow;
@@ -723,7 +723,7 @@ public sealed class UpdateTableLiveJudgeRemovalApiTests(ApiFactory factory) : IC
         var fixture = await SeedReadyTableAsync(organizer, judgeCount: 2);
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var db = scope.ServiceProvider.GetTestDb();
             var competition = await db.Competitions.SingleAsync(c => c.Id == fixture.CompetitionId, TestContext.Current.CancellationToken);
             competition.State = CompetitionState.Finalized;
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);

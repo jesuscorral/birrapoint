@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Domain;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder.Features.GetMyTab
 /// actively assigned to, across every competition that has left Draft (FR-020/US6).</summary>
 internal sealed record GetMyTablesQuery : IRequest<IReadOnlyList<JudgeTableSummaryDto>>;
 
-internal sealed class GetMyTablesQueryHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory, ICompetitionAccess competitionAccess)
+internal sealed class GetMyTablesQueryHandler(JudgingDbContext dbContext, IJudgeDirectory judgeDirectory, ICompetitionAccess competitionAccess)
     : IRequestHandler<GetMyTablesQuery, IReadOnlyList<JudgeTableSummaryDto>>
 {
     public async Task<IReadOnlyList<JudgeTableSummaryDto>> Handle(GetMyTablesQuery request, CancellationToken cancellationToken)

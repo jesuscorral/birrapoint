@@ -2,6 +2,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +17,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 internal static class JudgeSampleProjector
 {
     public static async Task<IReadOnlyList<JudgeSampleDto>> ProjectAsync(
-        AppDbContext dbContext, IStyleCatalog styleCatalog, IEntryDirectory entryDirectory, Guid tableId, Guid judgeId, CancellationToken cancellationToken)
+        JudgingDbContext dbContext, IStyleCatalog styleCatalog, IEntryDirectory entryDirectory, Guid tableId, Guid judgeId, CancellationToken cancellationToken)
     {
         var evaluationStatusByEntryId = await dbContext.Evaluations
             .Where(e => e.TastingTableId == tableId && e.JudgeId == judgeId)

@@ -67,7 +67,7 @@ public sealed class RetryDispatchApiTests(ApiFactory factory) : DispatchApiTestB
         var leaseExpiresAt = DateTimeOffset.UtcNow.AddHours(1);
         await using (var scope = Factory.Services.CreateAsyncScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var db = scope.ServiceProvider.GetTestDb();
             await db.DispatchJobs.Where(j => j.Id == runningJobId).ExecuteUpdateAsync(
                 set => set
                     .SetProperty(j => j.LeaseOwner, "other-revision-worker")
@@ -79,7 +79,7 @@ public sealed class RetryDispatchApiTests(ApiFactory factory) : DispatchApiTestB
         Assert.Equal(HttpStatusCode.OK, retryResponse.StatusCode);
 
         await using var verifyScope = Factory.Services.CreateAsyncScope();
-        var verify = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var verify = verifyScope.ServiceProvider.GetTestDb();
         var completed = await verify.DispatchJobs.AsNoTracking()
             .SingleAsync(j => j.Id == completedJobId, TestContext.Current.CancellationToken);
         Assert.Equal(JobStatus.Completed, completed.Status);

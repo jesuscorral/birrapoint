@@ -13,15 +13,23 @@ public sealed class MessagingServiceCollectionTests
     public void RegistrationsFromSeveralCallsFormOneRegistryInAnyOrder()
     {
         var services = new ServiceCollection();
-        services.ConfigureMessaging(m => m.Publishes<ThingHappened>("Orders"));
-        services.AddMessaging<TestDb>(Section(), m => m.Subscribe<ThingHappened, FirstHandler>("Shipping"));
+        services.ConfigureMessaging(m =>
+        {
+            PostgresFixture.DeclareAll(m);
+            m.Publishes<ThingHappened>("Orders");
+        });
+        services.AddMessaging(Section(), m =>
+        {
+            PostgresFixture.DeclareAll(m);
+            m.Subscribe<ThingHappened, FirstHandler>("Shipping");
+        });
         services.ConfigureMessaging(m => m.Publishes<OtherHappened>("Billing"));
 
         using var provider = services.BuildServiceProvider();
         var registry = provider.GetRequiredService<MessagingRegistry>();
 
         Assert.Equal(["Billing", "Orders"], registry.GetOutboxNames());
-        Assert.Equal(["Shipping"], registry.GetInboxNames());
+        Assert.Equal(["Orders", "Shipping"], registry.GetInboxNames());
         Assert.Equal("FirstHandler", Assert.Single(registry.Subscriptions).HandlerName);
     }
 
@@ -29,7 +37,11 @@ public sealed class MessagingServiceCollectionTests
     public void SubscribedHandlersAreRegisteredAsScoped()
     {
         var services = new ServiceCollection();
-        services.AddMessaging<TestDb>(Section(), m => m.Subscribe<ThingHappened, FirstHandler>("Shipping"));
+        services.AddMessaging(Section(), m =>
+        {
+            PostgresFixture.DeclareAll(m);
+            m.Subscribe<ThingHappened, FirstHandler>("Shipping");
+        });
 
         var descriptor = Assert.Single(services, d => d.ServiceType == typeof(FirstHandler));
 
@@ -40,8 +52,8 @@ public sealed class MessagingServiceCollectionTests
     public void TheDispatcherIsHostedEvenWithoutRegisteredEvents()
     {
         var services = new ServiceCollection();
-        services.AddMessaging<TestDb>(Section(), _ => { });
+        services.AddMessaging(Section(), _ => { });
 
-        Assert.Contains(services, d => d.ImplementationType == typeof(OutboxDispatcher<TestDb>));
+        Assert.Contains(services, d => d.ImplementationType == typeof(OutboxDispatcher));
     }
 }

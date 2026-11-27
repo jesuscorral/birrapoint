@@ -1,12 +1,13 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Identity;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Organization.Integration;
 
-internal sealed class JudgeDirectory(AppDbContext dbContext, ICurrentUser currentUser, IJudgeResolver judgeResolver) : IJudgeDirectory
+internal sealed class JudgeDirectory(OrganizationDbContext dbContext, ICurrentUser currentUser, IJudgeResolver judgeResolver) : IJudgeDirectory
 {
     public async Task<IReadOnlyList<JudgeSummary>> GetSignedInJudgesAsync(CancellationToken cancellationToken = default)
     {
@@ -46,6 +47,22 @@ internal sealed class JudgeDirectory(AppDbContext dbContext, ICurrentUser curren
             .Where(j => ids.Contains(j.Id))
             .OrderBy(j => j.DisplayName)
             .Select(j => new JudgeSummary(j.Id, j.CompetitionId, j.Email, j.DisplayName, j.BjcpRank))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Guid>> FindJudgeIdsAsync(
+        string keycloakUserId, string? email, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(keycloakUserId);
+
+        // keycloakUserId is required non-null so `KeycloakUserId == sub` can never degrade to an `IS NULL` check that
+        // would match any not-yet-backfilled judge; email is guarded the same way on the fallback clause. The realm
+        // disables self-registration (registrationAllowed: false), so judge emails are admin-provisioned, not
+        // attacker-chosen.
+        return await dbContext.Judges
+            .AsNoTracking()
+            .Where(j => j.KeycloakUserId == keycloakUserId || (j.KeycloakUserId == null && email != null && j.Email == email))
+            .Select(j => j.Id)
             .ToListAsync(cancellationToken);
     }
 

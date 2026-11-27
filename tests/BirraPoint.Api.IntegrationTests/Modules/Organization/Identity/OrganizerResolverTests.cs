@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.IntegrationTests.Persistence;
+using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Organization.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,7 +13,7 @@ namespace BirraPoint.Api.IntegrationTests.Modules.Organization.Identity;
 /// </summary>
 public sealed class OrganizerResolverTests(PostgresFixture fixture) : IClassFixture<PostgresFixture>
 {
-    private AppDbContext NewContext() => new(fixture.Options);
+    private TestDb NewContext() => TestDb.Connect(fixture.ConnectionString);
 
     [Fact]
     public async Task CreatesAnOrganizerRowOnFirstResolution()
@@ -21,7 +22,7 @@ public sealed class OrganizerResolverTests(PostgresFixture fixture) : IClassFixt
         var email = $"organizer-{Guid.NewGuid():N}@example.test";
 
         await using var db = NewContext();
-        var resolver = new OrganizerResolver(db);
+        var resolver = new OrganizerResolver(db.Organization);
 
         var organizer = await resolver.ResolveOrCreateAsync(sub, email, "Ada", "Lovelace", TestContext.Current.CancellationToken);
 
@@ -43,12 +44,12 @@ public sealed class OrganizerResolverTests(PostgresFixture fixture) : IClassFixt
 
         await using (var first = NewContext())
         {
-            await new OrganizerResolver(first).ResolveOrCreateAsync(sub, email, "Ada", "Lovelace", TestContext.Current.CancellationToken);
+            await new OrganizerResolver(first.Organization).ResolveOrCreateAsync(sub, email, "Ada", "Lovelace", TestContext.Current.CancellationToken);
         }
 
         await using var db = NewContext();
         // Different claim values on replay must not overwrite the already-created row.
-        var resolved = await new OrganizerResolver(db).ResolveOrCreateAsync(sub, "other@example.test", "Other", "Name", TestContext.Current.CancellationToken);
+        var resolved = await new OrganizerResolver(db.Organization).ResolveOrCreateAsync(sub, "other@example.test", "Other", "Name", TestContext.Current.CancellationToken);
 
         Assert.Equal(email, resolved.Email);
         Assert.Equal("Ada", resolved.FirstName);
@@ -68,7 +69,7 @@ public sealed class OrganizerResolverTests(PostgresFixture fixture) : IClassFixt
         Guid organizerId;
         await using (var first = NewContext())
         {
-            var created = await new OrganizerResolver(first)
+            var created = await new OrganizerResolver(first.Organization)
                 .ResolveOrCreateAsync(originalSub, email, "Ada", "Lovelace", TestContext.Current.CancellationToken);
             organizerId = created.Id;
         }
@@ -77,7 +78,7 @@ public sealed class OrganizerResolverTests(PostgresFixture fixture) : IClassFixt
         // identity was recreated) — must re-link the existing row instead of attempting a second
         // insert with the same email, which would violate the unique index on Email.
         await using var db = NewContext();
-        var resolved = await new OrganizerResolver(db).ResolveOrCreateAsync(newSub, email, "Ada", "Lovelace", TestContext.Current.CancellationToken);
+        var resolved = await new OrganizerResolver(db.Organization).ResolveOrCreateAsync(newSub, email, "Ada", "Lovelace", TestContext.Current.CancellationToken);
 
         Assert.Equal(organizerId, resolved.Id);
         Assert.Equal(newSub, resolved.KeycloakUserId);
@@ -95,7 +96,7 @@ public sealed class OrganizerResolverTests(PostgresFixture fixture) : IClassFixt
         var email = $"organizer-{Guid.NewGuid():N}@example.test";
 
         await using var db = NewContext();
-        var organizer = await new OrganizerResolver(db).ResolveOrCreateAsync(sub, email, givenName: null, familyName: null, ct: TestContext.Current.CancellationToken);
+        var organizer = await new OrganizerResolver(db.Organization).ResolveOrCreateAsync(sub, email, givenName: null, familyName: null, ct: TestContext.Current.CancellationToken);
 
         Assert.Equal("Organizer", organizer.FirstName);
         Assert.Equal(sub, organizer.LastName);

@@ -1,5 +1,5 @@
-using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Features.Judges.Features.UpdateJudgeEmail;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,7 +8,7 @@ namespace BirraPoint.Api.UnitTests.Modules.Organization.Judges.Features.UpdateJu
 /// <summary>
 /// Email correction format validation (FR-015). The uniqueness re-check is a DependentRules
 /// step that only runs once the format passes, so it is never reached here — no query executes
-/// against <see cref="AppDbContext"/>, meaning these malformed-input cases don't need a real
+/// against <see cref="OrganizationDbContext"/>, meaning these malformed-input cases don't need a real
 /// database (the uniqueness-conflict path itself needs Postgres and is covered by the
 /// Testcontainers-backed integration tests, per the constitution's ban on EF InMemory).
 /// </summary>
@@ -17,8 +17,8 @@ public sealed class UpdateJudgeEmailCommandValidatorTests
     // Never queried (DependentRules short-circuits before the MustAsync uniqueness check runs for
     // a malformed email) — configured with the project's real Npgsql provider so no new test-only
     // dependency (e.g. EF InMemory) is introduced, and no connection is ever opened.
-    private static AppDbContext CreateUnusedDbContext() => new(
-        new DbContextOptionsBuilder<AppDbContext>().UseNpgsql("Host=unused;Database=unused").Options);
+    private static OrganizationDbContext CreateUnusedDbContext() => new(
+        new DbContextOptionsBuilder<OrganizationDbContext>().UseNpgsql("Host=unused;Database=unused").Options);
 
     // Never called either, for the same reason — only the constructor shape needs satisfying.
     private sealed class UnusedCurrentUser : ICurrentUser

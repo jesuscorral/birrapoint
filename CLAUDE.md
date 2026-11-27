@@ -76,6 +76,7 @@ dotnet test tests/BirraPoint.Api.UnitTests
 dotnet test tests/BirraPoint.Api.IntegrationTests   # Testcontainers, needs Docker
 dotnet test <project> --filter "FullyQualifiedName~Name"
 dotnet format BirraPoint.sln --verify-no-changes
+dotnet ef migrations add <Name> --project src/BirraPoint.Api --context <X>DbContext --output-dir <context Migrations folder>   # one history per context
 
 cd src/Birrapoint.Web && npm ci && npm start    # ng serve :4200
 npx jest | npx ng lint | npm run format:check | npm run build:budget   # (from src/Birrapoint.Web/)
@@ -94,11 +95,11 @@ gh workflow run deploy-azure.yml -f version=X.Y.Z       # or deploy-aws.yml
 
 ```text
 src/Aspire/{BirraPoint.AppHost, BirraPoint.ServiceDefaults} | src/BirraPoint.Api/
-  Api/Domain/    shared kernel: Entity(+ITimestamped), DispatchJobType names     Api/Common/   AppDbContext, auth policies, persistence, host errors (validation, rate limit)
+  Api/Domain/    shared kernel: Entity(+ITimestamped), DispatchJobType names     Api/Common/   auth policies, Common/Persistence (base context, Jobs + Audit contexts, startup migrations), host errors (validation, rate limit)
   Api/Composition/ host wiring between blocks (audit actor)
   Api/Modules/   ADR-0033/0034: Catalog (Catalog), Organization (Competitions, Import, Judges), Judging
                  (Tables, TastingOrder, Evaluations, Monitoring), Publication (Dispatch); each module =
-                 Domain/ + Errors/ (if it throws, ADR-0038) + Persistence/ + Contracts/ + Integration/ + <M>Module.cs + <M>ModuleEndpoints.cs +
+                 Domain/ + Errors/ (if it throws, ADR-0038) + Persistence/ (own `<M>DbContext` + Migrations/, ADR-0043) + Contracts/ + Integration/ + <M>Module.cs + <M>ModuleEndpoints.cs +
                  Features/<Feature>/ (Base<X>Endpoints.cs + Features/<Slice>/ + CommonComponents/, ADR-0031).
                  Other modules only via Contracts/ (ModuleBoundaryTests)
   Api/Realtime/  CompetitionHub + emit-after-commit publisher

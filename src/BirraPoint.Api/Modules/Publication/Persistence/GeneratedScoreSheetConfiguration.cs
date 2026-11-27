@@ -1,4 +1,3 @@
-using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Publication.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -11,10 +10,5 @@ internal sealed class GeneratedScoreSheetConfiguration : IEntityTypeConfiguratio
     {
         // Upsert-by-BeerEntryId lookup key (a job retry must not create duplicate rows).
         builder.HasIndex(s => s.BeerEntryId).IsUnique();
-
-        builder.HasOne<BeerEntry>()
-            .WithMany()
-            .HasForeignKey(s => s.BeerEntryId)
-            .OnDelete(DeleteBehavior.Cascade);
     }
 }

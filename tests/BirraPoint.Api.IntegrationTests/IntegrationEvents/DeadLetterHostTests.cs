@@ -76,7 +76,7 @@ public sealed class DeadLetterHostTests(ApiFactory factory) : IntegrationEventsT
         await using var scope = services.CreateAsyncScope();
         var id = scope.ServiceProvider.GetRequiredService<IIntegrationEventPublisher>()
             .Publish(new DeadLetterProbe(competitionId, SecretText));
-        await scope.ServiceProvider.GetRequiredService<AppDbContext>().SaveChangesAsync(TestContext.Current.CancellationToken);
+        await scope.ServiceProvider.GetTestDb().SaveChangesAsync(TestContext.Current.CancellationToken);
         return id;
     }
 

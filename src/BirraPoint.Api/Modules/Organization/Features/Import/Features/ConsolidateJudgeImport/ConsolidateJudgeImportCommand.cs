@@ -3,6 +3,7 @@ using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Judges.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using BuildingBlocks.Jobs;
 using MediatR;
@@ -14,7 +15,7 @@ namespace BirraPoint.Api.Modules.Organization.Features.Import.Features.Consolida
 internal sealed record ConsolidateJudgeImportCommand(Guid CompetitionId, Guid ImportId) : IRequest<ConsolidateJudgeImportResult?>;
 
 internal sealed class ConsolidateJudgeImportCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IJobQueue dispatchJobQueue)
+    OrganizationDbContext dbContext, ICurrentUser currentUser, IJobQueue dispatchJobQueue)
     : IRequestHandler<ConsolidateJudgeImportCommand, ConsolidateJudgeImportResult?>
 {
     public async Task<ConsolidateJudgeImportResult?> Handle(ConsolidateJudgeImportCommand request, CancellationToken cancellationToken)

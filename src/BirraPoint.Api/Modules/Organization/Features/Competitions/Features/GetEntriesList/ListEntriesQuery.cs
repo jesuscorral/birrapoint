@@ -1,6 +1,7 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -27,7 +28,7 @@ internal sealed record EntryDto(
 internal sealed record ListEntriesQuery(Guid CompetitionId) : IRequest<IReadOnlyList<EntryDto>?>;
 
 internal sealed class ListEntriesQueryHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IStyleCatalog styleCatalog, IEntryTableAssignments entryTableAssignments)
+    OrganizationDbContext dbContext, ICurrentUser currentUser, IStyleCatalog styleCatalog, IEntryTableAssignments entryTableAssignments)
     : IRequestHandler<ListEntriesQuery, IReadOnlyList<EntryDto>?>
 {
     public async Task<IReadOnlyList<EntryDto>?> Handle(ListEntriesQuery request, CancellationToken cancellationToken)

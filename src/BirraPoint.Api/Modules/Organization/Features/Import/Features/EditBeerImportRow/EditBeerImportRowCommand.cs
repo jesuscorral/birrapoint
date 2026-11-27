@@ -2,6 +2,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using FluentValidation;
 using MediatR;
@@ -35,7 +36,7 @@ internal sealed record EditBeerImportRowRequest(
 internal sealed record EditBeerImportRowCommand(Guid CompetitionId, Guid ImportId, int RowNumber, EditBeerImportRowRequest Row)
     : IRequest<BeerImportRowDto?>;
 
-internal sealed class EditBeerImportRowCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class EditBeerImportRowCommandHandler(OrganizationDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<EditBeerImportRowCommand, BeerImportRowDto?>
 {
     public async Task<BeerImportRowDto?> Handle(EditBeerImportRowCommand request, CancellationToken cancellationToken)

@@ -3,6 +3,7 @@ using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +14,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.Evaluations.Features.GetMyDisc
 /// Returns null when the caller is not an active member of this table.</summary>
 internal sealed record GetMyDiscrepanciesQuery(Guid TableId) : IRequest<IReadOnlyList<DiscrepancyView>?>;
 
-internal sealed class GetMyDiscrepanciesQueryHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory)
+internal sealed class GetMyDiscrepanciesQueryHandler(JudgingDbContext dbContext, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory)
     : IRequestHandler<GetMyDiscrepanciesQuery, IReadOnlyList<DiscrepancyView>?>
 {
     public async Task<IReadOnlyList<DiscrepancyView>?> Handle(GetMyDiscrepanciesQuery request, CancellationToken cancellationToken)

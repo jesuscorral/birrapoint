@@ -24,7 +24,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : EvaluationsAp
     private async Task CloseTableDirectlyAsync(Guid tableId)
     {
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var table = await db.TastingTables.SingleAsync(t => t.Id == tableId);
         table.State = TableState.Closed;
         table.ClosedAt = DateTimeOffset.UtcNow;
@@ -34,14 +34,14 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : EvaluationsAp
     private async Task<int> CountEvaluationsAsync(Guid judgeId, Guid beerEntryId)
     {
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         return await db.Evaluations.CountAsync(e => e.JudgeId == judgeId && e.BeerEntryId == beerEntryId);
     }
 
     private async Task<(string? DescriptorsJson, string? Feedback)> GetStoredDescriptorsAsync(Guid judgeId, Guid beerEntryId)
     {
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var evaluation = await db.Evaluations.SingleAsync(e => e.JudgeId == judgeId && e.BeerEntryId == beerEntryId);
         return (evaluation.DescriptorsJson, evaluation.FeedbackComment);
     }
@@ -420,7 +420,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : EvaluationsAp
     /// submissions_for_the_same_pair_leave_exactly_one_row</c> above intermittently observed 0
     /// instead of 1 OK response). <see cref="SubmitEvaluationRaceInterceptor"/> is armed to
     /// insert-and-commit a competing row for this exact (judge, entry) pair — on its own
-    /// AppDbContext/connection — right before the handler's <c>alreadySubmittedIds</c> query runs,
+    /// judging context/connection — right before the handler's <c>alreadySubmittedIds</c> query runs,
     /// i.e. exactly the window the handler's early idempotent-replay check cannot see. Before the
     /// fix this made <see cref="SubmitEvaluationRules.IsNextInSequence"/> reject the id and throw
     /// 409 OutOfSequence; it must instead replay the row the interceptor inserted, with 200 OK.
@@ -435,7 +435,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : EvaluationsAp
         using var arm = Factory.EvaluationRaceInterceptor.ArmBeforeNext(SubmitEvaluationQueryTags.AlreadySubmittedIds, async cancellationToken =>
         {
             await using var scope = Factory.Services.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var db = scope.ServiceProvider.GetTestDb();
             var evaluation = BuildCompetingEvaluation(fixture.TableId, fixture.JudgeId, fixture.EntryIds[0]);
             evaluation.Id = competingEvaluationId;
             db.Evaluations.Add(evaluation);
@@ -472,7 +472,7 @@ public sealed class SubmitEvaluationApiTests(ApiFactory factory) : EvaluationsAp
         using var arm = Factory.EvaluationRaceInterceptor.ArmBeforeNext(SubmitEvaluationQueryTags.TableLoad, async cancellationToken =>
         {
             await using var scope = Factory.Services.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var db = scope.ServiceProvider.GetTestDb();
             var evaluation = BuildCompetingEvaluation(fixture.TableId, fixture.JudgeId, fixture.EntryIds[0]);
             evaluation.Id = competingEvaluationId;
             db.Evaluations.Add(evaluation);

@@ -69,8 +69,7 @@ public sealed class DispatchConcurrencyTests(ApiFactory factory) : IClassFixture
         }
     }
 
-    private AppDbContext NewDb() =>
-        new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options);
+    private TestDb NewDb() => TestDb.Connect(factory.ConnectionString);
 
     /// <summary>Derives a full API host (own job worker, own wake-up channel) on the shared
     /// database whose only job handler is <paramref name="handler"/>.</summary>

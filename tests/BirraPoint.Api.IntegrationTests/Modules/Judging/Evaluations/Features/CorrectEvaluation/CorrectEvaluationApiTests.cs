@@ -24,7 +24,7 @@ public sealed class CorrectEvaluationApiTests(ApiFactory factory) : EvaluationsA
     private async Task<AuditLog> GetAuditLogAsync(Guid evaluationId)
     {
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         return await db.AuditLogs.AsNoTracking().SingleAsync(a => a.EntityId == evaluationId.ToString());
     }
 
@@ -54,7 +54,7 @@ public sealed class CorrectEvaluationApiTests(ApiFactory factory) : EvaluationsA
     private async Task<string?> GetDescriptorsJsonAsync(Guid evaluationId)
     {
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var evaluation = await db.Evaluations.AsNoTracking().SingleAsync(e => e.Id == evaluationId);
         return evaluation.DescriptorsJson;
     }

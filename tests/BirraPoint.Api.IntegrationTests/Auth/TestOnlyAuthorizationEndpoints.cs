@@ -1,4 +1,4 @@
-using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -32,7 +32,7 @@ internal sealed class TestOnlyAuthorizationEndpointsStartupFilter : IStartupFilt
                 .RequireAuthorization("ORGANIZER");
 
             endpoints.MapGet("/__test/organizer-only/competitions/{id:guid}",
-                async (Guid id, HttpContext httpContext, AppDbContext db) =>
+                async (Guid id, HttpContext httpContext, OrganizationDbContext db) =>
                 {
                     var sub = httpContext.User.FindFirst("sub")?.Value;
                     var owns = await db.Competitions.AnyAsync(competition =>

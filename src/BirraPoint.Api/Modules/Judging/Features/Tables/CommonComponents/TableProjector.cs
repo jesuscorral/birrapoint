@@ -1,6 +1,7 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,7 +12,7 @@ internal static class TableProjector
 {
     /// <summary>Single-table projection, for the CreateTable/UpdateTable responses.</summary>
     public static async Task<TableDto> ProjectAsync(
-        AppDbContext dbContext,
+        JudgingDbContext dbContext,
         IStyleCatalog styleCatalog,
         IJudgeDirectory judgeDirectory,
         IEntryDirectory entryDirectory,
@@ -23,7 +24,7 @@ internal static class TableProjector
     }
 
     public static async Task<IReadOnlyList<TableDto>> ProjectManyAsync(
-        AppDbContext dbContext,
+        JudgingDbContext dbContext,
         IStyleCatalog styleCatalog,
         IJudgeDirectory judgeDirectory,
         IEntryDirectory entryDirectory,

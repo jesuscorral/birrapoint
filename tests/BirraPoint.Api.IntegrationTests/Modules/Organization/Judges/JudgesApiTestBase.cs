@@ -69,7 +69,7 @@ public abstract class JudgesApiTestBase(ApiFactory factory)
         client.PostAsync(Urls.Rel($"/api/v1/competitions/{competitionId}/judges/notify"), null);
 
     /// <summary>Seeds a Judge row (plus its required Invitation row — RegisterJudges always
-    /// creates one alongside the Judge, and handlers assume it exists) directly via AppDbContext.
+    /// creates one alongside the Judge, and handlers assume it exists) directly via the data contexts.
     /// This is the only way to exercise the judge-already-active gate in a test, since
     /// KeycloakUserId is set exclusively by a real Keycloak login through JudgeResolver
     /// and there is no way to make a fake JWT "log in" as a pre-existing judge (its sub can't be
@@ -77,7 +77,7 @@ public abstract class JudgesApiTestBase(ApiFactory factory)
     private protected async Task<Guid> SeedJudgeAsync(Guid competitionId, string email, string? keycloakUserId = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var judge = new Judge
         {
             CompetitionId = competitionId,
@@ -131,7 +131,7 @@ public abstract class JudgesApiTestBase(ApiFactory factory)
         while (DateTime.UtcNow < deadline)
         {
             await using var scope = factory.Services.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var db = scope.ServiceProvider.GetTestDb();
             var completed = await db.DispatchJobs.AnyAsync(j =>
                 j.GroupKey == competitionId && j.Type == type && j.Status == JobStatus.Completed);
 

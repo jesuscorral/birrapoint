@@ -220,12 +220,13 @@ public sealed class StartupMigrationViaDbDirectApiTests(MigrateOnStartupViaDbDir
         // this assertion.
         _ = factory.Server;
 
-        await using var direct = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(factory.DirectConnectionString)
-            .Options);
+        await using var direct = TestDb.Connect(factory.DirectConnectionString);
 
-        var applied = await direct.Database.GetAppliedMigrationsAsync(TestContext.Current.CancellationToken);
-        Assert.NotEmpty(applied);
+        foreach (var context in direct.All)
+        {
+            var applied = await context.Database.GetAppliedMigrationsAsync(TestContext.Current.CancellationToken);
+            Assert.NotEmpty(applied);
+        }
 
         // Same BJCP seed count as StartupMigrationApiTests — confirms the schema-creating
         // migration actually ran against dbDirect, not merely that some earlier migration state

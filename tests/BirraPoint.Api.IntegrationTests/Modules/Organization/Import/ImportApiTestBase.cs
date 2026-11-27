@@ -311,7 +311,7 @@ public abstract class ImportApiTestBase(ApiFactory factory)
     private protected async Task<bool> HasDispatchJobAsync(Guid competitionId, string type)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         return await db.DispatchJobs.AnyAsync(j => j.GroupKey == competitionId && j.Type == type);
     }
 
@@ -321,7 +321,7 @@ public abstract class ImportApiTestBase(ApiFactory factory)
         while (DateTime.UtcNow < deadline)
         {
             await using var scope = factory.Services.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var db = scope.ServiceProvider.GetTestDb();
             var completedCount = await db.DispatchJobs.CountAsync(j =>
                 j.GroupKey == competitionId && j.Type == type && j.Status == JobStatus.Completed);
 

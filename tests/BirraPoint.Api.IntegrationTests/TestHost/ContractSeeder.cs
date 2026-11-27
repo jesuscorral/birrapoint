@@ -14,7 +14,7 @@ internal sealed class ContractSeeder(IServiceProvider services)
     public async Task<Guid> CompetitionAsync()
     {
         await using var scope = services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var competition = new Competition
         {
             Name = $"Contract {Guid.NewGuid():N}",
@@ -35,7 +35,7 @@ internal sealed class ContractSeeder(IServiceProvider services)
         Action<BeerEntry>? configure = null)
     {
         await using var scope = services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var participant = new Participant { CompetitionId = competitionId, Name = "Entrant Name", Email = participantEmail };
         db.Participants.Add(participant);
         await db.SaveChangesAsync();
@@ -62,7 +62,7 @@ internal sealed class ContractSeeder(IServiceProvider services)
     public async Task<Guid> JudgeAsync(Guid competitionId, string email, string? displayName = null, string? bjcpRank = null)
     {
         await using var scope = services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var judge = new Judge
         {
             CompetitionId = competitionId,
@@ -79,7 +79,7 @@ internal sealed class ContractSeeder(IServiceProvider services)
     public async Task<Guid> TableAsync(Guid competitionId, string name, TableState state = TableState.Open)
     {
         await using var scope = services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var table = new TastingTable { CompetitionId = competitionId, Name = name, State = state };
         db.TastingTables.Add(table);
         await db.SaveChangesAsync();
@@ -89,7 +89,7 @@ internal sealed class ContractSeeder(IServiceProvider services)
     public async Task<Guid> CategoryAsync(Guid competitionId, string name)
     {
         await using var scope = services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var category = new CompetitionCategory { CompetitionId = competitionId, Name = name };
         db.CompetitionCategories.Add(category);
         await db.SaveChangesAsync();
@@ -99,7 +99,7 @@ internal sealed class ContractSeeder(IServiceProvider services)
     public async Task TableJudgeAsync(Guid tableId, Guid judgeId, bool removed = false)
     {
         await using var scope = services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         db.TableJudges.Add(new TableJudge
         {
             TastingTableId = tableId,
@@ -112,7 +112,7 @@ internal sealed class ContractSeeder(IServiceProvider services)
     public async Task SampleAsync(Guid tableId, Guid beerEntryId)
     {
         await using var scope = services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         db.TableSamples.Add(new TableSample { TastingTableId = tableId, BeerEntryId = beerEntryId });
         await db.SaveChangesAsync();
     }
@@ -122,7 +122,7 @@ internal sealed class ContractSeeder(IServiceProvider services)
         EvaluationStatus status = EvaluationStatus.Confirmed)
     {
         await using var scope = services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         db.Evaluations.Add(new Evaluation
         {
             TastingTableId = tableId,

@@ -1,10 +1,9 @@
-using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Organization.Contracts;
-using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +13,7 @@ namespace BirraPoint.Api.Modules.Organization.Features.Import.Features.UploadBee
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
 internal sealed record UploadBeerImportCommand(Guid CompetitionId, IFormFile File) : IRequest<BeerImportBatchDto?>;
 
-internal sealed class UploadBeerImportCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IStyleCatalog styleCatalog)
+internal sealed class UploadBeerImportCommandHandler(OrganizationDbContext dbContext, ICurrentUser currentUser, IStyleCatalog styleCatalog)
     : IRequestHandler<UploadBeerImportCommand, BeerImportBatchDto?>
 {
     public async Task<BeerImportBatchDto?> Handle(UploadBeerImportCommand request, CancellationToken cancellationToken)

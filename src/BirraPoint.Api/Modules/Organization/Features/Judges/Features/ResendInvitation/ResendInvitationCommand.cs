@@ -1,6 +1,7 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using BuildingBlocks.Jobs;
 using MediatR;
@@ -14,7 +15,7 @@ internal sealed record ResendInvitationResult(InvitationStatus Status);
 internal sealed record ResendInvitationCommand(Guid CompetitionId, Guid JudgeId) : IRequest<ResendInvitationResult?>;
 
 internal sealed class ResendInvitationCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IJobQueue dispatchJobQueue)
+    OrganizationDbContext dbContext, ICurrentUser currentUser, IJobQueue dispatchJobQueue)
     : IRequestHandler<ResendInvitationCommand, ResendInvitationResult?>
 {
     public async Task<ResendInvitationResult?> Handle(ResendInvitationCommand request, CancellationToken cancellationToken)

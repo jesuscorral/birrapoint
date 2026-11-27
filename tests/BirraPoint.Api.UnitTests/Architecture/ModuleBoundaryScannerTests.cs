@@ -94,4 +94,29 @@ public class ModuleBoundaryScannerTests
     [InlineData("competition.Judges.Count")]
     public void NavigationsWithSameNameAreNotFlagged(string access) =>
         Assert.Empty(Scan($"var n = {access};"));
+
+    [Fact]
+    public void ForeignModuleDbContextTypeIsFlagged()
+    {
+        var violation = Assert.Single(Scan("private readonly OrganizationDbContext _db;"));
+
+        Assert.Equal("Organization", violation.Module);
+        Assert.Contains("dbcontext:OrganizationDbContext", violation.Members);
+    }
+
+    [Fact]
+    public void OwnModuleDbContextTypeIsAllowed() =>
+        Assert.Empty(Scan("private readonly JudgingDbContext _db;"));
+
+    [Fact]
+    public void BuildingBlockContextsAreAllowedFromAnyModule() =>
+        Assert.Empty(Scan("private readonly JobsDbContext _jobs; private readonly AuditDbContext _audit;"));
+
+    [Fact]
+    public void KernelMayNotUseAnyModuleDbContext() =>
+        Assert.Single(ModuleBoundaryScanner.Scan("Realtime/X.cs", "JudgingDbContext db;", ownModule: null, DbSets));
+
+    [Fact]
+    public void ModuleDbContextNameInCommentIsIgnored() =>
+        Assert.Empty(Scan("// reads OrganizationDbContext" + Environment.NewLine + "/* CatalogDbContext */"));
 }

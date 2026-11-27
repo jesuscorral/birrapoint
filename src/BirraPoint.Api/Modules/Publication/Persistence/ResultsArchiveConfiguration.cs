@@ -1,4 +1,3 @@
-using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Publication.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -11,10 +10,5 @@ internal sealed class ResultsArchiveConfiguration : IEntityTypeConfiguration<Res
     {
         // Upsert-by-CompetitionId lookup key (a job retry must not create duplicate rows).
         builder.HasIndex(a => a.CompetitionId).IsUnique();
-
-        builder.HasOne<Competition>()
-            .WithMany()
-            .HasForeignKey(a => a.CompetitionId)
-            .OnDelete(DeleteBehavior.Cascade);
     }
 }

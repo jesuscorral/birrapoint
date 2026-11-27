@@ -1,12 +1,13 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Organization.Integration;
 
 /// <summary>FR-018: a judge owns an entry when the judge e-mail equals, case-insensitively, the
 /// participant or a collaborator e-mail. Everything is scoped to one competition.</summary>
-internal sealed class ConflictOfInterestChecker(AppDbContext dbContext) : IConflictOfInterestChecker
+internal sealed class ConflictOfInterestChecker(OrganizationDbContext dbContext) : IConflictOfInterestChecker
 {
     public async Task<IReadOnlyList<JudgeEntryConflict>> FindConflictsAsync(
         Guid competitionId,

@@ -4,7 +4,7 @@
 > step 6). It describes what exists, not how it got there: history lives in git and PRs, decisions
 > with trade-offs in `Docs/adrs/`, the approved design in `specs/001-birrapoint-mvp/`.
 
-**Last updated:** 2026-11-09 (integration events with transactional outbox/inbox, ADR-0042; schema per module, single baseline migration and DB reset command, ADR-0041; MVP closed; `tasks.md` retired; issue-driven workflow, ADR-0040; Identity block extracted, ADR-0037; Aspire 13.6.4 + Aspire MCP for agents, ADR-0039; Jobs block extracted, ADR-0037; Spreadsheet block extracted; ProblemDetails and Validation.MediatR extracted; per-module domain errors, ADR-0038)
+**Last updated:** 2026-11-27 (one data context per module, ADR-0043; integration events with transactional outbox/inbox, ADR-0042; schema per module, single baseline migration and DB reset command, ADR-0041; MVP closed; `tasks.md` retired; issue-driven workflow, ADR-0040; Identity block extracted, ADR-0037; Aspire 13.6.4 + Aspire MCP for agents, ADR-0039; Jobs block extracted, ADR-0037; Spreadsheet block extracted; ProblemDetails and Validation.MediatR extracted; per-module domain errors, ADR-0038)
 
 ## Status
 
@@ -178,22 +178,27 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
   `Modules/Organization/Features/Import/CommonComponents/ImportEmail.cs`.
 - **Audit** (`BuildingBlocks.Audit`, ADR-0035): `IAuditWriter.Record(...)` stages an `AuditLog` row
   (`{before, after}` jsonb) in the caller's transaction; actor = Keycloak `sub` via
-  `Composition/CurrentUserAuditActor` (host wiring between the Identity and Audit blocks); registered with `AddAudit<AppDbContext, CurrentUserAuditActor>()`.
-- **Persistence** (`Common/Persistence/`): `AppDbContext`, one configuration per entity, central
-  `CreatedAt`/`UpdatedAt` stamping, enums stored as strings (ADR-0004). Key constraints: unique
+  `Composition/CurrentUserAuditActor` (host wiring between the Identity and Audit blocks); registered with `AddAudit<AuditDbContext, CurrentUserAuditActor>()`.
+- **Persistence** (ADR-0043): six data contexts on abstract `BirraPointDbContext` (`Common/Persistence/`), each
+  mapping one schema: `CatalogDbContext`, `OrganizationDbContext`, `JudgingDbContext`, `PublicationDbContext`
+  (`Modules/<M>/Persistence/`), `JobsDbContext`, `AuditDbContext` (`Common/Persistence/{Jobs,Audit}/`). One configuration per
+  entity, central `CreatedAt`/`UpdatedAt` stamping, enums stored as strings (ADR-0004). Key constraints: unique
   `(JudgeId, BeerEntryId)` on `Evaluation`; `Evaluation.Total` is a stored computed column; unique
   `BeerEntryId` on `TableSample`; unique `(TastingTableId, SequenceOrder)`; partial unique index on
   open `DiscrepancyAlert`s; date-window check constraints on `Competition`. The BJCP 2021 catalog
   (125 styles, full guide text) is seeded by migration from the embedded
   `Modules/Catalog/Features/Catalog/Data/bjcp-2021.json`, with its SHA-256 pinned by a unit test (ADR-0005).
   **Schemas (ADR-0041)**: one per module by entity namespace (`catalog`, `organization`, `judging`,
-  `publication`), plus `jobs` and `audit` set by the host for the building blocks; EF history in
-  `migrations`; `public` empty. Map: `specs/001-birrapoint-mvp/data-model.md`. A single baseline
-  `InitialCreate` (incl. the seed) is the whole migration history. `LegacyDatabaseGuard` stops
-  startup, naming the reset command, on a database built from the old chain. Local reset: Aspire
-  `db` -> Reset database (drops only `birrapoint`; Keycloak untouched). Cross-schema FKs remain.
+  `publication`), plus `jobs` and `audit` set by the host for the building blocks; each context has its own `<schema>.__EFMigrationsHistory`; `public` empty. Map: `specs/001-birrapoint-mvp/data-model.md`.
+  Each context has its own `InitialCreate` and snapshot under its `Migrations/` folder (Catalog's includes the seed);
+  startup migrates Jobs, Audit, Catalog, Organization, Judging, Publication (`StartupMigrations`). `LegacyDatabaseGuard` stops
+  startup, naming the reset command, on a database with `public` or `migrations.__EFMigrationsHistory`. Local reset: Aspire
+  `db` -> Reset database (drops only `birrapoint`; Keycloak untouched). No cross-schema FKs: other modules' ids are plain
+  columns validated through `Contracts/`. All contexts in a scope share one `NpgsqlConnection` and transaction
+  (`SharedTransactionInterceptor`, `UnitOfWorkSaveChangesInterceptor`), so one `SaveChangesAsync` commits the module row,
+  audit entry, staged job and outbox row together.
 - **Integration events** (`BuildingBlocks.Messaging`, ADR-0042; PostgreSQL only): `IIntegrationEventPublisher` stages an
-  outbox row per publishing module (in its schema) in the caller's `SaveChanges`. `OutboxDispatcher` wakes after commit
+  outbox row per publishing module (in its schema; `Outbox<TContext>`/`Inbox<TContext>` bind each to its context) in the caller's `SaveChanges`. `OutboxDispatcher` wakes after commit
   (plus a safety-net poll), claims rows with a lease, hands them to `IIntegrationEventTransport` (`LocalTransport`,
   in-process; Dapr in #108), and `InboxRunner` runs each `IIntegrationEventHandler<T>` once per `(EventId, Handler)`
   in the handler's own transaction. Retry with backoff up to `Messaging:MaxAttempts`, then `Dead`. The transport returns a `DeliveryOutcome` (`Delivered`/`Deferred`): an unknown
@@ -214,7 +219,7 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
   claim), are recovered at startup and every sweep as failed attempts; live leases are
   never touched (ADR-0024). The claim/recovery SQL reads table and column names from the EF model. Dispatch is by the string `Type` to an `IJobHandler`, with
   capped exponential backoff enforced by `NextAttemptAt` (ADR-0008, max 5 attempts) and
-  `IJobObserver` callbacks (BirraPoint's `Realtime/DispatchProgressObserver` publishes `DispatchProgress`). `RetryDispatch` resets only `Failed` `SendResultEmail` jobs (FR-041) and wakes the worker right after the reset. Each sweep (startup included) schedules one wake at the earliest lease expiry or `NextAttemptAt` (+1 s, capped at the poll interval), so with a long poll only `Pending` jobs written by another revision and legacy NULL-lease `Running` rows wait for the next sweep. A failed sweep schedules a retry wake after 5 s * 2^n (capped at the poll interval). BirraPoint maps the block with `AppDbContext.ApplyJobs` onto the `DispatchJobs` table (`GroupKey` = `CompetitionId`, FK to `Competition`); config section `Dispatch`; type names are constants in `Domain/DispatchJobType.cs`. Handlers: `ProvisionJudgeAccount`, `SendInvitation`,
+  `IJobObserver` callbacks (BirraPoint's `Realtime/DispatchProgressObserver` publishes `DispatchProgress`). `RetryDispatch` resets only `Failed` `SendResultEmail` jobs (FR-041) and wakes the worker right after the reset. Each sweep (startup included) schedules one wake at the earliest lease expiry or `NextAttemptAt` (+1 s, capped at the poll interval), so with a long poll only `Pending` jobs written by another revision and legacy NULL-lease `Running` rows wait for the next sweep. A failed sweep schedules a retry wake after 5 s * 2^n (capped at the poll interval). BirraPoint maps the block with `ApplyJobs` in `JobsDbContext` onto the `DispatchJobs` table (`GroupKey` = `CompetitionId`, no FK); config section `Dispatch`; type names are constants in `Domain/DispatchJobType.cs`. Handlers: `ProvisionJudgeAccount`, `SendInvitation`,
   `GeneratePdfs`, `BundleZip`, `SendResultEmail`, `RefreshResults`. A handler may throw `JobDeferredException`: the job
   returns to `Pending` after the given delay and no attempt is used. `RefreshResults` defers while the competition has a
   `Pending`/`Running` `GeneratePdfs` or `BundleZip` job, so a correction never races the first generation.
@@ -231,14 +236,14 @@ Projects: `BirraPoint.Api` (modular monolith), `Aspire/BirraPoint.AppHost`, `Asp
   (`Host`, `Port`, `UseStartTls`, `From`, `Username`/`Password`) validated on every send, optional SMTP
   auth/STARTTLS. BirraPoint supplies `BirraPoint <no-reply@birrapoint.local>` as the default `From`.
 - **Realtime** (`Realtime/`): `CompetitionHub` at `/hubs/competition`, server → client only.
-  `JoinCompetitionAsOrganizer` (role + ownership) and `JoinTable` (active `TableJudge`
-  membership), reading `Context.User`. `IEventPublisher` emits after commit; enums serialize as
+  `JoinCompetitionAsOrganizer` (role + ownership via `ICompetitionAccess.GetOwnedAsync`) and `JoinTable` (active `TableJudge`
+  membership via Judging's `ITableMembership` and `IJudgeDirectory.FindJudgeIdsAsync`), reading `Context.User`; no `DbSet` access. `IEventPublisher` emits after commit; enums serialize as
   strings (ADR-0007).
 
 ### Modules (ADR-0033)
 
 Code lives in `src/BirraPoint.Api/Modules/<Module>/` (`Domain/`, `Persistence/` EF configurations,
-`Contracts/`, `Integration/`, `Features/<Feature>/`, `<Module>Module.cs`, `<Module>ModuleEndpoints.cs`). One `AppDbContext`, one PostgreSQL schema per module (ADR-0041); no per-module DB.
+`Contracts/`, `Integration/`, `Features/<Feature>/`, `<Module>Module.cs`, `<Module>ModuleEndpoints.cs`). One data context and one PostgreSQL schema per module (ADR-0041, ADR-0043); one shared database and connection.
 `Api/Domain/` is the shared kernel (`Entity` + `ITimestamped`, `DispatchJobType` names). `UnitTests/Architecture/ModuleLayoutTests.cs` checks the layout.
 
 | Module | Features | Entities |
@@ -281,9 +286,8 @@ Event flows (outbox/inbox, ADR-0042; payloads and subscribers in `contracts/inte
   emails; ZIP built by `CommonComponents/ResultsArchiveBuilder`).
 
 Boundary rule: `UnitTests/Architecture/ModuleBoundaryTests.cs` forbids using another module outside its
-`Contracts` namespace or touching its `DbSet`s, with no module-to-module exception. `Persistence/` FK
-configurations are exempt. Permanent kernel exceptions: `Realtime/` hub,
-`Common/Persistence/` (incl. the `DispatchJobs` -> `Competition` FK).
+`Contracts` namespace or touching its `DbSet`s, with no module-to-module exception and no `Persistence/` exemption;
+`DbContextModelTests` asserts each context maps only its own schema. Kernel exception: `Common/Persistence/` (base context, Jobs, Audit).
 
 ### Domain
 
@@ -389,8 +393,8 @@ Shared primitives live in `shared/components/` (`bp-button`, `bp-input`, `bp-ale
 - **SC-010 usability study** (judge scoring flow, human participants) was never run.
 - **E2E/axe suite not in CI** and fragile after the wizard/landing redesign; `/select-role` has
   no E2E/axe coverage.
-- **No integration tests** for `CompetitionHub` join authorization or for the host-level
-  job worker loop (the block has its own Testcontainers tests).
+- **No integration tests** for the host-level job worker loop (the block has its own
+  Testcontainers tests). `CompetitionHub` join authorization is covered (ADR-0043).
 - **Health/telemetry**: `/alive` (no DB) and `/health` (incl. `db` check) are mapped anonymously in all environments (ADR-0028). ACA API probes use `/alive` (startup 250 s); AWS API has no probe. Cloud telemetry is platform-collected console logs; metrics/traces only if an OTLP endpoint is set (FR-048, spec clarification 2026-10-11); ACA/ECS visibility is unvalidated. Keycloak ACA startup probe threshold 30 exceeds the ACA maximum of 10.
 - **Probes no longer reflect DB reachability** (Keycloak ACA probe, AWS ALB check use `/health/live`; ADR-0025). Keycloak runs one replica (`KC_CACHE=local`): AWS deploys stop-then-start (short Keycloak outage); Azure revisions overlap during a deploy, so an in-progress login or Admin-API password reset can hit the other node. Deploy outside live events. Neon billing behaviour and the probes are unverified on real accounts.
 - **Single API replica**: scaling out needs a SignalR backplane and a migration job (the job queue is already multi-worker safe, ADR-0024).

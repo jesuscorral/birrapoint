@@ -92,7 +92,7 @@ public sealed class ConsolidateJudgeImportApiTests(ApiFactory factory) : ImportA
         var judgeId = created[0].GetProperty("id").GetGuid();
 
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var judge = await db.Judges.SingleAsync(j => j.Id == judgeId, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(email, judge.Email);
@@ -123,7 +123,7 @@ public sealed class ConsolidateJudgeImportApiTests(ApiFactory factory) : ImportA
         Assert.False(await HasDispatchJobAsync(competitionId, DispatchJobType.SendInvitation));
 
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var invitation = await db.Invitations.SingleAsync(i => i.JudgeId == judgeId, cancellationToken: TestContext.Current.CancellationToken);
         // Provisioning never sends the invitation email — status stays Pending until the
         // organizer's explicit "Notify judges" action (FR-059).
@@ -153,7 +153,7 @@ public sealed class ConsolidateJudgeImportApiTests(ApiFactory factory) : ImportA
         Assert.Single(updated);
 
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var judges = await db.Judges.Where(j => j.CompetitionId == competitionId && j.Email == email).ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Single(judges);
         Assert.Equal("Updated Name", judges[0].DisplayName);
@@ -188,7 +188,7 @@ public sealed class ConsolidateJudgeImportApiTests(ApiFactory factory) : ImportA
         Guid judgeId;
         await using (var seedScope = Factory.Services.CreateAsyncScope())
         {
-            var db = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var db = seedScope.ServiceProvider.GetTestDb();
             judgeId = await db.Judges
                 .Where(j => j.CompetitionId == competitionId && j.Email == email)
                 .Select(j => j.Id)
@@ -233,7 +233,7 @@ public sealed class ConsolidateJudgeImportApiTests(ApiFactory factory) : ImportA
         Assert.Equal("duplicate-in-list", skipped[0].GetProperty("reason").GetString());
 
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var judges = await db.Judges.Where(j => j.CompetitionId == competitionId && j.Email == sharedEmail).ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Single(judges);
         // Last-import-wins within the batch — the second occurrence's values win.
@@ -260,7 +260,7 @@ public sealed class ConsolidateJudgeImportApiTests(ApiFactory factory) : ImportA
         Assert.Equal(1, document.RootElement.GetProperty("updated").GetArrayLength());
 
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var judge = await db.Judges.SingleAsync(j => j.CompetitionId == competitionId && j.Email == email, cancellationToken: TestContext.Current.CancellationToken);
         var invitations = await db.Invitations.Where(i => i.JudgeId == judge.Id).ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Single(invitations);

@@ -4,6 +4,7 @@ using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.EmailSender;
 using BuildingBlocks.Jobs;
 using BuildingBlocks.Keycloak.Admin;
@@ -21,7 +22,7 @@ internal sealed record SendInvitationPayload(Guid JudgeId);
 /// (the jobs block's retry policy) schedules the reattempt; this handler never retries on its own.
 /// </summary>
 internal sealed class SendInvitationHandler(
-    AppDbContext dbContext, IKeycloakAdminClient keycloakAdminClient, IEmailSender emailSender, IConfiguration configuration)
+    OrganizationDbContext dbContext, IKeycloakAdminClient keycloakAdminClient, IEmailSender emailSender, IConfiguration configuration)
     : IJobHandler
 {
     private const int LastErrorMaxLength = 2000; // matches InvitationConfiguration.LastError

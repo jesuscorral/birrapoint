@@ -5,9 +5,8 @@ namespace BuildingBlocks.Messaging;
 /// <summary>In-process transport: runs every subscriber of the event through the <see cref="InboxRunner{TContext}"/>
 /// and fails if any subscriber fails, naming them. An event this build does not know is deferred, not failed. The inbox makes re-running the subscribers that already
 /// succeeded a no-op, so one delivery state per event is enough (R-106-5).</summary>
-internal sealed class LocalTransport<TContext>(MessagingRegistry registry, InboxRunner<TContext> inboxRunner)
+internal sealed class LocalTransport(MessagingRegistry registry, InboxRunner inboxRunner)
     : IIntegrationEventTransport
-    where TContext : DbContext
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types",
         Justification = "A failing subscriber must not stop the others; every failure is collected and reported together.")]

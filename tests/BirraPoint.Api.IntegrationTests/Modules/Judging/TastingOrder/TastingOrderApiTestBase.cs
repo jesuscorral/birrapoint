@@ -62,7 +62,7 @@ public abstract class TastingOrderApiTestBase(ApiFactory factory)
     private protected async Task<Guid> SeedParticipantAsync(Guid competitionId, string name, string email)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var participant = new Participant { CompetitionId = competitionId, Name = name, Email = email };
         db.Participants.Add(participant);
         await db.SaveChangesAsync();
@@ -74,7 +74,7 @@ public abstract class TastingOrderApiTestBase(ApiFactory factory)
         string? entryInstructions = null, decimal abvPercent = 5.5m)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var entry = new BeerEntry
         {
             CompetitionId = competitionId,
@@ -97,7 +97,7 @@ public abstract class TastingOrderApiTestBase(ApiFactory factory)
     private protected async Task<Guid> SeedJudgeAsync(Guid competitionId, string email, string keycloakUserId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var judge = new Judge
         {
             CompetitionId = competitionId,
@@ -113,7 +113,7 @@ public abstract class TastingOrderApiTestBase(ApiFactory factory)
     private protected async Task<Guid> SeedTableAsync(Guid competitionId, string name)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var table = new TastingTable { CompetitionId = competitionId, Name = name };
         db.TastingTables.Add(table);
         await db.SaveChangesAsync();
@@ -123,7 +123,7 @@ public abstract class TastingOrderApiTestBase(ApiFactory factory)
     private protected async Task SeedTableJudgeAsync(Guid tableId, Guid judgeId, DateTimeOffset? removedAt = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         db.TableJudges.Add(new TableJudge { TastingTableId = tableId, JudgeId = judgeId, RemovedAt = removedAt });
         await db.SaveChangesAsync();
     }
@@ -131,7 +131,7 @@ public abstract class TastingOrderApiTestBase(ApiFactory factory)
     private protected async Task SeedTableSampleAsync(Guid tableId, Guid beerEntryId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         db.TableSamples.Add(new TableSample { TastingTableId = tableId, BeerEntryId = beerEntryId });
         await db.SaveChangesAsync();
     }

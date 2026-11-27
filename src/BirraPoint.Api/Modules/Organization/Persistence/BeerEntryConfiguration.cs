@@ -1,4 +1,3 @@
-using BirraPoint.Api.Modules.Catalog.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -21,6 +20,9 @@ internal sealed class BeerEntryConfiguration : IEntityTypeConfiguration<BeerEntr
 
         builder.HasIndex(e => new { e.CompetitionId, e.BlindCode }).IsUnique();
 
+        // Index kept from the dropped foreign key: lookups by the plain id (FR-093).
+        builder.HasIndex(e => e.StyleCode);
+
         builder.HasOne<Competition>()
             .WithMany()
             .HasForeignKey(e => e.CompetitionId)
@@ -30,12 +32,6 @@ internal sealed class BeerEntryConfiguration : IEntityTypeConfiguration<BeerEntr
             .WithMany()
             .HasForeignKey(e => e.ParticipantId)
             .OnDelete(DeleteBehavior.Cascade);
-
-        // The catalog is a read-only seed — it must never cascade into entries.
-        builder.HasOne<BjcpStyle>()
-            .WithMany()
-            .HasForeignKey(e => e.StyleCode)
-            .OnDelete(DeleteBehavior.Restrict);
 
         // Restrict (not Cascade): a category referenced by imported entries must not be
         // deletable out from under them — SetCompetitionCategories's full-replace should fail

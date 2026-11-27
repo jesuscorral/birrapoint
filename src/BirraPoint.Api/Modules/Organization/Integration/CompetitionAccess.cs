@@ -1,11 +1,12 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Organization.Integration;
 
 /// <summary>Organization's implementation of <see cref="ICompetitionAccess"/> over the shared DbContext.</summary>
-internal sealed class CompetitionAccess(AppDbContext dbContext) : ICompetitionAccess
+internal sealed class CompetitionAccess(OrganizationDbContext dbContext) : ICompetitionAccess
 {
     public Task<CompetitionSnapshot?> GetOwnedAsync(
         Guid competitionId, string ownerUserId, CancellationToken cancellationToken = default) =>

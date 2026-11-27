@@ -1,4 +1,3 @@
-using BirraPoint.Api.Modules.Catalog.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -18,12 +17,6 @@ internal sealed class CompetitionCategoryStyleConfiguration : IEntityTypeConfigu
             .HasForeignKey(s => s.CompetitionCategoryId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // The catalog is a read-only seed — it must never cascade-delete.
-        builder.HasOne<BjcpStyle>()
-            .WithMany()
-            .HasForeignKey(s => s.StyleCode)
-            .OnDelete(DeleteBehavior.Restrict);
-
         // Denormalized copy of the owning category's CompetitionId (see CompetitionCategoryStyle
         // XML doc) — NoAction because the CompetitionCategory cascade path above already handles
         // cleanup transitively; two independent cascade paths converging on Competitions from the
@@ -34,5 +27,8 @@ internal sealed class CompetitionCategoryStyleConfiguration : IEntityTypeConfigu
             .OnDelete(DeleteBehavior.NoAction);
 
         builder.HasIndex(s => new { s.CompetitionId, s.StyleCode }).IsUnique();
+
+        // Index kept from the dropped foreign key: lookups by the plain id (FR-093).
+        builder.HasIndex(s => s.StyleCode);
     }
 }

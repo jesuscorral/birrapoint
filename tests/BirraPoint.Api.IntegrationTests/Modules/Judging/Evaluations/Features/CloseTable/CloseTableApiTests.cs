@@ -23,14 +23,14 @@ public sealed class CloseTableApiTests(ApiFactory factory) : EvaluationsApiTestB
     private async Task<string> GetBlindCodeAsync(Guid beerEntryId)
     {
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         return await db.BeerEntries.Where(be => be.Id == beerEntryId).Select(be => be.BlindCode).SingleAsync();
     }
 
     private async Task<(TableState State, DateTimeOffset? ClosedAt)> GetTableStateAsync(Guid tableId)
     {
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var table = await db.TastingTables.SingleAsync(t => t.Id == tableId);
         return (table.State, table.ClosedAt);
     }

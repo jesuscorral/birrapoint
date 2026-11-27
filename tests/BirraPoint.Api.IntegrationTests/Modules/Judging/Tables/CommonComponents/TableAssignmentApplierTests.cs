@@ -1,11 +1,11 @@
 using System.Text.Json;
-using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.IntegrationTests.IntegrationEvents;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Judging.Contracts.IntegrationEvents;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Integration;
 using BuildingBlocks.Messaging;
@@ -50,9 +50,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
     private const string StyleCode = "21A";
     private const string LongComment = "This comment is long enough to satisfy the minimum length rule.";
 
-    private AppDbContext NewDb() => new(new DbContextOptionsBuilder<AppDbContext>()
-        .UseNpgsql(factory.ConnectionString)
-        .Options);
+    private TestDb NewDb() => TestDb.Connect(factory.ConnectionString);
 
     private async Task<Guid> SeedCompetitionAsync()
     {
@@ -166,7 +164,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
             .Include(t => t.Judges)
             .Include(t => t.Samples)
             .SingleAsync(t => t.Id == tableId);
-        var flaggedEntryIds = await TableAssignmentApplier.ApplyAsync(db, new ConflictOfInterestChecker(db), new OutboxStagingPublisher(db), table, judgeIds, beerEntryIds, CancellationToken.None);
+        var flaggedEntryIds = await TableAssignmentApplier.ApplyAsync(db.Judging, new ConflictOfInterestChecker(db.Organization), new OutboxStagingPublisher(db.Judging), table, judgeIds, beerEntryIds, CancellationToken.None);
         await db.SaveChangesAsync();
         return flaggedEntryIds;
     }
@@ -212,9 +210,9 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
                 .SingleAsync(t => t.Id == tableId, TestContext.Current.CancellationToken);
 
             // Judge owns ownedEntryId (unassigned), so adding them would flag it for BOS.
-            await TableAssignmentApplier.ApplyAsync(db, new ConflictOfInterestChecker(db), new OutboxStagingPublisher(db), table, [judgeId], [], TestContext.Current.CancellationToken);
+            await TableAssignmentApplier.ApplyAsync(db.Judging, new ConflictOfInterestChecker(db.Organization), new OutboxStagingPublisher(db.Judging), table, [judgeId], [], TestContext.Current.CancellationToken);
 
-            Assert.True(db.ChangeTracker.HasChanges());
+            Assert.True(db.Judging.ChangeTracker.HasChanges());
         }
 
         await AssertNothingPersistedAsync(tableId, ownedEntryId);
@@ -482,7 +480,7 @@ public sealed class TableAssignmentApplierTests(ApiFactory factory) : IClassFixt
     /// MediatR does in the app (same scope, same unit of work).</summary>
     /// <summary>Stands in for the host publisher on a hand-built context: stages the event in Judging's outbox on
     /// that context, exactly as the host publisher does, so the real dispatcher delivers it once the caller saves.</summary>
-    private sealed class OutboxStagingPublisher(AppDbContext db) : IIntegrationEventPublisher
+    private sealed class OutboxStagingPublisher(JudgingDbContext db) : IIntegrationEventPublisher
     {
         private static readonly JsonSerializerOptions PayloadOptions = new(JsonSerializerDefaults.Web);
 

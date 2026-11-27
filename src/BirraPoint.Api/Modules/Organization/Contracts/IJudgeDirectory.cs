@@ -20,4 +20,12 @@ internal interface IJudgeDirectory
     /// <summary>The subset of <paramref name="judgeIds"/> that are judges of <paramref name="competitionId"/>.</summary>
     Task<IReadOnlySet<Guid>> GetCompetitionJudgeIdsAsync(
         Guid competitionId, IReadOnlyCollection<Guid> judgeIds, CancellationToken cancellationToken = default);
+
+    /// <summary>Ids of the judge records (one per competition) of the identity <paramref name="keycloakUserId"/>: matched
+    /// by Keycloak id, or, while the record has none yet, by <paramref name="email"/>. The Keycloak id is only backfilled
+    /// once a REST call resolves the judge, so a judge whose first action is opening a socket relies on the e-mail
+    /// fallback. A null <paramref name="email"/> never matches (it must not select every record without a Keycloak id).
+    /// Read-only: no backfill.</summary>
+    Task<IReadOnlyList<Guid>> FindJudgeIdsAsync(
+        string keycloakUserId, string? email, CancellationToken cancellationToken = default);
 }

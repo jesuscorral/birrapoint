@@ -1,11 +1,13 @@
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Common.Persistence.Jobs;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Contracts;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Domain;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
+using BirraPoint.Api.Modules.Publication.Persistence;
 using BuildingBlocks.Jobs;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,7 +22,8 @@ namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.RefreshR
 /// refresh, and the job completes (the pipeline will read the corrected data itself).
 /// </summary>
 internal sealed class RefreshResultsHandler(
-    AppDbContext dbContext,
+    PublicationDbContext dbContext,
+    JobsDbContext jobsDb,
     ICompetitionAccess competitionAccess,
     IResultRecipients resultRecipients,
     IStyleCatalog styleCatalog,
@@ -36,7 +39,7 @@ internal sealed class RefreshResultsHandler(
         var payload = JsonSerializer.Deserialize<RefreshResultsPayload>(job.PayloadJson)
             ?? throw new InvalidOperationException("RefreshResults payload is empty.");
 
-        var unfinished = dbContext.DispatchJobs
+        var unfinished = jobsDb.DispatchJobs
             .Where(j => j.GroupKey == job.GroupKey && (j.Status == JobStatus.Pending || j.Status == JobStatus.Running));
         var generationUnfinished =
             await unfinished.OfDispatchType(DispatchJobType.GeneratePdfs).AnyAsync(cancellationToken)

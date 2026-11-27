@@ -2,6 +2,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using MediatR;
 
@@ -12,7 +13,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder.Features.GetTable
 /// plain 404 (never reveals whether the table exists).</summary>
 internal sealed record GetTableSamplesQuery(Guid TableId) : IRequest<IReadOnlyList<JudgeSampleDto>?>;
 
-internal sealed class GetTableSamplesQueryHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory, IStyleCatalog styleCatalog, IEntryDirectory entryDirectory)
+internal sealed class GetTableSamplesQueryHandler(JudgingDbContext dbContext, IJudgeDirectory judgeDirectory, IStyleCatalog styleCatalog, IEntryDirectory entryDirectory)
     : IRequestHandler<GetTableSamplesQuery, IReadOnlyList<JudgeSampleDto>?>
 {
     public async Task<IReadOnlyList<JudgeSampleDto>?> Handle(GetTableSamplesQuery request, CancellationToken cancellationToken)

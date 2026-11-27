@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,7 +16,7 @@ namespace BirraPoint.Api.Modules.Organization.Features.Import.Features.EditBeerI
 /// </summary>
 internal sealed class EditBeerImportRowCommandValidator : AbstractValidator<EditBeerImportRowCommand>
 {
-    public EditBeerImportRowCommandValidator(AppDbContext dbContext, IStyleCatalog styleCatalog)
+    public EditBeerImportRowCommandValidator(OrganizationDbContext dbContext, IStyleCatalog styleCatalog)
     {
         RuleFor(c => c.Row).NotNull();
 

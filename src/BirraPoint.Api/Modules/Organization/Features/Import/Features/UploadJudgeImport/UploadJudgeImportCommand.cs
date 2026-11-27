@@ -4,6 +4,7 @@ using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +14,7 @@ namespace BirraPoint.Api.Modules.Organization.Features.Import.Features.UploadJud
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
 internal sealed record UploadJudgeImportCommand(Guid CompetitionId, IFormFile File) : IRequest<JudgeImportBatchDto?>;
 
-internal sealed class UploadJudgeImportCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class UploadJudgeImportCommandHandler(OrganizationDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<UploadJudgeImportCommand, JudgeImportBatchDto?>
 {
     public async Task<JudgeImportBatchDto?> Handle(UploadJudgeImportCommand request, CancellationToken cancellationToken)

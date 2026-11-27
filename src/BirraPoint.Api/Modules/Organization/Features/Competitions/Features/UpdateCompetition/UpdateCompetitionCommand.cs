@@ -3,6 +3,7 @@ using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Competitions.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +23,7 @@ internal sealed record UpdateCompetitionCommand(
     DateOnly? RegistrationStart,
     DateOnly? RegistrationEnd) : IRequest<CompetitionDetailDto?>;
 
-internal sealed class UpdateCompetitionCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class UpdateCompetitionCommandHandler(OrganizationDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<UpdateCompetitionCommand, CompetitionDetailDto?>
 {
     public async Task<CompetitionDetailDto?> Handle(UpdateCompetitionCommand request, CancellationToken cancellationToken)

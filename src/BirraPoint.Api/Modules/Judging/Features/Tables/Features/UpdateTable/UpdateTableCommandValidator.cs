@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BuildingBlocks.Identity;
 using FluentValidation;
@@ -9,7 +10,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.Tables.Features.UpdateTable;
 
 internal sealed class UpdateTableCommandValidator : AbstractValidator<UpdateTableCommand>
 {
-    public UpdateTableCommandValidator(AppDbContext dbContext, ICompetitionAccess competitionAccess, ICurrentUser currentUser, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory)
+    public UpdateTableCommandValidator(JudgingDbContext dbContext, ICompetitionAccess competitionAccess, ICurrentUser currentUser, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory)
     {
         var owned = new OwnedCompetitionLookup(competitionAccess, currentUser);
 
@@ -47,7 +48,7 @@ internal sealed class UpdateTableCommandValidator : AbstractValidator<UpdateTabl
     }
 
     internal static async Task<bool> ShouldValidateAssignmentAsync(
-        AppDbContext dbContext, OwnedCompetitionLookup owned,
+        JudgingDbContext dbContext, OwnedCompetitionLookup owned,
         Guid competitionId, Guid tableId, CancellationToken cancellationToken)
     {
         var competition = await owned.GetOwnedAsync(competitionId, cancellationToken);

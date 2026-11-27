@@ -1,10 +1,11 @@
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Judging.Integration;
 
-internal sealed class EntryTableAssignments(AppDbContext dbContext) : IEntryTableAssignments
+internal sealed class EntryTableAssignments(JudgingDbContext dbContext) : IEntryTableAssignments
 {
     public async Task<IReadOnlyDictionary<Guid, EntryTableAssignment>> GetByEntryAsync(
         Guid competitionId, IReadOnlyCollection<Guid> beerEntryIds, CancellationToken cancellationToken = default)

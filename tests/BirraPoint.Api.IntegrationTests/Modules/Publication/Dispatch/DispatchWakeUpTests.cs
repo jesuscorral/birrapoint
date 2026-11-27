@@ -27,8 +27,7 @@ public sealed class DispatchWakeUpTests(ApiFactory factory) : IClassFixture<ApiF
     private static readonly TimeSpan PollTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(100);
 
-    private AppDbContext NewDb() =>
-        new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options);
+    private TestDb NewDb() => TestDb.Connect(factory.ConnectionString);
 
     private WebApplicationFactory<Program> NewHost(
         IJobHandler? handler = null) =>

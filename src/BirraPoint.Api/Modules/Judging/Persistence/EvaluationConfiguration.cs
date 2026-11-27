@@ -1,6 +1,5 @@
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Judging.Domain;
-using BirraPoint.Api.Modules.Organization.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -30,19 +29,12 @@ internal sealed class EvaluationConfiguration : IEntityTypeConfiguration<Evaluat
         // FR-029/R-07: idempotency backstop — never UPSERT against it.
         builder.HasIndex(e => new { e.JudgeId, e.BeerEntryId }).IsUnique();
 
+        // Index kept from the dropped foreign key: lookups by the plain id (FR-093).
+        builder.HasIndex(e => e.BeerEntryId);
+
         builder.HasOne<TastingTable>()
             .WithMany()
             .HasForeignKey(e => e.TastingTableId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne<Judge>()
-            .WithMany()
-            .HasForeignKey(e => e.JudgeId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne<BeerEntry>()
-            .WithMany()
-            .HasForeignKey(e => e.BeerEntryId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

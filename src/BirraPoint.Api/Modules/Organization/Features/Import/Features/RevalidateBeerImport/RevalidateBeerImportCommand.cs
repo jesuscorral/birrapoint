@@ -2,6 +2,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -23,7 +24,7 @@ internal sealed record RevalidateBeerImportCommand(Guid CompetitionId, Guid Impo
 /// Consolidated (nothing left to fix). Invalid/Excluded rows are skipped — their status is
 /// unrelated to category/style state.
 /// </summary>
-internal sealed class RevalidateBeerImportCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, IStyleCatalog styleCatalog)
+internal sealed class RevalidateBeerImportCommandHandler(OrganizationDbContext dbContext, ICurrentUser currentUser, IStyleCatalog styleCatalog)
     : IRequestHandler<RevalidateBeerImportCommand, BeerImportBatchDto?>
 {
     public async Task<BeerImportBatchDto?> Handle(RevalidateBeerImportCommand request, CancellationToken cancellationToken)

@@ -1,3 +1,4 @@
+using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Contracts.IntegrationEvents;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Contracts.IntegrationEvents;
@@ -5,6 +6,7 @@ using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Judges;
 using BirraPoint.Api.Modules.Organization.Identity;
 using BirraPoint.Api.Modules.Organization.Integration;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Jobs;
 using BuildingBlocks.Messaging;
 using BuildingBlocks.ProblemDetails;
@@ -13,13 +15,14 @@ namespace BirraPoint.Api.Modules.Organization;
 
 internal static class OrganizationModule
 {
-    /// <summary>Name of Organization's outbox and inbox (the schema-qualified tables are mapped in the host DbContext).</summary>
+    /// <summary>Name of Organization's outbox and inbox (the schema-qualified tables are mapped in the module's context).</summary>
     internal const string Messaging = "Organization";
 
-    /// <summary>Registers the module's public contract implementations (scoped: they use the scoped DbContext).</summary>
+    /// <summary>Registers the module's public contract implementations (scoped: they use the module's scoped context).</summary>
     internal static IServiceCollection AddOrganizationModule(this IServiceCollection services)
     {
         services.AddProblemDetailsMapping(map => map.Map<OrganizationException>(OrganizationException.ToProblem));
+        services.AddBirraPointDbContext<OrganizationDbContext>();
         services.AddScoped<IJudgeResolver, JudgeResolver>();
         services.AddScoped<IOrganizerResolver, OrganizerResolver>();
         services.AddScoped<IConflictOfInterestChecker, ConflictOfInterestChecker>();
@@ -35,6 +38,8 @@ internal static class OrganizationModule
         services.AddScoped<IJobHandler, ProvisionJudgeAccountHandler>();
 
         services.ConfigureMessaging(messaging => messaging
+            .Outbox<OrganizationDbContext>(Messaging)
+            .Inbox<OrganizationDbContext>(Messaging)
             .Publishes<CompetitionFinalized>(Messaging)
             .Publishes<JudgeEmailChanged>(Messaging)
             .Subscribe<TableJudgesChanged, UpdateBosFlagsOnTableJudgesChanged>(Messaging));

@@ -19,17 +19,16 @@ namespace BuildingBlocks.Messaging;
 /// Each cycle is guarded: the default background-service exception behavior stops the host, and a transient DB
 /// fault here must not do that.
 /// </summary>
-internal sealed class OutboxDispatcher<TContext>(
+internal sealed class OutboxDispatcher(
     IServiceScopeFactory scopeFactory,
     OutboxWakeUp wakeUp,
     MessagingRegistry registry,
     IIntegrationEventTransport transport,
-    RetentionPurger<TContext> purger,
+    RetentionPurger purger,
     IOptions<MessagingOptions> options,
     TimeProvider time,
-    ILogger<OutboxDispatcher<TContext>> logger)
+    ILogger<OutboxDispatcher> logger)
     : BackgroundService
-    where TContext : DbContext
 {
     /// <summary>Unique per process, so two replicas never share a lease identity.</summary>
     private readonly string _workerId = $"{Environment.MachineName}:{Guid.NewGuid():N}";
@@ -167,7 +166,7 @@ internal sealed class OutboxDispatcher<TContext>(
         while (!stoppingToken.IsCancellationRequested)
         {
             using var scope = scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<TContext>();
+            var db = registry.GetOutboxContext(scope.ServiceProvider, outbox);
             var sql = SqlFor(db, outbox);
 
             var now = time.GetUtcNow();
@@ -272,7 +271,7 @@ internal sealed class OutboxDispatcher<TContext>(
                 try
                 {
                     using var scope = scopeFactory.CreateScope();
-                    var db = scope.ServiceProvider.GetRequiredService<TContext>();
+                    var db = registry.GetOutboxContext(scope.ServiceProvider, outbox);
                     var sql = SqlFor(db, outbox);
                     var rows = await db.Database.ExecuteSqlAsync(
                         SqlText.Sql(
@@ -305,7 +304,7 @@ internal sealed class OutboxDispatcher<TContext>(
     private async Task<bool> TryMarkDeliveredAsync(string outbox, OutboxMessage message)
     {
         using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TContext>();
+        var db = registry.GetOutboxContext(scope.ServiceProvider, outbox);
         var sql = SqlFor(db, outbox);
 
         var rows = await db.Database.ExecuteSqlAsync(
@@ -331,7 +330,7 @@ internal sealed class OutboxDispatcher<TContext>(
     private async Task DeferAsync(string outbox, OutboxMessage message)
     {
         using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TContext>();
+        var db = registry.GetOutboxContext(scope.ServiceProvider, outbox);
         var sql = SqlFor(db, outbox);
         var next = time.GetUtcNow() + options.Value.MaxBackoff;
 
@@ -366,7 +365,7 @@ internal sealed class OutboxDispatcher<TContext>(
         var subscribers = delivery is { FailedHandlers.Count: > 0 } ? string.Join(", ", delivery.FailedHandlers) : "n/a";
 
         using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TContext>();
+        var db = registry.GetOutboxContext(scope.ServiceProvider, outbox);
         var sql = SqlFor(db, outbox);
         var now = time.GetUtcNow();
 
@@ -419,11 +418,10 @@ internal sealed class OutboxDispatcher<TContext>(
     private async Task ScheduleNextWakeAsync(CancellationToken stoppingToken)
     {
         using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TContext>();
-
         DateTimeOffset? earliest = null;
         foreach (var outbox in registry.GetOutboxNames())
         {
+            var db = registry.GetOutboxContext(scope.ServiceProvider, outbox);
             var sql = SqlFor(db, outbox);
             var next = await db.Database
                 .SqlQuery<DateTimeOffset?>(SqlText.Sql(

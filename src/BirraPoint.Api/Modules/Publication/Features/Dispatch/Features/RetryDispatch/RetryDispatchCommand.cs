@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Common.Persistence.Jobs;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
@@ -19,7 +20,7 @@ internal sealed record RetryDispatchCommand(Guid CompetitionId, IReadOnlyList<Gu
 /// through IJobWakeUp (same as DispatchJobQueue), because the production safety-net poll
 /// (Dispatch:SafetyNetPollInterval) can be hours long.</summary>
 internal sealed class RetryDispatchCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IJobWakeUp wakeUp)
+    JobsDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IJobWakeUp wakeUp)
     : IRequestHandler<RetryDispatchCommand, bool>
 {
     public async Task<bool> Handle(RetryDispatchCommand request, CancellationToken cancellationToken)

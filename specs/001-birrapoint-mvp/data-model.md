@@ -25,6 +25,8 @@ shared history no longer exists (a database that still has it is refused at star
 
 Every schema also holds its own `__EFMigrationsHistory`.
 
+Explicit indexes that replace those the dropped cross-module FKs created: `jobs.DispatchJobs(CompetitionId)`, `judging.TableJudges(JudgeId)`, `judging.Evaluations(BeerEntryId)`, `judging.DiscrepancyAlerts(BeerEntryId)`, `judging.TastingTables(OrderFixedByJudgeId)`, `organization.BeerEntries(StyleCode)`, `organization.CompetitionCategoryStyles(StyleCode)`.
+
 **Cross-module references are ids only (FR-093)**: there is no foreign key between two schemas and no
 navigation between modules' entities. In the sections below, `ref → X (id only)` marks a column that
 holds another module's id; it is validated on write through the owner's contracts, never by the

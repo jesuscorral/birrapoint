@@ -1,8 +1,8 @@
-using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Identity;
 using BirraPoint.Api.Modules.Organization.Integration;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,8 +12,8 @@ namespace BirraPoint.Api.UnitTests.Modules.Organization.Integration;
 /// competition) to summaries; no database access (the context is never queried).</summary>
 public class JudgeDirectorySignedInJudgesTests
 {
-    private static AppDbContext UnusedDbContext() =>
-        new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql("Host=unused").Options);
+    private static OrganizationDbContext UnusedDbContext() =>
+        new(new DbContextOptionsBuilder<OrganizationDbContext>().UseNpgsql("Host=unused").Options);
 
     [Fact]
     public async Task MapsEveryResolvedJudgeRecordToASummary()

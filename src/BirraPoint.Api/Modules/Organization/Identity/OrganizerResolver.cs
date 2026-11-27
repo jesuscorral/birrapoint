@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Organization.Identity;
@@ -17,7 +18,7 @@ internal interface IOrganizerResolver
         string sub, string? email, string? givenName, string? familyName, CancellationToken ct = default);
 }
 
-internal sealed class OrganizerResolver(AppDbContext db) : IOrganizerResolver
+internal sealed class OrganizerResolver(OrganizationDbContext db) : IOrganizerResolver
 {
     public async Task<Organizer> ResolveOrCreateAsync(
         string sub, string? email, string? givenName, string? familyName, CancellationToken ct = default)

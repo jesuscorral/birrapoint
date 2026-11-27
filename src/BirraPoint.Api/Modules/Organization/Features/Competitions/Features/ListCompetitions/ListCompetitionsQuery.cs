@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,7 @@ internal sealed record CompetitionSummaryDto(
 
 internal sealed record ListCompetitionsQuery : IRequest<IReadOnlyList<CompetitionSummaryDto>>;
 
-internal sealed class ListCompetitionsQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class ListCompetitionsQueryHandler(OrganizationDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<ListCompetitionsQuery, IReadOnlyList<CompetitionSummaryDto>>
 {
     public async Task<IReadOnlyList<CompetitionSummaryDto>> Handle(

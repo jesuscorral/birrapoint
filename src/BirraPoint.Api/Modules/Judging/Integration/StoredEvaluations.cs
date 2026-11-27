@@ -2,12 +2,13 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Contracts;
 using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Judging.Integration;
 
-internal sealed class StoredEvaluations(AppDbContext dbContext, IJudgeDirectory judgeDirectory) : IStoredEvaluations
+internal sealed class StoredEvaluations(JudgingDbContext dbContext, IJudgeDirectory judgeDirectory) : IStoredEvaluations
 {
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<StoredEvaluationDto>>> GetByEntriesAsync(
         IReadOnlyCollection<Guid> beerEntryIds, CancellationToken cancellationToken = default)

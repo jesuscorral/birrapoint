@@ -4,6 +4,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
+using BirraPoint.Api.Modules.Publication.Persistence;
 using BuildingBlocks.EmailSender;
 using BuildingBlocks.Jobs;
 using Microsoft.EntityFrameworkCore;
@@ -18,7 +19,7 @@ namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.Dispatch
 /// existing retry/backoff to handle; this handler never retries on its own.
 /// </summary>
 internal sealed class SendResultEmailHandler(
-    AppDbContext dbContext, ICompetitionAccess competitionAccess, IResultRecipients resultRecipients, IEmailSender emailSender)
+    PublicationDbContext dbContext, ICompetitionAccess competitionAccess, IResultRecipients resultRecipients, IEmailSender emailSender)
     : IJobHandler
 {
     public string Type => DispatchJobType.SendResultEmail;
