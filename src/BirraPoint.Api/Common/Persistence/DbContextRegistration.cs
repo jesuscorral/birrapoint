@@ -42,6 +42,11 @@ internal static class DbContextRegistration
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddBirraPointPersistence();
+        if (services.Any(d => d.ServiceType == typeof(TContext)))
+        {
+            return services;
+        }
+
         services.AddDbContext<TContext>((sp, options) => options
             .UseNpgsql(sp.GetRequiredService<NpgsqlConnection>())
             .AddInterceptors(

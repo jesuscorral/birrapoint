@@ -1,3 +1,4 @@
+using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Common.Persistence.Audit;
 using BirraPoint.Api.Common.Persistence.Jobs;
 using BirraPoint.Api.IntegrationTests.TestHost;
@@ -62,14 +63,14 @@ public sealed class SharedTransactionTests(ApiFactory factory) : IClassFixture<A
         });
 
     /// <summary>Stages a module row, an audit entry, a job and an outbox event; saves nothing.</summary>
-    private static Staged StageEverything(IServiceProvider services, OrganizationDbContext organization, string? organizerEmail = null)
+    private static Staged StageEverything(IServiceProvider services, OrganizationDbContext organization, string? organizerEmail = null, string jobType = ProbeJobType)
     {
         var email = organizerEmail ?? $"shared-{Guid.NewGuid():N}@brew.example";
         var staged = new Staged(email, Guid.NewGuid().ToString("N"), Guid.NewGuid(), Guid.Empty);
 
         organization.Organizers.Add(NewOrganizer(email));
         services.GetRequiredService<IAuditWriter>().Record("SharedTransactionProbe", "Organizer", staged.AuditEntityId);
-        services.GetRequiredService<IJobQueue>().Stage(staged.JobKey, ProbeJobType, new { probe = true });
+        services.GetRequiredService<IJobQueue>().Stage(staged.JobKey, jobType, new { probe = true });
         var eventId = services.GetRequiredService<IIntegrationEventPublisher>()
             .Publish(new JudgeEmailChanged(Guid.NewGuid(), Guid.NewGuid()));
         return staged with { EventId = eventId };
@@ -140,6 +141,59 @@ public sealed class SharedTransactionTests(ApiFactory factory) : IClassFixture<A
         Assert.Equal(0, counts.AuditLogs);
         Assert.Equal(0, counts.Jobs);
         Assert.Equal(0, counts.OutboxMessages);
+    }
+
+    [Fact]
+    public async Task AFailingParticipantSaveSurfacesTheOriginalErrorAndLeavesNoneOfTheFourWrites()
+    {
+        await using var host = NewHost();
+        await using var scope = host.Services.CreateAsyncScope();
+        var organization = scope.ServiceProvider.GetRequiredService<OrganizationDbContext>();
+        // The job type column holds 30 characters, so the staged job fails when the unit of work saves it, after the
+        // module row was already written into the transaction it owns.
+        var staged = StageEverything(scope.ServiceProvider, organization, jobType: new string('x', 40));
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => organization.SaveChangesAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(Counts.None, await CountAsync(staged));
+        Assert.Null(scope.ServiceProvider.GetRequiredService<SharedTransaction>().Current);
+    }
+
+    [Fact]
+    public async Task AConcurrencyFailureWhileTheUnitOfWorkOwnsTheTransactionRollsItBackAndTheNextSaveCommits()
+    {
+        await using var host = NewHost();
+        var email = $"gone-{Guid.NewGuid():N}@brew.example";
+        await using var scope = host.Services.CreateAsyncScope();
+        var organization = scope.ServiceProvider.GetRequiredService<OrganizationDbContext>();
+        var organizer = NewOrganizer(email);
+        organization.Organizers.Add(organizer);
+        await organization.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await using (var connection = new NpgsqlConnection(factory.ConnectionString))
+        {
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await using var delete = new NpgsqlCommand("""DELETE FROM organization."Organizers" WHERE "Email" = @v""", connection);
+            delete.Parameters.AddWithValue("v", email);
+            await delete.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        // The row is gone, so this update touches nothing; the staged audit entry makes the unit of work own a transaction.
+        organizer.FirstName = "Changed";
+        var staged = StageEverything(scope.ServiceProvider, organization);
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => organization.SaveChangesAsync(TestContext.Current.CancellationToken));
+
+        organization.ChangeTracker.Clear();
+        var next = NewOrganizer($"next-{Guid.NewGuid():N}@brew.example");
+        organization.Organizers.Add(next);
+        await organization.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var shared = scope.ServiceProvider.GetRequiredService<SharedTransaction>();
+        Assert.Null(shared.Current);
+        Assert.Null(shared.OwnedByUnitOfWork);
+        await using var verify = new NpgsqlConnection(factory.ConnectionString);
+        await verify.OpenAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(1, await ScalarAsync(verify, """SELECT count(*) FROM organization."Organizers" WHERE "Email" = @v""", next.Email));
+        Assert.Equal(1, await ScalarAsync(verify, """SELECT count(*) FROM audit."AuditLogs" WHERE "EntityId" = @v""", staged.AuditEntityId));
     }
 
     [Fact]

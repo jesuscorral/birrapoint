@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BuildingBlocks.Messaging.Tests;
@@ -124,6 +125,62 @@ public sealed class MultiContextRoutingTests(PostgresFixture fixture) : IClassFi
         await using var b2 = fixture.NewContext<BTestDbContext>();
         Assert.Empty(await a2.Set<InboxMessage>(MessagingNames.Inbox("A")).ToListAsync(ct));
         Assert.Empty(await b2.Set<InboxMessage>(MessagingNames.Inbox("B")).ToListAsync(ct));
+    }
+
+    /// <summary>Contexts of one scope on one connection, like the host's module contexts (FR-096).</summary>
+    private async Task<MessagingHost> StartSharedConnectionAsync()
+    {
+        await ResetAsync();
+        return await fixture.StartAsync(
+            configure: Declare,
+            services: s =>
+            {
+                s.AddScoped(_ => new Npgsql.NpgsqlConnection(fixture.ConnectionString));
+                s.AddDbContext<ATestDbContext>((sp, o) => o.UseNpgsql(sp.GetRequiredService<Npgsql.NpgsqlConnection>()).AddMessagingInterceptors(sp));
+                s.AddDbContext<BTestDbContext>((sp, o) => o.UseNpgsql(sp.GetRequiredService<Npgsql.NpgsqlConnection>()).AddMessagingInterceptors(sp));
+            },
+            dispatcherEnabled: false,
+            declareStandard: false);
+    }
+
+    [Fact]
+    public async Task AnOutboxRowSavedByAContextThatJoinedAnotherContextsTransactionWakesTheDispatcherOnCommit()
+    {
+        await using var host = await StartSharedConnectionAsync();
+        var ct = TestContext.Current.CancellationToken;
+        var wakeUp = host.Services.GetRequiredService<OutboxWakeUp>();
+        using var scope = host.Services.CreateScope();
+        var a = scope.ServiceProvider.GetRequiredService<ATestDbContext>();
+        var b = scope.ServiceProvider.GetRequiredService<BTestDbContext>();
+
+        await using var tx = await b.Database.BeginTransactionAsync(ct);
+        await a.Database.UseTransactionAsync(tx.GetDbTransaction(), ct);
+        scope.ServiceProvider.GetRequiredService<IIntegrationEventPublisher>().Publish(new ThingHappened(Guid.NewGuid()));
+        await a.SaveChangesAsync(ct);
+        Assert.Equal(0, wakeUp.Reader.Count);
+
+        await tx.CommitAsync(ct);
+
+        Assert.Equal(1, wakeUp.Reader.Count);
+    }
+
+    [Fact]
+    public async Task AnOutboxRowSavedByAContextThatJoinedAnotherContextsTransactionSignalsNothingOnRollback()
+    {
+        await using var host = await StartSharedConnectionAsync();
+        var ct = TestContext.Current.CancellationToken;
+        var wakeUp = host.Services.GetRequiredService<OutboxWakeUp>();
+        using var scope = host.Services.CreateScope();
+        var a = scope.ServiceProvider.GetRequiredService<ATestDbContext>();
+        var b = scope.ServiceProvider.GetRequiredService<BTestDbContext>();
+
+        await using var tx = await b.Database.BeginTransactionAsync(ct);
+        await a.Database.UseTransactionAsync(tx.GetDbTransaction(), ct);
+        scope.ServiceProvider.GetRequiredService<IIntegrationEventPublisher>().Publish(new ThingHappened(Guid.NewGuid()));
+        await a.SaveChangesAsync(ct);
+        await tx.RollbackAsync(ct);
+
+        Assert.Equal(0, wakeUp.Reader.Count);
     }
 
     [Fact]

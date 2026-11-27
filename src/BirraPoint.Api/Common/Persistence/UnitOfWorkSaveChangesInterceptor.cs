@@ -15,6 +15,9 @@ namespace BirraPoint.Api.Common.Persistence;
 /// saved into it after the main save, and the unit of work commits it (or rolls it back when any save fails).</item>
 /// <item>With nothing pending elsewhere EF behaves exactly as without the interceptor.</item>
 /// </list>
+/// EF reports a concurrency failure through <c>ThrowingConcurrencyException</c> while the command's reader is still
+/// open, where a rollback is impossible, and never calls <c>SaveChangesFailed</c> for it; a transaction the unit of
+/// work still owns when the next save starts is therefore a leftover of such a failure and is rolled back first.
 /// The saves of the other contexts run with <see cref="SharedTransaction.SavingParticipants"/> set, so they do not start
 /// another round. No execution strategy that retries is configured on the contexts; one would have to wrap the whole
 /// unit of work instead of the individual save.
@@ -26,11 +29,12 @@ internal sealed class UnitOfWorkSaveChangesInterceptor(SharedTransaction shared)
         var context = eventData.Context;
         if (context is not null && !shared.SavingParticipants)
         {
+            RollBack(TakeOwned());
             if (shared.Current is not null)
             {
                 shared.Enlist(context);
             }
-            else if (shared.OwnedByUnitOfWork is null && shared.ParticipantsWithChanges(context).Count > 0)
+            else if (shared.ParticipantsWithChanges(context).Count > 0)
             {
                 shared.OwnedByUnitOfWork = context.Database.BeginTransaction();
             }
@@ -45,11 +49,12 @@ internal sealed class UnitOfWorkSaveChangesInterceptor(SharedTransaction shared)
         var context = eventData.Context;
         if (context is not null && !shared.SavingParticipants)
         {
+            await RollBackAsync(TakeOwned()).ConfigureAwait(false);
             if (shared.Current is not null)
             {
                 shared.Enlist(context);
             }
-            else if (shared.OwnedByUnitOfWork is null && shared.ParticipantsWithChanges(context).Count > 0)
+            else if (shared.ParticipantsWithChanges(context).Count > 0)
             {
                 shared.OwnedByUnitOfWork = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             }
@@ -66,13 +71,12 @@ internal sealed class UnitOfWorkSaveChangesInterceptor(SharedTransaction shared)
             return result;
         }
 
-        var owned = shared.OwnedByUnitOfWork;
+        var owned = TakeOwned();
         try
         {
             SaveParticipants(context);
             if (owned is not null)
             {
-                shared.OwnedByUnitOfWork = null;
                 owned.Commit();
                 owned.Dispose();
             }
@@ -95,13 +99,12 @@ internal sealed class UnitOfWorkSaveChangesInterceptor(SharedTransaction shared)
             return result;
         }
 
-        var owned = shared.OwnedByUnitOfWork;
+        var owned = TakeOwned();
         try
         {
             await SaveParticipantsAsync(context, cancellationToken).ConfigureAwait(false);
             if (owned is not null)
             {
-                shared.OwnedByUnitOfWork = null;
                 await owned.CommitAsync(cancellationToken).ConfigureAwait(false);
                 await owned.DisposeAsync().ConfigureAwait(false);
             }

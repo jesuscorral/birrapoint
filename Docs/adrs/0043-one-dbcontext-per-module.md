@@ -25,8 +25,16 @@ must still commit the module row, its audit entry, a staged job and an outbox ro
 - **One unit of work**: one scoped `NpgsqlConnection` per DI scope is shared by all contexts.
   `SharedTransactionInterceptor` records the active transaction and `UnitOfWorkSaveChangesInterceptor`
   enlists the other contexts with pending changes, so one `SaveChangesAsync` commits all of them.
+  A failed participant save rolls the transaction back once and surfaces the original
+  `DbUpdateException`. EF does not call `SaveChangesFailed` after a `DbUpdateConcurrencyException`
+  (and cannot roll back there, the reader is still open), so a transaction the unit of work still owns
+  is rolled back at the start of the next save on any context of the scope, or when the scope is
+  disposed.
+- **Registration**: `AddBirraPointDbContext<T>` is idempotent.
 - **Messaging**: `Outbox<TContext>(name)` / `Inbox<TContext>(name)` bind each outbox/inbox to its
   context; `AddMessaging(section, configure)` has no context parameter.
+  `OutboxWakeUp` tracks pending outbox rows per `DbConnection`, so a commit on any context sharing the
+  connection wakes the dispatcher.
 - **Hub**: `CompetitionHub` uses `ICompetitionAccess` and the new Judging contract `ITableMembership`
   instead of touching `DbSet`s.
 
@@ -35,6 +43,8 @@ must still commit the module row, its audit entry, a staged job and an outbox ro
   later split into services needs no schema surgery.
 - Harder: no database-enforced referential integrity across modules; orphan ids are possible if a
   deletion path skips the owner's contract. Joins across modules become two reads.
+- Existing cloud databases need a one-off manual reset after this baseline change: see "After a
+  migration-baseline change" in `infra/azure/deployment-runbook.md` and `infra/aws/deployment-runbook.md`.
 - Six model builds and six history checks at startup (expected < 1 s).
 - Rejected: contexts inside the building blocks (migrations in reusable code); one `AddMessaging` per
   module (four dispatchers, no single event registry); an explicit `IUnitOfWork` called by every
