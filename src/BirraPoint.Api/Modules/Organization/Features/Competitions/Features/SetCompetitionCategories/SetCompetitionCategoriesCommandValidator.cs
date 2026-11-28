@@ -1,4 +1,4 @@
-using BirraPoint.Api.Modules.Catalog.Contracts;
+using BirraPoint.Contracts.Catalog;
 using FluentValidation;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Competitions.Features.SetCompetitionCategories;

@@ -1,6 +1,7 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Features.Import;
+using BirraPoint.Common.Persistence;
 using BuildingBlocks.Messaging;
 using Microsoft.EntityFrameworkCore;
 

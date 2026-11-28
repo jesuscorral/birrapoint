@@ -1,8 +1,8 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Judging.Persistence;
-using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Contracts.Catalog;
+using BirraPoint.Contracts.Organization;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;

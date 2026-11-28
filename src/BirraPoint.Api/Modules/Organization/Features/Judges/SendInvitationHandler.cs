@@ -1,10 +1,10 @@
 using System.Net;
 using System.Text.Json;
-using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Persistence;
+using BirraPoint.Common.Domain;
+using BirraPoint.Common.Security;
 using BuildingBlocks.EmailSender;
 using BuildingBlocks.Jobs;
 using BuildingBlocks.Keycloak.Admin;

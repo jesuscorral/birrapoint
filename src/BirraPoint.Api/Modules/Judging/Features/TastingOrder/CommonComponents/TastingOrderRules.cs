@@ -1,5 +1,5 @@
 using BirraPoint.Api.Modules.Judging.Errors;
-using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Contracts.Organization;
 
 namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 

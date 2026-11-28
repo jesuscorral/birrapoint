@@ -1,3 +1,4 @@
+using BirraPoint.Common.Realtime;
 using BuildingBlocks.Jobs;
 
 namespace BirraPoint.Api.Realtime;

@@ -1,6 +1,6 @@
-using BirraPoint.Api.Modules.Judging.Contracts;
 using BirraPoint.Api.Modules.Judging.Persistence;
-using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Contracts.Judging;
+using BirraPoint.Contracts.Organization;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Judging.Integration;

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using BirraPoint.Api.Realtime;
+using BirraPoint.Common.Realtime;
 using BuildingBlocks.Jobs;
 
 namespace BirraPoint.Api.UnitTests.Realtime;

@@ -18,5 +18,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\BuildingBlocks\BuildingBlocks.Validation.MediatR\BuildingBlocks.Validation.MediatR.csproj" />
     <ProjectReference Include="..\..\..\src\BuildingBlocks\BuildingBlocks.ProblemDetails\BuildingBlocks.ProblemDetails.csproj" />
+    <ProjectReference Include="..\BuildingBlocks.Validation.MediatR.Tests.SecondAssembly\BuildingBlocks.Validation.MediatR.Tests.SecondAssembly.csproj" />
   </ItemGroup>
 </Project>

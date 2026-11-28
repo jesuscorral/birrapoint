@@ -1,10 +1,11 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Modules.Judging.Contracts.IntegrationEvents;
-using BirraPoint.Api.Modules.Organization.Contracts.IntegrationEvents;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.DispatchScoreSheet;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.RefreshResults;
 using BirraPoint.Api.Modules.Publication.Persistence;
+using BirraPoint.Common.Persistence;
+using BirraPoint.Contracts.Judging.IntegrationEvents;
+using BirraPoint.Contracts.Organization.IntegrationEvents;
 using BuildingBlocks.Jobs;
 using BuildingBlocks.Messaging;
 

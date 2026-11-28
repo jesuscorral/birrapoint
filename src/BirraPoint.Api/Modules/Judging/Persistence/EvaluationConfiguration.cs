@@ -1,4 +1,3 @@
-using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Judging.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;

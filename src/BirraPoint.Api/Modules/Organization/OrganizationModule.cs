@@ -1,12 +1,13 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Modules.Judging.Contracts.IntegrationEvents;
-using BirraPoint.Api.Modules.Organization.Contracts;
-using BirraPoint.Api.Modules.Organization.Contracts.IntegrationEvents;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Judges;
 using BirraPoint.Api.Modules.Organization.Identity;
 using BirraPoint.Api.Modules.Organization.Integration;
 using BirraPoint.Api.Modules.Organization.Persistence;
+using BirraPoint.Common.Persistence;
+using BirraPoint.Contracts.Judging.IntegrationEvents;
+using BirraPoint.Contracts.Organization;
+using BirraPoint.Contracts.Organization.IntegrationEvents;
 using BuildingBlocks.Jobs;
 using BuildingBlocks.Messaging;
 using BuildingBlocks.ProblemDetails;

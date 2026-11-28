@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json;
-using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
+using BirraPoint.Common.Domain;
 using BuildingBlocks.Keycloak.Admin;
 using Microsoft.Extensions.DependencyInjection;
 

@@ -1,10 +1,10 @@
 using System.IO.Compression;
 using System.Net;
 using System.Text.Json;
-using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
-using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Common.Domain;
+using BirraPoint.Contracts.Organization;
 using BuildingBlocks.EmailSender;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;

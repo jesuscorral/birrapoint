@@ -1,5 +1,5 @@
 using BirraPoint.Api.IntegrationTests.TestHost;
-using BirraPoint.Api.Modules.Catalog.Contracts;
+using BirraPoint.Contracts.Catalog;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BirraPoint.Api.IntegrationTests.Modules.Catalog.Integration;

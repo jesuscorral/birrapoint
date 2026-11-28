@@ -1,11 +1,12 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Judging.Persistence;
-using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Realtime;
+using BirraPoint.Common.Realtime;
+using BirraPoint.Contracts.Catalog;
+using BirraPoint.Contracts.Organization;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;

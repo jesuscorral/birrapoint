@@ -6,6 +6,7 @@ using BirraPoint.Api.Modules.Organization.Features.Competitions.Features.GetEntr
 using BirraPoint.Api.Modules.Organization.Features.Competitions.Features.ListCompetitions;
 using BirraPoint.Api.Modules.Organization.Features.Competitions.Features.SetCompetitionCategories;
 using BirraPoint.Api.Modules.Organization.Features.Competitions.Features.UpdateCompetition;
+using BirraPoint.Common.Security;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Competitions;
 
@@ -15,7 +16,7 @@ internal static class BaseCompetitionsEndpoints
     public static IEndpointRouteBuilder MapCompetitionsEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/v1/competitions")
-            .RequireAuthorization("ORGANIZER")
+            .RequireAuthorization(Policies.Organizer)
             .WithTags("Competitions");
 
         group.MapCreateCompetitionEndpoint()

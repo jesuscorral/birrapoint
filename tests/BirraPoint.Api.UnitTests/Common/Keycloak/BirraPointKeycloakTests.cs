@@ -1,4 +1,4 @@
-using BirraPoint.Api.Common.Keycloak;
+using BirraPoint.Common.Security;
 using BuildingBlocks.Keycloak.Admin;
 
 namespace BirraPoint.Api.UnitTests.Common.Keycloak;

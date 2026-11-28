@@ -1,5 +1,5 @@
-using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Catalog.Persistence;
+using BirraPoint.Contracts.Catalog;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Catalog.Integration;

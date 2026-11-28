@@ -1,5 +1,6 @@
-using BirraPoint.Api.Modules.Judging.Contracts;
-using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Common.Realtime;
+using BirraPoint.Contracts.Judging;
+using BirraPoint.Contracts.Organization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 

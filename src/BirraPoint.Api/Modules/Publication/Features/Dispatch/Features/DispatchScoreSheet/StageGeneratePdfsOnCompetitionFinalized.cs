@@ -1,6 +1,6 @@
-using BirraPoint.Api.Domain;
-using BirraPoint.Api.Modules.Organization.Contracts;
-using BirraPoint.Api.Modules.Organization.Contracts.IntegrationEvents;
+using BirraPoint.Common.Domain;
+using BirraPoint.Contracts.Organization;
+using BirraPoint.Contracts.Organization.IntegrationEvents;
 using BuildingBlocks.Jobs;
 using BuildingBlocks.Messaging;
 

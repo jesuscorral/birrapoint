@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Common.Persistence.Jobs;
+using BirraPoint.Common.Persistence;
+using BirraPoint.Common.Persistence.Jobs;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BirraPoint.Api.UnitTests.Common.Persistence;

@@ -1,4 +1,4 @@
-using BirraPoint.Api.Domain;
+using BirraPoint.Common.Domain;
 
 namespace BirraPoint.Api.Modules.Catalog.Domain;
 

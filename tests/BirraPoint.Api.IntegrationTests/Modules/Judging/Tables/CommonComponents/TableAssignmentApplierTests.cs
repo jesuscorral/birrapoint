@@ -1,13 +1,13 @@
 using System.Text.Json;
 using BirraPoint.Api.IntegrationTests.IntegrationEvents;
 using BirraPoint.Api.IntegrationTests.TestHost;
-using BirraPoint.Api.Modules.Judging.Contracts.IntegrationEvents;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Integration;
+using BirraPoint.Contracts.Judging.IntegrationEvents;
 using BuildingBlocks.Messaging;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;

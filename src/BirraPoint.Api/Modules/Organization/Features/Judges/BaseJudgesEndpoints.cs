@@ -3,6 +3,7 @@ using BirraPoint.Api.Modules.Organization.Features.Judges.Features.NotifyJudges;
 using BirraPoint.Api.Modules.Organization.Features.Judges.Features.RegisterJudges;
 using BirraPoint.Api.Modules.Organization.Features.Judges.Features.ResendInvitation;
 using BirraPoint.Api.Modules.Organization.Features.Judges.Features.UpdateJudgeEmail;
+using BirraPoint.Common.Security;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Judges;
 
@@ -13,7 +14,7 @@ internal static class BaseJudgesEndpoints
     public static IEndpointRouteBuilder MapJudgesEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/v1/competitions/{competitionId:guid}/judges")
-            .RequireAuthorization("ORGANIZER")
+            .RequireAuthorization(Policies.Organizer)
             .WithTags("Judges");
 
         group.MapRegisterJudgesEndpoint()

@@ -9,6 +9,7 @@ using BirraPoint.Api.Modules.Organization.Features.Import.Features.GetJudgeImpor
 using BirraPoint.Api.Modules.Organization.Features.Import.Features.RevalidateBeerImport;
 using BirraPoint.Api.Modules.Organization.Features.Import.Features.UploadBeerImport;
 using BirraPoint.Api.Modules.Organization.Features.Import.Features.UploadJudgeImport;
+using BirraPoint.Common.Security;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Import;
 
@@ -19,7 +20,7 @@ internal static class BaseImportEndpoints
     public static IEndpointRouteBuilder MapImportEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var beerGroup = endpoints.MapGroup("/api/v1/competitions/{competitionId:guid}/imports/beers")
-            .RequireAuthorization("ORGANIZER")
+            .RequireAuthorization(Policies.Organizer)
             .WithTags("BeerImport");
 
         beerGroup.MapUploadBeerImportEndpoint()
@@ -30,7 +31,7 @@ internal static class BaseImportEndpoints
             .MapConsolidateBeerImportEndpoint();
 
         var judgeGroup = endpoints.MapGroup("/api/v1/competitions/{competitionId:guid}/imports/judges")
-            .RequireAuthorization("ORGANIZER")
+            .RequireAuthorization(Policies.Organizer)
             .WithTags("JudgeImport");
 
         judgeGroup.MapUploadJudgeImportEndpoint()

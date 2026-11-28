@@ -1,9 +1,9 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Modules.Judging.Contracts.IntegrationEvents;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Persistence;
-using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Contracts.Judging.IntegrationEvents;
+using BirraPoint.Contracts.Organization;
 using BuildingBlocks.Messaging;
 
 namespace BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;

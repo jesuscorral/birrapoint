@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Persistence;
+using BirraPoint.Common.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 

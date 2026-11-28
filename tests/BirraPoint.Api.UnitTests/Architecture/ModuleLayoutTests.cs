@@ -1,12 +1,13 @@
 using System.Reflection;
-using BirraPoint.Api.Domain;
+using BirraPoint.Common.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.UnitTests.Architecture;
 
 public class ModuleLayoutTests
 {
-    private static readonly Assembly Api = typeof(Entity).Assembly;
+    /// <summary>The host assembly (modules still live in it) and the shared kernel.</summary>
+    private static readonly Assembly[] Assemblies = [typeof(BirraPoint.Api.Realtime.CompetitionHub).Assembly, typeof(Entity).Assembly];
 
     private static readonly string[] Modules = ["Organization", "Catalog", "Judging", "Publication"];
 
@@ -14,7 +15,7 @@ public class ModuleLayoutTests
         t.Name.StartsWith('<') || t.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), false);
 
     private static IEnumerable<Type> ApiTypes() =>
-        Api.GetTypes().Where(t => !IsCompilerGenerated(t) && t.Namespace is not null);
+        Assemblies.SelectMany(a => a.GetTypes()).Where(t => !IsCompilerGenerated(t) && t.Namespace is not null);
 
     [Fact]
     public void ModuleNamespacesUseAKnownModule()
@@ -35,7 +36,7 @@ public class ModuleLayoutTests
     {
         string[] allowed = ["Entity", "DispatchJobType", "ITimestamped"];
         var actual = ApiTypes()
-            .Where(t => t.Namespace == "BirraPoint.Api.Domain")
+            .Where(t => t.Namespace == "BirraPoint.Common.Domain")
             .Select(t => t.Name)
             .Order()
             .ToArray();
@@ -89,7 +90,7 @@ public class ModuleLayoutTests
     }
 
     private static bool IsDomainNamespace(string ns) =>
-        ns == "BirraPoint.Api.Domain"
+        ns == "BirraPoint.Common.Domain"
         || (ns.StartsWith("BirraPoint.Api.Modules.", StringComparison.Ordinal) && ns.EndsWith(".Domain", StringComparison.Ordinal));
 
     [Theory]
@@ -128,9 +129,9 @@ public class ModuleLayoutTests
                 {
                     expected = $"{modulesPrefix}{entityNs[modulesPrefix.Length..].Split('.')[0]}.Persistence";
                 }
-                else if (entityNs == "BirraPoint.Api.Domain")
+                else if (entityNs == "BirraPoint.Common.Domain")
                 {
-                    expected = "BirraPoint.Api.Common.Persistence.Configurations";
+                    expected = "BirraPoint.Common.Persistence.Configurations";
                 }
 
                 if (expected is null || config.Namespace != expected)
@@ -155,7 +156,7 @@ public class ModuleLayoutTests
         var subclasses = ApiTypes().Where(t => t is { IsClass: true, IsAbstract: false } && t.IsSubclassOf(typeof(Entity)));
 
         var allowedDomains = Modules.Select(m => $"BirraPoint.Api.Modules.{m}.Domain")
-            .Append("BirraPoint.Api.Domain")
+            .Append("BirraPoint.Common.Domain")
             .Append(importNs)
             .ToHashSet(StringComparer.Ordinal);
 

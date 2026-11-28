@@ -1,0 +1,4 @@
+namespace BirraPoint.Contracts.Organization;
+
+/// <summary>An entry as results delivery needs it: who entered it and how its score sheet is named.</summary>
+public sealed record ResultEntry(Guid EntryId, Guid ParticipantId, string BlindCode, string StyleCode);

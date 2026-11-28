@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Domain;
+using BirraPoint.Common.Persistence;
 using BuildingBlocks.Messaging;
 using Microsoft.EntityFrameworkCore;
 

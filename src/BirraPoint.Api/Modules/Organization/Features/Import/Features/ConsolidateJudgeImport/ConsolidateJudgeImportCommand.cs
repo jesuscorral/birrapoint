@@ -1,9 +1,9 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Judges.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Organization.Persistence;
+using BirraPoint.Common.Domain;
 using BuildingBlocks.Identity;
 using BuildingBlocks.Jobs;
 using MediatR;

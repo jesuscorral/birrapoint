@@ -1,3 +1,4 @@
+using BirraPoint.Common.Security;
 using BuildingBlocks.Identity;
 using BuildingBlocks.Keycloak.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -30,8 +31,8 @@ internal static class AuthenticationExtensions
 
         services.AddAuthorizationBuilder()
             .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
-            .AddPolicy("ORGANIZER", policy => policy.RequireRole("ORGANIZER"))
-            .AddPolicy("JUDGE", policy => policy.RequireRole("JUDGE"));
+            .AddPolicy(Policies.Organizer, policy => policy.RequireRole(Policies.Organizer))
+            .AddPolicy(Policies.Judge, policy => policy.RequireRole(Policies.Judge));
 
         return services;
     }
