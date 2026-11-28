@@ -2,6 +2,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,7 @@ namespace BirraPoint.Api.Modules.Organization.Features.Import.Features.EditJudge
 internal sealed record EditJudgeImportRowCommand(Guid CompetitionId, Guid ImportId, int RowNumber, EditJudgeImportRowRequest Row)
     : IRequest<JudgeImportRowDto?>;
 
-internal sealed class EditJudgeImportRowCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class EditJudgeImportRowCommandHandler(OrganizationDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<EditJudgeImportRowCommand, JudgeImportRowDto?>
 {
     public async Task<JudgeImportRowDto?> Handle(EditJudgeImportRowCommand request, CancellationToken cancellationToken)

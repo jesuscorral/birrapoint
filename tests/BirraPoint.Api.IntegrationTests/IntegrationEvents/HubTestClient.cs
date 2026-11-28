@@ -53,6 +53,17 @@ internal sealed class HubTestClient : IAsyncDisposable
         }
     }
 
+    /// <summary>Invokes a hub method and returns the error the hub raised, or null when it completed.</summary>
+    public async Task<string?> InvokeForErrorAsync(string method, params object[] arguments)
+    {
+        var id = Interlocked.Increment(ref _invocationCounter).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var completion = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _completions[id] = completion;
+        await SendAsync(JsonSerializer.Serialize(new { type = 1, invocationId = id, target = method, arguments }));
+        var result = await completion.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        return result.TryGetProperty("error", out var error) ? error.GetString() : null;
+    }
+
     /// <summary>The first argument of the next <paramref name="target"/> push, or null when none arrives in time.</summary>
     public async Task<JsonElement?> NextAsync(string target, TimeSpan timeout)
     {

@@ -2,6 +2,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Contracts.IntegrationEvents;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Errors;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BuildingBlocks.Messaging;
 
@@ -15,7 +16,7 @@ internal static class TableAssignmentApplier
     /// Throws ConflictOfInterest before staging anything. Returns the entries owned by added judges
     /// (now not valid for BOS).</summary>
     public static async Task<IReadOnlyList<Guid>> ApplyAsync(
-        AppDbContext dbContext,
+        JudgingDbContext dbContext,
         IConflictOfInterestChecker conflictChecker,
         IIntegrationEventPublisher integrationEvents,
         TastingTable table,

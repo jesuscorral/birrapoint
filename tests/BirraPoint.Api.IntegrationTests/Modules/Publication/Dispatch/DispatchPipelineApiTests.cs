@@ -98,7 +98,7 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
         await EventualAssert.TrueAsync(async () =>
         {
             await using var scope = Factory.Services.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var db = scope.ServiceProvider.GetTestDb();
             return await db.DispatchJobs
                 .AnyAsync(j => j.GroupKey == competitionId && j.Type == DispatchJobType.GeneratePdfs, cancellationToken: TestContext.Current.CancellationToken);
         }, "GeneratePdfs job staged");
@@ -123,7 +123,7 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
     private async Task<int> CountStateChangeAuditRowsAsync(Guid competitionId)
     {
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         return await db.AuditLogs.AsNoTracking().CountAsync(
             a => a.Action == "CompetitionStateChanged" && a.EntityId == competitionId.ToString(),
             TestContext.Current.CancellationToken);
@@ -155,7 +155,7 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
         async Task<int> CountJobsAsync()
         {
             await using var scope = Factory.Services.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var db = scope.ServiceProvider.GetTestDb();
             return await db.DispatchJobs.AsNoTracking().CountAsync(
                 j => j.GroupKey == competitionId && j.Type == DispatchJobType.GeneratePdfs, TestContext.Current.CancellationToken);
         }
@@ -282,7 +282,7 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
     private async Task<DateTimeOffset> ResetBundleZipJobToPendingAsync(Guid competitionId)
     {
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var job = await db.DispatchJobs
             .SingleAsync(j => j.GroupKey == competitionId && j.Type == DispatchJobType.BundleZip);
         job.Status = JobStatus.Pending;
@@ -297,7 +297,7 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
         while (DateTime.UtcNow < deadline)
         {
             await using var scope = Factory.Services.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var db = scope.ServiceProvider.GetTestDb();
             var job = await db.DispatchJobs
                 .AsNoTracking()
                 .SingleAsync(j => j.GroupKey == competitionId && j.Type == DispatchJobType.BundleZip);
@@ -316,7 +316,7 @@ public sealed class DispatchPipelineApiTests(ApiFactory factory) : DispatchApiTe
     private async Task<int> CountDispatchJobsAsync(Guid competitionId, string type)
     {
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         return await db.DispatchJobs.CountAsync(j => j.GroupKey == competitionId && j.Type == type);
     }
 

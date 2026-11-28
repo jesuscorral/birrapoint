@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BuildingBlocks.Identity;
 using FluentValidation;
@@ -8,7 +9,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.Tables.Features.CreateTable;
 
 internal sealed class CreateTableCommandValidator : AbstractValidator<CreateTableCommand>
 {
-    public CreateTableCommandValidator(AppDbContext dbContext, ICompetitionAccess competitionAccess, ICurrentUser currentUser, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory)
+    public CreateTableCommandValidator(JudgingDbContext dbContext, ICompetitionAccess competitionAccess, ICurrentUser currentUser, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory)
     {
         var owned = new OwnedCompetitionLookup(competitionAccess, currentUser);
 

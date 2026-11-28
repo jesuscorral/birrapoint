@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
@@ -8,7 +9,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder.Features.FixOrder
 
 internal sealed class FixOrderCommandValidator : AbstractValidator<FixOrderCommand>
 {
-    public FixOrderCommandValidator(AppDbContext dbContext, IJudgeDirectory judgeDirectory)
+    public FixOrderCommandValidator(JudgingDbContext dbContext, IJudgeDirectory judgeDirectory)
     {
         RuleFor(c => c.OrderedBeerEntryIds).NotNull();
 

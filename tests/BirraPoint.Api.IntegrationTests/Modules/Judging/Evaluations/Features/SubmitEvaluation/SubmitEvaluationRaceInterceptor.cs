@@ -7,7 +7,7 @@ namespace BirraPoint.Api.IntegrationTests.Modules.Judging.Evaluations.Features.S
 /// Test-only <see cref="DbCommandInterceptor"/> that deterministically reproduces the concurrent-
 /// commit races <c>SubmitEvaluationCommandHandler</c> guards against — without relying on two real
 /// HTTP calls happening to interleave in exactly the right window (flaky). Registered once, always,
-/// on <see cref="ApiFactory"/>'s <c>AppDbContext</c> (shared across every test in a given test
+/// on <see cref="ApiFactory"/>'s <c>JudgingDbContext</c> (shared across every test in a given test
 /// class), but inert unless a test arms it: production code never sees this type at all.
 ///
 /// Usage: a test calls <see cref="ArmBeforeNext"/> with one of <c>SubmitEvaluationQueryTags</c>'

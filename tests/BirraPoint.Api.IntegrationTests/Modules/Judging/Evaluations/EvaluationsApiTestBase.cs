@@ -62,7 +62,7 @@ public abstract class EvaluationsApiTestBase(ApiFactory factory)
     private protected async Task<Guid> SeedParticipantAsync(Guid competitionId, string name, string email)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var participant = new Participant { CompetitionId = competitionId, Name = name, Email = email };
         db.Participants.Add(participant);
         await db.SaveChangesAsync();
@@ -73,7 +73,7 @@ public abstract class EvaluationsApiTestBase(ApiFactory factory)
         Guid competitionId, Guid participantId, string beerName, string styleCode = StyleCodeApa)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var entry = new BeerEntry
         {
             CompetitionId = competitionId,
@@ -90,7 +90,7 @@ public abstract class EvaluationsApiTestBase(ApiFactory factory)
     private protected async Task<Guid> SeedJudgeAsync(Guid competitionId, string email, string keycloakUserId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var judge = new Judge
         {
             CompetitionId = competitionId,
@@ -106,7 +106,7 @@ public abstract class EvaluationsApiTestBase(ApiFactory factory)
     private protected async Task<Guid> SeedTableAsync(Guid competitionId, string name)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var table = new TastingTable { CompetitionId = competitionId, Name = name };
         db.TastingTables.Add(table);
         await db.SaveChangesAsync();
@@ -116,7 +116,7 @@ public abstract class EvaluationsApiTestBase(ApiFactory factory)
     private protected async Task SeedTableJudgeAsync(Guid tableId, Guid judgeId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         db.TableJudges.Add(new TableJudge { TastingTableId = tableId, JudgeId = judgeId });
         await db.SaveChangesAsync();
     }
@@ -124,7 +124,7 @@ public abstract class EvaluationsApiTestBase(ApiFactory factory)
     private protected async Task SeedTableSampleAsync(Guid tableId, Guid beerEntryId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         db.TableSamples.Add(new TableSample { TastingTableId = tableId, BeerEntryId = beerEntryId });
         await db.SaveChangesAsync();
     }
@@ -136,7 +136,7 @@ public abstract class EvaluationsApiTestBase(ApiFactory factory)
     private protected async Task FixOrderDirectlyAsync(Guid tableId, Guid judgeId, List<Guid> orderedEntryIds)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
 
         var table = await db.TastingTables.SingleAsync(t => t.Id == tableId);
         table.OrderFixedByJudgeId = judgeId;
@@ -170,7 +170,7 @@ public abstract class EvaluationsApiTestBase(ApiFactory factory)
     private protected async Task<int> CountOpenAlertsAsync(Guid tableId, Guid beerEntryId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         return await db.DiscrepancyAlerts.CountAsync(
             a => a.TastingTableId == tableId && a.BeerEntryId == beerEntryId && a.Status == DiscrepancyStatus.Open);
     }

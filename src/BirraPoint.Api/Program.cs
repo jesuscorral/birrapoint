@@ -1,6 +1,8 @@
 using System.Text.Json.Serialization;
 using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Common.Persistence.Audit;
+using BirraPoint.Api.Common.Persistence.Jobs;
 using BirraPoint.Api.Composition;
 using BirraPoint.Api.Extensions;
 using BirraPoint.Api.Modules.Catalog;
@@ -17,7 +19,6 @@ using BuildingBlocks.Keycloak.Admin;
 using BuildingBlocks.Messaging;
 using BuildingBlocks.Validation.MediatR;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.EntityFrameworkCore;
 
 // Community license — required before the first document generation or QuestPDF throws.
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
@@ -31,10 +32,13 @@ builder.Configuration.AddDaprSecrets(BirraPointSecrets.Configure);
 // OpenTelemetry, health checks, service discovery, resilience (FR-048).
 builder.AddServiceDefaults();
 
-// PostgreSQL via the "db" connection string the AppHost injects (quickstart env contract).
-// The messaging interceptors wake the integration-event dispatcher right after a commit that staged events.
-builder.Services.AddDbContext<AppDbContext>((sp, options) =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("db")).AddMessagingInterceptors(sp));
+// PostgreSQL via the "db" connection string the AppHost injects (quickstart env contract). One data context per
+// module (registered by each AddXModule) plus the Jobs and Audit contexts below share one connection and one unit of
+// work per scope (ADR-0043). The messaging interceptors wake the integration-event dispatcher right after a commit that
+// staged events.
+builder.Services.AddBirraPointPersistence();
+builder.Services.AddBirraPointDbContext<JobsDbContext>();
+builder.Services.AddBirraPointDbContext<AuditDbContext>();
 
 // Readiness: /health runs this, /alive does not (Neon scale-to-zero, ADR-0025).
 builder.Services.AddHealthChecks()
@@ -63,7 +67,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddMediatRWithValidation(typeof(Program).Assembly);
 
 // Immutable audit trail writer (BuildingBlocks.Audit, ADR-0035); the actor is the Keycloak subject.
-builder.Services.AddAudit<AppDbContext, CurrentUserAuditActor>();
+builder.Services.AddAudit<AuditDbContext, CurrentUserAuditActor>();
 
 // Invitation/result email delivery (R-10, BuildingBlocks.EmailSender, ADR-0035): MailKit against
 // Smtp:Host/Smtp:Port (Mailpit locally); Smtp:From defaults to BirraPoint's no-reply sender unless configured.
@@ -82,12 +86,12 @@ builder.Services.AddSingleton<IEventPublisher, EventPublisher>();
 // Job queue + hosted worker (R-06, BuildingBlocks.Jobs, ADR-0037): enqueues and retries wake the worker
 // immediately; its periodic safety-net poll (Dispatch:SafetyNetPollInterval) covers any missed signal.
 // DispatchProgressObserver relays each persisted state change to the organizers' SignalR group.
-builder.Services.AddJobs<AppDbContext>(builder.Configuration.GetSection("Dispatch"));
+builder.Services.AddJobs<JobsDbContext>(builder.Configuration.GetSection("Dispatch"));
 builder.Services.AddScoped<IJobObserver, DispatchProgressObserver>();
 
 // Integration events between modules (BuildingBlocks.Messaging, transactional outbox/inbox): each module
 // declares its own publishes/subscriptions with ConfigureMessaging next to its other registrations.
-builder.Services.AddMessaging<AppDbContext>(builder.Configuration.GetSection("Messaging"), _ => { });
+builder.Services.AddMessaging(builder.Configuration.GetSection("Messaging"), _ => { });
 
 // Judge provisioning (R-10): Keycloak Admin REST API via a typed HttpClient (client-credentials
 // grant against Keycloak:AdminClientId/AdminClientSecret).
@@ -193,17 +197,13 @@ app.MapPublicationModule();
 
 // EF migrations apply on startup in Development; outside Development, only when
 // Database:MigrateOnStartup=true (Terraform sets this on the single long-running API
-// replica, so every start of that replica migrates over Neon before serving traffic). The BJCP
-// seed ships as part of the migrations, so this covers it too. Migrates over the non-pooled
-// ConnectionStrings:dbDirect when configured (Neon's pooled ConnectionStrings:db breaks EF's
-// session-scoped migration advisory lock under pgbouncer transaction pooling).
+// replica, so every start of that replica migrates over Neon before serving traffic). Each of the six contexts
+// migrates in turn (Jobs, Audit, Catalog, Organization, Judging, Publication); the BJCP seed ships in Catalog's
+// baseline. Migrates over the non-pooled ConnectionStrings:dbDirect when configured (Neon's pooled
+// ConnectionStrings:db breaks EF's session-scoped migration advisory lock under pgbouncer transaction pooling).
 if (StartupMigrations.ShouldMigrate(app.Environment.IsDevelopment(), app.Configuration))
 {
-    using var scope = app.Services.CreateScope();
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    context.Database.SetConnectionString(StartupMigrations.ResolveMigrationConnectionString(app.Configuration));
-    await LegacyDatabaseGuard.EnsureCompatibleAsync(context);
-    await context.Database.MigrateAsync();
+    await StartupMigrations.MigrateAllAsync(app.Services, app.Configuration);
 }
 
 await app.RunAsync();

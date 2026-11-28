@@ -1,10 +1,10 @@
-using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Contracts;
+using BirraPoint.Api.Modules.Catalog.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Catalog.Integration;
 
-internal sealed class StyleCatalog(AppDbContext dbContext) : IStyleCatalog
+internal sealed class StyleCatalog(CatalogDbContext dbContext) : IStyleCatalog
 {
     public async Task<IReadOnlyList<StyleSummaryDto>> ListAsync(CancellationToken cancellationToken = default) =>
         await dbContext.BjcpStyles

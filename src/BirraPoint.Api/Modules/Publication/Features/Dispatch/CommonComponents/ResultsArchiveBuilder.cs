@@ -2,6 +2,7 @@ using System.IO.Compression;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Domain;
+using BirraPoint.Api.Modules.Publication.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
@@ -12,7 +13,7 @@ namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
 /// retry never duplicates it). Shared by the dispatch pipeline and the refresh after a correction (FR-083).
 /// </summary>
 internal sealed class ResultsArchiveBuilder(
-    AppDbContext dbContext, ICompetitionAccess competitionAccess, IResultRecipients resultRecipients)
+    PublicationDbContext dbContext, ICompetitionAccess competitionAccess, IResultRecipients resultRecipients)
 {
     /// <summary>Rebuilds the archive from the sheets stored now and saves it.</summary>
     public async Task BuildAsync(Guid competitionId, CancellationToken cancellationToken)

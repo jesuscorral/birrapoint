@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Common.Persistence.Jobs;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
@@ -15,7 +16,7 @@ namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.Dispatch
 /// <see cref="Invitation"/> tracks judge invites, except here there's no separate status entity.
 /// </summary>
 internal sealed class BundleZipHandler(
-    AppDbContext dbContext, ResultsArchiveBuilder archiveBuilder, IResultRecipients resultRecipients, IJobQueue dispatchJobQueue)
+    JobsDbContext dbContext, ResultsArchiveBuilder archiveBuilder, IResultRecipients resultRecipients, IJobQueue dispatchJobQueue)
     : IJobHandler
 {
     public string Type => DispatchJobType.BundleZip;

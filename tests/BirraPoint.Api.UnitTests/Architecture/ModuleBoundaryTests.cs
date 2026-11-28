@@ -14,30 +14,25 @@ namespace BirraPoint.Api.UnitTests.Architecture;
 /// is allowed, any other namespace of module Y is a violation from module X ≠ Y. Fully qualified
 /// <c>BirraPoint.Api.Modules.&lt;Y&gt;.…</c> names in code follow the same rule.</item>
 /// <item>DbSet access: the DbSet-name → owning-module map is built by reflection over
-/// <c>AppDbContext</c> (module = the module segment of the entity's namespace). Only member access on a
+/// every <c>*DbContext</c> of the API (module = the module segment of the entity's namespace). Only member access on a
 /// DbContext-looking receiver (identifier ending in <c>dbContext</c>, <c>db</c>, <c>context</c> or <c>ctx</c>, e.g.
 /// <c>_db</c>, <c>appDbContext</c>) is matched, so same-named
 /// navigations such as <c>table.Judges</c> are not false positives. <c>Set&lt;T&gt;()</c> and
 /// <c>Include</c> navigations are intentionally out of scope.</item>
 /// <item>Comments are stripped before matching.</item>
-/// <item><c>Modules/&lt;X&gt;/Persistence/</c> is exempt: FK configurations are allowed with the shared DbContext.</item>
+/// <item>Persistence is not exempt (FR-094, FR-099): each module owns one context, so another module's <c>Domain</c>,
+/// <c>Persistence</c> or <c>*DbContext</c> is a violation like any other internal namespace, and the kernel
+/// (<c>Common</c>, <c>Composition</c>, <c>Domain</c>, <c>Realtime</c>) may use module contracts only.</item>
 /// </list>
 ///
-/// No module-to-module exception exists: ADR-0033 phase 3 replaced every direct read with a contract.
-/// Kernel exceptions are permanent (ADR-0034).
+/// No module-to-module exception and no kernel exception exists: ADR-0033 phase 3 replaced every direct read with a
+/// contract, and the shared context that justified the old Persistence/Realtime exemptions is gone.
 /// </summary>
 public class ModuleBoundaryTests
 {
     private const string ModulesNamespace = "BirraPoint.Api.Modules";
 
     private static readonly string[] KernelFolders = ["Common", "Composition", "Domain", "Realtime"];
-
-    /// <summary>Permanent kernel → module exceptions (ADR-0034), by path prefix relative to the API project.</summary>
-    private static readonly (string PathPrefix, string Reason)[] KernelExceptions =
-    [
-        ("Realtime/", "Hub group authorization checks competition ownership and judge table membership."),
-        ("Common/Persistence/", "AppDbContext, entity configurations and migrations compose every module's model."),
-    ];
 
     [Fact]
     public void ModulesReferenceOtherModulesOnlyThroughContracts()
@@ -48,14 +43,11 @@ public class ModuleBoundaryTests
     }
 
     [Fact]
-    public void KernelReferencesModulesOnlyThroughDocumentedExceptions()
+    public void KernelReferencesModulesOnlyThroughContracts()
     {
-        var offenders = ScanKernel()
-            .Where(v => !KernelExceptions.Any(e => v.File.StartsWith(e.PathPrefix, StringComparison.Ordinal)))
-            .Select(Describe)
-            .ToList();
+        var offenders = ScanKernel().Select(Describe).ToList();
 
-        Assert.True(offenders.Count == 0, "Kernel references modules outside the documented exceptions:\n" + string.Join('\n', offenders));
+        Assert.True(offenders.Count == 0, "Kernel references modules outside Contracts:" + Environment.NewLine + string.Join(Environment.NewLine, offenders));
     }
 
     /// <summary>
@@ -153,26 +145,29 @@ public class ModuleBoundaryTests
         return Path.Combine(dir.FullName, "src", "BirraPoint.Api");
     }
 
-    /// <summary>DbSet property name → module owning its entity (by namespace segment after Modules).</summary>
+    /// <summary>DbSet property name → module owning its entity (by namespace segment after Modules), over every
+    /// <c>DbContext</c> declared in the API assembly.</summary>
     private static Dictionary<string, string> DbSetOwners()
     {
         var api = typeof(Entity).Assembly;
-        var dbContext = api.GetType("BirraPoint.Api.Common.Persistence.AppDbContext", throwOnError: true)!;
         const string prefix = ModulesNamespace + ".";
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        foreach (var property in dbContext.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+        foreach (var dbContext in api.GetTypes().Where(t => typeof(Microsoft.EntityFrameworkCore.DbContext).IsAssignableFrom(t)))
         {
-            if (!property.PropertyType.IsGenericType
-                || !property.PropertyType.GetGenericTypeDefinition().Name.StartsWith("DbSet", StringComparison.Ordinal))
+            foreach (var property in dbContext.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly))
             {
-                continue;
-            }
+                if (!property.PropertyType.IsGenericType
+                    || !property.PropertyType.GetGenericTypeDefinition().Name.StartsWith("DbSet", StringComparison.Ordinal))
+                {
+                    continue;
+                }
 
-            var ns = property.PropertyType.GetGenericArguments()[0].Namespace;
-            if (ns is not null && ns.StartsWith(prefix, StringComparison.Ordinal))
-            {
-                map[property.Name] = ns[prefix.Length..].Split('.')[0];
+                var ns = property.PropertyType.GetGenericArguments()[0].Namespace;
+                if (ns is not null && ns.StartsWith(prefix, StringComparison.Ordinal))
+                {
+                    map[property.Name] = ns[prefix.Length..].Split('.')[0];
+                }
             }
         }
 
@@ -195,11 +190,6 @@ public class ModuleBoundaryTests
             var module = Path.GetFileName(moduleDir);
             foreach (var (relative, source) in SourceFiles($"Modules/{module}"))
             {
-                if (relative.StartsWith($"Modules/{module}/Persistence/", StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
                 violations.AddRange(ModuleBoundaryScanner.Scan(relative, source, module, dbSets));
             }
         }

@@ -1,11 +1,12 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Organization.Integration;
 
 /// <summary>Projects only anonymous columns into the query (BR-01/FR-019): no entrant field is ever read.</summary>
-internal sealed class EntryDirectory(AppDbContext dbContext) : IEntryDirectory
+internal sealed class EntryDirectory(OrganizationDbContext dbContext) : IEntryDirectory
 {
     public async Task<IReadOnlyDictionary<Guid, EntrySampleInfo>> GetSamplesAsync(
         IReadOnlyCollection<Guid> entryIds, CancellationToken cancellationToken = default)

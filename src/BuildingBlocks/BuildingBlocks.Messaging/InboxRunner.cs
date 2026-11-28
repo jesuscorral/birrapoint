@@ -10,11 +10,11 @@ namespace BuildingBlocks.Messaging;
 /// exception rolls the inbox row back too, so the retry runs the handler again; a redelivery of a processed
 /// event finds the row and does nothing (FR-079). After-commit callbacks run last and never after a rollback.
 /// </summary>
-internal sealed class InboxRunner<TContext>(
+internal sealed class InboxRunner(
     IServiceScopeFactory scopeFactory,
+    MessagingRegistry registry,
     TimeProvider time,
-    ILogger<InboxRunner<TContext>> logger)
-    where TContext : DbContext
+    ILogger<InboxRunner> logger)
 {
     public async Task RunAsync(Subscription subscription, IntegrationEventEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -30,7 +30,7 @@ internal sealed class InboxRunner<TContext>(
         Subscription subscription, IntegrationEventEnvelope envelope, CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TContext>();
+        var db = registry.GetInboxContext(scope.ServiceProvider, subscription.InboxName);
         var inbox = InboxSql.From(db, subscription.InboxName);
 
         var transaction = await db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);

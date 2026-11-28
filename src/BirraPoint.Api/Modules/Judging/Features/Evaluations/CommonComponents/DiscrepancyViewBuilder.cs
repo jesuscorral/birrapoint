@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,7 +12,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 internal static class DiscrepancyViewBuilder
 {
     public static async Task<DiscrepancyView> BuildAsync(
-        AppDbContext dbContext,
+        JudgingDbContext dbContext,
         IJudgeDirectory judgeDirectory,
         IEntryDirectory entryDirectory,
         Guid alertId, Guid tableId, Guid beerEntryId, Guid callerJudgeId, CancellationToken cancellationToken) =>
@@ -21,7 +22,7 @@ internal static class DiscrepancyViewBuilder
 
     /// <summary>One view per alert, in the given order.</summary>
     public static async Task<IReadOnlyList<DiscrepancyView>> BuildManyAsync(
-        AppDbContext dbContext,
+        JudgingDbContext dbContext,
         IJudgeDirectory judgeDirectory,
         IEntryDirectory entryDirectory,
         Guid tableId,

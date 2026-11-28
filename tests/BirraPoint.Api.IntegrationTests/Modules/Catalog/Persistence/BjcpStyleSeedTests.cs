@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.IntegrationTests.Persistence;
+using BirraPoint.Api.IntegrationTests.TestHost;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.IntegrationTests.Modules.Catalog.Persistence;
@@ -11,7 +12,7 @@ namespace BirraPoint.Api.IntegrationTests.Modules.Catalog.Persistence;
 /// </summary>
 public sealed class BjcpStyleSeedTests(PostgresFixture fixture) : IClassFixture<PostgresFixture>
 {
-    private AppDbContext NewContext() => new(fixture.Options);
+    private TestDb NewContext() => TestDb.Connect(fixture.ConnectionString);
 
     [Fact]
     public async Task MigrationSeedsTheFullCatalog()

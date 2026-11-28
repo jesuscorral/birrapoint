@@ -1,10 +1,12 @@
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Common.Persistence.Jobs;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Contracts;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Domain;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
+using BirraPoint.Api.Modules.Publication.Persistence;
 using BuildingBlocks.Jobs;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,7 +19,8 @@ namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.Dispatch
 /// own <see cref="Job.GroupKey"/> is all that's needed.
 /// </summary>
 internal sealed class GeneratePdfsHandler(
-    AppDbContext dbContext,
+    PublicationDbContext dbContext,
+    JobsDbContext jobsDb,
     ICompetitionAccess competitionAccess,
     IResultRecipients resultRecipients,
     IJobQueue dispatchJobQueue,
@@ -70,7 +73,7 @@ internal sealed class GeneratePdfsHandler(
         // DispatchWorker may re-run this handler after a crash even though a prior
         // attempt's BundleZip enqueue already committed durably — without this check, a re-run
         // would enqueue a second BundleZip job (and, transitively, a second round of emails).
-        var bundleZipAlreadyQueued = await dbContext.DispatchJobs
+        var bundleZipAlreadyQueued = await jobsDb.DispatchJobs
             .OfDispatchType(DispatchJobType.BundleZip)
             .AnyAsync(j => j.GroupKey == job.GroupKey, cancellationToken);
         if (!bundleZipAlreadyQueued)

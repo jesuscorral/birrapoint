@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Organization.Integration;
@@ -11,7 +12,7 @@ namespace BirraPoint.Api.Modules.Organization.Integration;
 /// just changed them must have saved first.
 /// </summary>
 internal sealed class BosFlagRecalculator(
-    AppDbContext dbContext, IConflictOfInterestChecker conflictChecker, IJudgeEngagement judgeEngagement)
+    OrganizationDbContext dbContext, IConflictOfInterestChecker conflictChecker, IJudgeEngagement judgeEngagement)
 {
     public async Task RecalculateAsync(
         Guid competitionId, IReadOnlyCollection<Guid> entryIds, CancellationToken cancellationToken)

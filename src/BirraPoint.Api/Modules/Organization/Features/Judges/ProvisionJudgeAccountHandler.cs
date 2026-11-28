@@ -3,6 +3,7 @@ using BirraPoint.Api.Common.Keycloak;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Jobs;
 using BuildingBlocks.Keycloak.Admin;
 using Microsoft.EntityFrameworkCore;
@@ -28,7 +29,7 @@ internal sealed record ProvisionJudgeAccountPayload(Guid JudgeId);
 /// judge with no recovery path (re-import consolidation and stale retries both re-enqueue this
 /// job for already-known judges; see research.md R-20).
 /// </remarks>
-internal sealed class ProvisionJudgeAccountHandler(AppDbContext dbContext, IKeycloakAdminClient keycloakAdminClient)
+internal sealed class ProvisionJudgeAccountHandler(OrganizationDbContext dbContext, IKeycloakAdminClient keycloakAdminClient)
     : IJobHandler
 {
     public string Type => DispatchJobType.ProvisionJudgeAccount;

@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Features.Judges.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +10,7 @@ namespace BirraPoint.Api.Modules.Organization.Features.Judges.Features.GetJudges
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
 internal sealed record GetJudgesQuery(Guid CompetitionId) : IRequest<IReadOnlyList<JudgeProfileDto>?>;
 
-internal sealed class GetJudgesQueryHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class GetJudgesQueryHandler(OrganizationDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<GetJudgesQuery, IReadOnlyList<JudgeProfileDto>?>
 {
     public async Task<IReadOnlyList<JudgeProfileDto>?> Handle(GetJudgesQuery request, CancellationToken cancellationToken)

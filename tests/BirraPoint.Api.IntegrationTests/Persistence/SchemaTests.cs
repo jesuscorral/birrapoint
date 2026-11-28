@@ -1,4 +1,4 @@
-using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Catalog.Domain;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Organization.Contracts;
@@ -19,17 +19,12 @@ public sealed class PostgresFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:16").Build();
 
-    internal DbContextOptions<AppDbContext> Options { get; private set; } = null!;
+    public string ConnectionString => _container.GetConnectionString();
 
     public async ValueTask InitializeAsync()
     {
         await _container.StartAsync();
-        Options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(_container.GetConnectionString())
-            .Options;
-
-        await using var db = new AppDbContext(Options);
-        await db.Database.MigrateAsync();
+        await TestDb.MigrateAsync(_container.GetConnectionString());
     }
 
     ValueTask IAsyncDisposable.DisposeAsync() => _container.DisposeAsync();
@@ -42,15 +37,18 @@ public sealed class PostgresFixture : IAsyncLifetime
 /// </summary>
 public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<PostgresFixture>
 {
-    private AppDbContext NewContext() => new(fixture.Options);
+    private TestDb NewContext() => TestDb.Connect(fixture.ConnectionString);
 
     [Fact]
     public async Task MigrationAppliesCleanlyAndCreatesTheSchema()
     {
         await using var db = NewContext();
 
-        var applied = await db.Database.GetAppliedMigrationsAsync(cancellationToken: TestContext.Current.CancellationToken);
-        Assert.NotEmpty(applied);
+        foreach (var context in db.All)
+        {
+            var applied = await context.Database.GetAppliedMigrationsAsync(cancellationToken: TestContext.Current.CancellationToken);
+            Assert.NotEmpty(applied);
+        }
 
         // Spot-check that the core tables exist and are queryable (the fixture's database
         // is shared across this class's tests, so row counts here are not assumed to be zero).
@@ -80,11 +78,14 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
             ["publication"] = ["GeneratedScoreSheets", "ResultsArchives", "InboxMessages"],
             ["jobs"] = ["DispatchJobs"],
             ["audit"] = ["AuditLogs"],
-            ["migrations"] = ["__EFMigrationsHistory"],
         };
+        foreach (var schema in expected.Keys.ToList())
+        {
+            expected[schema] = [.. expected[schema], "__EFMigrationsHistory"];
+        }
 
         await using var db = NewContext();
-        var connection = (NpgsqlConnection)db.Database.GetDbConnection();
+        var connection = (NpgsqlConnection)db.Organization.Database.GetDbConnection();
         await connection.OpenAsync(TestContext.Current.CancellationToken);
         await using var command = new NpgsqlCommand(
             "SELECT table_schema, table_name FROM information_schema.tables " +
@@ -112,10 +113,13 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
     {
         await using var db = NewContext();
 
-        // The baseline stays a single InitialCreate; later features add their own migrations on top of it.
-        var applied = (await db.Database.GetAppliedMigrationsAsync(TestContext.Current.CancellationToken)).ToList();
-        Assert.Single(applied, id => id.EndsWith("_InitialCreate", StringComparison.Ordinal));
-        Assert.EndsWith("_InitialCreate", applied[0], StringComparison.Ordinal);
+        // Every context's baseline is a single InitialCreate; later features add their own migrations on top of it.
+        foreach (var context in db.All)
+        {
+            var applied = (await context.Database.GetAppliedMigrationsAsync(TestContext.Current.CancellationToken)).ToList();
+            Assert.Single(applied, id => id.EndsWith("_InitialCreate", StringComparison.Ordinal));
+            Assert.EndsWith("_InitialCreate", applied[0], StringComparison.Ordinal);
+        }
 
         var assembly = typeof(Program).Assembly;
         var resource = assembly.GetManifestResourceNames()
@@ -127,7 +131,7 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
             .Select(style => style.GetProperty("code").GetString()!)
             .ToArray();
 
-        var connection = (NpgsqlConnection)db.Database.GetDbConnection();
+        var connection = (NpgsqlConnection)db.Organization.Database.GetDbConnection();
         await connection.OpenAsync(TestContext.Current.CancellationToken);
         await using var command = new NpgsqlCommand(
             "SELECT count(*) FROM catalog.\"BjcpStyles\" WHERE \"Code\" = ANY(@codes)", connection);
@@ -142,7 +146,7 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
     public async Task AuditLogsKeepsOnlyTheAuditBlockColumnsWithJsonbData()
     {
         await using var db = NewContext();
-        var connection = (NpgsqlConnection)db.Database.GetDbConnection();
+        var connection = (NpgsqlConnection)db.Organization.Database.GetDbConnection();
         await connection.OpenAsync(TestContext.Current.CancellationToken);
         await using var command = new NpgsqlCommand(
             "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'AuditLogs'", connection);
@@ -294,7 +298,7 @@ public sealed class SchemaTests(PostgresFixture fixture) : IClassFixture<Postgre
 
     /// <summary>Seeds competition → style → participant → entry → judge → table (+membership/sample).</summary>
     private static async Task<(Competition Competition, Judge Judge, BeerEntry Entry, TastingTable Table)>
-        SeedTableGraphAsync(AppDbContext db)
+        SeedTableGraphAsync(TestDb db)
     {
         var competition = NewCompetition();
 

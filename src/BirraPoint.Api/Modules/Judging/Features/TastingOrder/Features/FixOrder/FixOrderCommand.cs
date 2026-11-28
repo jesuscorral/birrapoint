@@ -3,6 +3,7 @@ using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Realtime;
 using FluentValidation;
@@ -20,7 +21,7 @@ internal sealed record FixOrderCommand(Guid TableId, IReadOnlyList<Guid> Ordered
     : IRequest<IReadOnlyList<JudgeSampleDto>?>;
 
 internal sealed class FixOrderCommandHandler(
-    AppDbContext dbContext, IJudgeDirectory judgeDirectory, ICompetitionAccess competitionAccess, IEventPublisher eventPublisher, IStyleCatalog styleCatalog, IEntryDirectory entryDirectory)
+    JudgingDbContext dbContext, IJudgeDirectory judgeDirectory, ICompetitionAccess competitionAccess, IEventPublisher eventPublisher, IStyleCatalog styleCatalog, IEntryDirectory entryDirectory)
     : IRequestHandler<FixOrderCommand, IReadOnlyList<JudgeSampleDto>?>
 {
     public async Task<IReadOnlyList<JudgeSampleDto>?> Handle(FixOrderCommand request, CancellationToken cancellationToken)

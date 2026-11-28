@@ -1,4 +1,5 @@
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Common.Persistence.Jobs;
 using BirraPoint.Api.Domain;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,8 +9,8 @@ namespace BirraPoint.Api.UnitTests.Common.Persistence;
 /// block, and type filters translate to plain SQL equality.</summary>
 public sealed class DispatchJobQueriesTests
 {
-    private static AppDbContext NewDb() =>
-        new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql("Host=localhost").Options);
+    private static JobsDbContext NewDb() =>
+        new(new DbContextOptionsBuilder<JobsDbContext>().UseNpgsql("Host=localhost").Options);
 
     [Fact]
     public void OfDispatchTypeTranslatesToAnEqualityOnTheTypeColumn()

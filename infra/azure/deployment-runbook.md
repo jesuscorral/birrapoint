@@ -225,6 +225,22 @@ a release before it, run the command with `AddDispatchJobLease`; otherwise every
 the older image fails. Deploy that release outside a live competition: while the new revision
 starts and migrates, the old one cannot record audit rows.
 
+#### After a migration-baseline change
+
+ADR-0043 gave every module its own migration history. `LegacyDatabaseGuard` refuses to start the API
+on a database built from an older baseline and logs `The database was built from a previous
+migration baseline (...)`. The Container App revision then fails its probes and never turns
+healthy. The local fix (the Aspire "Reset database" command, ADR-0041) does not exist in the cloud,
+so a human resets the database, **losing all application data** (take a Neon branch or backup first
+if you need it):
+
+1. Neon console → the project → **Databases**: drop and recreate the `birrapoint` database with the
+   same owner role. Keep `keycloak` (users and realm live there; Terraform owns it).
+2. Restart the API: **Container Apps → the API app → Revisions → Restart** (or redeploy with B4).
+   Startup migrations then build every context from its own baseline.
+
+The `birrapoint` database and role come from the `branch` block of `neon_project.main`; recreating the database with the same name and owner role leaves the Terraform state without drift, so no `terraform apply` is needed.
+
 ## Tear down (wipes everything, data included)
 
 ```powershell

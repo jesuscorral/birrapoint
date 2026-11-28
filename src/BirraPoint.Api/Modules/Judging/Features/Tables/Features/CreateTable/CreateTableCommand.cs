@@ -4,6 +4,7 @@ using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BuildingBlocks.Identity;
 using BuildingBlocks.Messaging;
@@ -16,7 +17,7 @@ internal sealed record CreateTableCommand(Guid CompetitionId, string Name, IRead
     : IRequest<TableMutationResult?>;
 
 internal sealed class CreateTableCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IConflictOfInterestChecker conflictChecker, IStyleCatalog styleCatalog,
+    JudgingDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IConflictOfInterestChecker conflictChecker, IStyleCatalog styleCatalog,
     IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory, IIntegrationEventPublisher integrationEvents)
     : IRequestHandler<CreateTableCommand, TableMutationResult?>
 {

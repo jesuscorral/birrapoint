@@ -30,10 +30,17 @@ public sealed class EnvelopeTests
         Assert.Equal(evt, EventSerializer.Deserialize(descriptor, envelope.PayloadJson));
     }
 
+    private static MessagingBuilder WithOutboxes()
+    {
+        var builder = new MessagingBuilder();
+        builder.Outbox<TestDb>("Orders").Outbox<TestDb>("Billing");
+        return builder;
+    }
+
     [Fact]
     public void EventWithoutTheAttributeIsRejectedAtRegistration()
     {
-        var error = Assert.Throws<InvalidOperationException>(() => new MessagingBuilder().Publishes<NotAnnotated>("Orders"));
+        var error = Assert.Throws<InvalidOperationException>(() => WithOutboxes().Publishes<NotAnnotated>("Orders"));
 
         Assert.Contains(nameof(IntegrationEventAttribute), error.Message, StringComparison.Ordinal);
     }
@@ -41,7 +48,7 @@ public sealed class EnvelopeTests
     [Fact]
     public void TwoEventsWithTheSameTypeAndVersionAreRejected()
     {
-        var builder = new MessagingBuilder();
+        var builder = WithOutboxes();
         builder.Publishes<Twin1>("Orders");
 
         Assert.Throws<InvalidOperationException>(() => builder.Publishes<Twin2>("Billing"));
@@ -50,7 +57,7 @@ public sealed class EnvelopeTests
     [Fact]
     public void TheSameTypeInAnotherVersionIsAccepted()
     {
-        var builder = new MessagingBuilder();
+        var builder = WithOutboxes();
         builder.Publishes<Twin1>("Orders");
 
         Assert.Null(Record.Exception(() => builder.Publishes<TwinV2>("Orders")));
@@ -59,7 +66,7 @@ public sealed class EnvelopeTests
     [Fact]
     public void AnEventHasOneOutboxOnly()
     {
-        var builder = new MessagingBuilder();
+        var builder = WithOutboxes();
         builder.Publishes<ThingHappened>("Orders");
 
         Assert.Throws<InvalidOperationException>(() => builder.Publishes<ThingHappened>("Billing"));

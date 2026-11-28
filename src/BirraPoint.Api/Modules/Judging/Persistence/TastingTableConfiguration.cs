@@ -1,5 +1,4 @@
 using BirraPoint.Api.Modules.Judging.Domain;
-using BirraPoint.Api.Modules.Organization.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -14,16 +13,8 @@ internal sealed class TastingTableConfiguration : IEntityTypeConfiguration<Tasti
 
         builder.HasIndex(t => new { t.CompetitionId, t.Name }).IsUnique();
 
-        builder.HasOne<Competition>()
-            .WithMany()
-            .HasForeignKey(t => t.CompetitionId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        // NO ACTION so a competition cascade (judges + tables in one statement) can't trip it.
-        builder.HasOne<Judge>()
-            .WithMany()
-            .HasForeignKey(t => t.OrderFixedByJudgeId)
-            .OnDelete(DeleteBehavior.ClientSetNull);
+        // Index kept from the dropped foreign key: lookups by the plain id (FR-093).
+        builder.HasIndex(t => t.OrderFixedByJudgeId);
 
         builder.HasMany(t => t.Judges)
             .WithOne()

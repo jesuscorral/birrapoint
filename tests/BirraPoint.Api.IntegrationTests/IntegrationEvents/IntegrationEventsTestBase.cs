@@ -142,10 +142,10 @@ public abstract class IntegrationEventsTestBase(ApiFactory factory)
 
     // ---- Direct seeding (through the host's own DbContext) ----------------------------------------
 
-    private static async Task<T> WithDbAsync<T>(IServiceProvider services, Func<AppDbContext, Task<T>> action)
+    private static async Task<T> WithDbAsync<T>(IServiceProvider services, Func<TestDb, Task<T>> action)
     {
         await using var scope = services.CreateAsyncScope();
-        return await action(scope.ServiceProvider.GetRequiredService<AppDbContext>());
+        return await action(scope.ServiceProvider.GetTestDb());
     }
 
     private protected static Task<Guid> SeedParticipantAsync(IServiceProvider services, Guid competitionId, string name, string email) =>

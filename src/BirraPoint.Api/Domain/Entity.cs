@@ -2,7 +2,7 @@ namespace BirraPoint.Api.Domain;
 
 /// <summary>
 /// Creation/modification instants (UTC) carried by every persisted entity (data-model.md).
-/// Stamped centrally by <c>AppDbContext.SaveChanges*</c> — never set by handlers.
+/// Stamped centrally by <c>BirraPointDbContext.SaveChanges*</c> — never set by handlers.
 /// </summary>
 internal interface ITimestamped
 {

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Common.Persistence.Jobs;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
@@ -16,7 +17,7 @@ internal sealed record DispatchStatusDto(Guid ParticipantId, string Email, strin
 internal sealed record GetDispatchStatusQuery(Guid CompetitionId) : IRequest<IReadOnlyList<DispatchStatusDto>?>;
 
 internal sealed class GetDispatchStatusQueryHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IResultRecipients resultRecipients)
+    JobsDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IResultRecipients resultRecipients)
     : IRequestHandler<GetDispatchStatusQuery, IReadOnlyList<DispatchStatusDto>?>
 {
     public async Task<IReadOnlyList<DispatchStatusDto>?> Handle(GetDispatchStatusQuery request, CancellationToken cancellationToken)

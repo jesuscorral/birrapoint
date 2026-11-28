@@ -5,11 +5,14 @@
 Server of record: PostgreSQL via EF Core code-first. Client-side stores (Dexie) at the end.
 All PKs are `Guid` (v7/sequential). All entities carry `CreatedAt`/`UpdatedAt` (UTC), except the insert-only `AuditLog`, whose only timestamp is `OccurredAt`.
 
-## Schemas (ADR-0041)
+## Schemas (ADR-0041, ADR-0043)
 
 Each table lives in the schema of the module that owns it. Table names carry no schema prefix in the
-sections below. The whole schema is built by one baseline migration, `InitialCreate` (no
-incremental history); EF's history table is `migrations.__EFMigrationsHistory`. `public` has no table.
+sections below. Each schema is mapped by exactly one data context (FR-092) and built by that
+context's own baseline migration, `InitialCreate`; each context's EF history table is
+`<schema>.__EFMigrationsHistory`. Startup migrates `jobs`, `audit`, `catalog`, `organization`,
+`judging`, `publication` in that order (FR-097). `public` has no table; the `migrations` schema of the
+shared history no longer exists (a database that still has it is refused at startup, FR-098).
 
 | Schema | Owner | Tables |
 |---|---|---|
@@ -19,9 +22,15 @@ incremental history); EF's history table is `migrations.__EFMigrationsHistory`. 
 | `publication` | Publication module | `GeneratedScoreSheets`, `ResultsArchives`, `InboxMessages` |
 | `jobs` | `BuildingBlocks.Jobs` (set by the host) | `DispatchJobs` |
 | `audit` | `BuildingBlocks.Audit` (set by the host) | `AuditLogs` |
-| `migrations` | EF Core | `__EFMigrationsHistory` |
 
-Cross-schema foreign keys are kept (for example `judging.TableSamples -> organization.BeerEntries`).
+Every schema also holds its own `__EFMigrationsHistory`.
+
+Explicit indexes that replace those the dropped cross-module FKs created: `jobs.DispatchJobs(CompetitionId)`, `judging.TableJudges(JudgeId)`, `judging.Evaluations(BeerEntryId)`, `judging.DiscrepancyAlerts(BeerEntryId)`, `judging.TastingTables(OrderFixedByJudgeId)`, `organization.BeerEntries(StyleCode)`, `organization.CompetitionCategoryStyles(StyleCode)`.
+
+**Cross-module references are ids only (FR-093)**: there is no foreign key between two schemas and no
+navigation between modules' entities. In the sections below, `ref → X (id only)` marks a column that
+holds another module's id; it is validated on write through the owner's contracts, never by the
+database. `FK → X` marks a same-schema foreign key.
 
 ## Entity Catalog
 
@@ -136,7 +145,7 @@ require a cross-table subquery.
 | Field | Type | Constraints |
 |-------|------|-------------|
 | CompetitionCategoryId | Guid | PK (composite), FK → CompetitionCategory, `Cascade` delete |
-| StyleCode | string(20) | PK (composite), FK → BjcpStyle, `Restrict` delete (catalog is read-only) |
+| StyleCode | string(20) | PK (composite), ref → BjcpStyle (id only; validated through `IStyleCatalog`) |
 | CompetitionId | Guid | denormalized FK → Competition, `NoAction` delete (the CompetitionCategory cascade already handles cleanup — two independent cascade paths to Competitions from this table would conflict); **unique (CompetitionId, StyleCode)** enforces "at most one category per style per competition" |
 
 Import validates the "Categoria" cell against `CompetitionCategory.Name` (import-file.md) and sets
@@ -166,7 +175,7 @@ instead of `Valid`. This check runs at initial parse, at the full-row edit, and 
 | CompetitionId | Guid | FK → Competition |
 | ParticipantId | Guid | FK → Participant |
 | BeerName | string(200)? | optional — the ACCE import format has no beer-name column; always null coming out of import, organizer-editable afterward. **Never serialized into judge-facing DTOs** |
-| StyleCode | string(20) | FK → BjcpStyle |
+| StyleCode | string(20) | ref → BjcpStyle (id only; validated through `IStyleCatalog`) |
 | BlindCode | string(10) | system-generated at consolidation; **unique (CompetitionId, BlindCode)** |
 | CompetitionCategoryId | Guid? | FK → CompetitionCategory, `Restrict` delete (a category referenced by entries can't be deleted out from under them). Nullable only because entries seeded outside the Import slice predate this field; the Import consolidation flow always sets it |
 | SubmittedAt | DateTimeOffset | "Marca temporal" — when the organizer's original entry form was submitted |
@@ -325,10 +334,10 @@ already-`Sent` invitation.
 | Field | Type | Constraints |
 |-------|------|-------------|
 | Id | Guid | PK |
-| CompetitionId | Guid | FK → Competition |
+| CompetitionId | Guid | ref → Competition (id only) |
 | Name | string(100) | required; unique (CompetitionId, Name) |
 | State | enum `TableState` | `Open` \| `Closed` |
-| OrderFixedByJudgeId | Guid? | FK → Judge; null until order fixed |
+| OrderFixedByJudgeId | Guid? | ref → Judge (id only); null until order fixed |
 | OrderFixedAt | DateTimeOffset? | null until order fixed |
 | ClosedAt | DateTimeOffset? | |
 
@@ -340,8 +349,8 @@ already-`Sent` invitation.
 
 | Field | Type | Constraints |
 |-------|------|-------------|
-| TastingTableId | Guid | composite PK |
-| JudgeId | Guid | composite PK |
+| TastingTableId | Guid | composite PK, FK → TastingTable |
+| JudgeId | Guid | composite PK, ref → Judge (id only) |
 | RemovedAt | DateTimeOffset? | set on live removal (FR-039); rows are never hard-deleted once evaluations exist |
 
 **COI invariant (FR-017):** insert rejected if the judge's email matches the owner or any
@@ -351,8 +360,8 @@ collaborator of any `TableSample` entry at this table — checked transactionall
 
 | Field | Type | Constraints |
 |-------|------|-------------|
-| TastingTableId | Guid | composite PK |
-| BeerEntryId | Guid | composite PK; an entry belongs to at most one table: **unique (BeerEntryId)** |
+| TastingTableId | Guid | composite PK, FK → TastingTable |
+| BeerEntryId | Guid | composite PK, ref → BeerEntry (id only); an entry belongs to at most one table: **unique (BeerEntryId)** |
 | SequenceOrder | int? | null until order fixed; then 1..M, unique (TastingTableId, SequenceOrder) |
 
 ### Evaluation
@@ -360,9 +369,9 @@ collaborator of any `TableSample` entry at this table — checked transactionall
 | Field | Type | Constraints |
 |-------|------|-------------|
 | Id | Guid | PK |
-| TastingTableId | Guid | FK |
-| JudgeId | Guid | FK |
-| BeerEntryId | Guid | FK; **unique (JudgeId, BeerEntryId)** — idempotency backstop (FR-029, R-07) |
+| TastingTableId | Guid | FK → TastingTable |
+| JudgeId | Guid | ref → Judge (id only) |
+| BeerEntryId | Guid | ref → BeerEntry (id only); **unique (JudgeId, BeerEntryId)** — idempotency backstop (FR-029, R-07) |
 | AromaScore | int | 0–12 |
 | AppearanceScore | int | 0–3 |
 | FlavorScore | int | 0–20 |
@@ -420,8 +429,8 @@ contract. Submission with no >7 divergence goes directly to `Confirmed`. Judge m
 | Field | Type | Constraints |
 |-------|------|-------------|
 | Id | Guid | PK |
-| TastingTableId | Guid | FK |
-| BeerEntryId | Guid | FK; **unique open alert per (TastingTableId, BeerEntryId)** (partial unique index on Status = Open) |
+| TastingTableId | Guid | FK → TastingTable |
+| BeerEntryId | Guid | ref → BeerEntry (id only); **unique open alert per (TastingTableId, BeerEntryId)** (partial unique index on Status = Open) |
 | Status | enum | `Open` \| `Resolved` |
 | CreatedAt / ResolvedAt | DateTimeOffset / ? | |
 
@@ -431,13 +440,14 @@ points from any other submitted total (spec edge case: ≥3 judges).
 ### DispatchJob *(R-06 background queue)*
 
 *Implemented (ADR-0037, research R-22)* by `BuildingBlocks.Jobs` as `Job` (string
-`Type`, generic group key). BirraPoint maps it onto this same table, columns, indexes and FK, so the
-schema below stays exactly as is (no migration); `CompetitionId` is the group key.
+`Type`, generic group key). BirraPoint maps it onto this same table, columns and indexes, so the
+schema below stays exactly as is; `CompetitionId` is the group key, a plain id with no foreign key
+(FR-093). Mapped by `JobsDbContext`.
 
 | Field | Type | Constraints |
 |-------|------|-------------|
 | Id | Guid | PK |
-| CompetitionId | Guid | FK |
+| CompetitionId | Guid | ref → Competition (id only) |
 | Type | enum | `GeneratePdfs` \| `BundleZip` \| `SendResultEmail` \| `SendInvitation` \| `ProvisionJudgeAccount` *(added R-20)* \| `RefreshResults` *(added FR-083: payload `{ beerEntryId }`; regenerates that PDF and the ZIP when they exist, never emails)* |
 | PayloadJson | jsonb | e.g. `{ "participantId": … }` |
 | Status | enum | `Pending` \| `Running` \| `Completed` \| `Failed` |
@@ -458,18 +468,19 @@ medium this stack has, consistent with Postgres being the server of record.
 |-------|------|-------------|
 | **GeneratedScoreSheet** | | one row per `BeerEntry`, upserted on regeneration |
 | Id | Guid | PK |
-| BeerEntryId | Guid | FK; unique (upsert key) |
+| BeerEntryId | Guid | ref → BeerEntry (id only); unique (upsert key) |
 | PdfBytes | bytea | rendered by `ScoreSheetDocument` (QuestPDF) |
 | GeneratedAt | DateTimeOffset | |
 | **ResultsArchive** | | one row per `Competition`, upserted on regeneration |
 | Id | Guid | PK |
-| CompetitionId | Guid | FK; unique (upsert key) |
+| CompetitionId | Guid | ref → Competition (id only); unique (upsert key) |
 | ZipBytes | bytea | `/CompetitionName/ParticipantID/Style_BlindCode.pdf` hierarchy (FR-040) |
 | GeneratedAt | DateTimeOffset | |
 
 ### AuditLog
 
-Provided by the `BuildingBlocks.Audit` block (ADR-0035) and mapped into `AppDbContext`.
+Provided by the `BuildingBlocks.Audit` block (ADR-0035) and mapped by `AuditDbContext`; entries commit in the
+writing module's transaction (shared connection, FR-096).
 
 | Field | Type | Constraints |
 |-------|------|-------------|

@@ -5,6 +5,7 @@ using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Realtime;
 using BuildingBlocks.Audit;
@@ -15,7 +16,7 @@ namespace BirraPoint.Api.Modules.Judging.Features.Tables.Features.UpdateTable;
 internal static class LiveJudgeRemoval
 {
     public static async Task<TableMutationResult> ApplyAsync(
-        AppDbContext dbContext,
+        JudgingDbContext dbContext,
         IStyleCatalog styleCatalog,
         IJudgeDirectory judgeDirectory,
         IEntryDirectory entryDirectory,
@@ -149,7 +150,7 @@ internal static class LiveJudgeRemoval
         "While the competition is in InEvaluation state a table can only be edited to remove judges; name, samples and added judges cannot change.");
 
     private static async Task<(string Name, List<Guid> SampleIds, List<Guid> ActiveJudgeIds)> ReadStateAsync(
-        AppDbContext dbContext, Guid tableId, CancellationToken cancellationToken)
+        JudgingDbContext dbContext, Guid tableId, CancellationToken cancellationToken)
     {
         var name = await dbContext.TastingTables.AsNoTracking()
             .Where(t => t.Id == tableId).Select(t => t.Name).SingleAsync(cancellationToken);

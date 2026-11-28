@@ -1,5 +1,4 @@
 using BirraPoint.Api.Modules.Judging.Domain;
-using BirraPoint.Api.Modules.Organization.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -16,10 +15,5 @@ internal sealed class TableSampleConfiguration : IEntityTypeConfiguration<TableS
 
         // 1..M once the order is fixed; multiple NULLs are allowed before that.
         builder.HasIndex(ts => new { ts.TastingTableId, ts.SequenceOrder }).IsUnique();
-
-        builder.HasOne<BeerEntry>()
-            .WithMany()
-            .HasForeignKey(ts => ts.BeerEntryId)
-            .OnDelete(DeleteBehavior.Cascade);
     }
 }

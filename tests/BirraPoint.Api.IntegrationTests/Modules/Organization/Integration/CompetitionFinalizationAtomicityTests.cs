@@ -23,7 +23,7 @@ public sealed class CompetitionFinalizationAtomicityTests(ApiFactory factory) : 
     public async Task AFinalizeWhoseTransactionFailsToCommitLeavesNoStateChangeNoOutboxRowAndNoJob()
     {
         await using var host = NewHost(configureServices: services =>
-            services.ConfigureDbContext<BirraPoint.Api.Common.Persistence.AppDbContext>(
+            services.ConfigureDbContext<BirraPoint.Api.Modules.Organization.Persistence.OrganizationDbContext>(
                 options => options.AddInterceptors(new FailFinalizeCommitInterceptor())));
         using var organizer = OrganizerClient(host, NewOrganizerSub());
         var closed = await SeedClosedCompetitionAsync(host, organizer, "Atomic");

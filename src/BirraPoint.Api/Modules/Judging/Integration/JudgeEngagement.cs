@@ -1,4 +1,5 @@
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,7 +7,7 @@ namespace BirraPoint.Api.Modules.Judging.Integration;
 
 /// <summary>Judging's implementation of <see cref="IJudgeEngagement"/>: reads persisted seats and
 /// evaluations only.</summary>
-internal sealed class JudgeEngagement(AppDbContext dbContext) : IJudgeEngagement
+internal sealed class JudgeEngagement(JudgingDbContext dbContext) : IJudgeEngagement
 {
     public async Task<IReadOnlySet<Guid>> GetEngagedJudgesAsync(
         Guid competitionId, IReadOnlyCollection<Guid> judgeIds, CancellationToken cancellationToken = default)

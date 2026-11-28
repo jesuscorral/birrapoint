@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.IntegrationTests.Persistence;
+using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +15,7 @@ namespace BirraPoint.Api.IntegrationTests.Modules.Organization.Identity;
 /// </summary>
 public sealed class JudgeResolverTests(PostgresFixture fixture) : IClassFixture<PostgresFixture>
 {
-    private AppDbContext NewContext() => new(fixture.Options);
+    private TestDb NewContext() => TestDb.Connect(fixture.ConnectionString);
 
     [Fact]
     public async Task BackfillsKeycloakUserIdAndDisplayNameOnEveryJudgeRowSharingTheEmail()
@@ -32,7 +33,7 @@ public sealed class JudgeResolverTests(PostgresFixture fixture) : IClassFixture<
         }
 
         await using var db = NewContext();
-        var resolver = new JudgeResolver(db);
+        var resolver = new JudgeResolver(db.Organization);
 
         var resolved = await resolver.ResolveAndBackfillAsync("kc-sub-1", email, "Real Name", TestContext.Current.CancellationToken);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -63,13 +64,13 @@ public sealed class JudgeResolverTests(PostgresFixture fixture) : IClassFixture<
 
         await using (var first = NewContext())
         {
-            await new JudgeResolver(first).ResolveAndBackfillAsync("kc-sub-2", email, "First Name", TestContext.Current.CancellationToken);
+            await new JudgeResolver(first.Organization).ResolveAndBackfillAsync("kc-sub-2", email, "First Name", TestContext.Current.CancellationToken);
             await first.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         // Replay with a different sub/name — an already-backfilled row must not change.
         await using var db = NewContext();
-        var resolved = await new JudgeResolver(db).ResolveAndBackfillAsync("kc-sub-other", email, "Other Name", TestContext.Current.CancellationToken);
+        var resolved = await new JudgeResolver(db.Organization).ResolveAndBackfillAsync("kc-sub-other", email, "Other Name", TestContext.Current.CancellationToken);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var stored = Assert.Single(resolved);
@@ -81,7 +82,7 @@ public sealed class JudgeResolverTests(PostgresFixture fixture) : IClassFixture<
     public async Task UnmatchedEmailReturnsAnEmptyList()
     {
         await using var db = NewContext();
-        var resolver = new JudgeResolver(db);
+        var resolver = new JudgeResolver(db.Organization);
 
         var resolved = await resolver.ResolveAndBackfillAsync("kc-sub-3", $"nobody-{Guid.NewGuid():N}@example.test", "Someone", TestContext.Current.CancellationToken);
 
@@ -102,7 +103,7 @@ public sealed class JudgeResolverTests(PostgresFixture fixture) : IClassFixture<
         }
 
         await using var db = NewContext();
-        var resolved = await new JudgeResolver(db).ResolveAndBackfillAsync("kc-sub-4", email, name: null, ct: TestContext.Current.CancellationToken);
+        var resolved = await new JudgeResolver(db.Organization).ResolveAndBackfillAsync("kc-sub-4", email, name: null, ct: TestContext.Current.CancellationToken);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var stored = Assert.Single(resolved);

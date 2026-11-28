@@ -1,6 +1,7 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Judging.Domain;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -35,7 +36,7 @@ internal static class DiscrepancyReconciler
     /// hit the same unique index again.
     /// </summary>
     public static async Task<DiscrepancyReconciliationOutcome> ReconcileAndSaveAsync(
-        AppDbContext dbContext, Guid tableId, Guid beerEntryId, CancellationToken cancellationToken)
+        JudgingDbContext dbContext, Guid tableId, Guid beerEntryId, CancellationToken cancellationToken)
     {
         var outcome = await ReconcileAsync(dbContext, tableId, beerEntryId, cancellationToken);
 
@@ -64,7 +65,7 @@ internal static class DiscrepancyReconciler
     /// instead; the Modified evaluations, by contrast, DO have a persisted row to reload — that's
     /// what pulls in whatever the winning transaction actually committed for their Status.</summary>
     private static async Task DiscardStagedChangesAsync(
-        AppDbContext dbContext, Guid tableId, Guid beerEntryId, CancellationToken cancellationToken)
+        JudgingDbContext dbContext, Guid tableId, Guid beerEntryId, CancellationToken cancellationToken)
     {
         foreach (var entry in dbContext.ChangeTracker.Entries<Evaluation>()
             .Where(e => e.State == EntityState.Modified && e.Entity.TastingTableId == tableId && e.Entity.BeerEntryId == beerEntryId)
@@ -82,7 +83,7 @@ internal static class DiscrepancyReconciler
     }
 
     private static async Task<DiscrepancyReconciliationOutcome> ReconcileAsync(
-        AppDbContext dbContext, Guid tableId, Guid beerEntryId, CancellationToken cancellationToken)
+        JudgingDbContext dbContext, Guid tableId, Guid beerEntryId, CancellationToken cancellationToken)
     {
         // Tracked entities (not a projection) — mutating .Status below must stick when
         // ReconcileAndSaveAsync's own SaveChangesAsync runs. The identity map means a retry's

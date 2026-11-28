@@ -95,7 +95,7 @@ public abstract class TablesApiTestBase(ApiFactory factory)
     private protected async Task<Guid> SeedParticipantAsync(Guid competitionId, string name, string email)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var participant = new Participant { CompetitionId = competitionId, Name = name, Email = email };
         db.Participants.Add(participant);
         await db.SaveChangesAsync();
@@ -105,7 +105,7 @@ public abstract class TablesApiTestBase(ApiFactory factory)
     private protected async Task<Guid> SeedCompetitionCategoryAsync(Guid competitionId, string name)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var category = new CompetitionCategory { CompetitionId = competitionId, Name = name, DisplayOrder = 0 };
         db.CompetitionCategories.Add(category);
         await db.SaveChangesAsync();
@@ -118,7 +118,7 @@ public abstract class TablesApiTestBase(ApiFactory factory)
     private protected async Task<(string CategoryNumber, string CategoryName)> CatalogCategoryOfAsync(string styleCode)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var style = await db.BjcpStyles.SingleAsync(s => s.Code == styleCode);
         return (style.CategoryNumber, style.CategoryName);
     }
@@ -128,7 +128,7 @@ public abstract class TablesApiTestBase(ApiFactory factory)
         IEnumerable<string>? collaboratorEmails = null, decimal abvPercent = 0m, Guid? competitionCategoryId = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var entry = new BeerEntry
         {
             CompetitionId = competitionId,
@@ -152,7 +152,7 @@ public abstract class TablesApiTestBase(ApiFactory factory)
     private protected async Task<Guid> SeedJudgeAsync(Guid competitionId, string email)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var judge = new Judge { CompetitionId = competitionId, Email = email, DisplayName = email.Split('@')[0] };
         db.Judges.Add(judge);
         await db.SaveChangesAsync();
@@ -162,7 +162,7 @@ public abstract class TablesApiTestBase(ApiFactory factory)
     private protected async Task<Guid> SeedClosedTableAsync(Guid competitionId, string name)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var table = new TastingTable
         {
             CompetitionId = competitionId,
@@ -178,7 +178,7 @@ public abstract class TablesApiTestBase(ApiFactory factory)
     private protected async Task<bool> GetNotValidForBosAsync(Guid beerEntryId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var entry = await db.BeerEntries.AsNoTracking().SingleAsync(e => e.Id == beerEntryId);
         return entry.NotValidForBos;
     }

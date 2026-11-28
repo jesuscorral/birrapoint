@@ -13,6 +13,12 @@ public sealed class StartupMigrationsTests
         new ConfigurationBuilder().AddInMemoryCollection(values).Build();
 
     [Fact]
+    public void ContextsMigrateInDependencyOrder() =>
+        Assert.Equal(
+            ["Jobs", "Audit", "Catalog", "Organization", "Judging", "Publication"],
+            StartupMigrations.ContextsInOrder);
+
+    [Fact]
     public void DevelopmentAlwaysMigratesEvenWithoutTheConfigFlag()
     {
         var configuration = Build(new Dictionary<string, string?>());

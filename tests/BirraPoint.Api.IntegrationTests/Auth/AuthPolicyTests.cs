@@ -80,7 +80,7 @@ public sealed class AuthPolicyTests(ApiFactory factory) : IClassFixture<ApiFacto
     private async Task<Guid> SeedCompetitionOwnedByAsync(string ownerSub)
     {
         using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
 
         var competition = new Competition
         {

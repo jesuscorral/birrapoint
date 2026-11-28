@@ -1,4 +1,5 @@
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,7 +14,7 @@ internal static class CommonTableValidationRules
         await owned.GetOwnedAsync(competitionId, cancellationToken) is not null;
 
     public static async Task<bool> IsNameUniqueAsync(
-         AppDbContext dbContext,
+         JudgingDbContext dbContext,
          OwnedCompetitionLookup owned,
          Guid competitionId,
          Guid? excludeTableId,
@@ -55,7 +56,7 @@ internal static class CommonTableValidationRules
     /// <summary>An entry is assignable when it belongs to this competition and is unassigned or
     /// already assigned to <paramref name="excludeTableId"/> (the table being edited, if any).</summary>
     public static async Task<bool> AllEntriesAreAssignableAsync(
-        AppDbContext dbContext,
+        JudgingDbContext dbContext,
         IEntryDirectory entryDirectory,
          OwnedCompetitionLookup owned,
         Guid competitionId,

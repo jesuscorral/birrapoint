@@ -195,9 +195,7 @@ public sealed class ListTablesApiTests(ApiFactory factory) : TablesApiTestBase(f
     private async Task<Guid> SeedBeerEntryWithUnmatchedStyleCodeAsync(Guid competitionId, Guid participantId, string styleCode)
     {
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await using var transaction = await db.Database.BeginTransactionAsync();
-        await db.Database.ExecuteSqlRawAsync("SET LOCAL session_replication_role = replica;");
+        var db = scope.ServiceProvider.GetTestDb();
         var entry = new BeerEntry
         {
             CompetitionId = competitionId,
@@ -209,7 +207,6 @@ public sealed class ListTablesApiTests(ApiFactory factory) : TablesApiTestBase(f
         };
         db.BeerEntries.Add(entry);
         await db.SaveChangesAsync();
-        await transaction.CommitAsync();
         return entry.Id;
     }
 

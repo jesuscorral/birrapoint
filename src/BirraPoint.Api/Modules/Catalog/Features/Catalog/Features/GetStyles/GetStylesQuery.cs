@@ -1,5 +1,6 @@
 using System.Globalization;
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Catalog.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,7 +9,7 @@ namespace BirraPoint.Api.Modules.Catalog.Features.Catalog.Features.GetStyles;
 
 internal sealed record GetStylesQuery : IRequest<IReadOnlyList<StyleSummaryDto>>;
 
-internal sealed class GetStylesQueryHandler(AppDbContext dbContext)
+internal sealed class GetStylesQueryHandler(CatalogDbContext dbContext)
     : IRequestHandler<GetStylesQuery, IReadOnlyList<StyleSummaryDto>>
 {
     public async Task<IReadOnlyList<StyleSummaryDto>> Handle(GetStylesQuery request, CancellationToken cancellationToken)

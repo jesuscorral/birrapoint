@@ -4,6 +4,7 @@ using BirraPoint.Api.Modules.Organization.Contracts.IntegrationEvents;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Judges.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Organization.Integration;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using BuildingBlocks.Keycloak.Admin;
 using BuildingBlocks.Messaging;
@@ -16,7 +17,7 @@ namespace BirraPoint.Api.Modules.Organization.Features.Judges.Features.UpdateJud
 internal sealed record UpdateJudgeEmailCommand(Guid CompetitionId, Guid JudgeId, string Email) : IRequest<JudgeProfileDto?>;
 
 internal sealed class UpdateJudgeEmailCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IKeycloakAdminClient keycloakAdminClient,
+    OrganizationDbContext dbContext, ICurrentUser currentUser, IKeycloakAdminClient keycloakAdminClient,
     IConflictOfInterestChecker conflictChecker, BosFlagRecalculator bosFlagRecalculator, IIntegrationEventPublisher integrationEvents)
     : IRequestHandler<UpdateJudgeEmailCommand, JudgeProfileDto?>
 {

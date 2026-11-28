@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Features.Competitions.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Competitions.CommonComponents;
@@ -8,7 +9,7 @@ namespace BirraPoint.Api.Modules.Organization.Features.Competitions.CommonCompon
 internal static class CompetitionCategoryProjection
 {
     public static async Task<CompetitionCategoriesDto> LoadAsync(
-        AppDbContext dbContext, Guid competitionId, CancellationToken cancellationToken)
+        OrganizationDbContext dbContext, Guid competitionId, CancellationToken cancellationToken)
     {
         var categories = await dbContext.CompetitionCategories
             .AsNoTracking()

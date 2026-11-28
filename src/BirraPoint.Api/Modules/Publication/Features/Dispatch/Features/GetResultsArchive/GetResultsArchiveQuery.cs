@@ -1,6 +1,8 @@
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Common.Persistence.Jobs;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Api.Modules.Publication.Persistence;
 using BuildingBlocks.Identity;
 using BuildingBlocks.Jobs;
 using MediatR;
@@ -15,7 +17,7 @@ internal sealed record ResultsArchiveResult(byte[]? ZipBytes, string? Status);
 /// <summary>Returns null when not found or not owned by the caller — endpoint maps that to a plain 404.</summary>
 internal sealed record GetResultsArchiveQuery(Guid CompetitionId) : IRequest<ResultsArchiveResult?>;
 
-internal sealed class GetResultsArchiveQueryHandler(AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess)
+internal sealed class GetResultsArchiveQueryHandler(PublicationDbContext dbContext, JobsDbContext jobsDb, ICurrentUser currentUser, ICompetitionAccess competitionAccess)
     : IRequestHandler<GetResultsArchiveQuery, ResultsArchiveResult?>
 {
     public async Task<ResultsArchiveResult?> Handle(GetResultsArchiveQuery request, CancellationToken cancellationToken)
@@ -34,7 +36,7 @@ internal sealed class GetResultsArchiveQueryHandler(AppDbContext dbContext, ICur
 
         // No BundleZip job yet implies the pipeline hasn't reached that stage — report Pending
         // rather than leaking "no job found" as a distinct state the client would need to handle.
-        var bundleJob = await dbContext.DispatchJobs
+        var bundleJob = await jobsDb.DispatchJobs
             .OfDispatchType(DispatchJobType.BundleZip)
             .Where(j => j.GroupKey == request.CompetitionId)
             .OrderByDescending(j => j.CreatedAt)

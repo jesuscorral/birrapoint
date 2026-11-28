@@ -1,4 +1,5 @@
 using BirraPoint.Api.IntegrationTests.Persistence;
+using BirraPoint.Api.IntegrationTests.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -22,8 +23,8 @@ public sealed class MessagingSchemaTests(PostgresFixture fixture) : IClassFixtur
 
     private async Task<string[]> ColumnsAsync(string schema, string table)
     {
-        await using var db = new BirraPoint.Api.Common.Persistence.AppDbContext(fixture.Options);
-        var connection = (NpgsqlConnection)db.Database.GetDbConnection();
+        await using var db = TestDb.Connect(fixture.ConnectionString);
+        var connection = (NpgsqlConnection)db.Organization.Database.GetDbConnection();
         await connection.OpenAsync(TestContext.Current.CancellationToken);
         await using var command = new NpgsqlCommand(
             "SELECT column_name || ':' || data_type FROM information_schema.columns " +
@@ -42,8 +43,8 @@ public sealed class MessagingSchemaTests(PostgresFixture fixture) : IClassFixtur
 
     private async Task<string[]> IndexesAsync(string schema, string table)
     {
-        await using var db = new BirraPoint.Api.Common.Persistence.AppDbContext(fixture.Options);
-        var connection = (NpgsqlConnection)db.Database.GetDbConnection();
+        await using var db = TestDb.Connect(fixture.ConnectionString);
+        var connection = (NpgsqlConnection)db.Organization.Database.GetDbConnection();
         await connection.OpenAsync(TestContext.Current.CancellationToken);
         await using var command = new NpgsqlCommand(
             "SELECT indexname FROM pg_indexes WHERE schemaname = @schema AND tablename = @table ORDER BY indexname", connection);

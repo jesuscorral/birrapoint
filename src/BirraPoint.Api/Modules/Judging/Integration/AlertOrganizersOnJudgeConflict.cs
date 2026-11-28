@@ -1,4 +1,5 @@
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Contracts.IntegrationEvents;
 using BirraPoint.Api.Realtime;
@@ -13,7 +14,7 @@ namespace BirraPoint.Api.Modules.Judging.Integration;
 /// so a repeated or late event gives the same answer; the push goes out once the delivery committed (FR-084).
 /// </summary>
 internal sealed class AlertOrganizersOnJudgeConflict(
-    AppDbContext dbContext, IConflictOfInterestChecker conflictChecker, IJudgeDirectory judgeDirectory, IEventPublisher eventPublisher)
+    JudgingDbContext dbContext, IConflictOfInterestChecker conflictChecker, IJudgeDirectory judgeDirectory, IEventPublisher eventPublisher)
     : IIntegrationEventHandler<JudgeEmailChanged>
 {
     public async Task HandleAsync(

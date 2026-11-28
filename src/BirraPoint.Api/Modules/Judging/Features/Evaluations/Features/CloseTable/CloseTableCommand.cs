@@ -3,6 +3,7 @@ using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Realtime;
 using MediatR;
@@ -21,7 +22,7 @@ internal sealed record CloseTableCommand(Guid TableId) : IRequest<CloseTableResu
 
 internal sealed record CloseTableResult(IReadOnlyList<ConsolidatedScoreDto> ConsolidatedScores);
 
-internal sealed class CloseTableCommandHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory, IEventPublisher eventPublisher)
+internal sealed class CloseTableCommandHandler(JudgingDbContext dbContext, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory, IEventPublisher eventPublisher)
     : IRequestHandler<CloseTableCommand, CloseTableResult?>
 {
     public async Task<CloseTableResult?> Handle(CloseTableCommand request, CancellationToken cancellationToken)

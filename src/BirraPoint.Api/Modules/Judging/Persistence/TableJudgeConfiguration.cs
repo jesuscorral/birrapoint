@@ -1,5 +1,4 @@
 using BirraPoint.Api.Modules.Judging.Domain;
-using BirraPoint.Api.Modules.Organization.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -11,9 +10,7 @@ internal sealed class TableJudgeConfiguration : IEntityTypeConfiguration<TableJu
     {
         builder.HasKey(tj => new { tj.TastingTableId, tj.JudgeId });
 
-        builder.HasOne<Judge>()
-            .WithMany()
-            .HasForeignKey(tj => tj.JudgeId)
-            .OnDelete(DeleteBehavior.Cascade);
+        // Index kept from the dropped foreign key: lookups by the plain id (FR-093).
+        builder.HasIndex(tj => tj.JudgeId);
     }
 }

@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 
 namespace BirraPoint.Api.UnitTests.Architecture;
 
-/// <summary>Members: <c>using:&lt;namespace below the module&gt;</c>, <c>fqn:&lt;name below the module&gt;</c> or the DbSet name.</summary>
+/// <summary>Members: <c>using:&lt;namespace below the module&gt;</c>, <c>fqn:&lt;name below the module&gt;</c>, <c>dbcontext:&lt;context type&gt;</c> or the DbSet name.</summary>
 internal sealed record Violation(string File, string Module, IReadOnlySet<string> Members);
 
 /// <summary>Source scanner behind <see cref="ModuleBoundaryTests"/>; kept separate so it can be unit-tested on snippets.</summary>
@@ -17,6 +17,10 @@ internal static class ModuleBoundaryScanner
     private static readonly Regex QualifiedNameRegex = new(
         @"(?<![\w.])(?:global::)?BirraPoint\.Api\.Modules\.(?<module>\w+)(?<rest>(?:\.\w+)*)",
         RegexOptions.Compiled, RegexTimeout);
+
+    /// <summary>A module's own data context type name; another module's (or any module's, from the kernel) is a violation.</summary>
+    private static readonly Regex ModuleDbContextRegex = new(
+        @"\b(?<module>Catalog|Organization|Judging|Publication)DbContext\b", RegexOptions.Compiled, RegexTimeout);
 
     private static readonly Regex BlockComment = new(@"/\*.*?\*/", RegexOptions.Singleline | RegexOptions.Compiled, RegexTimeout);
 
@@ -55,6 +59,15 @@ internal static class ModuleBoundaryScanner
             if (module != ownModule && !IsContracts(rest))
             {
                 yield return new Violation(relative, module, new HashSet<string> { $"fqn:{rest.TrimStart('.')}" });
+            }
+        }
+
+        foreach (Match match in ModuleDbContextRegex.Matches(code))
+        {
+            var module = match.Groups["module"].Value;
+            if (module != ownModule)
+            {
+                yield return new Violation(relative, module, new HashSet<string> { $"dbcontext:{match.Value}" });
             }
         }
 

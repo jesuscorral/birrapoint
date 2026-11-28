@@ -2,6 +2,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Features.Judges.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using BuildingBlocks.Jobs;
 using MediatR;
@@ -17,7 +18,7 @@ internal sealed record RegisterJudgesResult(IReadOnlyList<CreatedJudgeDto> Creat
 internal sealed record RegisterJudgesCommand(Guid CompetitionId, IReadOnlyList<string> Emails) : IRequest<RegisterJudgesResult?>;
 
 internal sealed class RegisterJudgesCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IJobQueue dispatchJobQueue)
+    OrganizationDbContext dbContext, ICurrentUser currentUser, IJobQueue dispatchJobQueue)
     : IRequestHandler<RegisterJudgesCommand, RegisterJudgesResult?>
 {
     public async Task<RegisterJudgesResult?> Handle(RegisterJudgesCommand request, CancellationToken cancellationToken)

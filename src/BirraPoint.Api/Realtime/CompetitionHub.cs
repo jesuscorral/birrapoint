@@ -1,7 +1,7 @@
-using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Judging.Contracts;
+using BirraPoint.Api.Modules.Organization.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Realtime;
 
@@ -10,15 +10,13 @@ namespace BirraPoint.Api.Realtime;
 /// below; every mutation still goes through the REST API (Principle VI). `[Authorize]` rejects
 /// unauthenticated connections via the deny-by-default fallback policy.
 ///
-/// Tracked gap: the DB-backed checks below (competition ownership, table membership) have no
-/// integration/contract test yet. They need the shared WebApplicationFactory + Testcontainers
-/// harness, since the constitution bans EF Core's InMemory provider as a substitute; add that
-/// coverage there. `contract-guardian` can verify this gap is closed.
+/// Group authorization goes through the owning modules' contracts (competition ownership through
+/// <see cref="ICompetitionAccess"/>, table seating through <see cref="ITableMembership"/>), never a data context.
 /// </summary>
 [Authorize]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE1006:Naming Styles",
     Justification = "Hub method names are the SignalR wire contract (contracts/signalr-hub.md); an Async suffix would break clients.")]
-internal sealed class CompetitionHub(AppDbContext db) : Hub
+internal sealed class CompetitionHub(ICompetitionAccess competitions, ITableMembership tableMembership) : Hub
 {
     private const string NotAuthorizedToJoinOrganizerGroup = "Not authorized to join this competition's organizer group.";
     private const string NotAuthorizedToJoinTable = "Not authorized to join this table.";
@@ -34,9 +32,8 @@ internal sealed class CompetitionHub(AppDbContext db) : Hub
         var sub = user.FindFirst("sub")?.Value
             ?? throw new HubException(NotAuthorizedToJoinOrganizerGroup);
 
-        var owns = await db.Competitions.AnyAsync(competition =>
-            competition.Id == competitionId && competition.CreatedByUserId == sub);
-        if (!owns)
+        var owned = await competitions.GetOwnedAsync(competitionId, sub, Context.ConnectionAborted);
+        if (owned is null)
         {
             throw new HubException(NotAuthorizedToJoinOrganizerGroup);
         }
@@ -51,19 +48,9 @@ internal sealed class CompetitionHub(AppDbContext db) : Hub
             ?? throw new HubException(NotAuthorizedToJoinTable);
         var email = user.FindFirst("email")?.Value;
 
-        // KeycloakUserId is only backfilled once JudgeResolver (US1) runs on a REST call; a
-        // judge whose first authenticated action is opening this socket falls back to email
-        // match. sub is required non-null above so `KeycloakUserId == sub` can never degrade to
-        // an `IS NULL` check that would match any not-yet-backfilled judge on the table; email is
-        // guarded the same way so a null claim can't do the same on the fallback clause. The
-        // realm disables self-registration (infra/keycloak/birrapoint-realm.json,
-        // registrationAllowed: false), so judge emails are always admin-provisioned, not
-        // attacker-chosen.
-        var isActiveMember = await db.TableJudges
-            .Where(tableJudge => tableJudge.TastingTableId == tableId && tableJudge.RemovedAt == null)
-            .Join(db.Judges, tableJudge => tableJudge.JudgeId, judge => judge.Id, (_, judge) => judge)
-            .AnyAsync(judge =>
-                judge.KeycloakUserId == sub || (judge.KeycloakUserId == null && email != null && judge.Email == email));
+        // The Keycloak id is only backfilled once a REST call resolves the judge; a judge whose first authenticated
+        // action is opening this socket falls back to an e-mail match inside the directory (same rule as before).
+        var isActiveMember = await tableMembership.IsActiveMemberAsync(tableId, sub, email, Context.ConnectionAborted);
         if (!isActiveMember)
         {
             throw new HubException(NotAuthorizedToJoinTable);

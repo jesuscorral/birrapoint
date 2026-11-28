@@ -24,7 +24,7 @@ public sealed class DiscrepancyApiTests(ApiFactory factory) : EvaluationsApiTest
     private async Task<List<EvaluationStatus>> GetEvaluationStatusesAsync(Guid tableId, Guid beerEntryId)
     {
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         return await db.Evaluations
             .Where(e => e.TastingTableId == tableId && e.BeerEntryId == beerEntryId)
             .Select(e => e.Status)

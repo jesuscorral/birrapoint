@@ -1,5 +1,4 @@
 using BirraPoint.Api.Modules.Judging.Domain;
-using BirraPoint.Api.Modules.Organization.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -16,14 +15,12 @@ internal sealed class DiscrepancyAlertConfiguration : IEntityTypeConfiguration<D
             .IsUnique()
             .HasFilter("\"Status\" = 'Open'");
 
+        // Index kept from the dropped foreign key: lookups by the plain id (FR-093).
+        builder.HasIndex(a => a.BeerEntryId);
+
         builder.HasOne<TastingTable>()
             .WithMany()
             .HasForeignKey(a => a.TastingTableId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne<BeerEntry>()
-            .WithMany()
-            .HasForeignKey(a => a.BeerEntryId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -22,8 +23,31 @@ public sealed class MessagingBuilder
 
     internal MessagingRegistry Registry { get; }
 
+    /// <summary>Declares the outbox <paramref name="name"/> (applied with
+    /// <see cref="MessagingModelBuilderExtensions.ApplyOutbox"/>) as living in <typeparamref name="TContext"/>. The
+    /// publisher stores its rows through the scoped instance of that context, so they commit with the caller's change
+    /// (R-107-3). Declaring a name again for another context type throws.</summary>
+    public MessagingBuilder Outbox<TContext>(string name)
+        where TContext : DbContext
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        Registry.DeclareOutbox(name, typeof(TContext));
+        return this;
+    }
+
+    /// <summary>Declares the inbox <paramref name="name"/> (applied with
+    /// <see cref="MessagingModelBuilderExtensions.ApplyInbox"/>) as living in <typeparamref name="TContext"/>; its
+    /// handlers run on that context. Declaring a name again for another context type throws.</summary>
+    public MessagingBuilder Inbox<TContext>(string name)
+        where TContext : DbContext
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        Registry.DeclareInbox(name, typeof(TContext));
+        return this;
+    }
+
     /// <summary>The event goes to the outbox <paramref name="outbox"/>, the name given to
-    /// <see cref="MessagingModelBuilderExtensions.ApplyOutbox"/>. An event has exactly one publisher.</summary>
+    /// <see cref="MessagingModelBuilderExtensions.ApplyOutbox"/>, declared first with <c>Outbox&lt;TContext&gt;</c>. An event has exactly one publisher.</summary>
     public MessagingBuilder Publishes<TEvent>(string outbox)
         where TEvent : class
     {

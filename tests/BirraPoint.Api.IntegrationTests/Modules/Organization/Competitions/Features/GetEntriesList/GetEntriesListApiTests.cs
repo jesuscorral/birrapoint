@@ -60,7 +60,7 @@ public sealed class GetEntriesListApiTests(ApiFactory factory) : IClassFixture<A
     private async Task<Guid> SeedParticipantAsync(Guid competitionId, string name, string email)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var participant = new Participant { CompetitionId = competitionId, Name = name, Email = email };
         db.Participants.Add(participant);
         await db.SaveChangesAsync();
@@ -70,7 +70,7 @@ public sealed class GetEntriesListApiTests(ApiFactory factory) : IClassFixture<A
     private async Task<Guid> SeedCompetitionCategoryAsync(Guid competitionId, string name)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var category = new CompetitionCategory { CompetitionId = competitionId, Name = name, DisplayOrder = 0 };
         db.CompetitionCategories.Add(category);
         await db.SaveChangesAsync();
@@ -83,7 +83,7 @@ public sealed class GetEntriesListApiTests(ApiFactory factory) : IClassFixture<A
     private async Task<(string CategoryNumber, string CategoryName)> CatalogCategoryOfAsync(string styleCode)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var style = await db.BjcpStyles.SingleAsync(s => s.Code == styleCode);
         return (style.CategoryNumber, style.CategoryName);
     }
@@ -93,7 +93,7 @@ public sealed class GetEntriesListApiTests(ApiFactory factory) : IClassFixture<A
         Guid? competitionCategoryId = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var entry = new BeerEntry
         {
             CompetitionId = competitionId,

@@ -1,4 +1,5 @@
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BuildingBlocks.Identity;
 using MediatR;
@@ -17,7 +18,7 @@ internal sealed record GetProgressQuery(Guid CompetitionId) : IRequest<IReadOnly
 /// EvaluationCompleted never disagree.</summary>
 internal sealed record TableProgressSummaryDto(Guid TableId, string Name, string State, int Completed, int Expected, int Percent);
 
-internal sealed class GetProgressQueryHandler(AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess)
+internal sealed class GetProgressQueryHandler(JudgingDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess)
     : IRequestHandler<GetProgressQuery, IReadOnlyList<TableProgressSummaryDto>?>
 {
     public async Task<IReadOnlyList<TableProgressSummaryDto>?> Handle(GetProgressQuery request, CancellationToken cancellationToken)

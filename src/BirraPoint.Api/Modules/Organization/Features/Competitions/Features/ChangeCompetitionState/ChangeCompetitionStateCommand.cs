@@ -3,6 +3,7 @@ using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Contracts.IntegrationEvents;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Errors;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BirraPoint.Api.Realtime;
 using BuildingBlocks.Audit;
 using BuildingBlocks.Identity;
@@ -19,7 +20,7 @@ internal sealed record ChangeCompetitionStateCommand(Guid Id, CompetitionState T
     : IRequest<ChangeCompetitionStateResult?>;
 
 internal sealed class ChangeCompetitionStateCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter, IEventPublisher eventPublisher,
+    OrganizationDbContext dbContext, ICurrentUser currentUser, IAuditWriter auditWriter, IEventPublisher eventPublisher,
     ICompetitionFinalizationGuard finalizationGuard, IIntegrationEventPublisher integrationEvents)
     : IRequestHandler<ChangeCompetitionStateCommand, ChangeCompetitionStateResult?>
 {

@@ -4,6 +4,7 @@ using BirraPoint.Api.Modules.Judging.Contracts.IntegrationEvents;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BuildingBlocks.Audit;
 using BuildingBlocks.Identity;
@@ -26,7 +27,7 @@ internal sealed record CorrectEvaluationCommand(
 internal sealed record CorrectEvaluationResult(Guid EvaluationId, int Total, decimal ConsolidatedMean);
 
 
-internal sealed class CorrectEvaluationCommandHandler(AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IAuditWriter auditWriter,
+internal sealed class CorrectEvaluationCommandHandler(JudgingDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IAuditWriter auditWriter,
     IIntegrationEventPublisher integrationEvents)
     : IRequestHandler<CorrectEvaluationCommand, CorrectEvaluationResult?>
 {

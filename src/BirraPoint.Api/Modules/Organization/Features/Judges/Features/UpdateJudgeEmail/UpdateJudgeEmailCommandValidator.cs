@@ -1,4 +1,5 @@
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
@@ -7,7 +8,7 @@ namespace BirraPoint.Api.Modules.Organization.Features.Judges.Features.UpdateJud
 
 internal sealed class UpdateJudgeEmailCommandValidator : AbstractValidator<UpdateJudgeEmailCommand>
 {
-    public UpdateJudgeEmailCommandValidator(AppDbContext dbContext, ICurrentUser currentUser)
+    public UpdateJudgeEmailCommandValidator(OrganizationDbContext dbContext, ICurrentUser currentUser)
     {
         RuleFor(c => c.Email)
             .NotEmpty()
@@ -20,7 +21,7 @@ internal sealed class UpdateJudgeEmailCommandValidator : AbstractValidator<Updat
     }
 
     private static async Task<bool> IsUniqueWithinOwnedCompetitionAsync(
-        AppDbContext dbContext, ICurrentUser currentUser, UpdateJudgeEmailCommand command, CancellationToken cancellationToken)
+        OrganizationDbContext dbContext, ICurrentUser currentUser, UpdateJudgeEmailCommand command, CancellationToken cancellationToken)
     {
         var isOwnCompetition = await dbContext.Competitions.AnyAsync(
             c => c.Id == command.CompetitionId && c.CreatedByUserId == currentUser.Sub, cancellationToken);

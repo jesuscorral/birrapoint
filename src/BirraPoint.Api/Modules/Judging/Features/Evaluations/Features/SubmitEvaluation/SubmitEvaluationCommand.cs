@@ -6,6 +6,7 @@ using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Realtime;
 using MediatR;
@@ -50,7 +51,7 @@ internal static class SubmitEvaluationQueryTags
     public const string GateReplayRecheck = "SubmitEvaluation.GateReplayRecheck";
 }
 
-internal sealed class SubmitEvaluationCommandHandler(AppDbContext dbContext, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory, ICompetitionAccess competitionAccess, IEventPublisher eventPublisher)
+internal sealed class SubmitEvaluationCommandHandler(JudgingDbContext dbContext, IJudgeDirectory judgeDirectory, IEntryDirectory entryDirectory, ICompetitionAccess competitionAccess, IEventPublisher eventPublisher)
     : IRequestHandler<SubmitEvaluationCommand, SubmitEvaluationResult?>
 {
     public async Task<SubmitEvaluationResult?> Handle(SubmitEvaluationCommand request, CancellationToken cancellationToken)

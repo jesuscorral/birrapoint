@@ -4,6 +4,7 @@ using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Competitions.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Features.Competitions.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Organization.Persistence;
 using BuildingBlocks.Identity;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -20,7 +21,7 @@ internal sealed record SetCategoryItem(string Name, int DisplayOrder, IReadOnlyL
 internal sealed record SetCompetitionCategoriesCommand(Guid CompetitionId, IReadOnlyList<SetCategoryItem> Categories)
     : IRequest<CompetitionCategoriesDto?>;
 
-internal sealed class SetCompetitionCategoriesCommandHandler(AppDbContext dbContext, ICurrentUser currentUser)
+internal sealed class SetCompetitionCategoriesCommandHandler(OrganizationDbContext dbContext, ICurrentUser currentUser)
     : IRequestHandler<SetCompetitionCategoriesCommand, CompetitionCategoriesDto?>
 {
     public async Task<CompetitionCategoriesDto?> Handle(SetCompetitionCategoriesCommand request, CancellationToken cancellationToken)

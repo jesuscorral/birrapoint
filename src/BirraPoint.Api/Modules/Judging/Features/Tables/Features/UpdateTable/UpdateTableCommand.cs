@@ -4,6 +4,7 @@ using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents.Dtos;
+using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Realtime;
 using BuildingBlocks.Audit;
@@ -21,7 +22,7 @@ internal sealed record UpdateTableCommand(
 
 
 internal sealed class UpdateTableCommandHandler(
-    AppDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IAuditWriter auditWriter, IEventPublisher eventPublisher,
+    JudgingDbContext dbContext, ICurrentUser currentUser, ICompetitionAccess competitionAccess, IAuditWriter auditWriter, IEventPublisher eventPublisher,
     IConflictOfInterestChecker conflictChecker, IStyleCatalog styleCatalog, IJudgeDirectory judgeDirectory,
     IEntryDirectory entryDirectory, IIntegrationEventPublisher integrationEvents)
     : IRequestHandler<UpdateTableCommand, TableMutationResult?>

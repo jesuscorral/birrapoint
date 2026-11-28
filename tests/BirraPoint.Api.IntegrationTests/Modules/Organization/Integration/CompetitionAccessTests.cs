@@ -16,7 +16,7 @@ public sealed class CompetitionAccessTests(ApiFactory factory) : IClassFixture<A
     private async Task<(Guid Id, string Name, string Owner)> SeedAsync(CompetitionState state = CompetitionState.Draft)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var competition = new Competition
         {
             Name = $"Access {Guid.NewGuid():N}",

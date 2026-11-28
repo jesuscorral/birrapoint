@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -39,6 +41,47 @@ internal sealed class TestDb(DbContextOptions<TestDb> options) : DbContext(optio
         modelBuilder.ApplyOutbox("Billing", "billing");
         modelBuilder.ApplyInbox("Orders", "orders");
         modelBuilder.ApplyInbox("Shipping", "shipping");
+    }
+}
+
+/// <summary>A note a module-B handler writes in schema <c>b</c>.</summary>
+internal sealed class BNote
+{
+    public Guid Id { get; set; }
+
+    public string Text { get; set; } = string.Empty;
+}
+
+/// <summary>Module A: outbox and inbox <c>A</c> in schema <c>a</c>. Shares nothing with <see cref="BTestDbContext"/>
+/// but the database, like two module contexts of the host (R-107-3).</summary>
+internal sealed class ATestDbContext(DbContextOptions<ATestDbContext> options) : DbContext(options)
+{
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyOutbox("A", "a");
+        modelBuilder.ApplyInbox("A", "a");
+    }
+}
+
+/// <summary>Module B: inbox <c>B</c> in schema <c>b</c> plus the notes its handler writes.</summary>
+internal sealed class BTestDbContext(DbContextOptions<BTestDbContext> options) : DbContext(options)
+{
+    public DbSet<BNote> Notes => Set<BNote>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<BNote>().ToTable("Notes", "b");
+        modelBuilder.ApplyInbox("B", "b");
+    }
+}
+
+/// <summary>Handles <see cref="ThingHappened"/> on module B's context.</summary>
+internal sealed class BNoteHandler(BTestDbContext db) : IIntegrationEventHandler<ThingHappened>
+{
+    public async Task HandleAsync(ThingHappened evt, IntegrationEventContext context, CancellationToken cancellationToken)
+    {
+        db.Notes.Add(new BNote { Id = Guid.NewGuid(), Text = evt.ThingId.ToString() });
+        await db.SaveChangesAsync(cancellationToken);
     }
 }
 
@@ -157,9 +200,21 @@ public sealed class PostgresFixture : IAsyncLifetime
         await _container.StartAsync();
         await using var db = NewDb();
         await db.Database.EnsureCreatedAsync();
+
+        // The other contexts share this database; EnsureCreated skips it once tables exist, so create theirs directly.
+        await using var a = NewContext<ATestDbContext>();
+        await using var b = NewContext<BTestDbContext>();
+        foreach (var other in new DbContext[] { a, b })
+        {
+            await other.GetService<IRelationalDatabaseCreator>().CreateTablesAsync();
+        }
     }
 
     ValueTask IAsyncDisposable.DisposeAsync() => _container.DisposeAsync();
+
+    internal TContext NewContext<TContext>()
+        where TContext : DbContext =>
+        (TContext)Activator.CreateInstance(typeof(TContext), new DbContextOptionsBuilder<TContext>().UseNpgsql(ConnectionString).Options)!;
 
     internal TestDb NewDb() => new(new DbContextOptionsBuilder<TestDb>().UseNpgsql(ConnectionString).Options);
 
@@ -244,6 +299,15 @@ public sealed class PostgresFixture : IAsyncLifetime
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
     }
 
+    /// <summary>Declares every outbox and inbox of <see cref="TestDb"/>, as a host does once per module.</summary>
+    internal static void DeclareAll(MessagingBuilder messaging)
+    {
+        messaging.Outbox<TestDb>("Orders");
+        messaging.Outbox<TestDb>("Billing");
+        messaging.Inbox<TestDb>("Orders");
+        messaging.Inbox<TestDb>("Shipping");
+    }
+
     /// <summary>Registers the standard test wiring: ThingHappened goes out through "Orders" and is handled by
     /// <see cref="FirstHandler"/> (inbox "Shipping") and <see cref="SecondHandler"/> (inbox "Orders");
     /// OtherHappened goes out through "Billing".</summary>
@@ -267,7 +331,8 @@ public sealed class PostgresFixture : IAsyncLifetime
         TimeSpan? maxBackoff = null,
         int? maxAttempts = null,
         CapturingLoggerProvider? logs = null,
-        bool start = true)
+        bool start = true,
+        bool declareStandard = true)
     {
         var values = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
@@ -291,9 +356,17 @@ public sealed class PostgresFixture : IAsyncLifetime
         });
         collection.AddSingleton(probe ?? new Probe());
         collection.AddDbContext<TestDb>((sp, options) => options.UseNpgsql(ConnectionString).AddMessagingInterceptors(sp));
-        collection.AddMessaging<TestDb>(
+        collection.AddMessaging(
             new ConfigurationBuilder().AddInMemoryCollection(values).Build().GetSection("Messaging"),
-            configure ?? Standard);
+            b =>
+            {
+                if (declareStandard)
+                {
+                    DeclareAll(b);
+                }
+
+                (configure ?? Standard)(b);
+            });
         services?.Invoke(collection);
 
         var host = new MessagingHost(collection.BuildServiceProvider());

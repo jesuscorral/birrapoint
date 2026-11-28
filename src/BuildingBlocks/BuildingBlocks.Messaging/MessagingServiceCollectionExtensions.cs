@@ -10,17 +10,16 @@ public static class MessagingServiceCollectionExtensions
 {
     /// <summary>
     /// Registers the publisher, the in-process transport, the inbox runner, the retention purger and the hosted
-    /// outbox dispatcher over <typeparamref name="TContext"/>, which must map every outbox and inbox named in
-    /// <paramref name="configure"/> with <see cref="MessagingModelBuilderExtensions.ApplyOutbox"/> /
+    /// outbox dispatcher across modules. Every outbox and inbox named in <paramref name="configure"/> is declared with
+    /// <c>Outbox&lt;TContext&gt;</c> / <c>Inbox&lt;TContext&gt;</c> and mapped by its context with <see cref="MessagingModelBuilderExtensions.ApplyOutbox"/> /
     /// <see cref="MessagingModelBuilderExtensions.ApplyInbox"/>. Options bind from <paramref name="section"/> and are
     /// validated on host start. Handlers are registered as scoped. To wake the dispatcher right after a commit,
     /// call <see cref="MessagingDbContextOptionsBuilderExtensions.AddMessagingInterceptors"/> in the host's
     /// <c>AddDbContext</c>. Register another <see cref="IIntegrationEventTransport"/> afterwards to replace the
     /// in-process one.
     /// </summary>
-    public static IServiceCollection AddMessaging<TContext>(
+    public static IServiceCollection AddMessaging(
         this IServiceCollection services, IConfigurationSection section, Action<MessagingBuilder> configure)
-        where TContext : DbContext
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(section);
@@ -35,17 +34,17 @@ public static class MessagingServiceCollectionExtensions
         services.TryAddSingleton<OutboxWakeUp>();
         services.TryAddSingleton<OutboxWakeUpInterceptor>();
         services.TryAddSingleton<OutboxWakeUpTransactionInterceptor>();
-        services.TryAddScoped<IIntegrationEventPublisher, IntegrationEventPublisher<TContext>>();
-        services.TryAddSingleton<InboxRunner<TContext>>();
-        services.TryAddSingleton<IIntegrationEventTransport, LocalTransport<TContext>>();
-        services.TryAddSingleton<RetentionPurger<TContext>>();
-        services.AddHostedService<OutboxDispatcher<TContext>>();
+        services.TryAddScoped<IIntegrationEventPublisher, IntegrationEventPublisher>();
+        services.TryAddSingleton<InboxRunner>();
+        services.TryAddSingleton<IIntegrationEventTransport, LocalTransport>();
+        services.TryAddSingleton<RetentionPurger>();
+        services.AddHostedService<OutboxDispatcher>();
         return services;
     }
 
     /// <summary>
     /// Adds more publish and subscribe registrations to the messaging setup, so each module can declare its own
-    /// events next to its other registrations. Order-independent with <see cref="AddMessaging{TContext}"/>; the
+    /// events next to its other registrations. Order-independent with <see cref="AddMessaging"/>; the
     /// registrations of all calls form one registry.
     /// </summary>
     public static IServiceCollection ConfigureMessaging(this IServiceCollection services, Action<MessagingBuilder> configure)

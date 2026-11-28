@@ -130,7 +130,7 @@ public sealed class NotifyJudgesRateLimitTests(ApiFactory factory) : IClassFixtu
     private async Task<Dictionary<Guid, int>> SendInvitationJobCountsAsync(Guid competitionId, IReadOnlyCollection<Guid> judgeIds)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var payloads = await db.DispatchJobs
             .Where(j => j.GroupKey == competitionId && j.Type == DispatchJobType.SendInvitation)
             .Select(j => j.PayloadJson)

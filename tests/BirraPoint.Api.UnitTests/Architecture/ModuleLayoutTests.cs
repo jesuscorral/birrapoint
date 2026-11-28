@@ -147,9 +147,9 @@ public class ModuleLayoutTests
     public void EveryEntityLivesInADomainNamespaceTheImportFeatureOrABuildingBlock()
     {
         const string importNs = "BirraPoint.Api.Modules.Organization.Features.Import";
-        var dbContext = Api.GetType("BirraPoint.Api.Common.Persistence.AppDbContext", throwOnError: true)!;
-        var dbSetEntities = dbContext
-            .GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+        var dbSetEntities = ApiTypes()
+            .Where(t => typeof(Microsoft.EntityFrameworkCore.DbContext).IsAssignableFrom(t))
+            .SelectMany(t => t.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly))
             .Where(p => p.PropertyType.IsGenericType && p.PropertyType.GetGenericTypeDefinition().Name.StartsWith("DbSet", StringComparison.Ordinal))
             .Select(p => p.PropertyType.GetGenericArguments()[0]);
         var subclasses = ApiTypes().Where(t => t is { IsClass: true, IsAbstract: false } && t.IsSubclassOf(typeof(Entity)));

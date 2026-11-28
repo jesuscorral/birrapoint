@@ -91,7 +91,7 @@ public sealed class ConsolidateBeerImportApiTests(ApiFactory factory) : ImportAp
         var entryId = entries[0].GetProperty("id").GetGuid();
 
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
         var entry = await db.BeerEntries.SingleAsync(e => e.Id == entryId, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(categoryId, entry.CompetitionCategoryId);
@@ -159,7 +159,7 @@ public sealed class ConsolidateBeerImportApiTests(ApiFactory factory) : ImportAp
         Assert.Equal(HttpStatusCode.OK, consolidate.StatusCode);
 
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
 
         var participants = await db.Participants
             .Where(p => p.CompetitionId == competitionId && p.Email == "dezaprieto@gmail.com")
@@ -189,7 +189,7 @@ public sealed class ConsolidateBeerImportApiTests(ApiFactory factory) : ImportAp
         await ConsolidateBeerAsync(organizer, secondCompetitionId, secondImportId);
 
         await using var scope = Factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db = scope.ServiceProvider.GetTestDb();
 
         var firstParticipant = await db.Participants
             .SingleAsync(p => p.CompetitionId == firstCompetitionId && p.Email == "shared@brew.example", cancellationToken: TestContext.Current.CancellationToken);

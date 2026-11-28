@@ -26,7 +26,7 @@ public sealed class RetentionPurgeTests(PostgresFixture fixture) : IClassFixture
     }
 
     private static Task<bool> PurgeAsync(MessagingHost host) =>
-        host.Services.GetRequiredService<RetentionPurger<TestDb>>().RunIfDueAsync(TestContext.Current.CancellationToken);
+        host.Services.GetRequiredService<RetentionPurger>().RunIfDueAsync(TestContext.Current.CancellationToken);
 
     [Fact]
     public async Task OnePassRemovesRowsPastRetentionAndKeepsEverythingElse()
