@@ -1,6 +1,7 @@
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.GetDispatchStatus;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.GetResultsArchive;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.RetryDispatch;
+using BirraPoint.Common.Security;
 
 namespace BirraPoint.Api.Modules.Publication.Features.Dispatch;
 
@@ -10,7 +11,7 @@ internal static class BaseDispatchEndpoints
     public static IEndpointRouteBuilder MapDispatchEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/v1/competitions/{competitionId:guid}")
-            .RequireAuthorization("ORGANIZER")
+            .RequireAuthorization(Policies.Organizer)
             .WithTags("Dispatch");
 
         group.MapGetResultsArchiveEndpoint()

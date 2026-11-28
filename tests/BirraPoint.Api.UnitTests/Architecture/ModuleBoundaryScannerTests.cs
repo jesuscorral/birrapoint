@@ -59,7 +59,7 @@ public class ModuleBoundaryScannerTests
 
     [Fact]
     public void FullyQualifiedContractsNameIsAllowed() =>
-        Assert.Empty(Scan("BirraPoint.Contracts.Organization.IJudgeDirectory d;"));
+        Assert.Empty(Scan("BirraPoint.Api.Modules.Organization.Contracts.IJudgeDirectory d;"));
 
     [Fact]
     public void FullyQualifiedNameInCommentIsIgnored() =>

@@ -5,7 +5,7 @@ namespace BirraPoint.Common.Realtime;
 /// events. Named constants instead of inline strings so the ~6 stories that emit these can't drift
 /// from the contract by typo. Adding a new entry here is a contract amendment (Principle VI).
 /// </summary>
-internal static class CompetitionEvents
+public static class CompetitionEvents
 {
     public const string CompetitionStateChanged = nameof(CompetitionStateChanged);
 

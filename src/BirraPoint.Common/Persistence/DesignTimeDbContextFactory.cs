@@ -8,7 +8,7 @@ namespace BirraPoint.Common.Persistence;
 /// generating migrations, so the connection string is loaded from environment variables.
 /// One thin subclass per context supplies its construction (ADR-0043).
 /// </summary>
-internal abstract class DesignTimeDbContextFactory<TContext> : IDesignTimeDbContextFactory<TContext>
+public abstract class DesignTimeDbContextFactory<TContext> : IDesignTimeDbContextFactory<TContext>
     where TContext : BirraPointDbContext
 {
     public TContext CreateDbContext(string[] args)

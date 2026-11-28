@@ -6,7 +6,7 @@ namespace BirraPoint.Common.Persistence.Jobs;
 /// <summary>The <c>jobs</c> schema: the background job queue of the BuildingBlocks.Jobs block (R-06, ADR-0037), kept on
 /// the original <c>DispatchJobs</c> table. It lives in the host because the table, column and migration names are host
 /// decisions; the block stays free of BirraPoint (ADR-0035).</summary>
-internal sealed class JobsDbContext(DbContextOptions<JobsDbContext> options, SharedTransaction? sharedTransaction = null)
+public sealed class JobsDbContext(DbContextOptions<JobsDbContext> options, SharedTransaction? sharedTransaction = null)
     : BirraPointDbContext(options, DbSchemas.Jobs, sharedTransaction)
 {
     public DbSet<Job> DispatchJobs => Set<Job>();

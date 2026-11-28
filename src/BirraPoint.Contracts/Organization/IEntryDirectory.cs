@@ -1,7 +1,7 @@
 namespace BirraPoint.Contracts.Organization;
 
 /// <summary>Anonymous read surface over competition entries for tasting tables (BR-01/FR-019).</summary>
-internal interface IEntryDirectory
+public interface IEntryDirectory
 {
     /// <summary>Sample data keyed by entry id; unknown ids are absent.</summary>
     Task<IReadOnlyDictionary<Guid, EntrySampleInfo>> GetSamplesAsync(

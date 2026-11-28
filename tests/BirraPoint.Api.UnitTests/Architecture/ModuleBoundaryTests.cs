@@ -22,7 +22,9 @@ namespace BirraPoint.Api.UnitTests.Architecture;
 /// <item>Comments are stripped before matching.</item>
 /// <item>Persistence is not exempt (FR-094, FR-099): each module owns one context, so another module's <c>Domain</c>,
 /// <c>Persistence</c> or <c>*DbContext</c> is a violation like any other internal namespace, and the kernel
-/// (<c>Common</c>, <c>Composition</c>, <c>Domain</c>, <c>Realtime</c>) may use module contracts only.</item>
+/// (host <c>Common</c>, <c>Composition</c>, <c>Domain</c>, <c>Realtime</c>, plus the <c>BirraPoint.Common</c> and
+/// <c>BirraPoint.Contracts</c> projects) may reference no module at all: module contracts live in
+/// <c>BirraPoint.Contracts</c>, outside the module namespaces.</item>
 /// </list>
 ///
 /// No module-to-module exception and no kernel exception exists: ADR-0033 phase 3 replaced every direct read with a
@@ -31,6 +33,15 @@ namespace BirraPoint.Api.UnitTests.Architecture;
 public class ModuleBoundaryTests
 {
     private const string ModulesNamespace = "BirraPoint.Api.Modules";
+
+    private const string ContractsNamespace = "BirraPoint.Contracts";
+
+    /// <summary>The host assembly (modules still live in it), the shared kernel and the shared contracts: every assembly an
+    /// integration event or a notification could be declared in.</summary>
+    private static readonly Assembly[] ProductionAssemblies =
+        [typeof(BirraPoint.Api.Realtime.CompetitionHub).Assembly, typeof(Entity).Assembly, typeof(BirraPoint.Contracts.Catalog.IStyleCatalog).Assembly];
+
+    private static readonly Assembly Api = typeof(BirraPoint.Api.Realtime.CompetitionHub).Assembly;
 
     private static readonly string[] KernelFolders = ["Common", "Composition", "Domain", "Realtime"];
 
@@ -77,8 +88,8 @@ public class ModuleBoundaryTests
     [Fact]
     public void IntegrationEventsLiveOnlyInTheirPublishersContractsFolder()
     {
-        const string prefix = ModulesNamespace + ".";
-        var offenders = typeof(Entity).Assembly.GetTypes()
+        const string prefix = ContractsNamespace + ".";
+        var offenders = ProductionAssemblies.SelectMany(a => a.GetTypes())
             .Select(t => (Type: t, Attribute: t.GetCustomAttribute<BuildingBlocks.Messaging.IntegrationEventAttribute>(inherit: false)))
             .Where(x => x.Attribute is not null)
             .Where(x =>
@@ -91,7 +102,7 @@ public class ModuleBoundaryTests
 
                 var parts = ns[prefix.Length..].Split('.');
                 var module = parts[0];
-                var inFolder = parts.Length == 3 && parts[1] == "Contracts" && parts[2] == "IntegrationEvents";
+                var inFolder = parts.Length == 2 && parts[1] == "IntegrationEvents";
                 var namedAfterModule = x.Attribute!.Type.StartsWith(module + ".", StringComparison.OrdinalIgnoreCase);
                 return !inFolder || !namedAfterModule;
             })
@@ -101,7 +112,7 @@ public class ModuleBoundaryTests
 
         Assert.True(
             offenders.Count == 0,
-            "Integration events must be in Modules/<M>/Contracts/IntegrationEvents and named '<module>.<name>':" + Environment.NewLine + string.Join(Environment.NewLine, offenders));
+            "Integration events must be in BirraPoint.Contracts/<M>/IntegrationEvents and named '<module>.<name>':" + Environment.NewLine + string.Join(Environment.NewLine, offenders));
     }
 
     /// <summary>
@@ -112,21 +123,20 @@ public class ModuleBoundaryTests
     [Fact]
     public void NoModuleContractExposesAMediatRNotification()
     {
-        var notifications = typeof(Entity).Assembly.GetTypes()
+        var notifications = ProductionAssemblies.SelectMany(a => a.GetTypes())
             .Where(t => typeof(MediatR.INotification).IsAssignableFrom(t) && !t.IsInterface)
-            .Where(t => (t.Namespace ?? string.Empty).StartsWith(ModulesNamespace, StringComparison.Ordinal)
-                && (t.Namespace ?? string.Empty).Contains(".Contracts", StringComparison.Ordinal))
+            .Where(t => (t.Namespace ?? string.Empty).StartsWith(ContractsNamespace, StringComparison.Ordinal))
             .Select(t => t.FullName!)
             .Order(StringComparer.Ordinal)
             .ToList();
-        var legacyFolders = Directory.GetDirectories(Path.Combine(ApiRoot, "Modules"))
-            .Select(dir => Path.Combine(dir, "Contracts", "Events"))
+        var legacyFolders = Directory.GetDirectories(ContractsRoot)
+            .Select(dir => Path.Combine(dir, "Events"))
             .Where(Directory.Exists)
-            .Select(dir => Path.GetRelativePath(ApiRoot, dir).Replace('\\', '/'))
+            .Select(dir => Path.GetRelativePath(ContractsRoot, dir).Replace('\\', '/'))
             .ToList();
 
         Assert.True(notifications.Count == 0, "Module contracts expose MediatR notifications:" + Environment.NewLine + string.Join(Environment.NewLine, notifications));
-        Assert.True(legacyFolders.Count == 0, "Contracts/Events folders must not exist:" + Environment.NewLine + string.Join(Environment.NewLine, legacyFolders));
+        Assert.True(legacyFolders.Count == 0, "Contracts/<M>/Events folders must not exist:" + Environment.NewLine + string.Join(Environment.NewLine, legacyFolders));
     }
 
     private static string Describe(Violation v) => $"{v.File} -> {v.Module}: {string.Join("; ", v.Members.Order(StringComparer.Ordinal))}";
@@ -145,11 +155,15 @@ public class ModuleBoundaryTests
         return Path.Combine(dir.FullName, "src", "BirraPoint.Api");
     }
 
+    private static string ContractsRoot { get; } = Path.Combine(Path.GetDirectoryName(ApiRoot)!, "BirraPoint.Contracts");
+
+    private static string CommonRoot { get; } = Path.Combine(Path.GetDirectoryName(ApiRoot)!, "BirraPoint.Common");
+
     /// <summary>DbSet property name → module owning its entity (by namespace segment after Modules), over every
     /// <c>DbContext</c> declared in the API assembly.</summary>
     private static Dictionary<string, string> DbSetOwners()
     {
-        var api = typeof(Entity).Assembly;
+        var api = Api;
         const string prefix = ModulesNamespace + ".";
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
 
@@ -173,6 +187,13 @@ public class ModuleBoundaryTests
 
         return map;
     }
+
+    /// <summary>Sources of the shared kernel and shared contracts projects, which sit beside the host project.</summary>
+    private static IEnumerable<(string Relative, string Source)> SourceFilesAt(string root) =>
+        Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories)
+            .Select(path => (Relative: Path.GetRelativePath(Path.GetDirectoryName(ApiRoot)!, path).Replace(Path.DirectorySeparatorChar, '/'), path))
+            .Where(f => !f.Relative.Contains("/obj/", StringComparison.Ordinal) && !f.Relative.Contains("/bin/", StringComparison.Ordinal))
+            .Select(f => (f.Relative, File.ReadAllText(f.path)));
 
     private static IEnumerable<(string Relative, string Source)> SourceFiles(string folder) =>
         Directory.EnumerateFiles(Path.Combine(ApiRoot, folder), "*.cs", SearchOption.AllDirectories)
@@ -203,6 +224,8 @@ public class ModuleBoundaryTests
         var violations = KernelFolders
             .Where(folder => Directory.Exists(Path.Combine(ApiRoot, folder)))
             .SelectMany(SourceFiles)
+            .Concat(SourceFilesAt(CommonRoot))
+            .Concat(SourceFilesAt(ContractsRoot))
             .SelectMany(f => ModuleBoundaryScanner.Scan(f.Relative, f.Source, ownModule: null, dbSets))
             .ToList();
 

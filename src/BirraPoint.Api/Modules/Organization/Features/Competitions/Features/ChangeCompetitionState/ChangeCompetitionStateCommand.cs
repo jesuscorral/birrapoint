@@ -3,6 +3,7 @@ using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Persistence;
 using BirraPoint.Api.Realtime;
+using BirraPoint.Common.Realtime;
 using BirraPoint.Contracts.Organization;
 using BirraPoint.Contracts.Organization.IntegrationEvents;
 using BuildingBlocks.Audit;

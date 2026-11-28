@@ -3,7 +3,7 @@ using BuildingBlocks.Jobs;
 
 namespace BirraPoint.Common.Persistence;
 
-internal static class DispatchJobQueries
+public static class DispatchJobQueries
 {
     /// <summary>Filters jobs to one <see cref="DispatchJobType"/>. A plain <c>==</c> is the only string comparison
     /// EF Core translates (the <c>StringComparison</c> overloads of <c>string.Equals</c> are rejected), so the single

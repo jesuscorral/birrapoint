@@ -4,6 +4,7 @@ using BirraPoint.Api.Modules.Organization.Features.Judges;
 using BirraPoint.Api.Modules.Organization.Identity;
 using BirraPoint.Api.Modules.Organization.Integration;
 using BirraPoint.Api.Modules.Organization.Persistence;
+using BirraPoint.Common.Persistence;
 using BirraPoint.Contracts.Judging.IntegrationEvents;
 using BirraPoint.Contracts.Organization;
 using BirraPoint.Contracts.Organization.IntegrationEvents;

@@ -1,14 +1,16 @@
 using BuildingBlocks.Messaging;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 
 namespace BirraPoint.Common.Persistence;
 
 /// <summary>A context the startup migration runs, created over the migration connection string.</summary>
-internal sealed record MigrationTarget(string Name, Func<string, BirraPointDbContext> Create);
+public sealed record MigrationTarget(string Name, Func<string, BirraPointDbContext> Create);
 
-internal static class DbContextRegistration
+public static class DbContextRegistration
 {
     /// <summary>
     /// Registers what every context shares: one <see cref="NpgsqlDataSource"/> over <c>ConnectionStrings:db</c>

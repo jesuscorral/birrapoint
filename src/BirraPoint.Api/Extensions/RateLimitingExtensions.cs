@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Threading.RateLimiting;
 using BirraPoint.Api.Common.Errors;
+using BirraPoint.Common.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
@@ -19,7 +20,7 @@ internal sealed class NotifyJudgesRateLimitOptions
 
 internal static class RateLimitingExtensions
 {
-    public const string NotifyJudgesPolicy = "NotifyJudges";
+    public const string NotifyJudgesPolicy = Policies.NotifyJudgesRateLimit;
     public const int DefaultPermitLimit = 2;
     public static readonly TimeSpan DefaultWindow = TimeSpan.FromSeconds(30);
 

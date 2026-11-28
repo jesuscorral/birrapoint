@@ -2,7 +2,7 @@ namespace BirraPoint.Common.Domain;
 
 /// <summary>Job types handled by the host's <c>IJobHandler</c>s. Stored as the constant's text in the
 /// <c>Type</c> column of the job table (<c>BuildingBlocks.Jobs</c> keeps it a string).</summary>
-internal static class DispatchJobType
+public static class DispatchJobType
 {
     public const string GeneratePdfs = nameof(GeneratePdfs);
 

@@ -1,4 +1,3 @@
-using BirraPoint.Api.Realtime;
 
 namespace BirraPoint.Common.Realtime;
 
@@ -7,7 +6,7 @@ namespace BirraPoint.Common.Realtime;
 /// <see cref="CompetitionHub"/> (joins) and <see cref="EventPublisher"/> (emits) so the format
 /// can never drift between the two call sites.
 /// </summary>
-internal static class CompetitionGroups
+public static class CompetitionGroups
 {
     public static string Organizers(Guid competitionId) => $"competition:{competitionId}:organizers";
 

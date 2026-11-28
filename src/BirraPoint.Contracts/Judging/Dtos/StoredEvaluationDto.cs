@@ -2,7 +2,7 @@ namespace BirraPoint.Contracts.Judging.Dtos;
 
 /// <summary>One judge's evaluation of an entry, as exposed to other modules (audit drill-down, score
 /// sheets). Carries the judge's display name; never entrant fields.</summary>
-internal sealed record StoredEvaluationDto(
+public sealed record StoredEvaluationDto(
     Guid BeerEntryId,
     string JudgeDisplayName,
     int AromaScore, string AromaComment,

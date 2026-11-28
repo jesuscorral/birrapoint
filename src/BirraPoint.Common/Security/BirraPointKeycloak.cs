@@ -3,7 +3,7 @@ using BuildingBlocks.Keycloak.Admin;
 namespace BirraPoint.Common.Security;
 
 /// <summary>BirraPoint's choices for the reusable Keycloak admin block.</summary>
-internal static class BirraPointKeycloak
+public static class BirraPointKeycloak
 {
     /// <summary>Realm role every provisioned judge account is granted; the realm's default roles never include it.</summary>
     public const string JudgeRole = "JUDGE";

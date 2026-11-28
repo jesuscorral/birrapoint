@@ -1,6 +1,7 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Publication.Persistence;
 using BirraPoint.Common.Domain;
+using BirraPoint.Common.Persistence;
 using BirraPoint.Common.Persistence.Jobs;
 using BirraPoint.Contracts.Organization;
 using BuildingBlocks.Identity;

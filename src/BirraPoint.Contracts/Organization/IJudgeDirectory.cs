@@ -2,7 +2,7 @@ namespace BirraPoint.Contracts.Organization;
 
 /// <summary>Read surface over competition judges for other modules: the signed-in judge's identities,
 /// display data and competition membership.</summary>
-internal interface IJudgeDirectory
+public interface IJudgeDirectory
 {
     /// <summary>Every judge record of the signed-in user across competitions (matched by e-mail, Keycloak
     /// identity backfilled on first use); empty when the caller is not a judge anywhere.</summary>

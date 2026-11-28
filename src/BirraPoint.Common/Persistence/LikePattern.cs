@@ -4,13 +4,16 @@ namespace BirraPoint.Common.Persistence;
 /// comparison PostgreSQL can evaluate in SQL (Npgsql cannot translate
 /// <c>string.Equals(..., StringComparison)</c>). LIKE wildcards in user input are escaped so
 /// they match literally.</summary>
-internal static class LikePattern
+public static class LikePattern
 {
     public const string EscapeCharacter = @"\";
 
-    public static string Escape(string value) =>
-        value
+    public static string Escape(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return value
             .Replace(@"\", @"\\", StringComparison.Ordinal)
             .Replace("%", @"\%", StringComparison.Ordinal)
             .Replace("_", @"\_", StringComparison.Ordinal);
+    }
 }

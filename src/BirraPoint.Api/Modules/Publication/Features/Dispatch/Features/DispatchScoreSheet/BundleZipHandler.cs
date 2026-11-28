@@ -2,6 +2,7 @@ using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
 using BirraPoint.Common.Domain;
+using BirraPoint.Common.Persistence;
 using BirraPoint.Common.Persistence.Jobs;
 using BirraPoint.Contracts.Organization;
 using BuildingBlocks.Jobs;

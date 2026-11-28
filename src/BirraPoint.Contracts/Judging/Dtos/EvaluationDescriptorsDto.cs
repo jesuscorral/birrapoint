@@ -1,6 +1,3 @@
-using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
-using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
-
 namespace BirraPoint.Contracts.Judging.Dtos;
 
 /// <summary>
@@ -12,7 +9,7 @@ namespace BirraPoint.Contracts.Judging.Dtos;
 /// this mirrors. Stored as-is (camelCase, this app's own HTTP JSON convention) in
 /// Evaluation.DescriptorsJson — see ADR for why a jsonb string column instead of ~25 new columns.
 /// </summary>
-internal sealed record EvaluationDescriptorsDto(
+public sealed record EvaluationDescriptorsDto(
     AppearanceDescriptorsDto? Appearance,
     AromaDescriptorsDto? Aroma,
     FlavorDescriptorsDto? Flavor,

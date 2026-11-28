@@ -1,7 +1,7 @@
 namespace BirraPoint.Contracts.Organization;
 
 /// <summary>Port owned by Organization, implemented by Judging: which table each entry sits at (entries list).</summary>
-internal interface IEntryTableAssignments
+public interface IEntryTableAssignments
 {
     /// <summary>Assignments for the given entries of a competition, keyed by entry id. Unassigned entries
     /// are absent.</summary>

@@ -2,6 +2,7 @@ using BirraPoint.Api.Modules.Judging.Features.TastingOrder.Features.FixOrder;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.Features.GetMyTables;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.Features.GetTableJudges;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.Features.GetTableSamples;
+using BirraPoint.Common.Security;
 
 namespace BirraPoint.Api.Modules.Judging.Features.TastingOrder;
 
@@ -11,7 +12,7 @@ internal static class BaseTastingOrderEndpoints
     public static IEndpointRouteBuilder MapTastingOrderEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/v1/me/tables")
-            .RequireAuthorization("JUDGE")
+            .RequireAuthorization(Policies.Judge)
             .WithTags("TastingOrder");
 
         group.MapGetMyTablesEndpoint()

@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Common.Domain;
+using BirraPoint.Common.Persistence;
 using BirraPoint.Common.Persistence.Jobs;
 using Microsoft.EntityFrameworkCore;
 

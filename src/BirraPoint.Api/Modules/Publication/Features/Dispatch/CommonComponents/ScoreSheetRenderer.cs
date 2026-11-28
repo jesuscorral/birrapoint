@@ -1,3 +1,4 @@
+using BirraPoint.Contracts.Catalog;
 using BirraPoint.Contracts.Judging.Dtos;
 using BirraPoint.Contracts.Organization;
 using QuestPDF.Fluent;

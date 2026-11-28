@@ -2,7 +2,7 @@ namespace BirraPoint.Contracts.Judging.Dtos;
 
 /// <summary>Sensación en boca. All five attributes are 0–3 discrete sliders, each with its own
 /// Inappropriate flag.</summary>
-internal sealed record MouthfeelDescriptorsDto(
+public sealed record MouthfeelDescriptorsDto(
     int? Body,
     bool BodyInappropriate,
     int? Carbonation,

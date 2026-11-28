@@ -1,7 +1,7 @@
 namespace BirraPoint.Contracts.Catalog;
 
 /// <summary>Public read surface of the Catalog module: the only way other modules look up BJCP styles.</summary>
-internal interface IStyleCatalog
+public interface IStyleCatalog
 {
     /// <summary>Every style in the catalog (entry import matching by code or name).</summary>
     Task<IReadOnlyList<StyleSummaryDto>> ListAsync(CancellationToken cancellationToken = default);

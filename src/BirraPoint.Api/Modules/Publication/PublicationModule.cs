@@ -3,6 +3,7 @@ using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.DispatchScoreSheet;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.Features.RefreshResults;
 using BirraPoint.Api.Modules.Publication.Persistence;
+using BirraPoint.Common.Persistence;
 using BirraPoint.Contracts.Judging.IntegrationEvents;
 using BirraPoint.Contracts.Organization.IntegrationEvents;
 using BuildingBlocks.Jobs;

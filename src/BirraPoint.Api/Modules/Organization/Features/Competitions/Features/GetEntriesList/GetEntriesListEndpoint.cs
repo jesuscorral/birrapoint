@@ -1,3 +1,4 @@
+using BirraPoint.Common.Security;
 using MediatR;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Competitions.Features.GetEntriesList;
@@ -7,7 +8,7 @@ internal static class GetEntriesListEndpoint
     internal static IEndpointRouteBuilder MapGetEntriesListEndpoint(this IEndpointRouteBuilder endpointsGroup)
     {
         endpointsGroup.MapGroup("/{competitionId:guid}/entries")
-                .RequireAuthorization("ORGANIZER")
+                .RequireAuthorization(Policies.Organizer)
                 .WithTags("Entries")
                 .MapGet("/", async (Guid competitionId, ISender sender, CancellationToken cancellationToken) =>
                 {

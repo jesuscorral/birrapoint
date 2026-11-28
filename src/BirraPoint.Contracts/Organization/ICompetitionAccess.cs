@@ -1,7 +1,7 @@
 namespace BirraPoint.Contracts.Organization;
 
 /// <summary>Read surface over competitions for other modules (ownership scoping, state gates, dispatch jobs).</summary>
-internal interface ICompetitionAccess
+public interface ICompetitionAccess
 {
     /// <summary>The competition, or null when it is missing or not owned by <paramref name="ownerUserId"/>
     /// (Keycloak sub); callers answer 404.</summary>

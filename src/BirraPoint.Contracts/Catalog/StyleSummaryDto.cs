@@ -2,7 +2,7 @@ namespace BirraPoint.Contracts.Catalog;
 
 /// <summary>Read-only projection of a BJCP 2021 style for other modules (FR-012, FR-049). Never the
 /// <c>BjcpStyle</c> entity.</summary>
-internal sealed record StyleSummaryDto(
+public sealed record StyleSummaryDto(
     string Code,
     string Name,
     string CategoryNumber,

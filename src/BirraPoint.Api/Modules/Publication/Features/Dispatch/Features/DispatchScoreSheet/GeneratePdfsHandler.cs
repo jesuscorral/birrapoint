@@ -3,6 +3,7 @@ using BirraPoint.Api.Modules.Publication.Domain;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
 using BirraPoint.Api.Modules.Publication.Persistence;
 using BirraPoint.Common.Domain;
+using BirraPoint.Common.Persistence;
 using BirraPoint.Common.Persistence.Jobs;
 using BirraPoint.Contracts.Catalog;
 using BirraPoint.Contracts.Judging;

@@ -4,6 +4,7 @@ using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Realtime;
+using BirraPoint.Common.Realtime;
 using BirraPoint.Contracts.Catalog;
 using BirraPoint.Contracts.Organization;
 using FluentValidation;

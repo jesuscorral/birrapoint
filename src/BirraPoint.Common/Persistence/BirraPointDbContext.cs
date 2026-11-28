@@ -10,7 +10,7 @@ namespace BirraPoint.Common.Persistence;
 /// <c>UpdatedAt</c> centrally. Contexts of one DI scope share a connection and a unit of work through
 /// <see cref="SharedTransaction"/> (FR-096).
 /// </summary>
-internal abstract class BirraPointDbContext : DbContext
+public abstract class BirraPointDbContext : DbContext
 {
     protected BirraPointDbContext(DbContextOptions options, string schema, SharedTransaction? sharedTransaction)
         : base(options)
@@ -30,11 +30,14 @@ internal abstract class BirraPointDbContext : DbContext
     }
 
     /// <summary>Applies only the entity configurations declared in <paramref name="configurationNamespace"/>, so a
-    /// configuration of another module can never pull a foreign entity into this model (FR-099).</summary>
-    protected static void ApplyConfigurationsOf(ModelBuilder modelBuilder, string configurationNamespace) =>
+    /// configuration of another module can never pull a foreign entity into this model (FR-099). Configurations are looked up in the assembly of the concrete context, which is the module's own.</summary>
+    protected void ApplyConfigurationsOf(ModelBuilder modelBuilder, string configurationNamespace)
+    {
+        ArgumentNullException.ThrowIfNull(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(
-            typeof(BirraPointDbContext).Assembly,
+            GetType().Assembly,
             type => string.Equals(type.Namespace, configurationNamespace, StringComparison.Ordinal));
+    }
 
     /// <summary>The migration history sits in the context's own schema (FR-097). Added here so every construction
     /// site (host, design-time factory, startup migration, test fixtures) gets it.</summary>

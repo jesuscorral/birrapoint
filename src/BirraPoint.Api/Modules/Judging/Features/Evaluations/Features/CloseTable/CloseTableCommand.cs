@@ -5,6 +5,7 @@ using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Realtime;
+using BirraPoint.Common.Realtime;
 using BirraPoint.Contracts.Organization;
 using MediatR;
 using Microsoft.EntityFrameworkCore;

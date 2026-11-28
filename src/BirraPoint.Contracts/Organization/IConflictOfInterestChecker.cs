@@ -5,7 +5,7 @@ namespace BirraPoint.Contracts.Organization;
 /// collaborator e-mail of the entry, case-insensitive) lives in Organization; tasting tables only ask
 /// questions about judge ids and entry ids within one competition.
 /// </summary>
-internal interface IConflictOfInterestChecker
+public interface IConflictOfInterestChecker
 {
     /// <summary>Judges (from <paramref name="judgeIds"/>) that own any of <paramref name="beerEntryIds"/>,
     /// with the entries they conflict on. Empty when there is no conflict.</summary>

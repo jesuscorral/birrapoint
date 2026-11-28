@@ -9,7 +9,7 @@ namespace BirraPoint.Common.Persistence;
 /// ADR-0043): the contexts created in the scope, the database transaction currently open on the scope's single
 /// connection, and the contexts that joined it. Not thread-safe, like the scope itself.
 /// </summary>
-internal sealed class SharedTransaction
+public sealed class SharedTransaction
 {
     private readonly List<DbContext> _contexts = [];
     private readonly Dictionary<DbContext, IDbContextTransaction> _enlisted = [];
@@ -53,7 +53,7 @@ internal sealed class SharedTransaction
     public void Register(DbContext context) => _contexts.Add(context);
 
     /// <summary>Contexts of the scope other than <paramref name="except"/> that hold unsaved changes.</summary>
-    public List<DbContext> ParticipantsWithChanges(DbContext except) =>
+    internal List<DbContext> ParticipantsWithChanges(DbContext except) =>
         [.. _contexts.Where(c => !ReferenceEquals(c, except) && c.ChangeTracker.HasChanges())];
 
     public void Started(DbTransaction transaction)
@@ -79,6 +79,7 @@ internal sealed class SharedTransaction
     /// or one it joined) is left alone. Without an open transaction nothing happens.</summary>
     public void Enlist(DbContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         var current = Current;
         if (current is null || context.Database.CurrentTransaction is not null)
         {

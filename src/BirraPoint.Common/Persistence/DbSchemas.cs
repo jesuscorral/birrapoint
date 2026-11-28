@@ -3,7 +3,7 @@ namespace BirraPoint.Common.Persistence;
 /// <summary>PostgreSQL schema names: one per module, one per building block table (FR-068, FR-069). Each schema
 /// belongs to exactly one data context, which also keeps the migration history of that schema (FR-097). Module
 /// schemas are the lower-cased module name.</summary>
-internal static class DbSchemas
+public static class DbSchemas
 {
     public const string Catalog = "catalog";
     public const string Organization = "organization";

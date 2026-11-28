@@ -3,6 +3,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Organization.Domain;
 using BirraPoint.Api.Modules.Organization.Persistence;
 using BirraPoint.Common.Domain;
+using BirraPoint.Common.Persistence;
 using BirraPoint.Common.Persistence.Jobs;
 using BuildingBlocks.Identity;
 using BuildingBlocks.Jobs;

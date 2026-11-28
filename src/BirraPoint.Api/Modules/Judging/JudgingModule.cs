@@ -2,6 +2,7 @@ using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Integration;
 using BirraPoint.Api.Modules.Judging.Persistence;
+using BirraPoint.Common.Persistence;
 using BirraPoint.Contracts.Judging;
 using BirraPoint.Contracts.Judging.IntegrationEvents;
 using BirraPoint.Contracts.Organization;
