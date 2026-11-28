@@ -10,12 +10,29 @@ public static class MediatRExtensions
     /// Registers MediatR handlers, FluentValidation validators, and <see cref="ValidationBehavior{TRequest,TResponse}"/>
     /// as an open pipeline behavior, all discovered from <paramref name="assembly"/>.
     /// </summary>
-    public static IServiceCollection AddMediatRWithValidation(this IServiceCollection services, Assembly assembly)
+    public static IServiceCollection AddMediatRWithValidation(this IServiceCollection services, Assembly assembly) =>
+        Register(services, [assembly]);
+
+    /// <summary>
+    /// Same registration, discovered from every assembly in <paramref name="assemblies"/> (one per module and the host).
+    /// The validation behavior is registered once.
+    /// </summary>
+    public static IServiceCollection AddMediatRWithValidation(this IServiceCollection services, params Assembly[] assemblies)
     {
-        services.AddValidatorsFromAssembly(assembly, includeInternalTypes: true);
+        ArgumentNullException.ThrowIfNull(assemblies);
+        return Register(services, assemblies);
+    }
+
+    private static IServiceCollection Register(IServiceCollection services, Assembly[] assemblies)
+    {
+        foreach (var assembly in assemblies)
+        {
+            services.AddValidatorsFromAssembly(assembly, includeInternalTypes: true);
+        }
+
         services.AddMediatR(configuration =>
         {
-            configuration.RegisterServicesFromAssembly(assembly);
+            configuration.RegisterServicesFromAssemblies(assemblies);
             configuration.AddOpenBehavior(typeof(ValidationBehavior<,>));
         });
         return services;

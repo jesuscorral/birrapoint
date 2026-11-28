@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(BirraPointTargetFramework)</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="BirraPoint.Api.UnitTests" />
+    <InternalsVisibleTo Include="BirraPoint.Api.IntegrationTests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Audit\BuildingBlocks.Audit.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Jobs\BuildingBlocks.Jobs.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Keycloak.Admin\BuildingBlocks.Keycloak.Admin.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Messaging\BuildingBlocks.Messaging.csproj" />
+  </ItemGroup>
+</Project>

@@ -23,6 +23,8 @@
     <InternalsVisibleTo Include="BirraPoint.Api.IntegrationTests" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\BirraPoint.Common\BirraPoint.Common.csproj" />
+    <ProjectReference Include="..\BirraPoint.Contracts\BirraPoint.Contracts.csproj" />
     <ProjectReference Include="..\Aspire\BirraPoint.ServiceDefaults\BirraPoint.ServiceDefaults.csproj" />
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Audit\BuildingBlocks.Audit.csproj" />
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.DaprSecrets\BuildingBlocks.DaprSecrets.csproj" />
