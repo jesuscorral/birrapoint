@@ -1,8 +1,8 @@
-using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.Features.SubmitEvaluation;
-using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Contracts.Judging.Dtos;
+using BirraPoint.Contracts.Organization;
 
 namespace BirraPoint.Api.UnitTests.Modules.Judging.Evaluations.Features.SubmitEvaluation;
 

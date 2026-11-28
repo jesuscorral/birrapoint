@@ -1,8 +1,8 @@
 using System.IO.Compression;
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Publication.Domain;
 using BirraPoint.Api.Modules.Publication.Persistence;
+using BirraPoint.Contracts.Organization;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;

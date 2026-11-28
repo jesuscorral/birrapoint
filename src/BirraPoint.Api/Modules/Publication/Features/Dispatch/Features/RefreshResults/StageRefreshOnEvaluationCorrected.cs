@@ -1,5 +1,5 @@
-using BirraPoint.Api.Domain;
-using BirraPoint.Api.Modules.Judging.Contracts.IntegrationEvents;
+using BirraPoint.Common.Domain;
+using BirraPoint.Contracts.Judging.IntegrationEvents;
 using BuildingBlocks.Jobs;
 using BuildingBlocks.Messaging;
 

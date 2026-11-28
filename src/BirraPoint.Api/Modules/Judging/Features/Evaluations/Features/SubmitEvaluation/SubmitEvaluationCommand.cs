@@ -1,14 +1,15 @@
 using System.Text.Json.Serialization;
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Persistence;
-using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Realtime;
+using BirraPoint.Common.Realtime;
+using BirraPoint.Contracts.Judging.Dtos;
+using BirraPoint.Contracts.Organization;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;

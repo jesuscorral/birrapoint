@@ -1,10 +1,10 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Modules.Judging.Contracts;
-using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Judging.Persistence;
-using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Contracts.Judging;
+using BirraPoint.Contracts.Judging.Dtos;
+using BirraPoint.Contracts.Organization;
 using BuildingBlocks.Identity;
 using MediatR;
 using Microsoft.EntityFrameworkCore;

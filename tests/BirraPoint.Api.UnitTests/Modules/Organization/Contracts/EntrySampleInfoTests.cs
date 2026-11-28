@@ -1,4 +1,4 @@
-using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Contracts.Organization;
 
 namespace BirraPoint.Api.UnitTests.Modules.Organization.Contracts;
 

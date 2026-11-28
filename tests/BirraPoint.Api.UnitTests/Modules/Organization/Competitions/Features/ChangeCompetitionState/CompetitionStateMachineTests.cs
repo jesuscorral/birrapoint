@@ -1,5 +1,5 @@
-using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Features.Competitions.Features.ChangeCompetitionState;
+using BirraPoint.Contracts.Organization;
 
 namespace BirraPoint.Api.UnitTests.Modules.Organization.Competitions.Features.ChangeCompetitionState;
 

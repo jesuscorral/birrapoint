@@ -1,6 +1,5 @@
-using BirraPoint.Api.Modules.Catalog.Contracts;
-using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
-using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Contracts.Judging.Dtos;
+using BirraPoint.Contracts.Organization;
 using QuestPDF.Fluent;
 
 namespace BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;

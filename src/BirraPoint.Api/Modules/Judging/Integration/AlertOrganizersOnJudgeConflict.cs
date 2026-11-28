@@ -1,8 +1,9 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Judging.Persistence;
-using BirraPoint.Api.Modules.Organization.Contracts;
-using BirraPoint.Api.Modules.Organization.Contracts.IntegrationEvents;
 using BirraPoint.Api.Realtime;
+using BirraPoint.Common.Realtime;
+using BirraPoint.Contracts.Organization;
+using BirraPoint.Contracts.Organization.IntegrationEvents;
 using BuildingBlocks.Messaging;
 using Microsoft.EntityFrameworkCore;
 

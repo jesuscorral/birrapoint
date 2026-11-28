@@ -1,5 +1,5 @@
-using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Organization.Features.Competitions.Features.SetCompetitionCategories;
+using BirraPoint.Contracts.Catalog;
 
 namespace BirraPoint.Api.UnitTests.Modules.Organization.Competitions.Features.SetCompetitionCategories;
 

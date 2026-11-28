@@ -1,5 +1,5 @@
 using System.Reflection;
-using BirraPoint.Api.Domain;
+using BirraPoint.Common.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.UnitTests.Architecture;

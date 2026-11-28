@@ -1,7 +1,7 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Catalog.Integration;
 using BirraPoint.Api.Modules.Catalog.Persistence;
+using BirraPoint.Contracts.Catalog;
 
 namespace BirraPoint.Api.Modules.Catalog;
 

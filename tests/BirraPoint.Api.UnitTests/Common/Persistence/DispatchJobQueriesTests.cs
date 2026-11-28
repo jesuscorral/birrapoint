@@ -1,6 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Common.Persistence.Jobs;
-using BirraPoint.Api.Domain;
+using BirraPoint.Common.Domain;
+using BirraPoint.Common.Persistence.Jobs;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.UnitTests.Common.Persistence;

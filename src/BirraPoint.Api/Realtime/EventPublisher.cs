@@ -1,3 +1,4 @@
+using BirraPoint.Common.Realtime;
 using Microsoft.AspNetCore.SignalR;
 
 namespace BirraPoint.Api.Realtime;

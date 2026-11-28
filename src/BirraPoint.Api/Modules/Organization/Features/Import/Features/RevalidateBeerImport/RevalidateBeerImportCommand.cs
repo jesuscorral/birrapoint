@@ -1,8 +1,8 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Modules.Catalog.Contracts;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents;
 using BirraPoint.Api.Modules.Organization.Features.Import.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Organization.Persistence;
+using BirraPoint.Contracts.Catalog;
 using BuildingBlocks.Identity;
 using MediatR;
 using Microsoft.EntityFrameworkCore;

@@ -1,5 +1,5 @@
 using BirraPoint.Api.IntegrationTests.TestHost;
-using BirraPoint.Api.Modules.Judging.Contracts;
+using BirraPoint.Contracts.Judging;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BirraPoint.Api.IntegrationTests.Modules.Judging.Integration;

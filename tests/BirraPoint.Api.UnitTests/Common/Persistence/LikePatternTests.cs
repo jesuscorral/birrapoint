@@ -1,4 +1,5 @@
 using BirraPoint.Api.Common.Persistence;
+using BirraPoint.Common.Persistence;
 
 namespace BirraPoint.Api.UnitTests.Common.Persistence;
 

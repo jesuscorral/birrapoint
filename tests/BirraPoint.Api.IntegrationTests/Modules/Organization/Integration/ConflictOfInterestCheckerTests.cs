@@ -1,6 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.IntegrationTests.TestHost;
-using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Contracts.Organization;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BirraPoint.Api.IntegrationTests.Modules.Organization.Integration;

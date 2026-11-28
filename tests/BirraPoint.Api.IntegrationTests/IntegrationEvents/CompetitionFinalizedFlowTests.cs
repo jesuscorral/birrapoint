@@ -1,6 +1,6 @@
 using System.Net;
-using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
+using BirraPoint.Common.Domain;
 
 namespace BirraPoint.Api.IntegrationTests.IntegrationEvents;
 

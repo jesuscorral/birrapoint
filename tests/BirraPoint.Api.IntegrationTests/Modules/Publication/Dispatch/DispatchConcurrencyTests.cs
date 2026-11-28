@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Common.Domain;
 using BuildingBlocks.Jobs;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;

@@ -1,9 +1,9 @@
 using System.Net;
 using System.Text.Json;
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Domain;
 using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Publication.Features.Dispatch.CommonComponents;
+using BirraPoint.Common.Domain;
 using BuildingBlocks.Jobs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

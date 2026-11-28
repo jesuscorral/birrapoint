@@ -1,10 +1,11 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Common.Persistence.Audit;
-using BirraPoint.Api.Common.Persistence.Jobs;
 using BirraPoint.Api.Modules.Catalog.Persistence;
 using BirraPoint.Api.Modules.Judging.Persistence;
 using BirraPoint.Api.Modules.Organization.Persistence;
 using BirraPoint.Api.Modules.Publication.Persistence;
+using BirraPoint.Common.Persistence;
+using BirraPoint.Common.Persistence.Audit;
+using BirraPoint.Common.Persistence.Jobs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;

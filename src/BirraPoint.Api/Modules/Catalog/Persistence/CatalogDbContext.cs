@@ -1,5 +1,6 @@
 using BirraPoint.Api.Common.Persistence;
 using BirraPoint.Api.Modules.Catalog.Domain;
+using BirraPoint.Common.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Modules.Catalog.Persistence;

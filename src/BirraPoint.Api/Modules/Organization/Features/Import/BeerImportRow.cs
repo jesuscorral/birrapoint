@@ -1,5 +1,5 @@
-using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Common.Domain;
 
 namespace BirraPoint.Api.Modules.Organization.Features.Import;
 

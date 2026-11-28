@@ -1,10 +1,10 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Modules.Organization.Contracts;
-using BirraPoint.Api.Modules.Organization.Contracts.IntegrationEvents;
 using BirraPoint.Api.Modules.Organization.Errors;
 using BirraPoint.Api.Modules.Organization.Features.Judges.CommonComponents.Dtos;
 using BirraPoint.Api.Modules.Organization.Integration;
 using BirraPoint.Api.Modules.Organization.Persistence;
+using BirraPoint.Contracts.Organization;
+using BirraPoint.Contracts.Organization.IntegrationEvents;
 using BuildingBlocks.Identity;
 using BuildingBlocks.Keycloak.Admin;
 using BuildingBlocks.Messaging;

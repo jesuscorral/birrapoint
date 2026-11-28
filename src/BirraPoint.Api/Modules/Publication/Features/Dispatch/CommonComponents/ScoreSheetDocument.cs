@@ -1,5 +1,5 @@
 using System.Globalization;
-using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
+using BirraPoint.Contracts.Judging.Dtos;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;

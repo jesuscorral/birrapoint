@@ -1,5 +1,5 @@
 using System.Text.Json;
-using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
+using BirraPoint.Contracts.Judging.Dtos;
 
 namespace BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 

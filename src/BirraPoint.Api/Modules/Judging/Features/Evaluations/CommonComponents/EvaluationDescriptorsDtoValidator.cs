@@ -1,5 +1,5 @@
-using BirraPoint.Api.Modules.Judging.Contracts.Dtos;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents.Dtos;
+using BirraPoint.Contracts.Judging.Dtos;
 using FluentValidation;
 
 namespace BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;

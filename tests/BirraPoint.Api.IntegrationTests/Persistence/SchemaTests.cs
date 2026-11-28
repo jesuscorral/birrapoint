@@ -1,8 +1,8 @@
 using BirraPoint.Api.IntegrationTests.TestHost;
 using BirraPoint.Api.Modules.Catalog.Domain;
 using BirraPoint.Api.Modules.Judging.Domain;
-using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Modules.Organization.Domain;
+using BirraPoint.Contracts.Organization;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Testcontainers.PostgreSql;

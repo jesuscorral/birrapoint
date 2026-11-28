@@ -1,5 +1,5 @@
 using System.Reflection;
-using BirraPoint.Api.Realtime;
+using BirraPoint.Common.Realtime;
 
 namespace BirraPoint.Api.UnitTests.Realtime;
 

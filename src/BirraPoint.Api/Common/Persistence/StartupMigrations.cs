@@ -1,3 +1,4 @@
+using BirraPoint.Common.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace BirraPoint.Api.Common.Persistence;

@@ -1,5 +1,5 @@
-using BirraPoint.Api.Modules.Judging.Contracts.IntegrationEvents;
-using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Contracts.Judging.IntegrationEvents;
+using BirraPoint.Contracts.Organization;
 using BuildingBlocks.Messaging;
 
 namespace BirraPoint.Api.Modules.Organization.Integration;

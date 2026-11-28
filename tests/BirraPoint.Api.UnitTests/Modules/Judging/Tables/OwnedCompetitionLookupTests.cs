@@ -1,5 +1,5 @@
 using BirraPoint.Api.Modules.Judging.Features.Tables.CommonComponents;
-using BirraPoint.Api.Modules.Organization.Contracts;
+using BirraPoint.Contracts.Organization;
 using BuildingBlocks.Identity;
 
 namespace BirraPoint.Api.UnitTests.Modules.Judging.Tables;

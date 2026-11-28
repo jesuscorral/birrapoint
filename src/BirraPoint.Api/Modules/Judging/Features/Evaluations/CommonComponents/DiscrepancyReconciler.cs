@@ -1,7 +1,7 @@
 using BirraPoint.Api.Common.Persistence;
-using BirraPoint.Api.Domain;
 using BirraPoint.Api.Modules.Judging.Domain;
 using BirraPoint.Api.Modules.Judging.Persistence;
+using BirraPoint.Common.Domain;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 

@@ -4,8 +4,8 @@ using BirraPoint.Api.Modules.Judging.Errors;
 using BirraPoint.Api.Modules.Judging.Features.Evaluations.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Features.TastingOrder.CommonComponents;
 using BirraPoint.Api.Modules.Judging.Persistence;
-using BirraPoint.Api.Modules.Organization.Contracts;
 using BirraPoint.Api.Realtime;
+using BirraPoint.Contracts.Organization;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
